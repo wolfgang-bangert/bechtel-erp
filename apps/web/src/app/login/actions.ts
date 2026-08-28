@@ -16,7 +16,17 @@ export async function signIn(
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { error: "Anmeldung fehlgeschlagen." };
+  if (error) {
+    const m = error.message.toLowerCase();
+    if (m.includes("invalid login credentials"))
+      return { error: "E-Mail oder Passwort falsch." };
+    if (m.includes("email not confirmed"))
+      return {
+        error:
+          "E-Mail noch nicht bestaetigt. Im Supabase-Dashboard beim Benutzer 'Confirm user' waehlen.",
+      };
+    return { error: `Anmeldung fehlgeschlagen: ${error.message}` };
+  }
 
   revalidatePath("/", "layout");
   redirect("/einstellungen");
