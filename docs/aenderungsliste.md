@@ -24,6 +24,10 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
 - [ ] **Stammdaten-Konsolidierung** Keyline + Ninox + Xano → `organization`.
   Dublettenkriterium: USt-IdNr, sonst Name + PLZ? Gibt es eine „Leit-Liste"?
   (Plan in `architektur.md` §5a — bauen in Slice 2.)
+- [ ] **Slice 2 weiter:** Keyline-Adressen + Kontakte + Aufträge/Rechnungen
+  spiegeln; Ninox (API-Key klären); Xano-Einmalimport.
+- [ ] **11 Keyline-Nummern-Kollisionen** (doppelte Debitor-/Kreditornummern in
+  Keyline) bereinigen — Liste im Sync-Log / `external_sync_state.error`.
 - [ ] **SKR03-Konten & Steuerschlüssel** vom Steuerberater bestätigen lassen
   (Seed-Werte sind ein Vorschlag, im Admin erweiterbar).
 - [ ] **DATEV**: Berater-/Mandantennummer, Sachkonto-Länge (4 vs. 8 Stellen),
@@ -61,3 +65,7 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
 - [x] **Slice 1b: `apps/web` (Next.js) — Login + kompletter Einstellungsbereich:
   Sachkonten, Steuerschlüssel, Kostenstellen, Nummernkreise, Firmenprofil.
   Build grün. pnpm-Workspace aktiv.**
+- [x] **Slice 2 (Teil 1): `services/sync` — 2451 Keyline-Organisationen nach
+  `organization` + `organization_external_ref` gespiegelt** (`is_authoritative`,
+  `metadata` mit keyline_reference/debitor/creditor/locale). Migration
+  `20260828130000_external_ref_metadata.sql`. Lauf: `pnpm --filter sync keyline:orgs`.
