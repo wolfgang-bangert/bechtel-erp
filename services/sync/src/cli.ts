@@ -2,6 +2,7 @@ import { syncKeylineOrganizations } from "./syncKeylineOrganizations";
 import { syncKeylineAddresses } from "./syncKeylineAddresses";
 import { syncNinoxFirmen } from "./syncNinoxFirmen";
 import { syncNinoxPeople } from "./syncNinoxPeople";
+import { dedupeReport } from "./dedupeReport";
 import { supabase } from "./supabase";
 
 const cmd = process.argv[2] ?? "";
@@ -61,6 +62,17 @@ async function main() {
           `ohne Firma ${r.orphans}, leer ${r.empty}` +
           (dryRun ? "  (DRY RUN)" : ""),
       );
+      break;
+    }
+    case "dedupe:orgs": {
+      console.log("Dubletten-Report Organisationen (nur lesen) …");
+      const r = await dedupeReport();
+      console.log(
+        `\n${r.orgs} Organisationen — ${r.groups} Verdachtsgruppen ` +
+          `(${r.highConfidence} mit hoher Konfidenz), ${r.involved} Orgs betroffen`,
+      );
+      console.log("nach Typ:", r.byType);
+      console.log(`CSV: ${r.file}`);
       break;
     }
     default:

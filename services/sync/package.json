@@ -8,7 +8,8 @@
     "keyline:addresses": "tsx src/cli.ts keyline:addresses",
     "ninox:firmen": "tsx src/cli.ts ninox:firmen",
     "ninox:people": "tsx src/cli.ts ninox:people",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dedupe:orgs": "tsx src/cli.ts dedupe:orgs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",

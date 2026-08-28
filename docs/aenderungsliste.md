@@ -28,6 +28,13 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Migration `20260828140000`. Retry/Backoff bei Keyline-429 eingebaut.
 - [x] **Ninox-Kontakte:** 2354 `contact`-Zeilen (`source='ninox'`),
   Migration `20260828150000`. 198 Personen ohne auffindbare Firma übersprungen.
+- [x] **Dubletten-Report** (`pnpm --filter sync dedupe:orgs`, nur lesen → CSV in
+  `reports/`): 3906 Orgs, 599 Verdachtsgruppen, davon 25 mit hoher Konfidenz
+  (23 Name+PLZ, meist akzidenz×kalender-Paare, die die Konsolidierung nicht per
+  keylineOrgId gefunden hat; 2 über USt-IdNr).
+- [ ] **Merge-Routine** bauen: überlebende Org bestimmen (Keyline vor Ninox),
+  external_refs/address/contact/(später Aufträge/Rechnungen) umhängen, Verlierer
+  entfernen. Erst high-confidence, mit Review.
 - [ ] **Slice 2 weiter:** Aufträge + Rechnungen (Keyline & Ninox) spiegeln;
   Keyline-Kontakte (nur über Aufträge verfügbar); Xano-Einmalimport.
 - [ ] **~43 Nummern-Kollisionen** bereinigen (11 Keyline + 32 Ninox, überwiegend

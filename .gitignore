@@ -27,3 +27,6 @@ package-lock.json
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Sync-Reports (generiert)
+reports/*.csv
