@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { fmtDate, fmtEur } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -18,26 +19,40 @@ export default async function OrganisationDetail({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: org, error }, { data: refs }, { data: addresses }, { data: contacts }] =
-    await Promise.all([
-      supabase
-        .from("organization")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle(),
-      supabase
-        .from("organization_external_ref")
-        .select("system, external_id, is_authoritative, synced_at, metadata")
-        .eq("organization_id", id),
-      supabase
-        .from("address")
-        .select("kind, is_default, line1, line2, zip, city, country")
-        .eq("organization_id", id),
-      supabase
-        .from("contact")
-        .select("first_name, last_name, email, phone, position, is_primary")
-        .eq("organization_id", id),
-    ]);
+  const [
+    { data: org, error },
+    { data: refs },
+    { data: addresses },
+    { data: contacts },
+    { data: orders, count: orderCount },
+    { data: invoices, count: invoiceCount },
+  ] = await Promise.all([
+    supabase.from("organization").select("*").eq("id", id).maybeSingle(),
+    supabase
+      .from("organization_external_ref")
+      .select("system, external_id, is_authoritative, synced_at, metadata")
+      .eq("organization_id", id),
+    supabase
+      .from("address")
+      .select("kind, is_default, line1, line2, zip, city, country")
+      .eq("organization_id", id),
+    supabase
+      .from("contact")
+      .select("first_name, last_name, email, phone, position, is_primary")
+      .eq("organization_id", id),
+    supabase
+      .from("sales_order")
+      .select("id, order_number, order_date, state, net_total, source", { count: "exact" })
+      .eq("organization_id", id)
+      .order("order_date", { ascending: false, nullsFirst: false })
+      .limit(8),
+    supabase
+      .from("sales_invoice")
+      .select("id, invoice_number, invoice_date, gross_total, kind, source", { count: "exact" })
+      .eq("organization_id", id)
+      .order("invoice_date", { ascending: false, nullsFirst: false })
+      .limit(8),
+  ]);
 
   if (error) {
     return <div className="banner-err">Fehler: {error.message}</div>;
@@ -141,6 +156,59 @@ export default async function OrganisationDetail({
               <span className="count">{c.email || ""}</span>
               <span className="count">{c.phone || ""}</span>
               {c.is_primary && <span className="tag">primär</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <h2>
+        Aufträge{" "}
+        <span className="count" style={{ fontWeight: 400 }}>
+          ({orderCount ?? 0})
+        </span>
+      </h2>
+      {(orders ?? []).length === 0 ? (
+        <p className="lead">Keine.</p>
+      ) : (
+        <div className="rows">
+          {(orders ?? []).map((o) => (
+            <div className="row" key={o.id}>
+              <span className="w-code">
+                <Link href={`/auftraege/${o.id}`}>{o.order_number ?? o.id.slice(0, 8)}</Link>
+              </span>
+              <span>{fmtDate(o.order_date)}</span>
+              <span className="count">{o.state ?? ""}</span>
+              <span className="count" style={{ marginLeft: "auto" }}>{fmtEur(o.net_total)}</span>
+              <span className="tag">{o.source}</span>
+            </div>
+          ))}
+          {(orderCount ?? 0) > 8 && (
+            <Link href={`/auftraege?q=`}>alle {orderCount} Aufträge …</Link>
+          )}
+        </div>
+      )}
+
+      <h2>
+        Rechnungen{" "}
+        <span className="count" style={{ fontWeight: 400 }}>
+          ({invoiceCount ?? 0})
+        </span>
+      </h2>
+      {(invoices ?? []).length === 0 ? (
+        <p className="lead">Keine.</p>
+      ) : (
+        <div className="rows">
+          {(invoices ?? []).map((inv) => (
+            <div className="row" key={inv.id}>
+              <span className="w-code">
+                <Link href={`/rechnungen/${inv.id}`}>
+                  {inv.invoice_number ?? inv.id.slice(0, 8)}
+                </Link>
+              </span>
+              <span>{fmtDate(inv.invoice_date)}</span>
+              {inv.kind === "credit_note" && <span className="tag">Gutschrift</span>}
+              <span className="count" style={{ marginLeft: "auto" }}>{fmtEur(inv.gross_total)}</span>
+              <span className="tag">{inv.source}</span>
             </div>
           ))}
         </div>
