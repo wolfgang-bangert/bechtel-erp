@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "keyline:orgs": "tsx src/cli.ts keyline:orgs",
+    "ninox:firmen": "tsx src/cli.ts ninox:firmen",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

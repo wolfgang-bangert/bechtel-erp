@@ -195,12 +195,15 @@ export async function syncKeylineOrganizations(opts: Options = {}) {
   }
 
   for (const part of chunk(toUpdate, 100)) {
-    const { error } = await supabase
-      .from("organization")
-      .upsert(
-        part.map((p) => ({ id: p.orgId, ...p.fields })),
-        { onConflict: "id" },
-      );
+    // customer_segment NICHT überschreiben — eine Org kann inzwischen 'mixed'
+    // (auch in Ninox) sein; das setzt nur der Erst-Insert bzw. der Ninox-Sync.
+    const { error } = await supabase.from("organization").upsert(
+      part.map((p) => {
+        const { customer_segment: _seg, ...rest } = p.fields;
+        return { id: p.orgId, ...rest };
+      }),
+      { onConflict: "id" },
+    );
     if (error) throw new Error(`organization aktualisieren: ${error.message}`);
 
     const { error: e2 } = await supabase.from("organization_external_ref").upsert(

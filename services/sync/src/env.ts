@@ -23,4 +23,11 @@ export const env = {
     "",
   ),
   keylineKey: required("KEYLINE_API_KEY"),
+  ninox: {
+    base: () => required("NINOX_API_BASE").replace(/\/+$/, ""),
+    key: () => required("NINOX_API_KEY"),
+    team: () => required("NINOX_TEAM_ID"),
+    database: () => required("NINOX_DATABASE_ID"),
+    customerTableId: () => (process.env.NINOX_CUSTOMER_TABLE_ID || "L").trim(),
+  },
 };

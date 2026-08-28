@@ -24,10 +24,13 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
 - [ ] **Stammdaten-Konsolidierung** Keyline + Ninox + Xano → `organization`.
   Dublettenkriterium: USt-IdNr, sonst Name + PLZ? Gibt es eine „Leit-Liste"?
   (Plan in `architektur.md` §5a — bauen in Slice 2.)
-- [ ] **Slice 2 weiter:** Keyline-Adressen + Kontakte + Aufträge/Rechnungen
-  spiegeln; Ninox (API-Key klären); Xano-Einmalimport.
-- [ ] **11 Keyline-Nummern-Kollisionen** (doppelte Debitor-/Kreditornummern in
-  Keyline) bereinigen — Liste im Sync-Log / `external_sync_state.error`.
+- [ ] **Slice 2 weiter:** Adressen (`address`) + Kontakte aus Keyline und Ninox
+  (`people`) spiegeln; Aufträge/Rechnungen; Xano-Einmalimport.
+- [ ] **~43 Nummern-Kollisionen** bereinigen (11 Keyline + 32 Ninox, überwiegend
+  Kreditornummern 70xxx, die in beiden Systemen für vermutlich denselben
+  Lieferanten stehen). Liste im Sync-Log.
+- [ ] Entscheidung: bei `mixed`-Orgs bleibt **Keyline führend** — ok so, oder soll
+  bei Kalender-Bezug Ninox gewinnen?
 - [ ] **SKR03-Konten & Steuerschlüssel** vom Steuerberater bestätigen lassen
   (Seed-Werte sind ein Vorschlag, im Admin erweiterbar).
 - [ ] **DATEV**: Berater-/Mandantennummer, Sachkonto-Länge (4 vs. 8 Stellen),
@@ -70,5 +73,10 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   `metadata` mit keyline_reference/debitor/creditor/locale). Migration
   `20260828130000_external_ref_metadata.sql`. Lauf: `pnpm --filter sync keyline:orgs`.
 - [x] **`apps/web` /organisationen: Liste (Suche, Filter, Pagination) + Detailansicht.**
-- [ ] Ninox weiterhin blockiert: 401 auch mit zweitem Key auf `/v1/teams` →
-  Public-API im Ninox-Konto nicht freigeschaltet (Plan/Toggle prüfen).
+- [x] **Ninox gelöst:** Private Cloud, Host `bangert.ninoxdb.de` (nicht `.com`).
+- [x] **Slice 2 (Teil 2): Ninox-Firmen gespiegelt + mit Keyline konsolidiert.**
+  3208 Firmen → 1455 neue Kalenderkunden + 1753 mit bestehender Org verknüpft
+  (1700 über `keylineOrgId`, 52 Debitornr, 1 USt-IdNr). Gesamt jetzt **3906
+  Organisationen** (740 akzidenz / 1455 kalender / 1711 mixed). 32 Nummern-
+  Kollisionen geloggt. `keyline:orgs` überschreibt `customer_segment` nicht mehr.
+  Lauf: `pnpm --filter sync ninox:firmen`.

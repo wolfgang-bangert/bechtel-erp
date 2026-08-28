@@ -9,10 +9,12 @@ Konfiguration: `.env` im Repo-Wurzelverzeichnis
 ## Befehle
 
 ```bash
-pnpm --filter sync keyline:orgs --dry-run   # nur zählen, nichts schreiben
-pnpm --filter sync keyline:orgs             # spiegeln
+pnpm --filter sync keyline:orgs [--dry-run]   # Keyline-Organisationen spiegeln
+pnpm --filter sync ninox:firmen [--dry-run]   # Ninox-Firmen spiegeln + konsolidieren
 pnpm --filter sync typecheck
 ```
+
+Beide Läufe sind idempotent und in beliebiger Reihenfolge / wiederholt ausführbar.
 
 ## Keyline → Organisationen
 
@@ -24,6 +26,20 @@ pnpm --filter sync typecheck
 - Idempotent: neue Keyline-IDs werden angelegt, bekannte aktualisiert
 - Fortschritt/Status in `external_sync_state` (`system='keyline'`, `resource='organizations'`)
 
-Noch nicht abgebildet: Keyline-`reference` (Kurzcode), Adressen, Kontakte,
-Aufträge, Rechnungen — folgen als eigene Sync-Schritte. Dublettenabgleich mit
-Ninox/Xano ist ein separater Konsolidierungsschritt.
+## Ninox → Firmen (Kalenderkunden, Private Cloud)
+
+- Quelle: Tabelle `L` „Firmen" der Ninox-DB (`bangert.ninoxdb.de`)
+- **Konsolidierung** je Firma, in dieser Reihenfolge:
+  1. bereits als `ninox`-Ref vorhanden → dieselbe Org
+  2. `keylineOrgId` trifft eine bestehende `keyline`-Ref → **zusammenführen**
+     (`customer_segment = 'mixed'`, Keyline bleibt führend, nur leere Felder ergänzt)
+  3. `Debitorennummer` == `organization.customer_number` → zusammenführen
+  4. `UST-ID` == `organization.vat_id` → zusammenführen
+  5. sonst **neu** als `customer_segment = 'kalender'`, `ninox`-Ref führend
+- `metadata` der Ref: Ninox-Kundennummer, Quelle, keyline_referenz, Rechnungs-Mail,
+  Steuernummer, IBAN, Adresse (`Straße`/`PLZ`/`Ort`)
+- Nummern-Kollisionen (Debitor/Kreditor bereits von anderer Org belegt) werden
+  geloggt, die Nummer nicht übernommen
+
+Noch nicht abgebildet: Adressen als eigene `address`-Zeilen, Kontakte (`people`),
+Aufträge, Rechnungen; Xano-Einmalimport.
