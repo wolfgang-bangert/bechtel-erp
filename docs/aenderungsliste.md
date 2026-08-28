@@ -58,6 +58,6 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
 - [x] Slice 1: Fundament-Schema (`20260828120000_foundation.sql`) inkl. Runde-1-Änderungen.
 - [x] Supabase-CLI (2.116) via npm in `packages/db`; `werk-dev` (Ref `mxdxgqmfnnxupsvtgvsb`) verbunden.
 - [x] **2026-08-28: Migration nach `werk-dev` gepusht — Schema steht.**
-- [x] **Slice 1b: `apps/web` (Next.js) — Login + Kontenverwaltung (Sachkonten,
-  Steuerschlüssel). Build grün. pnpm-Workspace aktiv.**
-- [ ] Slice 1b Rest: Kostenstellen, Nummernkreise, Firmenprofil bearbeitbar machen.
+- [x] **Slice 1b: `apps/web` (Next.js) — Login + kompletter Einstellungsbereich:
+  Sachkonten, Steuerschlüssel, Kostenstellen, Nummernkreise, Firmenprofil.
+  Build grün. pnpm-Workspace aktiv.**

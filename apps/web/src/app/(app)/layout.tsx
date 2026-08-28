@@ -18,9 +18,9 @@ export default async function AppLayout({
         <Link href="/einstellungen">Übersicht</Link>
         <Link href="/einstellungen/sachkonten">Sachkonten</Link>
         <Link href="/einstellungen/steuerschluessel">Steuerschlüssel</Link>
-        <span className="nav-disabled">Kostenstellen · folgt</span>
-        <span className="nav-disabled">Nummernkreise · folgt</span>
-        <span className="nav-disabled">Firmenprofil · folgt</span>
+        <Link href="/einstellungen/kostenstellen">Kostenstellen</Link>
+        <Link href="/einstellungen/nummernkreise">Nummernkreise</Link>
+        <Link href="/einstellungen/firmenprofil">Firmenprofil</Link>
 
         <div className="spacer" />
 
