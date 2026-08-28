@@ -1,0 +1,20 @@
+{
+  "name": "@werk/db",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "sb": "supabase",
+    "start": "supabase start",
+    "stop": "supabase stop",
+    "reset": "supabase db reset",
+    "push": "supabase db push",
+    "pull": "supabase db pull",
+    "diff": "supabase db diff -f",
+    "new": "supabase migration new",
+    "status": "supabase migration list",
+    "gen:types": "supabase gen types typescript --linked > ../shared/src/database.types.ts"
+  },
+  "devDependencies": {
+    "supabase": "^2"
+  }
+}

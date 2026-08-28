@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+.next/
+.expo/
+coverage/
+
+# Env / Secrets
+.env
+.env.*
+!.env.example
+
+# Supabase
+packages/db/supabase/.branches/
+packages/db/supabase/.temp/
+packages/db/supabase/.env
+
+# npm
+package-lock.json
+
+# OS / Editor
+.DS_Store
+*.log
+.idea/
+.vscode/*
+!.vscode/extensions.json

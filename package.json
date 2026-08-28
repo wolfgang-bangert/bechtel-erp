@@ -1,0 +1,18 @@
+{
+  "name": "werk",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "db:reset": "pnpm --filter @werk/db reset",
+    "db:push": "pnpm --filter @werk/db push",
+    "db:diff": "pnpm --filter @werk/db diff",
+    "gen:types": "pnpm --filter @werk/db gen:types"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}
