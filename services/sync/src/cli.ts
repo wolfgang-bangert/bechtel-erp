@@ -4,6 +4,7 @@ import { syncNinoxFirmen } from "./syncNinoxFirmen";
 import { syncNinoxPeople } from "./syncNinoxPeople";
 import { syncNinoxAddresses } from "./syncNinoxAddresses";
 import { dedupeReport } from "./dedupeReport";
+import { dedupeMerge } from "./mergeOrganizations";
 import { supabase } from "./supabase";
 
 const cmd = process.argv[2] ?? "";
@@ -82,6 +83,22 @@ async function main() {
       console.log(`CSV: ${r.file}`);
       break;
     }
+    case "dedupe:merge": {
+      const flagVal = (name: string): string | undefined => {
+        const p = process.argv.find((a) => a.startsWith(name + "="));
+        return p ? p.split("=")[1] : undefined;
+      };
+      const conf = flagVal("--confidence") === "mittel" ? "mittel" : "hoch";
+      const excl = flagVal("--exclude"); const only = flagVal("--only");
+      console.log(`Dubletten zusammenführen (Konfidenz ${conf})${dryRun ? "  (DRY RUN)" : ""}`);
+      const r = await dedupeMerge({
+        dryRun, confidence: conf,
+        exclude: excl ? new Set(excl.split(",")) : undefined,
+        only: only ? new Set(only.split(",")) : undefined,
+      });
+      console.log(`\n${r.dryRun ? "Plan" : "Fertig"}: ${r.groups} Gruppen, ${r.merges} Zusammenführungen${"failed" in r && r.failed ? `, ${r.failed} Fehler` : ""}`);
+      break;
+    }
     default:
       console.log("Verwendung:");
       console.log("  pnpm --filter sync keyline:orgs        [--dry-run]");
@@ -89,6 +106,8 @@ async function main() {
       console.log("  pnpm --filter sync ninox:firmen        [--dry-run]");
       console.log("  pnpm --filter sync ninox:people        [--dry-run]");
       console.log("  pnpm --filter sync ninox:addresses     [--dry-run]");
+      console.log("  pnpm --filter sync dedupe:orgs");
+      console.log("  pnpm --filter sync dedupe:merge  [--dry-run] [--confidence=mittel] [--exclude=G1,G7] [--only=G12]");
       process.exit(1);
   }
 }

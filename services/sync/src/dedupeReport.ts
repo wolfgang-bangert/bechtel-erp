@@ -3,8 +3,8 @@ import { fileURLToPath } from "node:url";
 import { supabase } from "./supabase";
 
 /* --------------------------------------------------------------------------
- * Reiner Report: findet wahrscheinliche Dubletten unter den Organisationen.
- * Schreibt NICHTS in die Datenbank. Ergebnis als CSV in reports/.
+ * Findet wahrscheinliche Dubletten unter den Organisationen (read-only).
+ * findDuplicateGroups() liefert die Gruppen; dedupeReport() schreibt CSV.
  * -------------------------------------------------------------------------- */
 
 const LEGAL = new Set([
@@ -27,10 +27,11 @@ function normName(name: string): string {
     .replace(/[.,/&+\-–—()"'`|]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  const tokens = base
+  return base
     .split(" ")
-    .filter((t) => t && !LEGAL.has(t) && !/^\d{1,3}$/.test(t));
-  return tokens.join(" ").trim();
+    .filter((t) => t && !LEGAL.has(t) && !/^\d{1,3}$/.test(t))
+    .join(" ")
+    .trim();
 }
 
 async function pagedSelect<T>(table: string, columns: string): Promise<T[]> {
@@ -50,35 +51,47 @@ async function pagedSelect<T>(table: string, columns: string): Promise<T[]> {
   return out;
 }
 
-type Org = {
+export type DupeRow = {
   id: string;
   name: string;
   customer_segment: string | null;
   customer_number: string | null;
   supplier_number: string | null;
   vat_id: string | null;
-};
-
-type Row = Org & {
+  created_at: string;
   norm: string;
   zip: string;
   systems: string;
 };
 
-function csvCell(v: unknown): string {
-  const s = v == null ? "" : String(v);
-  return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
+export type DupeGroup = {
+  key: string;
+  type: "USt-IdNr" | "Name+PLZ" | "Name" | "Nummer-Verweis";
+  confidence: "hoch" | "mittel" | "niedrig";
+  members: DupeRow[];
+};
 
-export async function dedupeReport() {
-  const orgs = await pagedSelect<Org>(
+export async function findDuplicateGroups(): Promise<{
+  groups: DupeGroup[];
+  orgCount: number;
+}> {
+  const orgs = await pagedSelect<{
+    id: string;
+    name: string;
+    customer_segment: string | null;
+    customer_number: string | null;
+    supplier_number: string | null;
+    vat_id: string | null;
+    created_at: string;
+  }>(
     "organization",
-    "id, name, customer_segment, customer_number, supplier_number, vat_id",
+    "id, name, customer_segment, customer_number, supplier_number, vat_id, created_at",
   );
-  const addrs = await pagedSelect<{ organization_id: string; zip: string | null; is_default: boolean }>(
-    "address",
-    "organization_id, zip, is_default",
-  );
+  const addrs = await pagedSelect<{
+    organization_id: string;
+    zip: string | null;
+    is_default: boolean;
+  }>("address", "organization_id, zip, is_default");
   const refs = await pagedSelect<{
     organization_id: string;
     system: string;
@@ -102,71 +115,73 @@ export async function dedupeReport() {
     }
   }
 
-  const rows: Row[] = orgs.map((o) => ({
+  const rows: DupeRow[] = orgs.map((o) => ({
     ...o,
     norm: normName(o.name),
     zip: zipByOrg.get(o.id) ?? "",
     systems: [...(sysByOrg.get(o.id) ?? [])].sort().join("+") || "werk",
   }));
+  const rowById = new Map(rows.map((r) => [r.id, r]));
 
-  type Group = { key: string; type: string; confidence: string; members: Row[] };
-  const groups: Group[] = [];
-  const seenPair = new Set<string>();
-
-  const addGroup = (key: string, type: string, confidence: string, members: Row[]) => {
+  const groups: DupeGroup[] = [];
+  const seen = new Set<string>();
+  const addGroup = (
+    key: string,
+    type: DupeGroup["type"],
+    confidence: DupeGroup["confidence"],
+    members: DupeRow[],
+  ) => {
     if (members.length < 2) return;
-    const sig = members.map((m) => m.id).sort().join("|");
-    const tag = `${type}:${sig}`;
-    if (seenPair.has(tag)) return;
-    seenPair.add(tag);
+    const tag = `${type}:${members.map((m) => m.id).sort().join("|")}`;
+    if (seen.has(tag)) return;
+    seen.add(tag);
     groups.push({ key, type, confidence, members });
   };
+  const bucket = <T>(m: Map<string, T[]>, k: string, v: T) => {
+    const arr = m.get(k) ?? [];
+    arr.push(v);
+    m.set(k, arr);
+  };
 
-  // 1) gleiche USt-IdNr — "hoch" nur, wenn die bekannten PLZ übereinstimmen.
-  //    Mehrere verschiedene PLZ = geteilte Konzern-/Franchise-USt-IdNr
-  //    (z. B. Esso-/Shell-Tankstellen), keine Dublette -> "niedrig".
-  const byVat = new Map<string, Row[]>();
+  // 1) gleiche USt-IdNr — "hoch" nur bei übereinstimmender PLZ (sonst Franchise)
+  const byVat = new Map<string, DupeRow[]>();
   for (const r of rows) {
     const v = (r.vat_id || "").toUpperCase().replace(/\s+/g, "");
-    if (v.length < 6) continue;
-    (byVat.get(v) ?? byVat.set(v, []).get(v)!).push(r);
+    if (v.length >= 6) bucket(byVat, v, r);
   }
   for (const [v, m] of byVat) {
     const zips = new Set(m.map((x) => x.zip).filter(Boolean));
     addGroup(v, "USt-IdNr", zips.size > 1 ? "niedrig" : "hoch", m);
   }
 
-  // 2) gleicher normalisierter Name + PLZ
-  const byNameZip = new Map<string, Row[]>();
+  // 2) Name + PLZ
+  const byNameZip = new Map<string, DupeRow[]>();
   for (const r of rows) {
-    if (!r.norm || !r.zip) continue;
-    const k = `${r.norm}##${r.zip}`;
-    (byNameZip.get(k) ?? byNameZip.set(k, []).get(k)!).push(r);
+    if (r.norm && r.zip) bucket(byNameZip, `${r.norm}##${r.zip}`, r);
   }
   for (const [k, m] of byNameZip) addGroup(k, "Name+PLZ", "hoch", m);
 
-  // 3) gleicher normalisierter Name (ohne PLZ-Bestätigung)
-  const byName = new Map<string, Row[]>();
-  for (const r of rows) {
-    if (r.norm.length < 4) continue;
-    (byName.get(r.norm) ?? byName.set(r.norm, []).get(r.norm)!).push(r);
-  }
+  // 3) nur Name
+  const byName = new Map<string, DupeRow[]>();
+  for (const r of rows) if (r.norm.length >= 4) bucket(byName, r.norm, r);
   for (const [k, m] of byName) addGroup(k, "Name", "mittel", m);
 
-  // 4) Debitornummer einer Org == Debitornummer-Metadatum einer anderen Org
-  const custNoToOrg = new Map<string, Row>();
+  // 4) Debitor/Kreditor-Nummer einer Org == metadata-Nummer einer anderen
+  const custNoToOrg = new Map<string, DupeRow>();
   for (const r of rows) if (r.customer_number) custNoToOrg.set(r.customer_number, r);
-  const refByOrg = new Map<string, Record<string, unknown>>();
-  for (const r of refs) if (r.metadata) refByOrg.set(r.organization_id, r.metadata);
-  const rowById = new Map(rows.map((r) => [r.id, r]));
+  const mdByOrg = new Map<string, Record<string, unknown>>();
+  for (const r of refs) if (r.metadata) mdByOrg.set(r.organization_id, r.metadata);
   for (const r of rows) {
-    const md = refByOrg.get(r.id);
+    const md = mdByOrg.get(r.id);
     for (const key of ["keyline_debitor", "keyline_creditor"]) {
       const num = md?.[key];
       if (!num) continue;
       const other = custNoToOrg.get(String(num));
       if (other && other.id !== r.id) {
-        addGroup(String(num), "Nummer-Verweis", "mittel", [r, other].map((x) => rowById.get(x.id)!));
+        addGroup(String(num), "Nummer-Verweis", "mittel", [
+          rowById.get(r.id)!,
+          rowById.get(other.id)!,
+        ]);
       }
     }
   }
@@ -175,28 +190,35 @@ export async function dedupeReport() {
   groups.sort(
     (a, b) => rank(a.confidence) - rank(b.confidence) || b.members.length - a.members.length,
   );
+  return { groups, orgCount: orgs.length };
+}
 
-  // CSV
+function csvCell(v: unknown): string {
+  const s = v == null ? "" : String(v);
+  return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+export async function dedupeReport() {
+  const { groups, orgCount } = await findDuplicateGroups();
+
   const header = [
     "gruppe", "typ", "konfidenz", "anzahl",
     "org_id", "name", "segment", "debitor", "kreditor", "ust_id", "plz", "quellen",
   ];
   const lines = [header.join(";")];
-  let groupNo = 0;
   const involved = new Set<string>();
-  for (const g of groups) {
-    groupNo += 1;
+  groups.forEach((g, i) => {
     for (const m of g.members) {
       involved.add(m.id);
       lines.push(
         [
-          `G${groupNo}`, g.type, g.confidence, g.members.length,
+          `G${i + 1}`, g.type, g.confidence, g.members.length,
           m.id, m.name, m.customer_segment ?? "", m.customer_number ?? "",
           m.supplier_number ?? "", m.vat_id ?? "", m.zip, m.systems,
         ].map(csvCell).join(";"),
       );
     }
-  }
+  });
 
   const dir = fileURLToPath(new URL("../../../reports/", import.meta.url));
   mkdirSync(dir, { recursive: true });
@@ -208,7 +230,7 @@ export async function dedupeReport() {
   for (const g of groups) byType[g.type] = (byType[g.type] ?? 0) + 1;
 
   return {
-    orgs: orgs.length,
+    orgs: orgCount,
     groups: groups.length,
     involved: involved.size,
     byType,
