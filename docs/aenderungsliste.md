@@ -69,3 +69,6 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   `organization` + `organization_external_ref` gespiegelt** (`is_authoritative`,
   `metadata` mit keyline_reference/debitor/creditor/locale). Migration
   `20260828130000_external_ref_metadata.sql`. Lauf: `pnpm --filter sync keyline:orgs`.
+- [x] **`apps/web` /organisationen: Liste (Suche, Filter, Pagination) + Detailansicht.**
+- [ ] Ninox weiterhin blockiert: 401 auch mit zweitem Key auf `/v1/teams` →
+  Public-API im Ninox-Konto nicht freigeschaltet (Plan/Toggle prüfen).
