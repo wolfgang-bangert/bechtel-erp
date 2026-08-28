@@ -11,7 +11,11 @@
     "typecheck": "tsc --noEmit",
     "dedupe:orgs": "tsx src/cli.ts dedupe:orgs",
     "ninox:addresses": "tsx src/cli.ts ninox:addresses",
-    "dedupe:merge": "tsx src/cli.ts dedupe:merge"
+    "dedupe:merge": "tsx src/cli.ts dedupe:merge",
+    "keyline:orders": "tsx src/cli.ts keyline:orders",
+    "keyline:invoices": "tsx src/cli.ts keyline:invoices",
+    "ninox:orders": "tsx src/cli.ts ninox:orders",
+    "ninox:invoices": "tsx src/cli.ts ninox:invoices"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",

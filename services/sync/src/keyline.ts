@@ -82,6 +82,27 @@ export async function fetchKeylineOrganizations(
   }
 }
 
+/** Generischer seitenweiser Abruf einer Keyline-Listen-Ressource. */
+export async function fetchKeylinePaged<T = Record<string, unknown>>(
+  path: string,
+  onPage: (rows: T[], meta: { page: number; total: number }) => Promise<void>,
+): Promise<void> {
+  let page = 1;
+  for (;;) {
+    const res = await klGet(path, { page });
+    const json = (await res.json()) as unknown;
+    if (!Array.isArray(json)) throw new Error(`Keyline: unerwartete Antwort ${path} Seite ${page}`);
+    const rows = json as T[];
+    const total = Number(res.headers.get("x-keyline-results-total") ?? rows.length);
+    const perPage = Number(
+      res.headers.get("x-keyline-results-per-page") ?? (rows.length || 1),
+    );
+    await onPage(rows, { page, total });
+    if (rows.length === 0 || page * perPage >= total) break;
+    page += 1;
+  }
+}
+
 export type KeylineAddress = {
   id: number;
   addressee: string | null;

@@ -14,7 +14,12 @@ pnpm --filter sync keyline:addresses  [--dry-run]   # Keyline-Hauptadressen
 pnpm --filter sync ninox:firmen       [--dry-run]   # Ninox-Firmen + Konsolidierung
 pnpm --filter sync ninox:addresses    [--dry-run]   # Ninox-Adressen
 pnpm --filter sync ninox:people       [--dry-run]   # Ninox-Kontakte
+pnpm --filter sync keyline:orders     [--dry-run]   # Keyline-Aufträge + Positionen
+pnpm --filter sync keyline:invoices   [--dry-run]   # Keyline-Rechnungen + Gutschriften + Positionen
+pnpm --filter sync ninox:orders       [--dry-run]   # Ninox-Aufträge + Positionen
+pnpm --filter sync ninox:invoices     [--dry-run]   # Ninox-Rechnungen + Positionen
 pnpm --filter sync dedupe:orgs                      # Dubletten-Report (CSV, read-only)
+pnpm --filter sync dedupe:merge       [--dry-run]   # Dubletten zusammenführen
 pnpm --filter sync typecheck
 ```
 
@@ -71,5 +76,21 @@ Beide Läufe sind idempotent und in beliebiger Reihenfolge / wiederholt ausführ
   `external_id='ninox:people:<id>'`). Erster Kontakt je Org wird `is_primary`.
 - Personen ohne auffindbare Firma werden übersprungen (im Sync-Status vermerkt).
 
-Noch nicht abgebildet: Keyline-Kontakte (nur über Aufträge verfügbar),
-Aufträge, Rechnungen; Xano-Einmalimport.
+## Aufträge & Rechnungen (Spiegel)
+
+Ziel-Tabellen `sales_order` / `sales_order_item` / `sales_invoice` /
+`sales_invoice_item` (Migration `20260829130000`). Geld in EUR (Keyline liefert
+Cent → /100). Volle Quell-Payload in `raw` (jsonb). Verknüpfung zur Organisation
+über die bestehenden `organization_external_ref`-Maps (nach Merge korrekt).
+
+- **Keyline:** `sales/orders` (Positionen aus `products[]`),
+  `accounting/customer_invoices` + `credit_notes` (Positionen aus
+  `raw.line_items`). Rechnungsnummer oft leer (erst bei Festschreibung in Keyline).
+- **Ninox:** Tabellen `MC`/`NC` (Aufträge/Positionen), `CE`/`DE`
+  (Rechnungen/Positionen). Rechnungs-Summen aus den Positionen gerechnet
+  (`Anzahl` × `Preis pro Einheit`, Steuer aus `Steuersatz in %`).
+- „ohne Org" = Privatkunden bzw. in keinem Fremdsystem-Ref gefunden — im
+  `external_sync_state` vermerkt.
+
+Noch nicht abgebildet: Keyline-Kontakte (nur über Aufträge verfügbar);
+Xano-Einmalimport.

@@ -43,7 +43,17 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
 - [ ] **335 mittel-konfidente Verdachtsgruppen** (Namensgleichheit ohne PLZ-
   Bestätigung, `dedupe:orgs`-CSV) — manuell sichten, echte per
   `dedupe:merge --confidence=mittel --only=Gxx` zusammenführen.
-- [ ] **Slice 2 weiter:** Aufträge + Rechnungen (Keyline & Ninox) spiegeln;
+- [x] **Aufträge + Rechnungen gespiegelt** (Migration `20260829130000`,
+  Tabellen `sales_order`/`sales_order_item`/`sales_invoice`/`sales_invoice_item`,
+  Geld in EUR, volle Quelle in `raw`):
+  - Keyline: 16.756 Aufträge (20.636 Pos.), 11.821 Rechnungen inkl. 99 Gutschriften
+    (18.552 Pos. aus `raw.line_items`)
+  - Ninox: 5.010 Aufträge (13.743 Pos.), 3.414 Rechnungen (11.704 Pos.)
+  - **Gesamt: 21.766 Aufträge · 15.235 Rechnungen · 34.379 + 30.256 Positionen**
+  - ~514 Aufträge / 71 Rechnungen ohne Org-Zuordnung (Privatkunden), in
+    `external_sync_state` vermerkt
+  - `merge_organization()` hängt jetzt auch `sales_order`/`sales_invoice` um
+- [ ] **Slice 2 offen:** UI für Aufträge/Rechnungen (Org-Detailseite + Listen);
   Keyline-Kontakte (nur über Aufträge verfügbar); Xano-Einmalimport.
 - [ ] **~43 Nummern-Kollisionen** bereinigen (11 Keyline + 32 Ninox, überwiegend
   Kreditornummern 70xxx, die in beiden Systemen für vermutlich denselben

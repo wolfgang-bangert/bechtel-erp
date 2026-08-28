@@ -3,6 +3,10 @@ import { syncKeylineAddresses } from "./syncKeylineAddresses";
 import { syncNinoxFirmen } from "./syncNinoxFirmen";
 import { syncNinoxPeople } from "./syncNinoxPeople";
 import { syncNinoxAddresses } from "./syncNinoxAddresses";
+import { syncKeylineOrders } from "./syncKeylineOrders";
+import { syncKeylineInvoices } from "./syncKeylineInvoices";
+import { syncNinoxOrders } from "./syncNinoxOrders";
+import { syncNinoxInvoices } from "./syncNinoxInvoices";
 import { dedupeReport } from "./dedupeReport";
 import { dedupeMerge } from "./mergeOrganizations";
 import { supabase } from "./supabase";
@@ -72,6 +76,44 @@ async function main() {
       );
       break;
     }
+    case "keyline:orders": {
+      console.log(`Keyline -> Supabase: Aufträge${dryRun ? "  (DRY RUN)" : ""}`);
+      const r = await syncKeylineOrders({ dryRun });
+      console.log(
+        `\nFertig. ${r.seen} Aufträge — geschrieben ${"orders" in r ? r.orders : 0}` +
+          `${"items" in r ? `, Positionen ${r.items}` : ""}, ohne Org ${r.noOrg}` +
+          (dryRun ? "  (DRY RUN)" : ""),
+      );
+      break;
+    }
+    case "keyline:invoices": {
+      console.log(`Keyline -> Supabase: Rechnungen${dryRun ? "  (DRY RUN)" : ""}`);
+      const r = await syncKeylineInvoices({ dryRun });
+      console.log(
+        `\nFertig. ${r.invoices} Rechnungen + ${r.creditNotes} Gutschriften — ` +
+          `${"written" in r ? `geschrieben ${r.written}` : ""}, ohne Org ${r.noOrg}` +
+          (dryRun ? "  (DRY RUN)" : ""),
+      );
+      break;
+    }
+    case "ninox:orders": {
+      console.log(`Ninox -> Supabase: Aufträge${dryRun ? "  (DRY RUN)" : ""}`);
+      const r = await syncNinoxOrders({ dryRun });
+      console.log(
+        `\nFertig. ${r.seen} Aufträge, ${"items" in r ? r.items : 0} Positionen, ohne Org ${r.noOrg}` +
+          (dryRun ? "  (DRY RUN)" : ""),
+      );
+      break;
+    }
+    case "ninox:invoices": {
+      console.log(`Ninox -> Supabase: Rechnungen${dryRun ? "  (DRY RUN)" : ""}`);
+      const r = await syncNinoxInvoices({ dryRun });
+      console.log(
+        `\nFertig. ${r.seen} Rechnungen, ${"items" in r ? r.items : 0} Positionen, ohne Org ${r.noOrg}` +
+          (dryRun ? "  (DRY RUN)" : ""),
+      );
+      break;
+    }
     case "dedupe:orgs": {
       console.log("Dubletten-Report Organisationen (nur lesen) …");
       const r = await dedupeReport();
@@ -106,6 +148,10 @@ async function main() {
       console.log("  pnpm --filter sync ninox:firmen        [--dry-run]");
       console.log("  pnpm --filter sync ninox:people        [--dry-run]");
       console.log("  pnpm --filter sync ninox:addresses     [--dry-run]");
+      console.log("  pnpm --filter sync keyline:orders      [--dry-run]");
+      console.log("  pnpm --filter sync keyline:invoices    [--dry-run]");
+      console.log("  pnpm --filter sync ninox:orders        [--dry-run]");
+      console.log("  pnpm --filter sync ninox:invoices      [--dry-run]");
       console.log("  pnpm --filter sync dedupe:orgs");
       console.log("  pnpm --filter sync dedupe:merge  [--dry-run] [--confidence=mittel] [--exclude=G1,G7] [--only=G12]");
       process.exit(1);
@@ -121,6 +167,10 @@ main().catch(async (err: unknown) => {
     "ninox:firmen": { system: "ninox", resource: "firmen" },
     "ninox:people": { system: "ninox", resource: "people" },
     "ninox:addresses": { system: "ninox", resource: "addresses" },
+    "keyline:orders": { system: "keyline", resource: "orders" },
+    "keyline:invoices": { system: "keyline", resource: "invoices" },
+    "ninox:orders": { system: "ninox", resource: "orders" },
+    "ninox:invoices": { system: "ninox", resource: "invoices" },
   };
   const s = map[cmd];
   if (s && !dryRun) {
