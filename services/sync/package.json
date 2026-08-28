@@ -9,7 +9,8 @@
     "ninox:firmen": "tsx src/cli.ts ninox:firmen",
     "ninox:people": "tsx src/cli.ts ninox:people",
     "typecheck": "tsc --noEmit",
-    "dedupe:orgs": "tsx src/cli.ts dedupe:orgs"
+    "dedupe:orgs": "tsx src/cli.ts dedupe:orgs",
+    "ninox:addresses": "tsx src/cli.ts ninox:addresses"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",

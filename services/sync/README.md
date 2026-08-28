@@ -12,12 +12,14 @@ Konfiguration: `.env` im Repo-Wurzelverzeichnis
 pnpm --filter sync keyline:orgs       [--dry-run]   # Keyline-Organisationen
 pnpm --filter sync keyline:addresses  [--dry-run]   # Keyline-Hauptadressen
 pnpm --filter sync ninox:firmen       [--dry-run]   # Ninox-Firmen + Konsolidierung
+pnpm --filter sync ninox:addresses    [--dry-run]   # Ninox-Adressen
 pnpm --filter sync ninox:people       [--dry-run]   # Ninox-Kontakte
+pnpm --filter sync dedupe:orgs                      # Dubletten-Report (CSV, read-only)
 pnpm --filter sync typecheck
 ```
 
 Empfohlene Reihenfolge beim Erstlauf: `keyline:orgs` → `ninox:firmen` →
-`keyline:addresses` → `ninox:people`. Alle idempotent.
+`keyline:addresses` → `ninox:addresses` → `ninox:people`. Alle idempotent.
 
 Beide Läufe sind idempotent und in beliebiger Reihenfolge / wiederholt ausführbar.
 
@@ -53,6 +55,14 @@ Beide Läufe sind idempotent und in beliebiger Reihenfolge / wiederholt ausführ
   Namensähnlichkeit, sonst die älteste). Concurrency 4, Backoff bei HTTP 429.
 - Ziel: `address` (`source='keyline'`, `external_id='keyline:<id>'`,
   `kind='general'`, erste je Org `is_default`).
+
+## Ninox → Adressen
+
+- Aus der Firmen-Tabelle: `Straße` / `Postleitzahl_old` / `Ort_old`, sonst als
+  Fallback das JSON in `res_antwort_hauptadresse` (`street`/`postalCode`/`location`).
+- Ziel: `address` (`source='ninox'`, `external_id='ninox:firmen-addr:<id>'`).
+  `is_default` nur, wenn die Org noch keine Adresse hat (Keyline-Adresse hat Vorrang).
+- Firmen ganz ohne Adressdaten werden übersprungen.
 
 ## Ninox → Kontakte
 

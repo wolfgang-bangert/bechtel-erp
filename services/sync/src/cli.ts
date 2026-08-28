@@ -2,6 +2,7 @@ import { syncKeylineOrganizations } from "./syncKeylineOrganizations";
 import { syncKeylineAddresses } from "./syncKeylineAddresses";
 import { syncNinoxFirmen } from "./syncNinoxFirmen";
 import { syncNinoxPeople } from "./syncNinoxPeople";
+import { syncNinoxAddresses } from "./syncNinoxAddresses";
 import { dedupeReport } from "./dedupeReport";
 import { supabase } from "./supabase";
 
@@ -54,6 +55,12 @@ async function main() {
       );
       break;
     }
+    case "ninox:addresses": {
+      console.log(`Ninox -> Supabase: Adressen`+(dryRun?"  (DRY RUN)":""));
+      const r = await syncNinoxAddresses({ dryRun });
+      console.log(`\nFertig. gesehen ${r.seen} — neu ${r.insert}, aktualisiert ${r.update}, ohne Firma ${r.noOrg}, ohne Adresse ${r.noAddr}`+(dryRun?"  (DRY RUN)":""));
+      break;
+    }
     case "ninox:people": {
       console.log(`Ninox -> Supabase: Kontakte (people)${dryRun ? "  (DRY RUN)" : ""}`);
       const r = await syncNinoxPeople({ dryRun });
@@ -81,6 +88,7 @@ async function main() {
       console.log("  pnpm --filter sync keyline:addresses   [--dry-run]");
       console.log("  pnpm --filter sync ninox:firmen        [--dry-run]");
       console.log("  pnpm --filter sync ninox:people        [--dry-run]");
+      console.log("  pnpm --filter sync ninox:addresses     [--dry-run]");
       process.exit(1);
   }
 }
@@ -93,6 +101,7 @@ main().catch(async (err: unknown) => {
     "keyline:addresses": { system: "keyline", resource: "addresses" },
     "ninox:firmen": { system: "ninox", resource: "firmen" },
     "ninox:people": { system: "ninox", resource: "people" },
+    "ninox:addresses": { system: "ninox", resource: "addresses" },
   };
   const s = map[cmd];
   if (s && !dryRun) {

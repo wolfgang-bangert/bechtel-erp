@@ -28,6 +28,9 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Migration `20260828140000`. Retry/Backoff bei Keyline-429 eingebaut.
 - [x] **Ninox-Kontakte:** 2354 `contact`-Zeilen (`source='ninox'`),
   Migration `20260828150000`. 198 Personen ohne auffindbare Firma übersprungen.
+- [x] **Ninox-Adressen:** 1518 `address`-Zeilen (`source='ninox'`), aus Firmen-
+  Feldern bzw. `res_antwort_hauptadresse`. **Adressen jetzt: 2283** (765 Keyline +
+  1518 Ninox), ~2161 Orgs mit Hauptadresse. 1690 Ninox-Firmen ohne Adressdaten.
 - [x] **Dubletten-Report** (`pnpm --filter sync dedupe:orgs`, nur lesen → CSV in
   `reports/`): 3906 Orgs, 599 Verdachtsgruppen, davon 25 mit hoher Konfidenz
   (23 Name+PLZ, meist akzidenz×kalender-Paare, die die Konsolidierung nicht per
