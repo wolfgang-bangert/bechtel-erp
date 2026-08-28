@@ -9,10 +9,15 @@ Konfiguration: `.env` im Repo-Wurzelverzeichnis
 ## Befehle
 
 ```bash
-pnpm --filter sync keyline:orgs [--dry-run]   # Keyline-Organisationen spiegeln
-pnpm --filter sync ninox:firmen [--dry-run]   # Ninox-Firmen spiegeln + konsolidieren
+pnpm --filter sync keyline:orgs       [--dry-run]   # Keyline-Organisationen
+pnpm --filter sync keyline:addresses  [--dry-run]   # Keyline-Hauptadressen
+pnpm --filter sync ninox:firmen       [--dry-run]   # Ninox-Firmen + Konsolidierung
+pnpm --filter sync ninox:people       [--dry-run]   # Ninox-Kontakte
 pnpm --filter sync typecheck
 ```
+
+Empfohlene Reihenfolge beim Erstlauf: `keyline:orgs` → `ninox:firmen` →
+`keyline:addresses` → `ninox:people`. Alle idempotent.
 
 Beide Läufe sind idempotent und in beliebiger Reihenfolge / wiederholt ausführbar.
 
@@ -41,5 +46,20 @@ Beide Läufe sind idempotent und in beliebiger Reihenfolge / wiederholt ausführ
 - Nummern-Kollisionen (Debitor/Kreditor bereits von anderer Org belegt) werden
   geloggt, die Nummer nicht übernommen
 
-Noch nicht abgebildet: Adressen als eigene `address`-Zeilen, Kontakte (`people`),
+## Keyline → Hauptadressen
+
+- `GET /customer_relations/organizations/{id}/addresses` je Org (nur Orgs mit
+  `keyline`-Ref). Es wird **eine** Hauptadresse übernommen (Treffer über
+  Namensähnlichkeit, sonst die älteste). Concurrency 4, Backoff bei HTTP 429.
+- Ziel: `address` (`source='keyline'`, `external_id='keyline:<id>'`,
+  `kind='general'`, erste je Org `is_default`).
+
+## Ninox → Kontakte
+
+- Tabelle `ZB` „people". Firma über Feld `Firmen` → `organization_external_ref`
+  (`ninox`, `L:<firmenId>`). Ziel: `contact` (`source='ninox'`,
+  `external_id='ninox:people:<id>'`). Erster Kontakt je Org wird `is_primary`.
+- Personen ohne auffindbare Firma werden übersprungen (im Sync-Status vermerkt).
+
+Noch nicht abgebildet: Keyline-Kontakte (nur über Aufträge verfügbar),
 Aufträge, Rechnungen; Xano-Einmalimport.

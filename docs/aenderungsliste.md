@@ -24,8 +24,12 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
 - [ ] **Stammdaten-Konsolidierung** Keyline + Ninox + Xano → `organization`.
   Dublettenkriterium: USt-IdNr, sonst Name + PLZ? Gibt es eine „Leit-Liste"?
   (Plan in `architektur.md` §5a — bauen in Slice 2.)
-- [ ] **Slice 2 weiter:** Adressen (`address`) + Kontakte aus Keyline und Ninox
-  (`people`) spiegeln; Aufträge/Rechnungen; Xano-Einmalimport.
+- [x] **Keyline-Hauptadressen:** 765 `address`-Zeilen (`source='keyline'`),
+  Migration `20260828140000`. Retry/Backoff bei Keyline-429 eingebaut.
+- [x] **Ninox-Kontakte:** 2354 `contact`-Zeilen (`source='ninox'`),
+  Migration `20260828150000`. 198 Personen ohne auffindbare Firma übersprungen.
+- [ ] **Slice 2 weiter:** Aufträge + Rechnungen (Keyline & Ninox) spiegeln;
+  Keyline-Kontakte (nur über Aufträge verfügbar); Xano-Einmalimport.
 - [ ] **~43 Nummern-Kollisionen** bereinigen (11 Keyline + 32 Ninox, überwiegend
   Kreditornummern 70xxx, die in beiden Systemen für vermutlich denselben
   Lieferanten stehen). Liste im Sync-Log.
