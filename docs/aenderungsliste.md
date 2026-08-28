@@ -35,9 +35,14 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   `reports/`): 3906 Orgs, 599 Verdachtsgruppen, davon 25 mit hoher Konfidenz
   (23 Name+PLZ, meist akzidenz×kalender-Paare, die die Konsolidierung nicht per
   keylineOrgId gefunden hat; 2 über USt-IdNr).
-- [ ] **Merge-Routine** bauen: überlebende Org bestimmen (Keyline vor Ninox),
-  external_refs/address/contact/(später Aufträge/Rechnungen) umhängen, Verlierer
-  entfernen. Erst high-confidence, mit Review.
+- [x] **Merge-Routine** gebaut (`merge_organization()` SQL-Funktion, atomar +
+  `organization_merge`-Protokoll; CLI `dedupe:merge`). Ausgeführt:
+  **3906 → 3655 Organisationen, 251 Zusammenführungen**, 0 Fehler. Danach keine
+  hoch-konfidenten Verdachtsfälle mehr. Beim Merge fehlende `order`/`invoice`-
+  Umhängung in der Funktion später ergänzen.
+- [ ] **335 mittel-konfidente Verdachtsgruppen** (Namensgleichheit ohne PLZ-
+  Bestätigung, `dedupe:orgs`-CSV) — manuell sichten, echte per
+  `dedupe:merge --confidence=mittel --only=Gxx` zusammenführen.
 - [ ] **Slice 2 weiter:** Aufträge + Rechnungen (Keyline & Ninox) spiegeln;
   Keyline-Kontakte (nur über Aufträge verfügbar); Xano-Einmalimport.
 - [ ] **~43 Nummern-Kollisionen** bereinigen (11 Keyline + 32 Ninox, überwiegend
