@@ -14,6 +14,9 @@ export default async function AppLayout({
       <nav className="sidebar">
         <div className="brand">werk</div>
 
+        <div className="nav-group">Stammdaten</div>
+        <Link href="/organisationen">Organisationen</Link>
+
         <div className="nav-group">Einstellungen</div>
         <Link href="/einstellungen">Übersicht</Link>
         <Link href="/einstellungen/sachkonten">Sachkonten</Link>

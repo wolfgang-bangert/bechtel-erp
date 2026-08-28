@@ -263,3 +263,53 @@ button.ghost {
 .kv dd {
   margin: 0;
 }
+
+/* ---- Daten-Tabelle ---- */
+.toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+.toolbar .count {
+  color: var(--muted);
+}
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+table.data th,
+table.data td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+table.data th {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+table.data tr:last-child td {
+  border-bottom: none;
+}
+table.data tbody tr:hover {
+  background: var(--tag-bg);
+}
+table.data td.wrap {
+  white-space: normal;
+}
+.pager {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+.table-scroll {
+  overflow-x: auto;
+}
