@@ -53,8 +53,10 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   - ~514 Aufträge / 71 Rechnungen ohne Org-Zuordnung (Privatkunden), in
     `external_sync_state` vermerkt
   - `merge_organization()` hängt jetzt auch `sales_order`/`sales_invoice` um
-- [ ] **Slice 2 offen:** UI für Aufträge/Rechnungen (Org-Detailseite + Listen);
-  Keyline-Kontakte (nur über Aufträge verfügbar); Xano-Einmalimport.
+- [x] **UI Aufträge/Rechnungen:** `/auftraege` + `/rechnungen` (Liste + Detail
+  mit Positionen), Abschnitte auf der Org-Detailseite.
+- [ ] **Slice 2 offen:** Keyline-Kontakte (nur über Aufträge verfügbar);
+  Xano-Einmalimport; 335 mittlere Dubletten.
 - [ ] **~43 Nummern-Kollisionen** bereinigen (11 Keyline + 32 Ninox, überwiegend
   Kreditornummern 70xxx, die in beiden Systemen für vermutlich denselben
   Lieferanten stehen). Liste im Sync-Log.
