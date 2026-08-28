@@ -4,11 +4,14 @@ build/
 .next/
 .expo/
 coverage/
+*.tsbuildinfo
+next-env.d.ts
 
 # Env / Secrets
 .env
 .env.*
 !.env.example
+!.env.local.example
 
 # Supabase
 packages/db/supabase/.branches/

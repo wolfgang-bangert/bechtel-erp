@@ -70,31 +70,45 @@ cd packages/db
 npx supabase gen types typescript --linked > ../shared/src/database.types.ts
 ```
 
-## 7. Ersten Admin-Benutzer anlegen
+## 6. Ersten Admin-Benutzer anlegen
 
-1. In Supabase → Authentication → Add user (E-Mail + Passwort).
-2. Im SQL-Editor:
+1. Supabase-Dashboard → **Authentication → Add user** → „Create new user",
+   E-Mail = deine Adresse, Passwort setzen, **Auto Confirm User** anhaken.
+2. Dashboard → **SQL Editor** → folgendes ausführen (E-Mail zweimal ersetzen):
 
 ```sql
 insert into public.app_user (id, kind, display_name, email)
-select id, 'employee', 'Wolfgang Bangert', email from auth.users where email = 'DEINE-MAIL';
+select id, 'employee', 'Wolfgang Bangert', email
+from auth.users where email = 'DEINE-MAIL';
 
 insert into public.user_role (user_id, role)
 select id, 'admin' from auth.users where email = 'DEINE-MAIL';
 ```
 
-## Nächste Schritte
-
-Sobald das Fundament steht, folgen die App-Gerüste:
+## 7. Admin-Web starten (Slice 1b)
 
 ```bash
-# apps/web
-pnpm create next-app@latest apps/web --ts --app --tailwind --eslint --src-dir --use-pnpm
+cd "/Users/wolfgangbangert/neues ERP/apps/web"
+cp .env.local.example .env.local
+```
 
-# apps/app
+`.env.local` füllen: `NEXT_PUBLIC_SUPABASE_URL` und `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+(Dashboard → Project Settings → API).
+
+```bash
+cd "/Users/wolfgangbangert/neues ERP"
+pnpm install
+pnpm dev
+```
+
+→ http://localhost:3000 → mit der E-Mail/dem Passwort aus Schritt 6 anmelden.
+Du landest unter **Einstellungen → Sachkonten / Steuerschlüssel**.
+
+## Später: Mitarbeiter-App
+
+```bash
 pnpm create expo-app@latest apps/app
 ```
 
-Diese werden bewusst über die offiziellen CLIs erzeugt (nicht von Hand), damit sie
-zur jeweils aktuellen Version passen. Reihenfolge und Umfang siehe
+Über die offizielle CLI erzeugt. Reihenfolge und Umfang siehe
 [architektur.md](architektur.md) §9.

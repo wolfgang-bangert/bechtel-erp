@@ -7,9 +7,12 @@
     "node": ">=20"
   },
   "scripts": {
-    "db:reset": "pnpm --filter @werk/db reset",
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
     "db:push": "pnpm --filter @werk/db push",
+    "db:reset": "pnpm --filter @werk/db reset",
     "db:diff": "pnpm --filter @werk/db diff",
+    "db:status": "pnpm --filter @werk/db status",
     "gen:types": "pnpm --filter @werk/db gen:types"
   },
   "devDependencies": {

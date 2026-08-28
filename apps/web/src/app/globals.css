@@ -1,0 +1,265 @@
+:root {
+  --bg: #f7f7f8;
+  --panel: #ffffff;
+  --border: #e2e2e5;
+  --text: #1a1a1e;
+  --muted: #6b6b73;
+  --accent: #2f6feb;
+  --accent-text: #ffffff;
+  --ok: #157f3b;
+  --err: #c02626;
+  --tag-bg: #eceef1;
+  --radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17181b;
+    --panel: #1f2024;
+    --border: #33343a;
+    --text: #ececee;
+    --muted: #9a9aa2;
+    --accent: #5b8dff;
+    --accent-text: #0d1017;
+    --ok: #4ccf7f;
+    --err: #ff6b6b;
+    --tag-bg: #2a2b31;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* ---- Login ---- */
+.centered {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  width: 100%;
+  max-width: 360px;
+}
+.card h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+.card p.sub {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+
+/* ---- App-Shell ---- */
+.shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 100dvh;
+}
+.sidebar {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sidebar .brand {
+  font-weight: 700;
+  font-size: 16px;
+  padding: 4px 8px 14px;
+}
+.sidebar .nav-group {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 14px 8px 4px;
+}
+.sidebar a,
+.sidebar .nav-disabled {
+  display: block;
+  padding: 7px 8px;
+  border-radius: 6px;
+  color: var(--text);
+}
+.sidebar a:hover {
+  background: var(--tag-bg);
+  text-decoration: none;
+}
+.sidebar .nav-disabled {
+  color: var(--muted);
+}
+.sidebar .spacer {
+  flex: 1;
+}
+.content {
+  padding: 28px 32px;
+  max-width: 1000px;
+}
+.content h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+.content h2 {
+  margin: 28px 0 10px;
+  font-size: 16px;
+}
+.content .lead {
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+/* ---- Tabellen / Zeilen-Formulare ---- */
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  flex-wrap: wrap;
+}
+.row.head {
+  background: transparent;
+  border: none;
+  padding: 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.row.new {
+  border-style: dashed;
+}
+
+input,
+select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+}
+input:focus,
+select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+input[readonly] {
+  opacity: 0.6;
+}
+.w-code {
+  width: 110px;
+}
+.w-name {
+  flex: 1;
+  min-width: 160px;
+}
+.w-rate {
+  width: 80px;
+}
+.chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+button {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: none;
+  border-radius: 6px;
+  padding: 7px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+button.ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.tag {
+  background: var(--tag-bg);
+  color: var(--muted);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+.msg-ok {
+  color: var(--ok);
+}
+.msg-err {
+  color: var(--err);
+}
+.banner-err {
+  background: color-mix(in srgb, var(--err) 12%, transparent);
+  border: 1px solid var(--err);
+  color: var(--err);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 10px 0;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+.field label {
+  color: var(--muted);
+  font-size: 12px;
+}
+.kv {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 4px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+.kv dt {
+  color: var(--muted);
+}
+.kv dd {
+  margin: 0;
+}
