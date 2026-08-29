@@ -76,8 +76,13 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Migration `20260829170000`): `bank_account` / `bank_transaction` /
   `bank_transaction_match`, `sales_invoice.payment_status` + `open_amount`,
   Trigger führt Zahlbeträge nach. End-to-end getestet.
-- [ ] Web-UI: OP-Liste + Bank-Umsätze + manuelle Zuordnung; „PDF öffnen" auf
-  Rechnungsdetail (signierte S3-URL).
+- [x] **Web-UI Buchhaltung:** `/offene-posten` (OP-Liste), `/bank` (Umsätze +
+  automatische/manuelle Zuordnung, Zuordnung aufheben), „PDF öffnen" auf
+  Rechnungsdetail (signierte Hetzner-S3-URL) + Zahlstatus.
+- [x] Hetzner-Bucket `werk-dokumente` angelegt, S3 verifiziert; `pdf:invoices`
+  läuft (Hintergrund) — holt alle festgeschriebenen Rechnungen als PDF.
+- [ ] Echte CAMT.053-Datei einer Bank besorgen → Nummern-Erkennung im
+  Verwendungszweck an reale Formate anpassen.
 - [ ] Slice 3 weiter: GoCardless-Automatik, Eingangsrechnungen (IMAP + Claude-
   Extraktion), native Rechnung, Mahnwesen, DATEV-ZIP mit Belegbildern.
 - [ ] **~43 Nummern-Kollisionen** bereinigen (11 Keyline + 32 Ninox, überwiegend
