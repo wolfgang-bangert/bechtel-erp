@@ -57,6 +57,24 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   mit Positionen), Abschnitte auf der Org-Detailseite.
 - [ ] **Slice 2 offen:** Keyline-Kontakte (nur über Aufträge verfügbar);
   Xano-Einmalimport; 335 mittlere Dubletten.
+
+## Slice 3 — Fakturierung & DATEV
+
+- [x] **DATEV EXTF-Buchungsstapel (Ausgangsrechnungen)** — `datev:extf`,
+  Migration `20260829140000`. Format 700/v13, CP1252. Buchung Debitor gegen
+  SKR03-Erlöskonto. Protokoll in `datev_export`.
+- [ ] **Debitoren-Stammdaten bereinigen** — Testlauf März 2025: nur 55 von 128
+  Rechnungen buchbar (56 ohne Debitorennummer, 6 ungültig, 11 Entwürfe). Der
+  DATEV-Export ist erst nach Bereinigung der Debitorennummern brauchbar.
+- [ ] Vom Steuerberater: `DATEV_BERATER_NR` / `DATEV_MANDANTEN_NR`,
+  Sachkontenlänge, WJ-Beginn; Bestätigung Erlöskonten (8400/8300/8336/8120) +
+  BU-Schlüssel-Ansatz; ein Test-Import.
+- [ ] Web-Button „DATEV-Export" (Zeitraum → Download).
+- [ ] Slice 3 weiter: Bankanbindung + OP, Eingangsrechnungen (IMAP + Extraktion),
+  native Rechnung, Mahnwesen. Danach BuchhaltungsButler ablösbar.
+- [ ] Keyline-Rechnungs-PDFs: `GET /accounting/customer_invoices/{id}` mit
+  `Accept: application/pdf` funktioniert (nur festgeschriebene). Ablage geplant
+  auf Hetzner Object Storage (S3).
 - [ ] **~43 Nummern-Kollisionen** bereinigen (11 Keyline + 32 Ninox, überwiegend
   Kreditornummern 70xxx, die in beiden Systemen für vermutlich denselben
   Lieferanten stehen). Liste im Sync-Log.
