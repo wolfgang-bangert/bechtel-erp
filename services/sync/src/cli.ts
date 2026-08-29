@@ -10,6 +10,8 @@ import { syncNinoxInvoices } from "./syncNinoxInvoices";
 import { dedupeReport } from "./dedupeReport";
 import { dedupeMerge } from "./mergeOrganizations";
 import { syncInvoicePdfs } from "./syncInvoicePdfs";
+import { syncBankImport } from "./syncBankImport";
+import { syncBankMatch } from "./syncBankMatch";
 import { exportDatevExtf } from "./datevExtf";
 import { supabase } from "./supabase";
 
@@ -122,6 +124,18 @@ async function main() {
       console.log(`Rechnungs-PDFs -> Hetzner S3${dryRun ? "  (DRY RUN)" : ""}${limit ? "  limit " + limit : ""}`);
       const r = await syncInvoicePdfs({ dryRun, limit });
       console.log("\n" + JSON.stringify(r));
+      break;
+    }
+    case "bank:import": {
+      const fp = process.argv.find((a) => a.startsWith("--file="));
+      if (!fp) { console.log("  pnpm --filter sync bank:import --file=auszug.xml [--dry-run]"); process.exit(1); }
+      console.log(`CAMT.053-Import ${fp.split("=")[1]}${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await syncBankImport({ file: fp.split("=")[1], dryRun }), null, 1));
+      break;
+    }
+    case "bank:match": {
+      console.log(`Bank-Umsätze <-> offene Rechnungen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await syncBankMatch({ dryRun }), null, 1));
       break;
     }
     case "datev:extf": {

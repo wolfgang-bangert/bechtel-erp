@@ -111,3 +111,30 @@ pnpm --filter sync datev:extf --from=2025-01-01 --to=2025-12-31 [--dry-run]
   ungültiger Debitorennummer (nicht 5-stellig im Bereich 10000–69999).
 - Konfiguration in `.env`: `DATEV_BERATER_NR`, `DATEV_MANDANTEN_NR`,
   `DATEV_WJ_BEGINN` (DDMM), `DATEV_SACHKONTO_LEN`.
+
+## Bank (CAMT.053 + Abgleich)
+
+```bash
+pnpm --filter sync bank:import --file=auszug.xml [--dry-run]   # Kontoauszug importieren
+pnpm --filter sync bank:match [--dry-run]                      # Umsätze -> offene Rechnungen
+```
+
+- `bank:import`: parst CAMT.053 (ISO 20022), legt je IBAN ein `bank_account` an,
+  importiert Umsätze nach `bank_transaction` (Dedup über Hash). Vorzeichen:
+  + Gutschrift, − Lastschrift.
+- `bank:match`: sucht im Verwendungszweck nach Rechnungsnummern offener
+  Ausgangsrechnungen; bei Betragsgleichheit automatische Zuordnung
+  (`bank_transaction_match`, `auto=true`). Ein DB-Trigger führt `paid_total` /
+  `payment_status` / `open_amount` auf `sales_invoice` nach.
+- Nicht eindeutige Fälle bleiben `unmatched` → manuelle Zuordnung im Web (folgt).
+
+## Rechnungs-PDFs (`pdf:invoices`)
+
+```bash
+pnpm --filter sync pdf:invoices [--limit=N] [--dry-run]
+```
+
+Holt festgeschriebene Keyline-Rechnungen als PDF (`Accept: application/pdf`) bzw.
+Ninox-Anhänge und legt sie in Hetzner Object Storage ab
+(`ausgangsrechnungen/<jahr>/…`). Status je Rechnung in `sales_invoice.pdf_status`.
+**Voraussetzung: Bucket `werk-dokumente` im Hetzner-Panel anlegen** + `S3_*` in `.env`.

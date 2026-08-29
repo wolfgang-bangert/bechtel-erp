@@ -17,13 +17,16 @@
     "ninox:orders": "tsx src/cli.ts ninox:orders",
     "ninox:invoices": "tsx src/cli.ts ninox:invoices",
     "datev:extf": "tsx src/cli.ts datev:extf",
-    "pdf:invoices": "tsx src/cli.ts pdf:invoices"
+    "pdf:invoices": "tsx src/cli.ts pdf:invoices",
+    "bank:import": "tsx src/cli.ts bank:import",
+    "bank:match": "tsx src/cli.ts bank:match"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1121.0",
     "@aws-sdk/s3-request-presigner": "^3.1121.0",
     "@supabase/supabase-js": "^2.47.0",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "fast-xml-parser": "^5.11.1"
   },
   "devDependencies": {
     "@types/node": "^22",
