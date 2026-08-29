@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { signedGetUrl } from "@/lib/storage";
 import { fmtDate, fmtEur, fmtNumber } from "@/lib/format";
+
+const PAY_LABEL: Record<string, string> = {
+  open: "offen",
+  partly_paid: "teilbezahlt",
+  paid: "bezahlt",
+  overpaid: "überzahlt",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +43,7 @@ export default async function RechnungDetail({
   const order = inv.sales_order as unknown as { id: string; order_number: string | null } | null;
   const taxes = (inv.tax_breakdown ?? {}) as Record<string, number>;
   const addr = (inv.billing_address_snapshot ?? {}) as Record<string, unknown>;
+  const pdfUrl = inv.pdf_storage_key ? await signedGetUrl(inv.pdf_storage_key) : null;
 
   return (
     <>
@@ -48,7 +57,34 @@ export default async function RechnungDetail({
       <p className="lead">
         {inv.source}
         {inv.reversed_invoice_external_id ? " · Storno-Bezug vorhanden" : ""}
+        {inv.kind === "invoice" && (
+          <>
+            {" · "}
+            <span className={inv.payment_status === "paid" ? "msg-ok" : ""}>
+              {PAY_LABEL[inv.payment_status] ?? inv.payment_status}
+            </span>
+            {inv.payment_status !== "paid" && inv.open_amount != null && (
+              <> · offen {fmtEur(inv.open_amount)}</>
+            )}
+          </>
+        )}
       </p>
+      <div className="toolbar">
+        {pdfUrl ? (
+          <a className="ghost" href={pdfUrl} target="_blank" rel="noreferrer"
+             style={{ padding: "7px 12px", border: "1px solid var(--border)", borderRadius: 6 }}>
+            PDF öffnen
+          </a>
+        ) : (
+          <span className="count">
+            {inv.pdf_status === "none"
+              ? "kein PDF in der Quelle"
+              : inv.pdf_status === "error"
+                ? "PDF-Abruf fehlgeschlagen"
+                : "PDF noch nicht geholt"}
+          </span>
+        )}
+      </div>
 
       <dl className="kv">
         <dt>Organisation</dt>

@@ -51,7 +51,7 @@ export async function syncInvoicePdfs(opts: Options = {}) {
   let q = supabase
     .from("sales_invoice")
     .select("id, source, external_id, invoice_number, invoice_date")
-    .eq("pdf_status", "unknown")
+    .in("pdf_status", ["unknown", "error"])
     .order("invoice_date", { ascending: false, nullsFirst: false });
   if (limit) q = q.limit(limit);
   const { data, error } = await q;
