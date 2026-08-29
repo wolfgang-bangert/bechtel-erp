@@ -9,6 +9,7 @@ import { syncNinoxOrders } from "./syncNinoxOrders";
 import { syncNinoxInvoices } from "./syncNinoxInvoices";
 import { dedupeReport } from "./dedupeReport";
 import { dedupeMerge } from "./mergeOrganizations";
+import { exportDatevExtf } from "./datevExtf";
 import { supabase } from "./supabase";
 
 const cmd = process.argv[2] ?? "";
@@ -112,6 +113,31 @@ async function main() {
         `\nFertig. ${r.seen} Rechnungen, ${"items" in r ? r.items : 0} Positionen, ohne Org ${r.noOrg}` +
           (dryRun ? "  (DRY RUN)" : ""),
       );
+      break;
+    }
+    case "datev:extf": {
+      const arg = (n: string) => {
+        const p = process.argv.find((a) => a.startsWith(n + "="));
+        return p ? p.split("=")[1] : undefined;
+      };
+      const from = arg("--from");
+      const to = arg("--to");
+      if (!from || !to) {
+        console.log("  pnpm --filter sync datev:extf --from=2025-01-01 --to=2025-12-31 [--dry-run]");
+        process.exit(1);
+      }
+      console.log(`DATEV EXTF-Buchungsstapel ${from} … ${to}${dryRun ? "  (DRY RUN)" : ""}`);
+      const r = await exportDatevExtf({ from, to, dryRun });
+      console.log(
+        `\n${r.invoices} Rechnungen im Zeitraum — ${r.booked} gebucht (${r.lines} Buchungszeilen).`,
+      );
+      console.log(
+        `übersprungen ${r.skipped}: ${r.skips.noNumber} ohne Rechnungsnummer (Entwurf), ` +
+          `${r.skips.noDebitor} ohne Debitorennummer, ${r.skips.badDebitor} ungültige Debitorennummer`,
+      );
+      console.log(`Summe (Rg − GS): ${r.grossTotal.toLocaleString("de-DE")} EUR`);
+      console.log(`Datei: ${r.file}`);
+      console.log(`SHA-256: ${r.sha256}`);
       break;
     }
     case "dedupe:orgs": {

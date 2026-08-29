@@ -30,4 +30,10 @@ export const env = {
     database: () => required("NINOX_DATABASE_ID"),
     customerTableId: () => (process.env.NINOX_CUSTOMER_TABLE_ID || "L").trim(),
   },
+  datev: {
+    beraterNr: () => required("DATEV_BERATER_NR"),
+    mandantenNr: () => required("DATEV_MANDANTEN_NR"),
+    wjBeginnDDMM: () => (process.env.DATEV_WJ_BEGINN || "0101").trim(),
+    sachkontoLen: () => Number(process.env.DATEV_SACHKONTO_LEN || 4),
+  },
 };

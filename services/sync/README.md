@@ -94,3 +94,20 @@ Cent → /100). Volle Quell-Payload in `raw` (jsonb). Verknüpfung zur Organisat
 
 Noch nicht abgebildet: Keyline-Kontakte (nur über Aufträge verfügbar);
 Xano-Einmalimport.
+
+## DATEV-Export
+
+```bash
+pnpm --filter sync datev:extf --from=2025-01-01 --to=2025-12-31 [--dry-run]
+```
+
+- EXTF-Buchungsstapel (Format 700 / v13, CP1252, CRLF) für **Ausgangsrechnungen**
+  (Debitoren). Datei → `reports/datev/`, Protokoll → Tabelle `datev_export`.
+- Buchung: Konto = Debitorennummer (`organization.customer_number`),
+  Gegenkonto = Erlöskonto aus `setting datev.revenue_accounts` (SKR03,
+  je Steuersatz/Land). BU-Schlüssel leer (Automatikkonten) — **vom Steuerberater
+  bestätigen lassen**, ebenso ein Test-Import.
+- Übersprungen werden: Entwürfe ohne Rechnungsnummer, Rechnungen ohne bzw. mit
+  ungültiger Debitorennummer (nicht 5-stellig im Bereich 10000–69999).
+- Konfiguration in `.env`: `DATEV_BERATER_NR`, `DATEV_MANDANTEN_NR`,
+  `DATEV_WJ_BEGINN` (DDMM), `DATEV_SACHKONTO_LEN`.

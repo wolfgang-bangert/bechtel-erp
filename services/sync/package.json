@@ -15,7 +15,8 @@
     "keyline:orders": "tsx src/cli.ts keyline:orders",
     "keyline:invoices": "tsx src/cli.ts keyline:invoices",
     "ninox:orders": "tsx src/cli.ts ninox:orders",
-    "ninox:invoices": "tsx src/cli.ts ninox:invoices"
+    "ninox:invoices": "tsx src/cli.ts ninox:invoices",
+    "datev:extf": "tsx src/cli.ts datev:extf"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",
