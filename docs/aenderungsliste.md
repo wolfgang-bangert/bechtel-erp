@@ -70,11 +70,16 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Sachkontenlänge, WJ-Beginn; Bestätigung Erlöskonten (8400/8300/8336/8120) +
   BU-Schlüssel-Ansatz; ein Test-Import.
 - [ ] Web-Button „DATEV-Export" (Zeitraum → Download).
-- [ ] Slice 3 weiter: Bankanbindung + OP, Eingangsrechnungen (IMAP + Extraktion),
-  native Rechnung, Mahnwesen. Danach BuchhaltungsButler ablösbar.
-- [ ] Keyline-Rechnungs-PDFs: `GET /accounting/customer_invoices/{id}` mit
-  `Accept: application/pdf` funktioniert (nur festgeschriebene). Ablage geplant
-  auf Hetzner Object Storage (S3).
+- [x] **Storage-Helfer (Hetzner S3)** + `pdf:invoices` — Keyline-PDF-Abruf
+  verifiziert. **Wartet auf Bucket-Anlage `werk-dokumente` im Hetzner-Panel.**
+- [x] **CAMT.053-Import + automatischer OP-Abgleich** (`bank:import`, `bank:match`;
+  Migration `20260829170000`): `bank_account` / `bank_transaction` /
+  `bank_transaction_match`, `sales_invoice.payment_status` + `open_amount`,
+  Trigger führt Zahlbeträge nach. End-to-end getestet.
+- [ ] Web-UI: OP-Liste + Bank-Umsätze + manuelle Zuordnung; „PDF öffnen" auf
+  Rechnungsdetail (signierte S3-URL).
+- [ ] Slice 3 weiter: GoCardless-Automatik, Eingangsrechnungen (IMAP + Claude-
+  Extraktion), native Rechnung, Mahnwesen, DATEV-ZIP mit Belegbildern.
 - [ ] **~43 Nummern-Kollisionen** bereinigen (11 Keyline + 32 Ninox, überwiegend
   Kreditornummern 70xxx, die in beiden Systemen für vermutlich denselben
   Lieferanten stehen). Liste im Sync-Log.
