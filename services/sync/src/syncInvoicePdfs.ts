@@ -48,15 +48,22 @@ export async function syncInvoicePdfs(opts: Options = {}) {
   const { dryRun = false, limit } = opts;
   const startedAt = new Date();
 
-  let q = supabase
-    .from("sales_invoice")
-    .select("id, source, external_id, invoice_number, invoice_date")
-    .in("pdf_status", ["unknown", "error"])
-    .order("invoice_date", { ascending: false, nullsFirst: false });
-  if (limit) q = q.limit(limit);
-  const { data, error } = await q;
-  if (error) throw new Error(`sales_invoice lesen: ${error.message}`);
-  const rows = (data ?? []) as Row[];
+  const rows: Row[] = [];
+  const pageSize = 1000;
+  let fromRow = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from("sales_invoice")
+      .select("id, source, external_id, invoice_number, invoice_date")
+      .in("pdf_status", ["unknown", "error"])
+      .order("invoice_date", { ascending: false, nullsFirst: false })
+      .range(fromRow, fromRow + pageSize - 1);
+    if (error) throw new Error(`sales_invoice lesen: ${error.message}`);
+    rows.push(...((data ?? []) as Row[]));
+    if (!data || data.length < pageSize || (limit && rows.length >= limit)) break;
+    fromRow += pageSize;
+  }
+  if (limit) rows.length = Math.min(rows.length, limit);
 
   // Keyline nur bei festgeschriebenen (Nummer vorhanden -> PDF existiert)
   const candidates = rows.filter(
