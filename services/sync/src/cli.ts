@@ -9,6 +9,7 @@ import { syncNinoxOrders } from "./syncNinoxOrders";
 import { syncNinoxInvoices } from "./syncNinoxInvoices";
 import { dedupeReport } from "./dedupeReport";
 import { dedupeMerge } from "./mergeOrganizations";
+import { syncInvoicePdfs } from "./syncInvoicePdfs";
 import { exportDatevExtf } from "./datevExtf";
 import { supabase } from "./supabase";
 
@@ -113,6 +114,14 @@ async function main() {
         `\nFertig. ${r.seen} Rechnungen, ${"items" in r ? r.items : 0} Positionen, ohne Org ${r.noOrg}` +
           (dryRun ? "  (DRY RUN)" : ""),
       );
+      break;
+    }
+    case "pdf:invoices": {
+      const lim = process.argv.find((a) => a.startsWith("--limit="));
+      const limit = lim ? Number(lim.split("=")[1]) : undefined;
+      console.log(`Rechnungs-PDFs -> Hetzner S3${dryRun ? "  (DRY RUN)" : ""}${limit ? "  limit " + limit : ""}`);
+      const r = await syncInvoicePdfs({ dryRun, limit });
+      console.log("\n" + JSON.stringify(r));
       break;
     }
     case "datev:extf": {

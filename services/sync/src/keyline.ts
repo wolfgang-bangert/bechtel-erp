@@ -116,6 +116,33 @@ export type KeylineAddress = {
   updated_at: string;
 };
 
+/**
+ * Rechnungs-PDF (nur festgeschriebene Rechnungen). null = kein PDF (404).
+ */
+export async function fetchKeylineInvoicePdf(invoiceId: number): Promise<Buffer | null> {
+  const url = `${env.keylineBase}/accounting/customer_invoices/${invoiceId}`;
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(url, {
+      headers: {
+        Accept: "application/pdf",
+        Authorization: `Bearer ${env.keylineKey}`,
+      },
+    });
+    if (res.status === 404) return null;
+    if (res.ok) {
+      const ct = res.headers.get("content-type") ?? "";
+      if (!ct.includes("pdf")) return null;
+      return Buffer.from(await res.arrayBuffer());
+    }
+    if ((res.status === 429 || res.status === 503) && attempt < 6) {
+      const ra = Number(res.headers.get("retry-after"));
+      await sleep(Number.isFinite(ra) && ra > 0 ? ra * 1000 : Math.min(30_000, 1000 * 2 ** attempt));
+      continue;
+    }
+    throw new Error(`Keyline PDF ${res.status} bei Rechnung ${invoiceId}`);
+  }
+}
+
 /** Adressen einer Organisation (erste Seite, für die Hauptadresse ausreichend). */
 export async function fetchKeylineOrgAddresses(orgId: number): Promise<KeylineAddress[]> {
   const res = await klGet(`/customer_relations/organizations/${orgId}/addresses`, {

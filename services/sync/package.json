@@ -16,9 +16,12 @@
     "keyline:invoices": "tsx src/cli.ts keyline:invoices",
     "ninox:orders": "tsx src/cli.ts ninox:orders",
     "ninox:invoices": "tsx src/cli.ts ninox:invoices",
-    "datev:extf": "tsx src/cli.ts datev:extf"
+    "datev:extf": "tsx src/cli.ts datev:extf",
+    "pdf:invoices": "tsx src/cli.ts pdf:invoices"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1121.0",
+    "@aws-sdk/s3-request-presigner": "^3.1121.0",
     "@supabase/supabase-js": "^2.47.0",
     "dotenv": "^16.4.5"
   },
