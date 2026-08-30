@@ -2,8 +2,17 @@ import { readFileSync } from "node:fs";
 import { supabase } from "./supabase";
 import { chunk } from "./db";
 import { parseCamt053, type CamtEntry } from "./camt";
+import { parseBankCsv } from "./bankCsv";
 
-type Options = { file: string; dryRun?: boolean };
+type Options = { file: string; dryRun?: boolean; includePending?: boolean };
+
+function parseFile(file: string, includePending?: boolean): CamtEntry[] {
+  const head = readFileSync(file, "latin1").slice(0, 400).trimStart();
+  if (head.startsWith("<?xml") || head.includes("BkToCstmrStmt")) {
+    return parseCamt053(readFileSync(file, "utf8"));
+  }
+  return parseBankCsv(file, { includePending });
+}
 
 const normIban = (s: string) => s.replace(/\s+/g, "").toUpperCase();
 
@@ -24,10 +33,9 @@ async function ensureBankAccount(iban: string): Promise<string> {
 }
 
 export async function syncBankImport(opts: Options) {
-  const { file, dryRun = false } = opts;
-  const xml = readFileSync(file, "utf8");
-  const entries: CamtEntry[] = parseCamt053(xml);
-  if (entries.length === 0) return { entries: 0, imported: 0, duplicates: 0, dryRun };
+  const { file, dryRun = false, includePending = false } = opts;
+  const entries: CamtEntry[] = parseFile(file, includePending);
+  if (entries.length === 0) return { entries: 0, imported: 0, duplikate: 0, dryRun };
 
   const ibans = [...new Set(entries.map((e) => normIban(e.iban)))];
   const byIban = new Map<string, string>();

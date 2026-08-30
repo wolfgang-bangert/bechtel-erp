@@ -30,3 +30,7 @@ package-lock.json
 
 # Sync-Reports (generiert)
 reports/*.csv
+
+# lokale Importdateien (Bank, Xano, ...)
+imports/*
+!imports/.gitkeep

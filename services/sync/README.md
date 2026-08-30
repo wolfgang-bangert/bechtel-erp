@@ -138,3 +138,15 @@ Holt festgeschriebene Keyline-Rechnungen als PDF (`Accept: application/pdf`) bzw
 Ninox-Anhänge und legt sie in Hetzner Object Storage ab
 (`ausgangsrechnungen/<jahr>/…`). Status je Rechnung in `sales_invoice.pdf_status`.
 **Voraussetzung: Bucket `werk-dokumente` im Hetzner-Panel anlegen** + `S3_*` in `.env`.
+
+### CSV-CAMT (Sparkasse / Volksbank)
+
+`bank:import` erkennt XML (CAMT.053) und das Sparkassen-CSV automatisch.
+CSV: ISO-8859-1, Spalten `Auftragskonto;Buchungstag;…;Verwendungszweck;…;Betrag;…`.
+Der SEPA-Feldsalat im Verwendungszweck wird zerlegt (`SVWZ+` = Zweck, `EREF+` =
+Referenz). Vorgemerkte Umsätze werden übersprungen (`--include-pending` überschreibt).
+
+`bank:match` erkennt zusätzlich **Skonto** (Zahlbetrag bis ~4,5 % unter offen) und
+**Sammelzahlungen** (Summe mehrerer Rechnungsnummern = Zahlbetrag). Skonto-Fälle
+bleiben mit kleinem Restbetrag „teilbezahlt" — die Skonto-Buchung macht der
+Steuerberater.

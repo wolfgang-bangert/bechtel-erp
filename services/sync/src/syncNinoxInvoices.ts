@@ -87,12 +87,13 @@ export async function syncNinoxInvoices(opts: Options = {}) {
       tax = round2(tax);
 
       const extId = `ninox:CE:${rec.id}`;
+      const dt = dateOnly(f["Datum"]);
       invRows.push({
         source: "ninox",
         external_id: extId,
         organization_id: orgId ?? null,
         sales_order_id: soId ?? null,
-        invoice_number: s(f["Archiv ID"]) || null,
+        invoice_number: dt ? `${dt.slice(2, 4)}CE${rec.id}` : null,
         kind: "invoice",
         invoice_date: dateOnly(f["Datum"]),
         service_date: dateOnly(f["Lieferdatum"]),
