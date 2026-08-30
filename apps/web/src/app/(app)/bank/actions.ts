@@ -10,8 +10,10 @@ export async function matchTransaction(
   formData: FormData,
 ): Promise<MatchState> {
   const txId = String(formData.get("tx_id") ?? "");
-  const number = String(formData.get("invoice_number") ?? "").trim();
-  if (!txId || !number) return { error: "Rechnungsnummer eingeben." };
+  const number =
+    String(formData.get("invoice_number") ?? "").trim() ||
+    String(formData.get("invoice_number_manual") ?? "").trim();
+  if (!txId || !number) return { error: "Rechnung auswählen oder Nummer eingeben." };
 
   const supabase = await createClient();
 

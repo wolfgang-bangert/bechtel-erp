@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
-import { MatchForm } from "./ui";
+import { MatchForm, type Candidate } from "./ui";
 import { unmatchTransaction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +63,49 @@ export default async function BankPage({
   const error = res.error;
   const count = res.count;
   const data = (res.data ?? []) as unknown as TxRow[];
+
+  // Kandidaten-Rechnungen für die offenen Gutschriften dieser Seite
+  const openCredits = data.filter((t) => t.amount > 0 && (t.matches ?? []).length === 0);
+  let openInvoices: {
+    invoice_number: string | null;
+    open_amount: number | null;
+    gross_total: number | null;
+    organization: { name: string } | null;
+  }[] = [];
+  if (openCredits.length > 0) {
+    const amounts = openCredits.map((t) => t.amount);
+    const lo = Math.min(...amounts) * 0.9;
+    const hi = Math.max(...amounts) * 1.03;
+    const { data: inv } = await supabase
+      .from("sales_invoice")
+      .select("invoice_number, open_amount, gross_total, organization:organization(name)")
+      .eq("kind", "invoice")
+      .in("payment_status", ["open", "partly_paid"])
+      .gt("open_amount", 0)
+      .gte("open_amount", lo)
+      .lte("open_amount", hi)
+      .not("invoice_number", "is", null)
+      .order("open_amount")
+      .limit(3000);
+    openInvoices = (inv ?? []) as unknown as typeof openInvoices;
+  }
+  const candidatesFor = (amount: number): Candidate[] =>
+    openInvoices
+      .filter((i) => {
+        const o = i.open_amount ?? 0;
+        return o >= amount * 0.94 && o <= amount * 1.03;
+      })
+      .sort(
+        (a, b) =>
+          Math.abs((a.open_amount ?? 0) - amount) - Math.abs((b.open_amount ?? 0) - amount),
+      )
+      .slice(0, 40)
+      .map((i) => ({
+        number: i.invoice_number!,
+        label: `${i.invoice_number} · ${
+          (i.organization as unknown as { name: string } | null)?.name ?? "?"
+        } · ${fmtEur(i.open_amount)}`,
+      }));
 
   const total = count ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -160,7 +203,7 @@ export default async function BankPage({
                         ))}
                       </div>
                     ) : tx.amount > 0 ? (
-                      <MatchForm txId={tx.id} />
+                      <MatchForm txId={tx.id} candidates={candidatesFor(tx.amount)} />
                     ) : (
                       <span className="count">{STATUS_LABEL[tx.match_status]}</span>
                     )}

@@ -1,24 +1,56 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { matchTransaction, type MatchState } from "./actions";
 
 const empty: MatchState = {};
 
-export function MatchForm({ txId }: { txId: string }) {
+export type Candidate = { number: string; label: string };
+
+export function MatchForm({
+  txId,
+  candidates,
+}: {
+  txId: string;
+  candidates: Candidate[];
+}) {
   const [state, action, pending] = useActionState(matchTransaction, empty);
+  const [manual, setManual] = useState(candidates.length === 0);
+
   return (
-    <form action={action} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+    <form action={action} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
       <input type="hidden" name="tx_id" value={txId} />
-      <input
-        name="invoice_number"
-        placeholder="Rechnungs-Nr."
-        style={{ width: 130 }}
-        required
-      />
+
+      {!manual && (
+        <select name="invoice_number" defaultValue="" style={{ maxWidth: 340 }}>
+          <option value="">– Rechnung wählen ({candidates.length}) –</option>
+          {candidates.map((c) => (
+            <option key={c.number} value={c.number}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      )}
+
+      {manual && (
+        <input name="invoice_number_manual" placeholder="Rechnungs-Nr." style={{ width: 140 }} />
+      )}
+
       <button type="submit" disabled={pending}>
         {pending ? "…" : "zuordnen"}
       </button>
+
+      {candidates.length > 0 && (
+        <button
+          type="button"
+          className="ghost"
+          style={{ padding: "4px 8px" }}
+          onClick={() => setManual((m) => !m)}
+        >
+          {manual ? "Liste" : "Nr. eintippen"}
+        </button>
+      )}
+
       {state.ok && <span className="msg-ok">✓</span>}
       {state.error && <span className="msg-err">{state.error}</span>}
     </form>
