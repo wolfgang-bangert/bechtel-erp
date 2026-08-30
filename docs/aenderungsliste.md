@@ -126,12 +126,12 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   füllt `advice_reference` (angemahnte Rg), `extraction.dunning` (Stufe, Frist,
   Gebühr), keine Positionen, raus aus der Prüfliste. Web-Ansicht
   `?status=dunning`. 2 ETG-Mahnungen reklassifiziert.
-- [ ] **Mahnungs-Weiterleitung per E-Mail** (`incoming:forward-dunning`, Nachlauf
+- [x] **Mahnungs-Weiterleitung per E-Mail** (`incoming:forward-dunning`, Nachlauf
   von `incoming:extract`): leitet erkannte Mahnungen an `DUNNING_FORWARD_TO`
   weiter, Original-PDF im Anhang, Betreff `WEITERLEITUNG VON
-  rechnungen@bechtel-druck.de: <Original>`. **Wartet auf SMTP-Zugang** in `.env`:
-  `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` +
-  `DUNNING_FORWARD_TO=w.bangert@bechtel-druck.de`. Ohne Konfig passiert nichts.
+  rechnungen@bechtel-druck.de: <Original>`. `forwarded_at` verhindert
+  Doppelversand. SMTP `mail.your-server.de:587` (STARTTLS) verifiziert, 2 ETG-
+  Mahnungen live weitergeleitet. Ohne `SMTP_*`/`DUNNING_FORWARD_TO` inaktiv.
 - [ ] **OCR-Anbieter entschieden:** Claude API (Anthropic), Modell
   `claude-sonnet-5` (Alternativ `claude-haiku-4-5`, ~½ Kosten). Kosten ~1–2 ct
   je Rechnung, ~5–10 €/Monat bei aktuellem Volumen; Batch-API −50 %. DSGVO:
