@@ -34,9 +34,65 @@ Regeln: Beträge als Zahl mit Punkt als Dezimaltrenner, ohne Währungssymbol.
 Unbekannte Felder = null. Wenn es keine Positionsaufstellung gibt, line_items = [].`;
 
 function parseJson(text: string): unknown {
-  const m = text.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error("keine JSON-Antwort");
-  return JSON.parse(m[0]);
+  const start = text.indexOf("{");
+  if (start < 0) throw new Error("keine JSON-Antwort");
+  const body = text.slice(start);
+  try {
+    // gierig bis zur letzten schließenden Klammer
+    const end = body.lastIndexOf("}");
+    return JSON.parse(body.slice(0, end + 1));
+  } catch {
+    return JSON.parse(repairTruncatedJson(body));
+  }
+}
+
+/**
+ * Repariert eine abgeschnittene JSON-Antwort (max_tokens erreicht): schneidet
+ * hinter dem letzten vollständigen Array-/Objekt-Element ab und schließt offene
+ * Klammern + Strings. Reicht, um Kopfdaten und die bis dahin gelesenen
+ * Positionen zu retten.
+ */
+function repairTruncatedJson(s: string): string {
+  let inStr = false;
+  let esc = false;
+  const stack: string[] = [];
+  let lastSafe = -1; // Index nach einem Element-Ende auf Tiefe >= 1
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{" || ch === "[") stack.push(ch === "{" ? "}" : "]");
+    else if (ch === "}" || ch === "]") {
+      stack.pop();
+      if (stack.length >= 1) lastSafe = i + 1;
+    } else if (ch === "," && stack.length >= 1) lastSafe = i;
+  }
+  let head = lastSafe > 0 ? s.slice(0, lastSafe) : s;
+  if (head.endsWith(",")) head = head.slice(0, -1);
+  // offene Struktur anhand einer frischen Analyse schließen
+  inStr = false;
+  esc = false;
+  const close: string[] = [];
+  for (let i = 0; i < head.length; i++) {
+    const ch = head[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{") close.push("}");
+    else if (ch === "[") close.push("]");
+    else if (ch === "}" || ch === "]") close.pop();
+  }
+  if (inStr) head += '"';
+  return head + close.reverse().join("");
 }
 
 type Extracted = {
@@ -117,7 +173,7 @@ export async function extractIncoming(opts: Options = {}) {
       const pdf = await getObjectBytes(doc.pdf_storage_key);
       const res = await client.messages.create({
         model: MODEL,
-        max_tokens: 4000,
+        max_tokens: 16000,
         messages: [
           {
             role: "user",
@@ -170,6 +226,7 @@ export async function extractIncoming(opts: Options = {}) {
           extraction_model: MODEL,
           extraction_confidence: num(e.confidence),
           extracted_at: new Date().toISOString(),
+          notes: null,
         })
         .eq("id", doc.id);
       if (uErr) throw new Error(uErr.message);

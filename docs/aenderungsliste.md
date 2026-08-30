@@ -95,7 +95,15 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
 - [ ] **IMAP-Verbindung klären**: `mail.your-server.de:993` erreichbar + TLS ok,
   aber Login wird zurückgesetzt → Passwort / IMAP-Freigabe für
   `rechnungen@bechtel-druck.de` in Hetzner KonsoleH prüfen.
-- [ ] `ANTHROPIC_API_KEY` in `.env` eintragen (für `incoming:extract`).
+- [x] `ANTHROPIC_API_KEY` in `.env` eingetragen. `incoming:extract` end-to-end
+  getestet (3 Belege: positionsgenaue Positionen, Steueraufschlüsselung,
+  Konfidenz 0,95, Lieferant 3/3 automatisch zugeordnet). Vollstlauf über die
+  restlichen 135 `captured`-Belege läuft.
+- [ ] **OCR-Anbieter entschieden:** Claude API (Anthropic), Modell
+  `claude-sonnet-5` (Alternativ `claude-haiku-4-5`, ~½ Kosten). Kosten ~1–2 ct
+  je Rechnung, ~5–10 €/Monat bei aktuellem Volumen; Batch-API −50 %. DSGVO:
+  AVV in der Anthropic-Console zeichnen, optional später auf Claude via AWS
+  Bedrock (Region Frankfurt) umstellen (Client-Tausch in `extractIncoming.ts`).
 - [ ] Slice 3 weiter: GoCardless-Automatik, native Rechnung, Mahnwesen,
   DATEV-ZIP mit Belegbildern, Skonto-Ausbuchung.
 - [ ] **~43 Nummern-Kollisionen** bereinigen (11 Keyline + 32 Ninox, überwiegend
@@ -115,7 +123,8 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
 - [ ] **Sammelrechnung** (Slice 3): monatlich fix oder pro Kunde konfigurierbar?
 - [ ] **Abschlagsrechnung** (Slice 3): mit Bezug zu `order_item`s oder freie Beträge?
 - [ ] **Bankformat** (Slice 3): CAMT.053, MT940 oder CSV welcher Bank?
-- [ ] **OCR-Dienst** für Belege (Slice 4): Anbieter/Verfahren festlegen (DSGVO, EU).
+- [x] **OCR-Dienst** für Belege: Claude API (siehe Slice 3). AVV zeichnen,
+  optional Bedrock Frankfurt für reine EU-Verarbeitung.
 - [ ] **Wire-O-Optionsliste** (Slice 5): Tabelle in `datenmodell.md` Modul 4
   prüfen/ergänzen (Format, Umfang, Papier, Veredelung, Aufhänger, Register …).
 - [ ] **Wire-O-Kostenmodell** (Slice 5): reale Werte für Klickpreis, Bogenpreise,
