@@ -87,8 +87,17 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   abgeleitet (**vom Nutzer bestätigen lassen**).
 - [ ] Skonto-Fälle bleiben „teilbezahlt" mit Restbetrag — Skonto-Buchung/
   -Erkennung noch offen.
-- [ ] Slice 3 weiter: GoCardless-Automatik, Eingangsrechnungen (IMAP + Claude-
-  Extraktion), native Rechnung, Mahnwesen, DATEV-ZIP mit Belegbildern.
+- [x] **Eingangsrechnungen** (Migration `20260830100000`: `incoming_document` +
+  `incoming_document_item`): `mail:fetch` (IMAP → PDF-Anhänge → Hetzner S3 →
+  `incoming_document`), `incoming:extract` (Claude `claude-sonnet-5`,
+  positionsgenaue JSON-Extraktion + Lieferant-Zuordnung), Web `/eingangsrechnungen`
+  Liste + Prüf-/Kontierungsansicht (PDF neben Formular).
+- [ ] **IMAP-Verbindung klären**: `mail.your-server.de:993` erreichbar + TLS ok,
+  aber Login wird zurückgesetzt → Passwort / IMAP-Freigabe für
+  `rechnungen@bechtel-druck.de` in Hetzner KonsoleH prüfen.
+- [ ] `ANTHROPIC_API_KEY` in `.env` eintragen (für `incoming:extract`).
+- [ ] Slice 3 weiter: GoCardless-Automatik, native Rechnung, Mahnwesen,
+  DATEV-ZIP mit Belegbildern, Skonto-Ausbuchung.
 - [ ] **~43 Nummern-Kollisionen** bereinigen (11 Keyline + 32 Ninox, überwiegend
   Kreditornummern 70xxx, die in beiden Systemen für vermutlich denselben
   Lieferanten stehen). Liste im Sync-Log.
