@@ -36,4 +36,12 @@ export const env = {
     wjBeginnDDMM: () => (process.env.DATEV_WJ_BEGINN || "0101").trim(),
     sachkontoLen: () => Number(process.env.DATEV_SACHKONTO_LEN || 4),
   },
+  imap: {
+    host: () => required("IMAP_HOST"),
+    port: () => Number(process.env.IMAP_PORT || 993),
+    user: () => required("IMAP_USER"),
+    password: () => required("IMAP_PASSWORD"),
+    folder: () => (process.env.IMAP_FOLDER || "INBOX").trim(),
+  },
+  anthropicKey: () => required("ANTHROPIC_API_KEY"),
 };

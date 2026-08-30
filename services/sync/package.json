@@ -19,16 +19,22 @@
     "datev:extf": "tsx src/cli.ts datev:extf",
     "pdf:invoices": "tsx src/cli.ts pdf:invoices",
     "bank:import": "tsx src/cli.ts bank:import",
-    "bank:match": "tsx src/cli.ts bank:match"
+    "bank:match": "tsx src/cli.ts bank:match",
+    "mail:fetch": "tsx src/cli.ts mail:fetch",
+    "incoming:extract": "tsx src/cli.ts incoming:extract"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.122.0",
     "@aws-sdk/client-s3": "^3.1121.0",
     "@aws-sdk/s3-request-presigner": "^3.1121.0",
     "@supabase/supabase-js": "^2.47.0",
     "dotenv": "^16.4.5",
-    "fast-xml-parser": "^5.11.1"
+    "fast-xml-parser": "^5.11.1",
+    "imapflow": "^1.7.6",
+    "mailparser": "^3.9.17"
   },
   "devDependencies": {
+    "@types/mailparser": "^3.4.6",
     "@types/node": "^22",
     "tsx": "^4.19.2",
     "typescript": "^5.7"

@@ -13,6 +13,8 @@ import { syncInvoicePdfs } from "./syncInvoicePdfs";
 import { syncBankImport } from "./syncBankImport";
 import { syncBankMatch } from "./syncBankMatch";
 import { exportDatevExtf } from "./datevExtf";
+import { syncMailbox } from "./syncMailbox";
+import { extractIncoming } from "./extractIncoming";
 import { supabase } from "./supabase";
 
 const cmd = process.argv[2] ?? "";
@@ -161,6 +163,18 @@ async function main() {
       console.log(`Summe (Rg − GS): ${r.grossTotal.toLocaleString("de-DE")} EUR`);
       console.log(`Datei: ${r.file}`);
       console.log(`SHA-256: ${r.sha256}`);
+      break;
+    }
+    case "mail:fetch": {
+      const lim = process.argv.find((a) => a.startsWith("--limit="));
+      console.log(`Postfach abrufen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await syncMailbox({ dryRun, limit: lim ? Number(lim.split("=")[1]) : undefined, unseenOnly: process.argv.includes("--unseen") }), null, 1));
+      break;
+    }
+    case "incoming:extract": {
+      const lim = process.argv.find((a) => a.startsWith("--limit="));
+      console.log(`Eingangsbelege extrahieren${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await extractIncoming({ dryRun, limit: lim ? Number(lim.split("=")[1]) : 20 }), null, 1));
       break;
     }
     case "dedupe:orgs": {

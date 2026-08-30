@@ -41,6 +41,17 @@ export async function putObject(
   );
 }
 
+export async function getObjectBytes(key: string): Promise<Buffer> {
+  const res = await client().send(
+    new GetObjectCommand({ Bucket: bucket(), Key: key }),
+  );
+  const chunks: Buffer[] = [];
+  for await (const c of res.Body as AsyncIterable<Uint8Array>) {
+    chunks.push(Buffer.from(c));
+  }
+  return Buffer.concat(chunks);
+}
+
 export async function objectExists(key: string): Promise<boolean> {
   try {
     await client().send(new HeadObjectCommand({ Bucket: bucket(), Key: key }));
