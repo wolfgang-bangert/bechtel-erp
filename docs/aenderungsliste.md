@@ -81,8 +81,12 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Rechnungsdetail (signierte Hetzner-S3-URL) + Zahlstatus.
 - [x] Hetzner-Bucket `werk-dokumente` angelegt, S3 verifiziert; `pdf:invoices`
   läuft (Hintergrund) — holt alle festgeschriebenen Rechnungen als PDF.
-- [ ] Echte CAMT.053-Datei einer Bank besorgen → Nummern-Erkennung im
-  Verwendungszweck an reale Formate anpassen.
+- [x] **Sparkassen-CSV-Import** (`bank:import` erkennt XML/CSV autom.) + besserer
+  OP-Abgleich: Skonto (bis ~4,5 %) und Sammelzahlungen. Realtest KSK Göppingen:
+  88 Umsätze → 20 automatisch zugeordnet. Ninox-Rechnungsnummer als `<JJ>CE<id>`
+  abgeleitet (**vom Nutzer bestätigen lassen**).
+- [ ] Skonto-Fälle bleiben „teilbezahlt" mit Restbetrag — Skonto-Buchung/
+  -Erkennung noch offen.
 - [ ] Slice 3 weiter: GoCardless-Automatik, Eingangsrechnungen (IMAP + Claude-
   Extraktion), native Rechnung, Mahnwesen, DATEV-ZIP mit Belegbildern.
 - [ ] **~43 Nummern-Kollisionen** bereinigen (11 Keyline + 32 Ninox, überwiegend
