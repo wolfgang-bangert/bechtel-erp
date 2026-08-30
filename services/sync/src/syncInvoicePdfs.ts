@@ -81,8 +81,22 @@ export async function syncInvoicePdfs(opts: Options = {}) {
   }
 
   const results = { available: 0, none: 0, error: 0 };
-  const updates: { id: string; patch: Record<string, unknown> }[] = [];
+  let pending: { id: string; patch: Record<string, unknown> }[] = [];
   let done = 0;
+  let flushing = false;
+
+  async function flush(force = false) {
+    if (flushing || (!force && pending.length < 50)) return;
+    flushing = true;
+    const batch = pending;
+    pending = [];
+    for (const part of chunk(batch, 100)) {
+      await Promise.all(
+        part.map((u) => supabase.from("sales_invoice").update(u.patch).eq("id", u.id)),
+      );
+    }
+    flushing = false;
+  }
 
   await pool(candidates, 3, async (r) => {
     const year = (r.invoice_date ?? "0000").slice(0, 4);
@@ -99,29 +113,22 @@ export async function syncInvoicePdfs(opts: Options = {}) {
       if (pdf && pdf.length > 100) {
         const key = prefix.ausgangsrechnung(year, `${r.source}-${extId.replace(/[^\w.-]/g, "_")}`);
         await putObject(key, pdf, "application/pdf");
-        updates.push({
-          id: r.id,
-          patch: { pdf_storage_key: key, pdf_status: "available", pdf_synced_at: new Date().toISOString() },
-        });
+        pending.push({ id: r.id, patch: { pdf_storage_key: key, pdf_status: "available", pdf_synced_at: new Date().toISOString() } });
         results.available += 1;
       } else {
-        updates.push({ id: r.id, patch: { pdf_status: "none", pdf_synced_at: new Date().toISOString() } });
+        pending.push({ id: r.id, patch: { pdf_status: "none", pdf_synced_at: new Date().toISOString() } });
         results.none += 1;
       }
     } catch {
-      updates.push({ id: r.id, patch: { pdf_status: "error", pdf_synced_at: new Date().toISOString() } });
+      pending.push({ id: r.id, patch: { pdf_status: "error", pdf_synced_at: new Date().toISOString() } });
       results.error += 1;
     }
     done += 1;
-    if (done % 50 === 0) process.stdout.write(`\r  ${done}/${candidates.length}   `);
+    if (done % 50 === 0) process.stdout.write(`\r  ${done}/${candidates.length} (verf. ${results.available})   `);
+    await flush();
   });
+  await flush(true);
   process.stdout.write(`\r  ${done}/${candidates.length}   \n`);
-
-  for (const part of chunk(updates, 100)) {
-    await Promise.all(
-      part.map((u) => supabase.from("sales_invoice").update(u.patch).eq("id", u.id)),
-    );
-  }
 
   await supabase.from("external_sync_state").upsert(
     {
