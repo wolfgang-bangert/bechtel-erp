@@ -42,6 +42,12 @@ export const env = {
     user: () => required("IMAP_USER"),
     password: () => required("IMAP_PASSWORD"),
     folder: () => (process.env.IMAP_FOLDER || "INBOX").trim(),
+    /** Absender, deren Mails beim Abruf ignoriert werden (z.B. eigene Ausgangsrechnungen). */
+    ignoreSenders: () =>
+      (process.env.IMAP_IGNORE_SENDERS || "workflow@bangert-services.de")
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean),
   },
   anthropicKey: () => required("ANTHROPIC_API_KEY"),
 };

@@ -95,10 +95,15 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
 - [ ] **IMAP-Verbindung klären**: `mail.your-server.de:993` erreichbar + TLS ok,
   aber Login wird zurückgesetzt → Passwort / IMAP-Freigabe für
   `rechnungen@bechtel-druck.de` in Hetzner KonsoleH prüfen.
-- [x] `ANTHROPIC_API_KEY` in `.env` eingetragen. `incoming:extract` end-to-end
-  getestet (3 Belege: positionsgenaue Positionen, Steueraufschlüsselung,
-  Konfidenz 0,95, Lieferant 3/3 automatisch zugeordnet). Vollstlauf über die
-  restlichen 135 `captured`-Belege läuft.
+- [x] `ANTHROPIC_API_KEY` in `.env` eingetragen. `incoming:extract` Vollstlauf:
+  138 Belege extrahiert (positionsgenaue Positionen, Steueraufschlüsselung,
+  Ø-Konfidenz hoch, 115 Lieferanten automatisch zugeordnet). 1 abgeschnittene
+  Antwort → `max_tokens` 4000→16000 + `repairTruncatedJson`-Fallback.
+- [x] **48 versehentlich zugestellte eigene Ausgangsrechnungen** (Absender
+  `workflow@bangert-services.de`) per neuem `incoming:purge --from=<absender>`
+  gelöscht (Zeilen + S3-PDFs). Bleiben 90 echte Eingangsbelege / 249 Positionen.
+- [x] `mail:fetch` ignoriert jetzt Absender aus `IMAP_IGNORE_SENDERS`
+  (Default: `workflow@bangert-services.de`) — markiert sie `\Seen`, kein Import.
 - [ ] **OCR-Anbieter entschieden:** Claude API (Anthropic), Modell
   `claude-sonnet-5` (Alternativ `claude-haiku-4-5`, ~½ Kosten). Kosten ~1–2 ct
   je Rechnung, ~5–10 €/Monat bei aktuellem Volumen; Batch-API −50 %. DSGVO:

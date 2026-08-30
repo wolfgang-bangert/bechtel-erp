@@ -69,6 +69,9 @@ export async function syncMailbox(opts: Options = {}) {
   let pdfs = 0;
   let created = 0;
   let duplicates = 0;
+  let ignored = 0;
+
+  const ignoreSenders = env.imap.ignoreSenders();
 
   const lock = await client.getMailboxLock(env.imap.folder());
   try {
@@ -93,6 +96,18 @@ export async function syncMailbox(opts: Options = {}) {
       const env_ = msg.envelope;
       const messageId = env_?.messageId ?? `uid:${uid}`;
       const from = env_?.from?.[0]?.address ?? null;
+
+      if (from && ignoreSenders.includes(from.toLowerCase())) {
+        ignored += 1;
+        if (!dryRun) {
+          try {
+            await client.messageFlagsAdd(String(uid), ["\\Seen"], { uid: true });
+          } catch {
+            /* egal */
+          }
+        }
+        continue;
+      }
       const subject = env_?.subject ?? null;
       const date = env_?.date ?? null;
       const year = (date ? new Date(date) : new Date()).toISOString().slice(0, 4);
@@ -168,5 +183,5 @@ export async function syncMailbox(opts: Options = {}) {
     );
   }
 
-  return { messages: msgs, pdfAttachments: pdfs, created, duplicates, dryRun };
+  return { messages: msgs, pdfAttachments: pdfs, created, duplicates, ignored, dryRun };
 }

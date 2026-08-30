@@ -15,6 +15,7 @@ import { syncBankMatch } from "./syncBankMatch";
 import { exportDatevExtf } from "./datevExtf";
 import { syncMailbox } from "./syncMailbox";
 import { extractIncoming } from "./extractIncoming";
+import { purgeIncoming } from "./purgeIncoming";
 import { supabase } from "./supabase";
 
 const cmd = process.argv[2] ?? "";
@@ -191,6 +192,18 @@ async function main() {
       console.log(JSON.stringify(await extractIncoming({ dryRun, limit: lim ? Number(lim.split("=")[1]) : 20 }), null, 1));
       break;
     }
+    case "incoming:purge": {
+      const p = process.argv.find((a) => a.startsWith("--from="));
+      console.log("Eingangsbelege löschen");
+      console.log(
+        JSON.stringify(
+          await purgeIncoming({ dryRun, from: p ? p.split("=")[1] : undefined }),
+          null,
+          1,
+        ),
+      );
+      break;
+    }
     case "dedupe:orgs": {
       console.log("Dubletten-Report Organisationen (nur lesen) …");
       const r = await dedupeReport();
@@ -229,6 +242,9 @@ async function main() {
       console.log("  pnpm --filter sync keyline:invoices    [--dry-run]");
       console.log("  pnpm --filter sync ninox:orders        [--dry-run]");
       console.log("  pnpm --filter sync ninox:invoices      [--dry-run]");
+      console.log("  pnpm --filter sync mail:fetch          [--dry-run] [--limit=N] [--since=DAYS] [--all]");
+      console.log("  pnpm --filter sync incoming:extract    [--dry-run] [--limit=N]");
+      console.log("  pnpm --filter sync incoming:purge      --from=<absender> [--dry-run]");
       console.log("  pnpm --filter sync dedupe:orgs");
       console.log("  pnpm --filter sync dedupe:merge  [--dry-run] [--confidence=mittel] [--exclude=G1,G7] [--only=G12]");
       process.exit(1);
