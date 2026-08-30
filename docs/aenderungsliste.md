@@ -104,6 +104,16 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   gelöscht (Zeilen + S3-PDFs). Bleiben 90 echte Eingangsbelege / 249 Positionen.
 - [x] `mail:fetch` ignoriert jetzt Absender aus `IMAP_IGNORE_SENDERS`
   (Default: `workflow@bangert-services.de`) — markiert sie `\Seen`, kein Import.
+- [x] **Zahlungs-/Lastschriftavis als eigener Belegtyp** (Migration
+  `20260830110000`): `doc_type='payment_advice'`, `status='advice'`, neue Spalten
+  `advice_reference text[]` (Rechnungsnummern, auf die sich das Avis bezieht) +
+  `advice_debit_date`. `incoming:extract` erkennt Avis (KI + Betreff/Dateiname-
+  Fallback `avis|lastschrift|einzugsavis|belastungsanzeige|…`), schreibt keine
+  Positionen und hält sie aus der Rechnungs-Prüfliste raus. Web:
+  `/eingangsrechnungen?status=advice` zeigt Avis mit „bezieht sich auf" +
+  Belastungsdatum; Detailseite ohne Kontierung/Buchen-Buttons. 8 Altbelege
+  reklassifiziert. **Nächster Schritt:** Kontoauszug-Abgleich der Lastschriften
+  (Soll-Seite) über `advice_reference` → passende Eingangsrechnung auf `paid`.
 - [ ] **OCR-Anbieter entschieden:** Claude API (Anthropic), Modell
   `claude-sonnet-5` (Alternativ `claude-haiku-4-5`, ~½ Kosten). Kosten ~1–2 ct
   je Rechnung, ~5–10 €/Monat bei aktuellem Volumen; Batch-API −50 %. DSGVO:

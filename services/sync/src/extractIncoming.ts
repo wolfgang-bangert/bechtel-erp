@@ -8,11 +8,11 @@ type Options = { dryRun?: boolean; limit?: number };
 
 const MODEL = "claude-sonnet-5";
 
-const PROMPT = `Du bekommst eine Eingangsrechnung (PDF) einer deutschen Druckerei.
+const PROMPT = `Du bekommst einen Eingangsbeleg (PDF) einer deutschen Druckerei.
 Extrahiere die Daten und antworte ausschließlich mit JSON, ohne Markdown, in genau dieser Struktur:
 
 {
-  "doc_type": "invoice" | "credit_note" | "receipt" | "unknown",
+  "doc_type": "invoice" | "credit_note" | "receipt" | "payment_advice" | "unknown",
   "supplier": { "name": string|null, "vat_id": string|null, "iban": string|null, "address": string|null },
   "doc_number": string|null,
   "doc_date": "YYYY-MM-DD"|null,
@@ -27,11 +27,27 @@ Extrahiere die Daten und antworte ausschließlich mit JSON, ohne Markdown, in ge
     { "position": number|null, "description": string, "quantity": number|null,
       "unit_price": number|null, "tax_rate": number|null, "net_amount": number|null }
   ],
+  "advice": {
+    "debit_date": "YYYY-MM-DD"|null,        // angekündigtes Belastungsdatum
+    "mandate_reference": string|null,
+    "creditor_id": string|null,             // Gläubiger-ID (DE...)
+    "referenced_doc_numbers": [string],     // Rechnungsnummer(n), auf die sich das Avis bezieht
+    "total_amount": number|null             // Gesamt-Lastschriftbetrag
+  },
   "confidence": number          // 0..1, wie sicher die Extraktion insgesamt ist
 }
 
-Regeln: Beträge als Zahl mit Punkt als Dezimaltrenner, ohne Währungssymbol.
-Unbekannte Felder = null. Wenn es keine Positionsaufstellung gibt, line_items = [].`;
+Regeln:
+- Beträge als Zahl mit Punkt als Dezimaltrenner, ohne Währungssymbol.
+- Unbekannte Felder = null. Wenn es keine Positionsaufstellung gibt, line_items = [].
+- doc_type "payment_advice" NUR für ein Zahlungs-/Lastschriftavis: Titel/Text wie
+  "Lastschrift-Avis", "Lastschriftavis", "Avis SEPA-(Firmen-)Lastschrift",
+  "Einzugsavis", "Belastungsanzeige", "Zahlungsavis". Ein Avis kündigt eine
+  Kontobelastung an, hat KEINE eigene Leistungsbeschreibung/Positionen und
+  verweist auf eine oder mehrere bereits existierende Rechnungsnummern.
+  Dann: "referenced_doc_numbers" = diese Rechnungsnummern, "advice.total_amount"
+  = Summe der Lastschrift, "advice.debit_date" = Belastungsdatum. line_items = [].
+- Für alle anderen Belege bleibt "advice" mit null/[] gefüllt.`;
 
 function parseJson(text: string): unknown {
   const start = text.indexOf("{");
@@ -115,8 +131,23 @@ type Extracted = {
     tax_rate?: number | null;
     net_amount?: number | null;
   }[];
+  advice?: {
+    debit_date?: string | null;
+    mandate_reference?: string | null;
+    creditor_id?: string | null;
+    referenced_doc_numbers?: (string | null)[] | null;
+    total_amount?: number | null;
+  } | null;
   confidence?: number;
 };
+
+/** Betreff/Dateiname deuten auf ein Zahlungs-/Lastschriftavis hin. */
+function looksLikeAdvice(...parts: (string | null | undefined)[]): boolean {
+  const s = parts.filter(Boolean).join(" ").toLowerCase();
+  return /\bavis\b|lastschrift[-\s]?avis|einzugsavis|belastungsanzeige|zahlungsavis|sepa-?(firmen)?lastschrift/.test(
+    s,
+  );
+}
 
 const num = (v: unknown): number | null =>
   v == null || v === "" || Number.isNaN(Number(v)) ? null : Number(v);
@@ -154,15 +185,21 @@ export async function extractIncoming(opts: Options = {}) {
   const client = new Anthropic({ apiKey: env.anthropicKey() });
 
   const docs = (
-    await pagedSelect<{ id: string; pdf_storage_key: string | null; file_name: string | null }>(
+    await pagedSelect<{
+      id: string;
+      pdf_storage_key: string | null;
+      file_name: string | null;
+      email_subject: string | null;
+    }>(
       "incoming_document",
-      "id, pdf_storage_key, file_name",
+      "id, pdf_storage_key, file_name, email_subject",
       ["status", "captured"],
     )
   ).slice(0, limit);
 
   let ok = 0;
   let failed = 0;
+  let advice = 0;
 
   for (const doc of docs) {
     if (!doc.pdf_storage_key) {
@@ -194,10 +231,29 @@ export async function extractIncoming(opts: Options = {}) {
       const textPart = res.content.find((c) => c.type === "text");
       const e = parseJson(textPart && "text" in textPart ? textPart.text : "") as Extracted;
 
+      // Avis erkennen — KI-Klassifikation, mit Betreff/Dateiname als Fallback.
+      const isAdvice =
+        e.doc_type === "payment_advice" || looksLikeAdvice(doc.file_name, doc.email_subject);
+
+      const refs = Array.from(
+        new Set(
+          [
+            ...(e.advice?.referenced_doc_numbers ?? []),
+            // Bei einem Avis ist die "doc_number" oft schon die Rechnungsnummer.
+            ...(isAdvice && e.doc_number ? [e.doc_number] : []),
+          ]
+            .map((s) => String(s ?? "").trim())
+            .filter(Boolean),
+        ),
+      );
+
       if (dryRun) {
         console.log(
-          `  ${doc.file_name}: ${e.supplier?.name ?? "?"} · ${e.doc_number ?? "?"} · ` +
-            `${e.gross_amount ?? "?"} ${e.currency ?? ""} · ${e.line_items?.length ?? 0} Pos · conf ${e.confidence ?? "?"}`,
+          isAdvice
+            ? `  ${doc.file_name}: AVIS · ${e.supplier?.name ?? "?"} · bezieht sich auf [${refs.join(", ") || "?"}] · ` +
+                `${num(e.advice?.total_amount) ?? e.gross_amount ?? "?"} ${e.currency ?? ""} · Belastung ${e.advice?.debit_date ?? "?"}`
+            : `  ${doc.file_name}: ${e.supplier?.name ?? "?"} · ${e.doc_number ?? "?"} · ` +
+                `${e.gross_amount ?? "?"} ${e.currency ?? ""} · ${e.line_items?.length ?? 0} Pos · conf ${e.confidence ?? "?"}`,
         );
         ok += 1;
         continue;
@@ -207,8 +263,9 @@ export async function extractIncoming(opts: Options = {}) {
       const { error: uErr } = await supabase
         .from("incoming_document")
         .update({
-          status: "extracted",
-          doc_type: e.doc_type ?? "invoice",
+          // Avis landet nicht in der Kreditoren-Prüfliste, sondern in eigenem Status.
+          status: isAdvice ? "advice" : "extracted",
+          doc_type: isAdvice ? "payment_advice" : (e.doc_type ?? "invoice"),
           supplier_organization_id: supplierId,
           supplier_name: e.supplier?.name ?? null,
           supplier_vat_id: e.supplier?.vat_id ?? null,
@@ -218,10 +275,14 @@ export async function extractIncoming(opts: Options = {}) {
           service_date: date(e.service_date),
           due_date: date(e.due_date),
           currency: (e.currency ?? "EUR").slice(0, 3).toUpperCase(),
-          net_amount: num(e.net_amount),
-          tax_amount: num(e.tax_amount),
-          gross_amount: num(e.gross_amount),
-          tax_breakdown: e.tax_breakdown ?? null,
+          net_amount: isAdvice ? null : num(e.net_amount),
+          tax_amount: isAdvice ? null : num(e.tax_amount),
+          gross_amount: isAdvice
+            ? (num(e.advice?.total_amount) ?? num(e.gross_amount))
+            : num(e.gross_amount),
+          tax_breakdown: isAdvice ? null : (e.tax_breakdown ?? null),
+          advice_debit_date: isAdvice ? date(e.advice?.debit_date) : null,
+          advice_reference: isAdvice && refs.length ? refs : null,
           extraction: e as unknown as Record<string, unknown>,
           extraction_model: MODEL,
           extraction_confidence: num(e.confidence),
@@ -232,21 +293,24 @@ export async function extractIncoming(opts: Options = {}) {
       if (uErr) throw new Error(uErr.message);
 
       await supabase.from("incoming_document_item").delete().eq("incoming_document_id", doc.id);
-      const items = (e.line_items ?? []).map((li, i) => ({
-        incoming_document_id: doc.id,
-        position: li.position ?? i + 1,
-        description: li.description ?? null,
-        quantity: num(li.quantity),
-        unit_price: num(li.unit_price),
-        tax_rate: num(li.tax_rate),
-        net_amount: num(li.net_amount),
-        raw: li,
-      }));
+      const items = isAdvice
+        ? []
+        : (e.line_items ?? []).map((li, i) => ({
+            incoming_document_id: doc.id,
+            position: li.position ?? i + 1,
+            description: li.description ?? null,
+            quantity: num(li.quantity),
+            unit_price: num(li.unit_price),
+            tax_rate: num(li.tax_rate),
+            net_amount: num(li.net_amount),
+            raw: li,
+          }));
       if (items.length) {
         const { error: iErr } = await supabase.from("incoming_document_item").insert(items);
         if (iErr) throw new Error(iErr.message);
       }
       ok += 1;
+      if (isAdvice) advice += 1;
       process.stdout.write(`\r  extrahiert ${ok}/${docs.length}   `);
     } catch (err) {
       failed += 1;
@@ -261,5 +325,5 @@ export async function extractIncoming(opts: Options = {}) {
     }
   }
   process.stdout.write("\n");
-  return { docs: docs.length, ok, failed, dryRun };
+  return { docs: docs.length, ok, advice, failed, dryRun };
 }

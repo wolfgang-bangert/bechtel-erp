@@ -32,6 +32,7 @@ export default async function IncomingDetail({
   if (!doc) notFound();
 
   const pdfUrl = doc.pdf_storage_key ? await signedGetUrl(doc.pdf_storage_key, 1800) : null;
+  const isAdvice = doc.doc_type === "payment_advice" || doc.status === "advice";
 
   return (
     <>
@@ -40,11 +41,41 @@ export default async function IncomingDetail({
       </p>
       <h1>{doc.doc_number ?? doc.file_name ?? "Beleg"}</h1>
       <p className="lead">
-        Status {doc.status}
-        {doc.extraction_confidence != null &&
+        {isAdvice ? "Zahlungsavis" : `Status ${doc.status}`}
+        {!isAdvice &&
+          doc.extraction_confidence != null &&
           ` · KI-Konfidenz ${Math.round(doc.extraction_confidence * 100)} %`}
         {doc.email_from && ` · von ${doc.email_from}`}
       </p>
+
+      {isAdvice && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p className="lead" style={{ marginTop: 0 }}>
+            Lastschrift-/Zahlungsavis — keine zu buchende Rechnung. Dient dem
+            Kontoauszug-Abgleich.
+          </p>
+          <table className="data">
+            <tbody>
+              <tr>
+                <th style={{ textAlign: "left" }}>Lieferant</th>
+                <td>{doc.supplier_name ?? "–"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left" }}>bezieht sich auf Rechnung(en)</th>
+                <td>{(doc.advice_reference ?? []).join(", ") || "–"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left" }}>Belastung am</th>
+                <td>{doc.advice_debit_date ?? "–"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left" }}>Lastschriftbetrag</th>
+                <td>{doc.gross_amount != null ? `${doc.gross_amount} ${doc.currency}` : "–"}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="toolbar">
         {pdfUrl ? (
@@ -55,14 +86,14 @@ export default async function IncomingDetail({
         ) : (
           <span className="count">kein PDF</span>
         )}
-        {["extracted", "reviewed"].includes(doc.status) && (
+        {!isAdvice && ["extracted", "reviewed"].includes(doc.status) && (
           <form action={setIncomingStatus}>
             <input type="hidden" name="id" value={doc.id} />
             <input type="hidden" name="status" value="reviewed" />
             <button type="submit">als geprüft markieren</button>
           </form>
         )}
-        {doc.status === "reviewed" && (
+        {!isAdvice && doc.status === "reviewed" && (
           <form action={setIncomingStatus}>
             <input type="hidden" name="id" value={doc.id} />
             <input type="hidden" name="status" value="booked" />
@@ -79,6 +110,7 @@ export default async function IncomingDetail({
       {doc.notes && <div className="banner-err">{doc.notes}</div>}
 
       <div style={{ display: "grid", gridTemplateColumns: pdfUrl ? "1fr 1fr" : "1fr", gap: 24 }}>
+        {!isAdvice && (
         <div>
           <ReviewForm
             doc={doc as Record<string, unknown>}
@@ -119,6 +151,7 @@ export default async function IncomingDetail({
             </table>
           </div>
         </div>
+        )}
 
         {pdfUrl && (
           <div>
