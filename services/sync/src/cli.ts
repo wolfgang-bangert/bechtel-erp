@@ -166,9 +166,23 @@ async function main() {
       break;
     }
     case "mail:fetch": {
-      const lim = process.argv.find((a) => a.startsWith("--limit="));
+      const val = (n: string) => {
+        const p = process.argv.find((a) => a.startsWith(n + "="));
+        return p ? Number(p.split("=")[1]) : undefined;
+      };
       console.log(`Postfach abrufen${dryRun ? "  (DRY RUN)" : ""}`);
-      console.log(JSON.stringify(await syncMailbox({ dryRun, limit: lim ? Number(lim.split("=")[1]) : undefined, unseenOnly: process.argv.includes("--unseen") }), null, 1));
+      console.log(
+        JSON.stringify(
+          await syncMailbox({
+            dryRun,
+            limit: val("--limit"),
+            sinceDays: val("--since"),
+            all: process.argv.includes("--all"),
+          }),
+          null,
+          1,
+        ),
+      );
       break;
     }
     case "incoming:extract": {
