@@ -23,6 +23,7 @@ export default async function AppLayout({
 
         <div className="nav-group">Buchhaltung</div>
         <Link href="/offene-posten">Offene Posten</Link>
+        <Link href="/eingangsrechnungen">Eingangsrechnungen</Link>
         <Link href="/bank">Bank</Link>
 
         <div className="nav-group">Einstellungen</div>
