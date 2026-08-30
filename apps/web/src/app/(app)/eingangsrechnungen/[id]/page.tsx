@@ -33,6 +33,10 @@ export default async function IncomingDetail({
 
   const pdfUrl = doc.pdf_storage_key ? await signedGetUrl(doc.pdf_storage_key, 1800) : null;
   const isAdvice = doc.doc_type === "payment_advice" || doc.status === "advice";
+  const isDunning = doc.doc_type === "dunning" || doc.status === "dunning";
+  const isHint = isAdvice || isDunning;
+  const dun = ((doc.extraction as { dunning?: Record<string, unknown> } | null)?.dunning ??
+    {}) as Record<string, unknown>;
 
   return (
     <>
@@ -41,12 +45,48 @@ export default async function IncomingDetail({
       </p>
       <h1>{doc.doc_number ?? doc.file_name ?? "Beleg"}</h1>
       <p className="lead">
-        {isAdvice ? "Zahlungsavis" : `Status ${doc.status}`}
-        {!isAdvice &&
+        {isAdvice ? "Zahlungsavis" : isDunning ? "Mahnung" : `Status ${doc.status}`}
+        {!isHint &&
           doc.extraction_confidence != null &&
           ` · KI-Konfidenz ${Math.round(doc.extraction_confidence * 100)} %`}
         {doc.email_from && ` · von ${doc.email_from}`}
+        {isDunning && doc.forwarded_at && " · weitergeleitet"}
       </p>
+
+      {isDunning && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p className="lead" style={{ marginTop: 0 }}>
+            Mahnung / Zahlungserinnerung — keine zu buchende Rechnung.
+            {doc.forwarded_at
+              ? " Wurde per E-Mail weitergeleitet."
+              : " Weiterleitung ausstehend (SMTP/Ziel prüfen)."}
+          </p>
+          <table className="data">
+            <tbody>
+              <tr>
+                <th style={{ textAlign: "left" }}>Lieferant</th>
+                <td>{doc.supplier_name ?? "–"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left" }}>angemahnte Rechnung(en)</th>
+                <td>{(doc.advice_reference ?? []).join(", ") || "–"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left" }}>Mahnstufe</th>
+                <td>{dun.level != null ? String(dun.level) : "–"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left" }}>offener Betrag</th>
+                <td>{doc.gross_amount != null ? `${doc.gross_amount} ${doc.currency}` : "–"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left" }}>neue Frist</th>
+                <td>{dun.deadline != null ? String(dun.deadline) : "–"}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {isAdvice && (
         <div className="card" style={{ marginBottom: 16 }}>
@@ -86,14 +126,14 @@ export default async function IncomingDetail({
         ) : (
           <span className="count">kein PDF</span>
         )}
-        {!isAdvice && ["extracted", "reviewed"].includes(doc.status) && (
+        {!isHint && ["extracted", "reviewed"].includes(doc.status) && (
           <form action={setIncomingStatus}>
             <input type="hidden" name="id" value={doc.id} />
             <input type="hidden" name="status" value="reviewed" />
             <button type="submit">als geprüft markieren</button>
           </form>
         )}
-        {!isAdvice && doc.status === "reviewed" && (
+        {!isHint && doc.status === "reviewed" && (
           <form action={setIncomingStatus}>
             <input type="hidden" name="id" value={doc.id} />
             <input type="hidden" name="status" value="booked" />
@@ -110,7 +150,7 @@ export default async function IncomingDetail({
       {doc.notes && <div className="banner-err">{doc.notes}</div>}
 
       <div style={{ display: "grid", gridTemplateColumns: pdfUrl ? "1fr 1fr" : "1fr", gap: 24 }}>
-        {!isAdvice && (
+        {!isHint && (
         <div>
           <ReviewForm
             doc={doc as Record<string, unknown>}

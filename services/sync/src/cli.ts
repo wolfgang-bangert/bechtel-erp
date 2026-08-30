@@ -16,6 +16,8 @@ import { exportDatevExtf } from "./datevExtf";
 import { syncMailbox } from "./syncMailbox";
 import { extractIncoming } from "./extractIncoming";
 import { purgeIncoming } from "./purgeIncoming";
+import { pruneReceiptDuplicates } from "./pruneReceipts";
+import { forwardDunnings } from "./forwardDunnings";
 import { supabase } from "./supabase";
 
 const cmd = process.argv[2] ?? "";
@@ -204,6 +206,16 @@ async function main() {
       );
       break;
     }
+    case "incoming:prune-receipts": {
+      console.log(`Redundante Receipts entfernen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await pruneReceiptDuplicates({ dryRun }), null, 1));
+      break;
+    }
+    case "incoming:forward-dunning": {
+      console.log(`Mahnungen weiterleiten${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await forwardDunnings({ dryRun }), null, 1));
+      break;
+    }
     case "dedupe:orgs": {
       console.log("Dubletten-Report Organisationen (nur lesen) …");
       const r = await dedupeReport();
@@ -245,6 +257,8 @@ async function main() {
       console.log("  pnpm --filter sync mail:fetch          [--dry-run] [--limit=N] [--since=DAYS] [--all]");
       console.log("  pnpm --filter sync incoming:extract    [--dry-run] [--limit=N]");
       console.log("  pnpm --filter sync incoming:purge      --from=<absender> [--dry-run]");
+      console.log("  pnpm --filter sync incoming:prune-receipts   [--dry-run]");
+      console.log("  pnpm --filter sync incoming:forward-dunning  [--dry-run]");
       console.log("  pnpm --filter sync dedupe:orgs");
       console.log("  pnpm --filter sync dedupe:merge  [--dry-run] [--confidence=mittel] [--exclude=G1,G7] [--only=G12]");
       process.exit(1);

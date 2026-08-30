@@ -22,7 +22,9 @@
     "bank:match": "tsx src/cli.ts bank:match",
     "mail:fetch": "tsx src/cli.ts mail:fetch",
     "incoming:extract": "tsx src/cli.ts incoming:extract",
-    "incoming:purge": "tsx src/cli.ts incoming:purge"
+    "incoming:purge": "tsx src/cli.ts incoming:purge",
+    "incoming:prune-receipts": "tsx src/cli.ts incoming:prune-receipts",
+    "incoming:forward-dunning": "tsx src/cli.ts incoming:forward-dunning"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
@@ -32,11 +34,13 @@
     "dotenv": "^16.4.5",
     "fast-xml-parser": "^5.11.1",
     "imapflow": "^1.7.6",
-    "mailparser": "^3.9.17"
+    "mailparser": "^3.9.17",
+    "nodemailer": "^6.9.16"
   },
   "devDependencies": {
     "@types/mailparser": "^3.4.6",
     "@types/node": "^22",
+    "@types/nodemailer": "^6.4.17",
     "tsx": "^4.19.2",
     "typescript": "^5.7"
   }

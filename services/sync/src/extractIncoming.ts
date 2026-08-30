@@ -3,6 +3,8 @@ import { env } from "./env";
 import { supabase } from "./supabase";
 import { getObjectBytes } from "./storage";
 import { pagedSelect } from "./db";
+import { pruneReceiptDuplicates } from "./pruneReceipts";
+import { forwardDunnings } from "./forwardDunnings";
 
 type Options = { dryRun?: boolean; limit?: number };
 
@@ -12,7 +14,7 @@ const PROMPT = `Du bekommst einen Eingangsbeleg (PDF) einer deutschen Druckerei.
 Extrahiere die Daten und antworte ausschließlich mit JSON, ohne Markdown, in genau dieser Struktur:
 
 {
-  "doc_type": "invoice" | "credit_note" | "receipt" | "payment_advice" | "unknown",
+  "doc_type": "invoice" | "credit_note" | "receipt" | "payment_advice" | "dunning" | "unknown",
   "supplier": { "name": string|null, "vat_id": string|null, "iban": string|null, "address": string|null },
   "doc_number": string|null,
   "doc_date": "YYYY-MM-DD"|null,
@@ -34,6 +36,13 @@ Extrahiere die Daten und antworte ausschließlich mit JSON, ohne Markdown, in ge
     "referenced_doc_numbers": [string],     // Rechnungsnummer(n), auf die sich das Avis bezieht
     "total_amount": number|null             // Gesamt-Lastschriftbetrag
   },
+  "dunning": {
+    "level": number|null,                   // Mahnstufe (1, 2, 3 …)
+    "referenced_doc_numbers": [string],     // angemahnte Rechnungsnummer(n)
+    "amount_due": number|null,              // offener Betrag inkl. Gebühren
+    "dunning_fee": number|null,             // Mahngebühr / Verzugskosten
+    "deadline": "YYYY-MM-DD"|null           // neue Zahlungsfrist
+  },
   "confidence": number          // 0..1, wie sicher die Extraktion insgesamt ist
 }
 
@@ -47,7 +56,12 @@ Regeln:
   verweist auf eine oder mehrere bereits existierende Rechnungsnummern.
   Dann: "referenced_doc_numbers" = diese Rechnungsnummern, "advice.total_amount"
   = Summe der Lastschrift, "advice.debit_date" = Belastungsdatum. line_items = [].
-- Für alle anderen Belege bleibt "advice" mit null/[] gefüllt.`;
+- doc_type "dunning" für eine Mahnung / Zahlungserinnerung / Zahlungsaufforderung:
+  fordert die Zahlung einer bereits gestellten Rechnung an, oft mit Mahnstufe
+  und Mahngebühr. Dann: "dunning.referenced_doc_numbers" = angemahnte
+  Rechnungsnummer(n), "dunning.amount_due" = offener Betrag, "dunning.level" =
+  Mahnstufe, "dunning.deadline" = neue Frist. line_items = [].
+- Für nicht zutreffende Belege bleiben "advice" und "dunning" mit null/[] gefüllt.`;
 
 function parseJson(text: string): unknown {
   const start = text.indexOf("{");
@@ -138,6 +152,13 @@ type Extracted = {
     referenced_doc_numbers?: (string | null)[] | null;
     total_amount?: number | null;
   } | null;
+  dunning?: {
+    level?: number | null;
+    referenced_doc_numbers?: (string | null)[] | null;
+    amount_due?: number | null;
+    dunning_fee?: number | null;
+    deadline?: string | null;
+  } | null;
   confidence?: number;
 };
 
@@ -146,6 +167,26 @@ function looksLikeAdvice(...parts: (string | null | undefined)[]): boolean {
   const s = parts.filter(Boolean).join(" ").toLowerCase();
   return /\bavis\b|lastschrift[-\s]?avis|einzugsavis|belastungsanzeige|zahlungsavis|sepa-?(firmen)?lastschrift/.test(
     s,
+  );
+}
+
+/** Betreff/Dateiname deuten auf eine Mahnung hin. */
+function looksLikeDunning(...parts: (string | null | undefined)[]): boolean {
+  const s = parts.filter(Boolean).join(" ").toLowerCase();
+  return /mahnung|mahnstufe|zahlungserinnerung|zahlungsaufforderung|letzte\s+erinnerung|verzug|inkasso|payment\s+reminder|overdue|dunning/.test(
+    s,
+  );
+}
+
+/** doppelte Elemente entfernen, leere raus, alles getrimmt. */
+function cleanRefs(...lists: ((string | null)[] | null | undefined)[]): string[] {
+  return Array.from(
+    new Set(
+      lists
+        .flatMap((l) => l ?? [])
+        .map((s) => String(s ?? "").trim())
+        .filter(Boolean),
+    ),
   );
 }
 
@@ -200,6 +241,7 @@ export async function extractIncoming(opts: Options = {}) {
   let ok = 0;
   let failed = 0;
   let advice = 0;
+  let dunning = 0;
 
   for (const doc of docs) {
     if (!doc.pdf_storage_key) {
@@ -231,27 +273,35 @@ export async function extractIncoming(opts: Options = {}) {
       const textPart = res.content.find((c) => c.type === "text");
       const e = parseJson(textPart && "text" in textPart ? textPart.text : "") as Extracted;
 
-      // Avis erkennen — KI-Klassifikation, mit Betreff/Dateiname als Fallback.
+      // Hinweisbelege (Avis / Mahnung) erkennen — KI-Klassifikation, mit
+      // Betreff/Dateiname als Fallback. Beide landen nicht in der Kreditoren-
+      // Prüfliste, sondern in eigenem Status, ohne Positionen.
       const isAdvice =
         e.doc_type === "payment_advice" || looksLikeAdvice(doc.file_name, doc.email_subject);
+      const isDunning =
+        !isAdvice &&
+        (e.doc_type === "dunning" || looksLikeDunning(doc.file_name, doc.email_subject));
+      const isHint = isAdvice || isDunning;
 
-      const refs = Array.from(
-        new Set(
-          [
-            ...(e.advice?.referenced_doc_numbers ?? []),
-            // Bei einem Avis ist die "doc_number" oft schon die Rechnungsnummer.
-            ...(isAdvice && e.doc_number ? [e.doc_number] : []),
-          ]
-            .map((s) => String(s ?? "").trim())
-            .filter(Boolean),
-        ),
+      // Rechnungsnummer(n), auf die sich der Hinweisbeleg bezieht.
+      const refs = cleanRefs(
+        e.advice?.referenced_doc_numbers,
+        e.dunning?.referenced_doc_numbers,
+        // bei Avis/Mahnung ist die "doc_number" oft schon die Rechnungsnummer
+        isHint && e.doc_number ? [e.doc_number] : [],
       );
+      const hintAmount = isAdvice
+        ? (num(e.advice?.total_amount) ?? num(e.gross_amount))
+        : isDunning
+          ? (num(e.dunning?.amount_due) ?? num(e.gross_amount))
+          : num(e.gross_amount);
 
       if (dryRun) {
+        const tag = isAdvice ? "AVIS" : isDunning ? "MAHNUNG" : null;
         console.log(
-          isAdvice
-            ? `  ${doc.file_name}: AVIS · ${e.supplier?.name ?? "?"} · bezieht sich auf [${refs.join(", ") || "?"}] · ` +
-                `${num(e.advice?.total_amount) ?? e.gross_amount ?? "?"} ${e.currency ?? ""} · Belastung ${e.advice?.debit_date ?? "?"}`
+          tag
+            ? `  ${doc.file_name}: ${tag} · ${e.supplier?.name ?? "?"} · Rg [${refs.join(", ") || "?"}] · ` +
+                `${hintAmount ?? "?"} ${e.currency ?? ""}`
             : `  ${doc.file_name}: ${e.supplier?.name ?? "?"} · ${e.doc_number ?? "?"} · ` +
                 `${e.gross_amount ?? "?"} ${e.currency ?? ""} · ${e.line_items?.length ?? 0} Pos · conf ${e.confidence ?? "?"}`,
         );
@@ -263,9 +313,12 @@ export async function extractIncoming(opts: Options = {}) {
       const { error: uErr } = await supabase
         .from("incoming_document")
         .update({
-          // Avis landet nicht in der Kreditoren-Prüfliste, sondern in eigenem Status.
-          status: isAdvice ? "advice" : "extracted",
-          doc_type: isAdvice ? "payment_advice" : (e.doc_type ?? "invoice"),
+          status: isAdvice ? "advice" : isDunning ? "dunning" : "extracted",
+          doc_type: isAdvice
+            ? "payment_advice"
+            : isDunning
+              ? "dunning"
+              : (e.doc_type ?? "invoice"),
           supplier_organization_id: supplierId,
           supplier_name: e.supplier?.name ?? null,
           supplier_vat_id: e.supplier?.vat_id ?? null,
@@ -275,14 +328,13 @@ export async function extractIncoming(opts: Options = {}) {
           service_date: date(e.service_date),
           due_date: date(e.due_date),
           currency: (e.currency ?? "EUR").slice(0, 3).toUpperCase(),
-          net_amount: isAdvice ? null : num(e.net_amount),
-          tax_amount: isAdvice ? null : num(e.tax_amount),
-          gross_amount: isAdvice
-            ? (num(e.advice?.total_amount) ?? num(e.gross_amount))
-            : num(e.gross_amount),
-          tax_breakdown: isAdvice ? null : (e.tax_breakdown ?? null),
+          net_amount: isHint ? null : num(e.net_amount),
+          tax_amount: isHint ? null : num(e.tax_amount),
+          gross_amount: isHint ? hintAmount : num(e.gross_amount),
+          tax_breakdown: isHint ? null : (e.tax_breakdown ?? null),
           advice_debit_date: isAdvice ? date(e.advice?.debit_date) : null,
-          advice_reference: isAdvice && refs.length ? refs : null,
+          advice_reference: isHint && refs.length ? refs : null,
+          forwarded_at: null,
           extraction: e as unknown as Record<string, unknown>,
           extraction_model: MODEL,
           extraction_confidence: num(e.confidence),
@@ -293,7 +345,7 @@ export async function extractIncoming(opts: Options = {}) {
       if (uErr) throw new Error(uErr.message);
 
       await supabase.from("incoming_document_item").delete().eq("incoming_document_id", doc.id);
-      const items = isAdvice
+      const items = isHint
         ? []
         : (e.line_items ?? []).map((li, i) => ({
             incoming_document_id: doc.id,
@@ -311,6 +363,7 @@ export async function extractIncoming(opts: Options = {}) {
       }
       ok += 1;
       if (isAdvice) advice += 1;
+      if (isDunning) dunning += 1;
       process.stdout.write(`\r  extrahiert ${ok}/${docs.length}   `);
     } catch (err) {
       failed += 1;
@@ -325,5 +378,23 @@ export async function extractIncoming(opts: Options = {}) {
     }
   }
   process.stdout.write("\n");
-  return { docs: docs.length, ok, advice, failed, dryRun };
+
+  // Nachlauf: redundante Receipts entfernen, erkannte Mahnungen weiterleiten.
+  // Fehler hier sind nicht fatal für die Extraktion.
+  let receiptsPruned = 0;
+  let dunningsForwarded = 0;
+  if (!dryRun) {
+    try {
+      receiptsPruned = (await pruneReceiptDuplicates({ quiet: true })).deletedRows;
+    } catch (err) {
+      console.error(`  Receipt-Bereinigung übersprungen: ${err instanceof Error ? err.message : err}`);
+    }
+    try {
+      dunningsForwarded = (await forwardDunnings({ quiet: true })).sent;
+    } catch (err) {
+      console.error(`  Mahnungs-Weiterleitung übersprungen: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  return { docs: docs.length, ok, advice, dunning, failed, receiptsPruned, dunningsForwarded, dryRun };
 }

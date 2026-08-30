@@ -12,7 +12,11 @@ const STATUS: Record<string, string> = {
   exported: "exportiert",
   rejected: "verworfen",
   advice: "Zahlungsavis",
+  dunning: "Mahnung",
 };
+
+// Hinweisbelege: keine zu buchenden Rechnungen, eigener Blick.
+const HINT = new Set(["advice", "dunning"]);
 
 export default async function EingangsrechnungenPage({
   searchParams,
@@ -21,7 +25,9 @@ export default async function EingangsrechnungenPage({
 }) {
   const sp = await searchParams;
   const status = sp.status ?? "";
+  const isHint = HINT.has(status);
   const isAdvice = status === "advice";
+  const isDunning = status === "dunning";
 
   const supabase = await createClient();
   let q = supabase
@@ -33,14 +39,14 @@ export default async function EingangsrechnungenPage({
     .order("created_at", { ascending: false })
     .limit(200);
   if (status) q = q.eq("status", status);
-  // Ohne Filter: Zahlungsavis raus aus der Rechnungs-Prüfliste.
-  else q = q.neq("status", "advice");
+  // Ohne Filter: Hinweisbelege raus aus der Rechnungs-Prüfliste.
+  else q = q.not("status", "in", "(advice,dunning)");
   const { data, count, error } = await q;
 
-  const { count: adviceCount } = await supabase
-    .from("incoming_document")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "advice");
+  const [{ count: adviceCount }, { count: dunningCount }] = await Promise.all([
+    supabase.from("incoming_document").select("id", { count: "exact", head: true }).eq("status", "advice"),
+    supabase.from("incoming_document").select("id", { count: "exact", head: true }).eq("status", "dunning"),
+  ]);
 
   return (
     <>
@@ -61,7 +67,12 @@ export default async function EingangsrechnungenPage({
         <span className="count">{count ?? 0} Belege</span>
         {!isAdvice && (adviceCount ?? 0) > 0 && (
           <Link className="count" href="/eingangsrechnungen?status=advice">
-            · {adviceCount} Zahlungsavis ansehen
+            · {adviceCount} Zahlungsavis
+          </Link>
+        )}
+        {!isDunning && (dunningCount ?? 0) > 0 && (
+          <Link className="count" href="/eingangsrechnungen?status=dunning">
+            · {dunningCount} Mahnungen
           </Link>
         )}
       </form>
@@ -71,6 +82,12 @@ export default async function EingangsrechnungenPage({
           Zahlungs-/Lastschriftavis — <strong>keine</strong> zu buchenden
           Rechnungen. Sie nennen die Rechnungsnummer(n) und das Belastungsdatum
           und helfen beim Kontoauszug-Abgleich.
+        </p>
+      )}
+      {isDunning && (
+        <p className="lead">
+          Mahnungen / Zahlungserinnerungen — <strong>keine</strong> zu buchenden
+          Rechnungen. Werden zusätzlich per E-Mail weitergeleitet.
         </p>
       )}
 
@@ -83,9 +100,11 @@ export default async function EingangsrechnungenPage({
               <th>Beleg</th>
               <th>Lieferant</th>
               <th>{isAdvice ? "Belastung am" : "Datum"}</th>
-              <th style={{ textAlign: "right" }}>{isAdvice ? "Lastschrift" : "Brutto"}</th>
-              <th>{isAdvice ? "bezieht sich auf" : "Status"}</th>
-              <th>{isAdvice ? "" : "Konf."}</th>
+              <th style={{ textAlign: "right" }}>
+                {isAdvice ? "Lastschrift" : isDunning ? "offen" : "Brutto"}
+              </th>
+              <th>{isHint ? "bezieht sich auf" : "Status"}</th>
+              <th>{isHint ? "" : "Konf."}</th>
             </tr>
           </thead>
           <tbody>
@@ -100,12 +119,12 @@ export default async function EingangsrechnungenPage({
                 <td>{fmtDate(isAdvice ? d.advice_debit_date : d.doc_date)}</td>
                 <td style={{ textAlign: "right" }}>{fmtEur(d.gross_amount)}</td>
                 <td className="wrap">
-                  {isAdvice
+                  {isHint
                     ? (d.advice_reference ?? []).join(", ") || "–"
                     : (STATUS[d.status] ?? d.status)}
                 </td>
                 <td>
-                  {isAdvice
+                  {isHint
                     ? ""
                     : d.extraction_confidence != null
                       ? `${Math.round(d.extraction_confidence * 100)} %`

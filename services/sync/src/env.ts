@@ -49,5 +49,17 @@ export const env = {
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean),
   },
+  smtp: {
+    /** true, wenn SMTP-Versand konfiguriert ist. */
+    configured: () => Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD),
+    host: () => required("SMTP_HOST"),
+    port: () => Number(process.env.SMTP_PORT || 587),
+    secure: () => process.env.SMTP_SECURE === "true" || Number(process.env.SMTP_PORT) === 465,
+    user: () => required("SMTP_USER"),
+    password: () => required("SMTP_PASSWORD"),
+    from: () => (process.env.SMTP_FROM || process.env.SMTP_USER || "").trim(),
+  },
+  /** Weiterleitungsziel für Mahnungen; leer = keine Weiterleitung. */
+  dunningForwardTo: () => (process.env.DUNNING_FORWARD_TO || "").trim(),
   anthropicKey: () => required("ANTHROPIC_API_KEY"),
 };
