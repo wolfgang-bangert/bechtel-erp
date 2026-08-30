@@ -29,6 +29,20 @@ Extrahiere die Daten und antworte ausschließlich mit JSON, ohne Markdown, in ge
     { "position": number|null, "description": string, "quantity": number|null,
       "unit_price": number|null, "tax_rate": number|null, "net_amount": number|null }
   ],
+  "payment_terms": {
+    "net_due_date": "YYYY-MM-DD"|null,    // Nettofälligkeit (Datum)
+    "net_days": number|null,              // falls nur "zahlbar innerhalb 30 Tagen" angegeben
+    "discount_date": "YYYY-MM-DD"|null,   // letzter Tag mit Skonto
+    "discount_days": number|null,         // falls nur "2% Skonto innerhalb 14 Tagen"
+    "discount_percent": number|null,      // Skontosatz in Prozent, z.B. 2
+    "discount_amount": number|null        // Skontobetrag in Währung, falls genannt
+  },
+  "payee": {
+    "differs": boolean,                   // true, wenn NICHT an den Lieferanten selbst gezahlt wird
+    "name": string|null,                  // Name des abweichenden Zahlungsempfängers
+    "iban": string|null,                  // dessen IBAN
+    "reason": string|null                 // "Insolvenzverwalter" | "Abtretung/Factoring" | "Inkasso" | ...
+  },
   "advice": {
     "debit_date": "YYYY-MM-DD"|null,        // angekündigtes Belastungsdatum
     "mandate_reference": string|null,
@@ -61,7 +75,16 @@ Regeln:
   und Mahngebühr. Dann: "dunning.referenced_doc_numbers" = angemahnte
   Rechnungsnummer(n), "dunning.amount_due" = offener Betrag, "dunning.level" =
   Mahnstufe, "dunning.deadline" = neue Frist. line_items = [].
-- Für nicht zutreffende Belege bleiben "advice" und "dunning" mit null/[] gefüllt.`;
+- Für nicht zutreffende Belege bleiben "advice" und "dunning" mit null/[] gefüllt.
+- "payment_terms": aus den Zahlungsbedingungen lesen ("Zahlbar bis …",
+  "2% Skonto bis TT.MM., netto bis TT.MM.", "Zahlung innerhalb 14 Tagen mit
+  2% Skonto, 30 Tage netto"). Wenn nur Tage genannt sind, "net_days"/
+  "discount_days" füllen (die Datumsfelder darfst du null lassen). Ist keine
+  Skontoregel angegeben, discount_* = null.
+- "payee.differs" = true bei Hinweisen wie "Zahlung ausschließlich an …",
+  "Insolvenzverwalter", "Forderung wurde abgetreten an …", "Factoring", "RatePay"/
+  "Ratepay", "Inkasso", oder wenn der Kontoinhaber vom Lieferantennamen abweicht.
+  Dann "payee.name"/"payee.iban"/"payee.reason" füllen. Sonst differs=false.`;
 
 function parseJson(text: string): unknown {
   const start = text.indexOf("{");
@@ -159,8 +182,31 @@ type Extracted = {
     dunning_fee?: number | null;
     deadline?: string | null;
   } | null;
+  payment_terms?: {
+    net_due_date?: string | null;
+    net_days?: number | null;
+    discount_date?: string | null;
+    discount_days?: number | null;
+    discount_percent?: number | null;
+    discount_amount?: number | null;
+  } | null;
+  payee?: {
+    differs?: boolean | null;
+    name?: string | null;
+    iban?: string | null;
+    reason?: string | null;
+  } | null;
   confidence?: number;
 };
+
+/** Datum + n Tage → "YYYY-MM-DD". */
+function addDays(iso: string | null, days: number | null | undefined): string | null {
+  if (!iso || days == null || !Number.isFinite(days)) return null;
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setUTCDate(d.getUTCDate() + Number(days));
+  return d.toISOString().slice(0, 10);
+}
 
 /** Betreff/Dateiname deuten auf ein Zahlungs-/Lastschriftavis hin. */
 function looksLikeAdvice(...parts: (string | null | undefined)[]): boolean {
@@ -310,6 +356,33 @@ export async function extractIncoming(opts: Options = {}) {
       }
 
       const supplierId = await findSupplier(e);
+
+      // Zahlungsziele: Datum bevorzugen, sonst aus Belegdatum + Tagen rechnen.
+      const docDate = date(e.doc_date);
+      const t = e.payment_terms ?? {};
+      const netDue = isHint
+        ? null
+        : (date(t.net_due_date) ?? addDays(docDate, t.net_days) ?? date(e.due_date));
+      const discDate = isHint
+        ? null
+        : (date(t.discount_date) ?? addDays(docDate, t.discount_days));
+      const discPct = isHint ? null : num(t.discount_percent);
+      const discAmt = isHint
+        ? null
+        : (num(t.discount_amount) ??
+          (discPct != null && num(e.gross_amount) != null
+            ? Math.round(num(e.gross_amount)! * (discPct / 100) * 100) / 100
+            : null));
+
+      // abweichender Zahlungsempfänger
+      const payeeName = isHint ? null : (e.payee?.name?.trim() || null);
+      const payeeDiffers =
+        !isHint &&
+        Boolean(
+          e.payee?.differs ||
+            (payeeName && payeeName.toLowerCase() !== (e.supplier?.name ?? "").toLowerCase()),
+        );
+
       const { error: uErr } = await supabase
         .from("incoming_document")
         .update({
@@ -324,9 +397,17 @@ export async function extractIncoming(opts: Options = {}) {
           supplier_vat_id: e.supplier?.vat_id ?? null,
           supplier_iban: e.supplier?.iban ?? null,
           doc_number: e.doc_number ?? null,
-          doc_date: date(e.doc_date),
+          doc_date: docDate,
           service_date: date(e.service_date),
-          due_date: date(e.due_date),
+          due_date: netDue ?? date(e.due_date),
+          net_due_date: netDue,
+          discount_date: discDate,
+          discount_percent: discPct,
+          discount_amount: discAmt,
+          payee_differs: payeeDiffers,
+          payee_name: payeeDiffers ? payeeName : null,
+          payee_iban: payeeDiffers ? (e.payee?.iban?.replace(/\s+/g, "") || null) : null,
+          payee_reason: payeeDiffers ? (e.payee?.reason?.trim() || null) : null,
           currency: (e.currency ?? "EUR").slice(0, 3).toUpperCase(),
           net_amount: isHint ? null : num(e.net_amount),
           tax_amount: isHint ? null : num(e.tax_amount),

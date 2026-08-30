@@ -2,11 +2,35 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
-import { fmtEur, fmtNumber } from "@/lib/format";
 import { ReviewForm } from "./ui";
 import { setIncomingStatus } from "../actions";
 
 export const dynamic = "force-dynamic";
+
+type AllocRow = {
+  id: string;
+  link_type: string;
+  sales_order_id: string | null;
+  material_ref: string | null;
+  cost_center_id: string | null;
+  amount: number | null;
+  note: string | null;
+  sales_order: { order_number: string | null } | null;
+};
+
+type ItemRow = {
+  id: string;
+  position: number | null;
+  description: string | null;
+  quantity: number | null;
+  unit_price: number | null;
+  tax_rate: number | null;
+  net_amount: number | null;
+  ledger_account: string | null;
+  tax_code_id: string | null;
+  material_ref: string | null;
+  incoming_document_allocation: AllocRow[];
+};
 
 export default async function IncomingDetail({
   params,
@@ -16,12 +40,15 @@ export default async function IncomingDetail({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: doc, error }, { data: items }, { data: taxCodes }, { data: costCenters }] =
+  const [{ data: doc, error }, { data: itemsRaw }, { data: taxCodes }, { data: costCenters }] =
     await Promise.all([
       supabase.from("incoming_document").select("*").eq("id", id).maybeSingle(),
       supabase
         .from("incoming_document_item")
-        .select("position, description, quantity, unit_price, tax_rate, net_amount")
+        .select(
+          "id, position, description, quantity, unit_price, tax_rate, net_amount, ledger_account, tax_code_id, material_ref, " +
+            "incoming_document_allocation ( id, link_type, sales_order_id, material_ref, cost_center_id, amount, note, sales_order:sales_order_id ( order_number ) )",
+        )
         .eq("incoming_document_id", id)
         .order("position", { nullsFirst: false }),
       supabase.from("tax_code").select("id, code, name").eq("direction", "input").order("code"),
@@ -37,6 +64,28 @@ export default async function IncomingDetail({
   const isHint = isAdvice || isDunning;
   const dun = ((doc.extraction as { dunning?: Record<string, unknown> } | null)?.dunning ??
     {}) as Record<string, unknown>;
+
+  const items = ((itemsRaw ?? []) as unknown as ItemRow[]).map((it) => ({
+    id: it.id,
+    position: it.position,
+    description: it.description ?? "",
+    quantity: it.quantity,
+    unit_price: it.unit_price,
+    tax_rate: it.tax_rate,
+    net_amount: it.net_amount,
+    ledger_account: it.ledger_account ?? "",
+    tax_code_id: it.tax_code_id ?? "",
+    material_ref: it.material_ref ?? "",
+    allocations: (it.incoming_document_allocation ?? []).map((a) => ({
+      id: a.id,
+      link_type: (a.link_type as "sales_order" | "material" | "cost_center") ?? "sales_order",
+      order_number: a.sales_order?.order_number ?? "",
+      material_ref: a.material_ref ?? "",
+      cost_center_id: a.cost_center_id ?? "",
+      amount: a.amount,
+      note: a.note ?? "",
+    })),
+  }));
 
   return (
     <>
@@ -149,55 +198,23 @@ export default async function IncomingDetail({
 
       {doc.notes && <div className="banner-err">{doc.notes}</div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: pdfUrl ? "1fr 1fr" : "1fr", gap: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: pdfUrl ? "1.1fr 0.9fr" : "1fr", gap: 24 }}>
         {!isHint && (
-        <div>
-          <ReviewForm
-            doc={doc as Record<string, unknown>}
-            taxCodes={(taxCodes ?? []).map((t) => ({ id: t.id, label: `${t.code} – ${t.name}` }))}
-            costCenters={(costCenters ?? []).map((c) => ({ id: c.id, label: `${c.number} – ${c.name}` }))}
-          />
-
-          <h2>Positionen (KI-Vorschlag)</h2>
-          <div className="table-scroll">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Pos.</th>
-                  <th>Beschreibung</th>
-                  <th style={{ textAlign: "right" }}>Menge</th>
-                  <th style={{ textAlign: "right" }}>Einzel</th>
-                  <th style={{ textAlign: "right" }}>USt %</th>
-                  <th style={{ textAlign: "right" }}>Netto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(items ?? []).map((it, i) => (
-                  <tr key={i}>
-                    <td>{it.position ?? i + 1}</td>
-                    <td className="wrap">{it.description ?? "–"}</td>
-                    <td style={{ textAlign: "right" }}>{fmtNumber(it.quantity, 2)}</td>
-                    <td style={{ textAlign: "right" }}>{fmtEur(it.unit_price)}</td>
-                    <td style={{ textAlign: "right" }}>{it.tax_rate ?? "–"}</td>
-                    <td style={{ textAlign: "right" }}>{fmtEur(it.net_amount)}</td>
-                  </tr>
-                ))}
-                {(items ?? []).length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ color: "var(--muted)" }}>keine Positionen erkannt</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          <div>
+            <ReviewForm
+              doc={doc as Record<string, unknown>}
+              items={items}
+              taxCodes={(taxCodes ?? []).map((t) => ({ id: t.id, label: `${t.code} – ${t.name}` }))}
+              costCenters={(costCenters ?? []).map((c) => ({ id: c.id, label: `${c.number} – ${c.name}` }))}
+            />
           </div>
-        </div>
         )}
 
         {pdfUrl && (
           <div>
             <iframe
               src={pdfUrl}
-              style={{ width: "100%", height: "80vh", border: "1px solid var(--border)", borderRadius: 6 }}
+              style={{ width: "100%", height: "85vh", border: "1px solid var(--border)", borderRadius: 6, position: "sticky", top: 12 }}
               title="Beleg-PDF"
             />
           </div>

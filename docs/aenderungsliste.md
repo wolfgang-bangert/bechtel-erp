@@ -126,6 +126,24 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   füllt `advice_reference` (angemahnte Rg), `extraction.dunning` (Stufe, Frist,
   Gebühr), keine Positionen, raus aus der Prüfliste. Web-Ansicht
   `?status=dunning`. 2 ETG-Mahnungen reklassifiziert.
+- [x] **Eingangsrechnung: Prüf-/Kontierungs-UI ausgebaut** (Migration
+  `20260830130000`):
+  - **Fälligkeiten** ausgelesen: `discount_date` (Skonto-Termin), `discount_percent`,
+    `discount_amount`, `net_due_date` (Netto-Termin). Fehlen Datumsangaben, werden
+    sie aus Belegdatum + Tagen gerechnet.
+  - **Abweichender Zahlungsempfänger** ausgelesen: `payee_differs`, `payee_name`,
+    `payee_iban`, `payee_reason` (Insolvenzverwalter / Factoring / Inkasso /
+    Abtretung). `supplier_iban` = IBAN laut Beleg (für „immer die aktuellste").
+  - **Kontierung**: Kopf = Vorgabe (`ledger_account`/`tax_code_id`/`cost_center_id`),
+    Position kann überschreiben (`incoming_document_item.tax_code_id`,
+    `material_ref` als Freitext bis Materialverwaltung steht).
+  - **Positions-Aufteilung** (neue Tabelle `incoming_document_allocation`):
+    je Position beliebig viele anteilige Zuordnungen mit Betrag —
+    `link_type` Auftrag (`sales_order_id`, aufgelöst über Auftragsnummer) /
+    Material (`material_ref`) / Kostenstelle (`cost_center_id`). UI warnt, wenn
+    Summe ≠ Positions-Netto.
+  - `/eingangsrechnungen/[id]`: komplett editierbare Positionen (anlegen/löschen),
+    PDF sticky daneben.
 - [x] **Mahnungs-Weiterleitung per E-Mail** (`incoming:forward-dunning`, Nachlauf
   von `incoming:extract`): leitet erkannte Mahnungen an `DUNNING_FORWARD_TO`
   weiter, Original-PDF im Anhang, Betreff `WEITERLEITUNG VON
