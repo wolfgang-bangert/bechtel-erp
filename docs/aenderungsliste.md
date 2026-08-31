@@ -119,6 +119,17 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Regeln werden nicht überschrieben. Review-CSV `imports/bb-vorkontierung.csv`.
 - [ ] Kleine UI **Einstellungen → Vorkontierung** zum Sichten/Korrigieren der
   `posting_rule` (optional).
+- [x] **DATEV-Export Eingangsrechnungen** (`datev:kreditor --from --to
+  [--no-zip] [--include-extracted]`): EXTF-Buchungsstapel 700/13, Konto =
+  Aufwandskonto (Position schlägt Kopf), Gegenkonto = Kreditor
+  (`supplier_number`), Umsatz brutto, KOST1 aus Position/Aufteilung;
+  Aufteilungen je (Konto, Steuerschlüssel, KOST, Satz) zusammengefasst.
+  **ZIP** mit CSV + `belege/<Belegnummer>.pdf` aus Hetzner S3. Nach echtem
+  Lauf: `datev_export` (scope=kreditor), Belege → `status='exported'`.
+  `datevCommon.ts` als geteilte EXTF-Basis. Vorschau 07–09/2026: 47/72
+  gebucht, 65 947 € brutto. **BU-Schlüssel** = `tax_code.datev_tax_key`
+  (leer → Steuerberater bestätigen: Automatikkonto oder BU 9/8).
+- [ ] Web-Button „DATEV-Export" (Zeitraum → Download) für beide Stapel.
 
 ## Slice 3 — Fakturierung & DATEV
 
