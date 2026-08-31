@@ -351,6 +351,116 @@ export async function importBbParties(opts: Options = {}) {
   return { dryRun, debitoren: deb, kreditoren: kre };
 }
 
+// --- fehlende Kreditoren als Lieferanten anlegen -----------------------------
+
+/**
+ * BB-Kreditoren, die weder über die Nummer noch über den Namen einer
+ * bestehenden `organization` zugeordnet werden können, als neue Lieferanten
+ * anlegen (relation='supplier'): organization + address + external_ref
+ * (system='buchhaltungsbutler', IBAN in metadata).
+ */
+export async function createBbSuppliers(opts: Options = {}) {
+  const { dryRun = false } = opts;
+  const parties = readJson<BbParty[]>("bb-kreditoren.json");
+
+  const orgs = await pagedSelect<{ id: string; name: string; supplier_number: string | null }>(
+    "organization",
+    "id, name, supplier_number",
+  );
+  const takenNums = new Set(orgs.filter((o) => o.supplier_number).map((o) => o.supplier_number!));
+  const byNorm = new Set(orgs.map((o) => normName(o.name)));
+  const bySorted = new Set(orgs.map((o) => sortedName(o.name)));
+  const orgTokens = orgs.map((o) => tokens(o.name));
+
+  const toCreate: BbParty[] = [];
+  const skippedNameHit: { nummer: string; name: string; grund: string }[] = [];
+
+  for (const p of parties) {
+    const num = String(p.postingaccount_number);
+    if (takenNums.has(num)) continue; // Nummer schon vergeben
+    const nn = normName(p.name);
+    if (!nn) continue;
+    if (byNorm.has(nn) || bySorted.has(sortedName(p.name))) {
+      skippedNameHit.push({ nummer: num, name: p.name, grund: "Name existiert bereits" });
+      continue;
+    }
+    const bbTok = tokens(p.name);
+    const bestScore = orgTokens.reduce((m, t) => Math.max(m, jaccard(t, bbTok)), 0);
+    if (bestScore >= 0.72) {
+      skippedNameHit.push({ nummer: num, name: p.name, grund: `ähnlicher Name (score ${bestScore.toFixed(2)})` });
+      continue;
+    }
+    toCreate.push(p);
+  }
+
+  writeCsv("bb-kreditoren-nicht-angelegt.csv", skippedNameHit);
+
+  if (dryRun) {
+    return {
+      dryRun,
+      angelegt: 0,
+      geplant: toCreate.length,
+      uebersprungen_namenstreffer: skippedNameHit.length,
+      beispiele: toCreate.slice(0, 5).map((p) => `${p.postingaccount_number} ${p.name}`),
+    };
+  }
+
+  let created = 0;
+  for (const p of toCreate) {
+    const num = String(p.postingaccount_number);
+    const { data: org, error: oErr } = await supabase
+      .from("organization")
+      .insert({ relation: "supplier", name: p.name.trim(), supplier_number: num })
+      .select("id")
+      .single();
+    if (oErr || !org) {
+      skippedNameHit.push({ nummer: num, name: p.name, grund: `FEHLER organization: ${oErr?.message}` });
+      continue;
+    }
+
+    if (p.zip || p.city || p.street) {
+      const rawStreet = (p.street ?? "").trim();
+      const m = rawStreet.match(/^(.*?)[\s,]+(\d+\s*[a-zA-Z]?(?:\s*[-/]\s*\d+\s*[a-zA-Z]?)?)\s*$/);
+      const street = (m ? m[1] : rawStreet).replace(/[,\s]+$/, "") || null;
+      const houseNumber = m ? m[2].replace(/\s+/g, "") : null;
+      await supabase.from("address").insert({
+        organization_id: org.id,
+        kind: "general",
+        is_default: true,
+        line1: rawStreet || p.name.trim(),
+        street,
+        house_number: houseNumber,
+        zip: p.zip ?? null,
+        city: p.city ?? null,
+        country: "DE",
+        source: "werk",
+      });
+    }
+
+    await supabase.from("organization_external_ref").insert({
+      organization_id: org.id,
+      system: "buchhaltungsbutler",
+      external_id: num,
+      is_authoritative: true,
+      metadata: {
+        kind: "creditor",
+        name: p.name,
+        iban: p.iban ?? null,
+        vat_id: p.sales_tax_id_eu ?? null,
+      },
+    });
+    created += 1;
+  }
+
+  writeCsv("bb-kreditoren-nicht-angelegt.csv", skippedNameHit);
+  return {
+    dryRun,
+    angelegt: created,
+    geplant: toCreate.length,
+    uebersprungen_namenstreffer: skippedNameHit.length,
+  };
+}
+
 // --- Zuordnungs-CSV zurücklesen ----------------------------------------------
 
 function parseCsv(text: string): Record<string, string>[] {

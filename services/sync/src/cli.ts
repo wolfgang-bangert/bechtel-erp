@@ -12,7 +12,7 @@ import {
   bbPostings,
   bbPing,
 } from "./syncBButler";
-import { importBbAccounts, importBbParties, applyBbParties } from "./bbImport";
+import { importBbAccounts, importBbParties, applyBbParties, createBbSuppliers } from "./bbImport";
 import { syncNinoxOrders } from "./syncNinoxOrders";
 import { syncNinoxInvoices } from "./syncNinoxInvoices";
 import { dedupeReport } from "./dedupeReport";
@@ -274,6 +274,11 @@ async function main() {
       }
       console.log(`Zuordnungs-CSV einlesen: ${f}${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await applyBbParties({ file: f, dryRun }), null, 1));
+      break;
+    }
+    case "bb:create-suppliers": {
+      console.log(`BB-Kreditoren ohne Org als Lieferanten anlegen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await createBbSuppliers({ dryRun }), null, 1));
       break;
     }
     case "incoming:prune-receipts": {
