@@ -239,10 +239,16 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   kein Drittanbieter. `python-fints` im venv `services/sync/.fints-venv`,
   TS-Wrapper `src/fints.ts`. `imports/fints.txt` (4 Banken: KSK/VB Göppingen,
   BW-Bank, Oberbank — FinTS-URLs eingetragen), PIN in `.env` `FINTS_PIN_*`.
-  `fints:setup --bank=ksk` (TAN-Verfahren wählen), `fints:pull [--bank] [--days]`
-  → gemeinsamer Import-/Dedup-Pfad mit `bank:import`, danach `bank:match`.
-  **Wartet auf** echten KSK-Anmeldenamen + `FINTS_PIN_KSK` zum Testen.
-  Später: `fints:transfer` (SEPA-Überweisung mit TAN).
+  `fints:setup --bank=ksk` (TAN-Verfahren wählen, `--user=` für alternativen
+  Anmeldenamen), `fints:pull [--bank] [--days]` → gemeinsamer Import-/Dedup-Pfad
+  mit `bank:import`, danach `bank:match`.
+  - **KSK Göppingen: läuft** (TAN 923 S-pushTAN, Umsatzabruf SCA-frei).
+  - **Volksbank / BW-Bank: `fints:setup` noch offen** (PIN in `.env`).
+  - **Oberbank: geparkt** — `Could not find system_id` (python-fints ↔
+    Bankverlag-HBCI-Tunnel). Vorerst manueller CAMT-Import; später EBICS oder
+    direkter FinTS-Endpunkt.
+  - Später: `fints:transfer` (SEPA-Überweisung mit TAN); launchd für täglichen
+    `fints:pull`.
 - [ ] FinTS-Produkt-ID bei der DK registrieren (`FINTS_PRODUCT_ID`).
 - [ ] Slice 3 weiter: native Rechnung, Mahnwesen, Skonto-Ausbuchung.
 - [ ] **~43 Nummern-Kollisionen** bereinigen (11 Keyline + 32 Ninox, überwiegend
