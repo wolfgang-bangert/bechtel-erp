@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
-import { MatchForm, type Candidate } from "./ui";
+import { MatchForm, InvoiceDatalist, type Candidate } from "./ui";
 import { unmatchTransaction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -61,86 +61,68 @@ export default async function BankPage({
   const count = res.count;
   const data = (res.data ?? []) as unknown as TxRow[];
 
-  // Kandidaten-Rechnungen für die offenen Gutschriften dieser Seite
-  const openCredits = data.filter((t) => t.amount > 0 && (t.matches ?? []).length === 0);
-  let openInvoices: {
-    invoice_number: string | null;
-    open_amount: number | null;
-    gross_total: number | null;
-    organization: { name: string } | null;
-  }[] = [];
-  if (openCredits.length > 0) {
-    const amounts = openCredits.map((t) => t.amount);
-    const lo = Math.min(...amounts) * 0.9;
-    const hi = Math.max(...amounts) * 1.03;
+  // Gemeinsame Kandidatenlisten (eine Datalist je Seite, von allen Zeilen genutzt).
+  const hasCredits = data.some((t) => t.amount > 0 && (t.matches ?? []).length === 0);
+  const hasDebits = data.some((t) => t.amount < 0 && (t.matches ?? []).length === 0);
+
+  const cents = (n: number | null | undefined) => Math.round(Math.abs(n ?? 0) * 100);
+  // pro Centbetrag genau ein eindeutiger Vorschlag → wird vorausgefüllt
+  const uniqueByAmount = (rows: { c: number; label: string }[]) => {
+    const seen = new Map<number, string | null>();
+    for (const r of rows) seen.set(r.c, seen.has(r.c) ? null : r.label);
+    return seen;
+  };
+
+  let arCandidates: Candidate[] = [];
+  let arPrefill = new Map<number, string | null>();
+  if (hasCredits) {
     const { data: inv } = await supabase
       .from("sales_invoice")
-      .select("invoice_number, open_amount, gross_total, organization:organization(name)")
+      .select("invoice_number, open_amount, organization:organization(name)")
       .eq("kind", "invoice")
       .in("payment_status", ["open", "partly_paid"])
       .gt("open_amount", 0)
-      .gte("open_amount", lo)
-      .lte("open_amount", hi)
       .not("invoice_number", "is", null)
-      .order("open_amount")
-      .limit(3000);
-    openInvoices = (inv ?? []) as unknown as typeof openInvoices;
+      .order("invoice_date", { ascending: false })
+      .limit(800);
+    const rows = ((inv ?? []) as unknown as {
+      invoice_number: string;
+      open_amount: number | null;
+      organization: { name: string } | null;
+    }[]).map((i) => ({
+      number: i.invoice_number,
+      amount: i.open_amount,
+      label: `${i.invoice_number} — ${
+        (i.organization as unknown as { name: string } | null)?.name ?? "?"
+      } — ${fmtEur(i.open_amount)}`,
+    }));
+    arCandidates = rows.map(({ number, label }) => ({ number, label }));
+    arPrefill = uniqueByAmount(rows.map((r) => ({ c: cents(r.amount), label: r.label })));
   }
-  const candidatesFor = (amount: number): Candidate[] =>
-    openInvoices
-      .filter((i) => {
-        const o = i.open_amount ?? 0;
-        return o >= amount * 0.94 && o <= amount * 1.03;
-      })
-      .sort(
-        (a, b) =>
-          Math.abs((a.open_amount ?? 0) - amount) - Math.abs((b.open_amount ?? 0) - amount),
-      )
-      .slice(0, 40)
-      .map((i) => ({
-        number: i.invoice_number!,
-        label: `${i.invoice_number} · ${
-          (i.organization as unknown as { name: string } | null)?.name ?? "?"
-        } · ${fmtEur(i.open_amount)}`,
-      }));
 
-  // Kandidaten-Eingangsrechnungen für die offenen Abgänge dieser Seite
-  const openDebits = data.filter((t) => t.amount < 0 && (t.matches ?? []).length === 0);
-  let openIncoming: {
-    id: string;
-    doc_number: string | null;
-    gross_amount: number | null;
-    supplier_name: string | null;
-  }[] = [];
-  if (openDebits.length > 0) {
-    const abs = openDebits.map((t) => Math.abs(t.amount));
+  let erCandidates: Candidate[] = [];
+  let erPrefill = new Map<number, string | null>();
+  if (hasDebits) {
     const { data: inc } = await supabase
       .from("incoming_document")
-      .select("id, doc_number, gross_amount, supplier_name")
+      .select("doc_number, gross_amount, supplier_name")
       .in("doc_type", ["invoice", "credit_note"])
       .eq("payment_status", "open")
-      .gt("gross_amount", Math.min(...abs) * 0.9)
-      .lt("gross_amount", Math.max(...abs) * 1.05)
       .not("doc_number", "is", null)
-      .order("gross_amount")
-      .limit(3000);
-    openIncoming = (inc ?? []) as unknown as typeof openIncoming;
+      .order("doc_date", { ascending: false })
+      .limit(800);
+    const rows = ((inc ?? []) as unknown as {
+      doc_number: string;
+      gross_amount: number | null;
+      supplier_name: string | null;
+    }[]).map((i) => ({
+      number: i.doc_number,
+      amount: i.gross_amount,
+      label: `${i.doc_number} — ${i.supplier_name ?? "?"} — ${fmtEur(i.gross_amount)}`,
+    }));
+    erCandidates = rows.map(({ number, label }) => ({ number, label }));
+    erPrefill = uniqueByAmount(rows.map((r) => ({ c: cents(r.amount), label: r.label })));
   }
-  const incomingCandidatesFor = (absAmount: number): Candidate[] =>
-    openIncoming
-      .filter((i) => {
-        const g = i.gross_amount ?? 0;
-        return g >= absAmount * 0.94 && g <= absAmount * 1.03;
-      })
-      .sort(
-        (a, b) =>
-          Math.abs((a.gross_amount ?? 0) - absAmount) - Math.abs((b.gross_amount ?? 0) - absAmount),
-      )
-      .slice(0, 40)
-      .map((i) => ({
-        number: i.doc_number!,
-        label: `${i.doc_number} · ${i.supplier_name ?? "?"} · ${fmtEur(i.gross_amount)}`,
-      }));
 
   const total = count ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -190,6 +172,9 @@ export default async function BankPage({
       </form>
 
       {error && <div className="banner-err">Fehler: {error.message}</div>}
+
+      <InvoiceDatalist id="ar-list" options={arCandidates} />
+      <InvoiceDatalist id="er-list" options={erCandidates} />
 
       <div className="table-scroll">
         <table className="data">
@@ -246,12 +231,20 @@ export default async function BankPage({
                         })}
                       </div>
                     ) : tx.amount > 0 ? (
-                      <MatchForm txId={tx.id} candidates={candidatesFor(tx.amount)} side="debitor" />
+                      <MatchForm
+                        txId={tx.id}
+                        listId="ar-list"
+                        side="debitor"
+                        defaultValue={arPrefill.get(cents(tx.amount)) ?? undefined}
+                        hint={`${tx.counterparty_name ?? ""} — Rg-Nr. / Kunde`.trim()}
+                      />
                     ) : (
                       <MatchForm
                         txId={tx.id}
-                        candidates={incomingCandidatesFor(Math.abs(tx.amount))}
+                        listId="er-list"
                         side="kreditor"
+                        defaultValue={erPrefill.get(cents(tx.amount)) ?? undefined}
+                        hint={`${tx.counterparty_name ?? ""} — ER-Nr. / Lieferant`.trim()}
                       />
                     )}
                   </td>

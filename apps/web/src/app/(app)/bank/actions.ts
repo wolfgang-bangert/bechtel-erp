@@ -19,10 +19,12 @@ export async function matchTransaction(
 ): Promise<MatchState> {
   const txId = String(formData.get("tx_id") ?? "");
   const side = String(formData.get("side") ?? "debitor"); // debitor = Kundenzahlung, kreditor = Lieferantenzahlung
-  const number =
+  // Feld enthält entweder eine reine Nummer oder "NR — Partner — Betrag" aus der Datalist.
+  const rawInput =
     String(formData.get("invoice_number") ?? "").trim() ||
     String(formData.get("invoice_number_manual") ?? "").trim();
-  if (!txId || !number) return { error: "Rechnung auswählen oder Nummer eingeben." };
+  const number = rawInput.split(/\s+[–—-]\s+|\s{2,}/)[0].trim();
+  if (!txId || !number) return { error: "Rechnungsnummer eingeben oder aus der Liste wählen." };
 
   const supabase = await createClient();
   const { data: tx, error: te } = await supabase

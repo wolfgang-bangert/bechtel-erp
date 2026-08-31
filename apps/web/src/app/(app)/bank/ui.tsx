@@ -1,64 +1,56 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { matchTransaction, type MatchState } from "./actions";
 
 const empty: MatchState = {};
 
 export type Candidate = { number: string; label: string };
 
+/** Eine gemeinsame Datalist pro Seite, von allen Zeilen genutzt. */
+export function InvoiceDatalist({ id, options }: { id: string; options: Candidate[] }) {
+  return (
+    <datalist id={id}>
+      {options.map((o) => (
+        <option key={o.number} value={o.label} />
+      ))}
+    </datalist>
+  );
+}
+
 export function MatchForm({
   txId,
-  candidates,
+  listId,
   side = "debitor",
+  hint,
+  defaultValue,
 }: {
   txId: string;
-  candidates: Candidate[];
+  listId: string;
   side?: "debitor" | "kreditor";
+  hint?: string;
+  defaultValue?: string;
 }) {
   const [state, action, pending] = useActionState(matchTransaction, empty);
-  const [manual, setManual] = useState(candidates.length === 0);
-  const noun = side === "kreditor" ? "Eingangsrechnung" : "Rechnung";
 
   return (
-    <form action={action} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+    <form
+      action={action}
+      style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}
+    >
       <input type="hidden" name="tx_id" value={txId} />
       <input type="hidden" name="side" value={side} />
-
-      {!manual && (
-        <select name="invoice_number" defaultValue="" style={{ maxWidth: 340 }}>
-          <option value="">– {noun} wählen ({candidates.length}) –</option>
-          {candidates.map((c) => (
-            <option key={c.number} value={c.number}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-      )}
-
-      {manual && (
-        <input
-          name="invoice_number_manual"
-          placeholder={side === "kreditor" ? "ER-Nr." : "Rechnungs-Nr."}
-          style={{ width: 140 }}
-        />
-      )}
-
+      <input
+        name="invoice_number_manual"
+        list={listId}
+        autoComplete="off"
+        defaultValue={defaultValue}
+        placeholder={hint ?? (side === "kreditor" ? "ER-Nr. / Lieferant …" : "Rg-Nr. / Kunde …")}
+        style={{ width: 300, ...(defaultValue ? { borderColor: "var(--ok, #3a7)" } : {}) }}
+      />
       <button type="submit" disabled={pending}>
         {pending ? "…" : "zuordnen"}
       </button>
-
-      {candidates.length > 0 && (
-        <button
-          type="button"
-          className="ghost"
-          style={{ padding: "4px 8px" }}
-          onClick={() => setManual((m) => !m)}
-        >
-          {manual ? "Liste" : "Nr. eintippen"}
-        </button>
-      )}
-
       {state.ok && <span className="msg-ok">✓</span>}
       {state.error && <span className="msg-err">{state.error}</span>}
     </form>
