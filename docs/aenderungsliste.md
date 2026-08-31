@@ -84,10 +84,22 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   `BB_API_BASE` überschreibbar). Befehle: `bb:ping`, `bb:accounts`
   (`settings/get/postingaccounts`), `bb:debtors`, `bb:creditors`, `bb:postings`
   (`--from= --to=`). Jeder schreibt `imports/bb-<name>.{json,csv}`.
-- [ ] **Wartet auf Credentials** in `.env`: `BB_API_CLIENT` / `BB_API_SECRET` /
-  `BB_API_KEY` (BuchhaltungsButler → Einstellungen → Schnittstellen und
-  API-Zugang). Danach: `bb:accounts` + `bb:debtors` ziehen, prüfen, dann in
-  `ledger_account` bzw. `organization.debitor` importieren.
+- [x] **Credentials da**, Base-URL `https://app.buchhaltungsbutler.de/api/v1`,
+  JSON-Body. Gezogen: 2744 Konten, 1070 Debitoren, 492 Kreditoren →
+  `imports/bb-*.{json,csv}`.
+- [x] **Import** (`bb:import-accounts`, `bb:import-parties`):
+  - 1209 SKR03-Sachkonten → `ledger_account` (jetzt 1210; `kind` aus
+    Nummernkreis; 14 eigene Konten wie `3034 Materialaufwand Wire O` inklusive).
+  - Geldkonto KSK Göppingen mit Sachkonto 1230 verknüpft (übrige Banken folgen
+    bei `bank_account`-Anlage).
+  - Debitorennummern: **1865 → 2012** (679 waren schon da, 188 per Name+PLZ
+    zugeordnet, 37 Konflikte → BB gewann, `imports/bb-debitoren-konflikte.csv`).
+  - Lieferantennummern: **353 → 405**.
+  - **Offen zum Sichten:** 203 Debitoren / 207 Kreditoren in
+    `imports/bb-debitoren-offen.csv` / `bb-kreditoren-offen.csv` (Privatpersonen,
+    Namensvarianten, in BB abgeschnittene Namen).
+- [ ] Offene CSVs manuell zuordnen (UI oder gemeinsam), dann ist der
+  Ausgangs-DATEV-Export nicht mehr durch fehlende Debitorennummern blockiert.
 
 ## Slice 3 — Fakturierung & DATEV
 
