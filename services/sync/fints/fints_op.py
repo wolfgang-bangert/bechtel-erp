@@ -43,6 +43,11 @@ def save_state(path, client):
         f.write(base64.b64encode(client.get_data()))
 
 
+# Alter eingebauter python-fints-Produkt-Code. Funktioniert laut Doku noch,
+# soll aber durch eine eigene DK-Registrierung ersetzt werden (FINTS_PRODUCT_ID).
+DEFAULT_PRODUCT_ID = "9FA6681DEC0CF3046BFC2F8A6"
+
+
 def make_client(args):
     pin = os.environ.get("FINTS_PIN") or ""
     return FinTS3PinTanClient(
@@ -50,7 +55,8 @@ def make_client(args):
         args.user,
         pin,
         args.server,
-        product_id=os.environ.get("FINTS_PRODUCT_ID") or None,
+        product_id=os.environ.get("FINTS_PRODUCT_ID") or DEFAULT_PRODUCT_ID,
+        product_version=os.environ.get("FINTS_PRODUCT_VERSION") or "3",
         from_data=load_state(args.state),
     )
 
