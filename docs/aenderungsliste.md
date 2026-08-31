@@ -129,7 +129,14 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   `datevCommon.ts` als geteilte EXTF-Basis. Vorschau 07–09/2026: 47/72
   gebucht, 65 947 € brutto. **BU-Schlüssel** = `tax_code.datev_tax_key`
   (leer → Steuerberater bestätigen: Automatikkonto oder BU 9/8).
-- [ ] Web-Button „DATEV-Export" (Zeitraum → Download) für beide Stapel.
+- [x] **Web `/datev-vorschau`**: alle Buchungssätze (Kreditor/Debitor, Zeitraum)
+  zum Prüfen vor dem Export — Summen, Skip-Liste mit Gründen, Zeilen mit
+  Konto+Name und Link zum Beleg. `lib/datevPreview.ts` rechnet dieselben Zeilen
+  wie der CLI-Export.
+- [ ] Web-Button „DATEV-Export herunterladen" (Zeitraum → CSV/ZIP) für beide
+  Stapel — aktuell noch CLI.
+- [ ] **Bank-/Zahlungs-Buchungsstapel** (`datev_export.scope='zahlungen'`) als
+  dritter Monatsexport für den Steuerberater (mit OP-Ausgleich).
 
 ## Slice 3 — Fakturierung & DATEV
 
