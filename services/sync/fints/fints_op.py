@@ -39,8 +39,12 @@ def load_state(path):
 def save_state(path, client):
     if not path:
         return
+    try:
+        blob = client.deconstruct(including_private=True)
+    except AttributeError:
+        blob = client.get_data(including_private=True)
     with open(path, "wb") as f:
-        f.write(base64.b64encode(client.get_data()))
+        f.write(base64.b64encode(blob))
 
 
 # Alter eingebauter python-fints-Produkt-Code. Funktioniert laut Doku noch,
@@ -99,13 +103,31 @@ def choose_tan_medium(client):
     client.set_tan_medium(media[1][idx])
 
 
+def _challenge_text(response):
+    import re
+    if getattr(response, "challenge_html", None):
+        return re.sub("<[^>]+>", "", str(response.challenge_html)).strip()
+    if getattr(response, "challenge", None):
+        return str(response.challenge).strip()
+    return ""
+
+
 def resolve_tan(client, response: NeedTANResponse):
     eprint("── TAN erforderlich ──")
-    if response.challenge_html:
-        import re
-        eprint(re.sub("<[^>]+>", "", response.challenge_html))
-    elif getattr(response, "challenge", None):
-        eprint(response.challenge)
+    ch = _challenge_text(response)
+    if ch:
+        eprint(ch)
+
+    if getattr(response, "decoupled", False):
+        # pushTAN ohne TAN-Eingabe: in der App freigeben, wir fragen die Bank ab.
+        for _ in range(30):
+            ask("In der App freigeben, dann hier ENTER drücken …")
+            res = client.send_tan(response, None)
+            if not isinstance(res, NeedTANResponse):
+                return res
+            response = res
+        raise Exception("Freigabe in der App nicht erkannt (Timeout)")
+
     tan = ask("TAN eingeben:")
     return client.send_tan(response, tan)
 
@@ -128,37 +150,49 @@ def find_account(client, iban):
     return None, accounts
 
 
+def handle_login_tan(client):
+    """SCA-TAN beim Login (Dialoginitialisierung), falls die Bank sie verlangt."""
+    resp = getattr(client, "init_tan_response", None)
+    if resp is not None:
+        with_tan(client, resp)
+
+
 def op_setup(args):
     client = make_client(args)
+    # TAN-Verfahren/-Medium VOR dem Dialog wählen (python-fints-Vorgabe).
+    choose_tan_mechanism(client)
+    choose_tan_medium(client)
     with client:
-        choose_tan_mechanism(client)
-        choose_tan_medium(client)
+        handle_login_tan(client)
         acc, accounts = find_account(client, args.iban)
-        save_state(args.state, client)
-        return {
-            "ok": True,
-            "tan_mechanism": client.get_current_tan_mechanism(),
-            "accounts": [
-                {"iban": a.iban, "bic": a.bic, "accountnumber": a.accountnumber}
-                for a in accounts
-            ],
-            "matched": bool(acc),
-        }
+    save_state(args.state, client)
+    return {
+        "ok": True,
+        "tan_mechanism": client.get_current_tan_mechanism(),
+        "accounts": [
+            {"iban": a.iban, "bic": a.bic, "accountnumber": a.accountnumber}
+            for a in accounts
+        ],
+        "matched": bool(acc),
+    }
 
 
 def op_pull(args):
     client = make_client(args)
+    choose_tan_mechanism(client)
+    choose_tan_medium(client)
     with client:
-        choose_tan_mechanism(client)
+        handle_login_tan(client)
         acc, _ = find_account(client, args.iban)
         if not acc:
             raise SystemExit(json.dumps({"error": f"IBAN {args.iban} nicht im Zugang gefunden"}))
         end = datetime.date.today()
         start = end - datetime.timedelta(days=args.days)
         txns = with_tan(client, client.get_transactions(acc, start, end))
-        save_state(args.state, client)
+    save_state(args.state, client)
 
-        out = []
+    out = []
+    if True:
         for t in txns:
             d = t.data
             amt = d.get("amount")
