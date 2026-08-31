@@ -59,11 +59,11 @@ export async function bbCreditors() {
 
 /** Buchungen (für die Vorkontierungs-Lernbasis: Kreditor/Beleg → Konto). */
 export async function bbPostings(opts: { from?: string; to?: string } = {}) {
-  const params: Record<string, unknown> = {};
-  if (opts.from) params.date_from = opts.from;
-  if (opts.to) params.date_to = opts.to;
-  const rows = await bbGetAll("postings/get", params);
-  return { ...(await dump("buchungen", rows)), sample: rows.slice(0, 3) };
+  const today = new Date();
+  const from = opts.from || `${today.getFullYear() - 3}-01-01`;
+  const to = opts.to || today.toISOString().slice(0, 10);
+  const rows = await bbGetAll("postings/get", { date_from: from, date_to: to });
+  return { from, to, ...(await dump("buchungen", rows)), sample: rows.slice(0, 2) };
 }
 
 /** Verbindung testen. */

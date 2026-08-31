@@ -284,6 +284,27 @@ export async function extractIncoming(opts: Options = {}) {
     )
   ).slice(0, limit);
 
+  // Vorkontierungs-Regeln (Lieferant → Aufwandskonto) als Vorschlag.
+  const rules = new Map<
+    string,
+    { expense_account: string; tax_code_id: string | null; confidence: number | null }
+  >(
+    (
+      await pagedSelect<{
+        organization_id: string;
+        expense_account: string;
+        tax_code_id: string | null;
+        confidence: number | null;
+        is_active: boolean;
+      }>("posting_rule", "organization_id, expense_account, tax_code_id, confidence, is_active")
+    )
+      .filter((r) => r.is_active)
+      .map((r) => [
+        r.organization_id,
+        { expense_account: r.expense_account, tax_code_id: r.tax_code_id, confidence: r.confidence },
+      ]),
+  );
+
   let ok = 0;
   let failed = 0;
   let advice = 0;
@@ -356,6 +377,7 @@ export async function extractIncoming(opts: Options = {}) {
       }
 
       const supplierId = await findSupplier(e);
+      const rule = !isHint && supplierId ? rules.get(supplierId) : undefined;
 
       // Zahlungsziele: Datum bevorzugen, sonst aus Belegdatum + Tagen rechnen.
       const docDate = date(e.doc_date);
@@ -416,7 +438,15 @@ export async function extractIncoming(opts: Options = {}) {
           advice_debit_date: isAdvice ? date(e.advice?.debit_date) : null,
           advice_reference: isHint && refs.length ? refs : null,
           forwarded_at: null,
-          extraction: e as unknown as Record<string, unknown>,
+          // Vorkontierungs-Vorschlag aus posting_rule (Lieferant → Aufwandskonto)
+          ledger_account: rule?.expense_account ?? null,
+          tax_code_id: rule?.tax_code_id ?? null,
+          extraction: {
+            ...(e as unknown as Record<string, unknown>),
+            _vorkontierung: rule
+              ? { account: rule.expense_account, confidence: rule.confidence, source: "posting_rule" }
+              : null,
+          },
           extraction_model: MODEL,
           extraction_confidence: num(e.confidence),
           extracted_at: new Date().toISOString(),
@@ -436,6 +466,8 @@ export async function extractIncoming(opts: Options = {}) {
             unit_price: num(li.unit_price),
             tax_rate: num(li.tax_rate),
             net_amount: num(li.net_amount),
+            ledger_account: rule?.expense_account ?? null,
+            tax_code_id: rule?.tax_code_id ?? null,
             raw: li,
           }));
       if (items.length) {

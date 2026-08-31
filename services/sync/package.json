@@ -24,6 +24,7 @@
     "bb:import-parties": "tsx src/cli.ts bb:import-parties",
     "bb:apply-parties": "tsx src/cli.ts bb:apply-parties",
     "bb:create-suppliers": "tsx src/cli.ts bb:create-suppliers",
+    "bb:learn-vorkontierung": "tsx src/cli.ts bb:learn-vorkontierung",
     "ninox:orders": "tsx src/cli.ts ninox:orders",
     "ninox:invoices": "tsx src/cli.ts ninox:invoices",
     "datev:extf": "tsx src/cli.ts datev:extf",
