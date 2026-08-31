@@ -12,6 +12,7 @@ import {
   bbPostings,
   bbPing,
 } from "./syncBButler";
+import { importBbAccounts, importBbParties } from "./bbImport";
 import { syncNinoxOrders } from "./syncNinoxOrders";
 import { syncNinoxInvoices } from "./syncNinoxInvoices";
 import { dedupeReport } from "./dedupeReport";
@@ -253,6 +254,16 @@ async function main() {
       const to = process.argv.find((a) => a.startsWith("--to="))?.split("=")[1];
       console.log("BuchhaltungsButler → Buchungen holen …");
       console.log(JSON.stringify(await bbPostings({ from, to }), null, 1));
+      break;
+    }
+    case "bb:import-accounts": {
+      console.log(`BB → ledger_account / bank_account${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await importBbAccounts({ dryRun }), null, 1));
+      break;
+    }
+    case "bb:import-parties": {
+      console.log(`BB → Debitoren/Kreditoren an organization${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await importBbParties({ dryRun }), null, 1));
       break;
     }
     case "incoming:prune-receipts": {
