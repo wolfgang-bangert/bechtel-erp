@@ -10,20 +10,24 @@ export type Candidate = { number: string; label: string };
 export function MatchForm({
   txId,
   candidates,
+  side = "debitor",
 }: {
   txId: string;
   candidates: Candidate[];
+  side?: "debitor" | "kreditor";
 }) {
   const [state, action, pending] = useActionState(matchTransaction, empty);
   const [manual, setManual] = useState(candidates.length === 0);
+  const noun = side === "kreditor" ? "Eingangsrechnung" : "Rechnung";
 
   return (
     <form action={action} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
       <input type="hidden" name="tx_id" value={txId} />
+      <input type="hidden" name="side" value={side} />
 
       {!manual && (
         <select name="invoice_number" defaultValue="" style={{ maxWidth: 340 }}>
-          <option value="">– Rechnung wählen ({candidates.length}) –</option>
+          <option value="">– {noun} wählen ({candidates.length}) –</option>
           {candidates.map((c) => (
             <option key={c.number} value={c.number}>
               {c.label}
@@ -33,7 +37,11 @@ export function MatchForm({
       )}
 
       {manual && (
-        <input name="invoice_number_manual" placeholder="Rechnungs-Nr." style={{ width: 140 }} />
+        <input
+          name="invoice_number_manual"
+          placeholder={side === "kreditor" ? "ER-Nr." : "Rechnungs-Nr."}
+          style={{ width: 140 }}
+        />
       )}
 
       <button type="submit" disabled={pending}>

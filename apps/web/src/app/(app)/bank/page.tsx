@@ -9,13 +9,6 @@ export const dynamic = "force-dynamic";
 const PAGE_SIZE = 100;
 type Search = { account?: string; status?: string; page?: string };
 
-const STATUS_LABEL: Record<string, string> = {
-  unmatched: "offen",
-  matched: "zugeordnet",
-  partial: "teilweise",
-  ignored: "ignoriert",
-};
-
 export default async function BankPage({
   searchParams,
 }: {
@@ -45,13 +38,17 @@ export default async function BankPage({
       amount: number;
       auto: boolean;
       sales_invoice: { id: string; invoice_number: string | null } | null;
+      incoming_document: { id: string; doc_number: string | null } | null;
     }[];
   };
 
   let query = supabase
     .from("bank_transaction")
     .select(
-      "id, booking_date, amount, counterparty_name, purpose, match_status, matches:bank_transaction_match(id, amount, auto, sales_invoice:sales_invoice(id, invoice_number))",
+      "id, booking_date, amount, counterparty_name, purpose, match_status, " +
+        "matches:bank_transaction_match(id, amount, auto, " +
+        "sales_invoice:sales_invoice(id, invoice_number), " +
+        "incoming_document:incoming_document(id, doc_number))",
       { count: "exact" },
     );
   if (account) query = query.eq("bank_account_id", account);
@@ -107,6 +104,44 @@ export default async function BankPage({
         } · ${fmtEur(i.open_amount)}`,
       }));
 
+  // Kandidaten-Eingangsrechnungen für die offenen Abgänge dieser Seite
+  const openDebits = data.filter((t) => t.amount < 0 && (t.matches ?? []).length === 0);
+  let openIncoming: {
+    id: string;
+    doc_number: string | null;
+    gross_amount: number | null;
+    supplier_name: string | null;
+  }[] = [];
+  if (openDebits.length > 0) {
+    const abs = openDebits.map((t) => Math.abs(t.amount));
+    const { data: inc } = await supabase
+      .from("incoming_document")
+      .select("id, doc_number, gross_amount, supplier_name")
+      .in("doc_type", ["invoice", "credit_note"])
+      .eq("payment_status", "open")
+      .gt("gross_amount", Math.min(...abs) * 0.9)
+      .lt("gross_amount", Math.max(...abs) * 1.05)
+      .not("doc_number", "is", null)
+      .order("gross_amount")
+      .limit(3000);
+    openIncoming = (inc ?? []) as unknown as typeof openIncoming;
+  }
+  const incomingCandidatesFor = (absAmount: number): Candidate[] =>
+    openIncoming
+      .filter((i) => {
+        const g = i.gross_amount ?? 0;
+        return g >= absAmount * 0.94 && g <= absAmount * 1.03;
+      })
+      .sort(
+        (a, b) =>
+          Math.abs((a.gross_amount ?? 0) - absAmount) - Math.abs((b.gross_amount ?? 0) - absAmount),
+      )
+      .slice(0, 40)
+      .map((i) => ({
+        number: i.doc_number!,
+        label: `${i.doc_number} · ${i.supplier_name ?? "?"} · ${fmtEur(i.gross_amount)}`,
+      }));
+
   const total = count ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const href = (p: number) => {
@@ -122,8 +157,9 @@ export default async function BankPage({
     <>
       <h1>Bank</h1>
       <p className="lead">
-        Importierte Kontoumsätze (CAMT.053). Gutschriften lassen sich Rechnungen
-        zuordnen — der Rest folgt automatisch beim nächsten Abgleich.
+        Importierte Kontoumsätze. <strong>Gutschriften</strong> → Ausgangsrechnung,
+        <strong> Abgänge</strong> → Eingangsrechnung. Der Rest folgt automatisch
+        beim nächsten <code>bank:match</code>.
       </p>
 
       {(accounts ?? []).length === 0 && (
@@ -185,27 +221,38 @@ export default async function BankPage({
                   <td>
                     {matches.length > 0 ? (
                       <div className="rows" style={{ gap: 3 }}>
-                        {matches.map((m) => (
-                          <div key={m.id} className="row" style={{ padding: "4px 8px" }}>
-                            <Link href={`/rechnungen/${m.sales_invoice?.id}`}>
-                              {m.sales_invoice?.invoice_number ?? "?"}
-                            </Link>
-                            <span className="count">{fmtEur(m.amount)}</span>
-                            {m.auto && <span className="tag">auto</span>}
-                            <form action={unmatchTransaction}>
-                              <input type="hidden" name="match_id" value={m.id} />
-                              <input type="hidden" name="tx_id" value={tx.id} />
-                              <button className="ghost" style={{ padding: "2px 8px" }}>
-                                aufheben
-                              </button>
-                            </form>
-                          </div>
-                        ))}
+                        {matches.map((m) => {
+                          const inc = m.incoming_document;
+                          const href = inc
+                            ? `/eingangsrechnungen/${inc.id}`
+                            : `/rechnungen/${m.sales_invoice?.id}`;
+                          const label = inc
+                            ? (inc.doc_number ?? "?")
+                            : (m.sales_invoice?.invoice_number ?? "?");
+                          return (
+                            <div key={m.id} className="row" style={{ padding: "4px 8px" }}>
+                              <Link href={href}>{label}</Link>
+                              <span className="count">{fmtEur(m.amount)}</span>
+                              {m.auto && <span className="tag">auto</span>}
+                              <form action={unmatchTransaction}>
+                                <input type="hidden" name="match_id" value={m.id} />
+                                <input type="hidden" name="tx_id" value={tx.id} />
+                                <button className="ghost" style={{ padding: "2px 8px" }}>
+                                  aufheben
+                                </button>
+                              </form>
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : tx.amount > 0 ? (
-                      <MatchForm txId={tx.id} candidates={candidatesFor(tx.amount)} />
+                      <MatchForm txId={tx.id} candidates={candidatesFor(tx.amount)} side="debitor" />
                     ) : (
-                      <span className="count">{STATUS_LABEL[tx.match_status]}</span>
+                      <MatchForm
+                        txId={tx.id}
+                        candidates={incomingCandidatesFor(Math.abs(tx.amount))}
+                        side="kreditor"
+                      />
                     )}
                   </td>
                 </tr>
