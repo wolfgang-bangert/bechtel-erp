@@ -109,6 +109,16 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
 - [ ] **Rest manuell:** `imports/bb-debitoren-zuordnung.csv` (166) + die 25
   Kreditoren. Danach ist der Ausgangs-DATEV-Export nicht mehr durch fehlende
   Debitorennummern blockiert.
+- [x] **Vorkontierung** (Migration `20260831140000`, `posting_rule`): aus 5 189
+  BB-Buchungen (2023–2026) je Lieferant das häufigste Aufwandskonto + Steuersatz
+  gelernt (`bb:learn-vorkontierung`) — **104 Regeln** (≥2 Belege, Konfidenz ≥ 0,5).
+  Zuordnung über `organization.supplier_number`. Bsp.: Berberich→3032,
+  Chr. Renz→3034 (Wire O), Colorpress→3001, Flyeralarm→3201, Entsorger→4969.
+  `extractIncoming` füllt `ledger_account` + `tax_code_id` (Kopf + Positionen)
+  beim Erfassen; 47/72 Bestandsrechnungen nachträglich vorkontiert. Manuelle
+  Regeln werden nicht überschrieben. Review-CSV `imports/bb-vorkontierung.csv`.
+- [ ] Kleine UI **Einstellungen → Vorkontierung** zum Sichten/Korrigieren der
+  `posting_rule` (optional).
 
 ## Slice 3 — Fakturierung & DATEV
 
