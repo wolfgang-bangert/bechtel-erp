@@ -154,6 +154,15 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   auf `/eingangsrechnungen/[id]`, Zahlstatus wird gesetzt. `MatchForm` mit
   `side=debitor|kreditor`.
 - [ ] Sammelzahlung auf der Soll-Seite (eine Zahlung = mehrere ER-Nummern).
+- [x] **Skonto-Ausbuchung** (Migration `20260901100000`, `skonto:apply`):
+  `skonto_amount` auf `sales_invoice` + `incoming_document`; eine Zahlung knapp
+  unter Brutto (Skonto-Regel des Belegs oder `--max-percent`/`--max-abs`) →
+  Differenz wird als Skonto erfasst, Posten geschlossen. Der
+  Zahlungs-Buchungsstapel bekommt je Beleg eine Skontozeile: Debitor
+  `87xx an Debitor`, Kreditor `Kreditor an 37xx`, Konto nach USt-Satz
+  (`setting datev.skonto_accounts`, Default 3736/3731 · 8736/8731).
+  **Steuerberater:** bestätigen, ob das die richtigen Automatikkonten sind.
+  Realtest: 1 Kreditor-, 40 Debitoren-Skonti.
 
 ## Slice 3 — Fakturierung & DATEV
 
