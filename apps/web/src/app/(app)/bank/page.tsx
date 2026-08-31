@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
-import { MatchForm, CandidateProvider, type Candidate } from "./ui";
+import { MatchForm, InvoiceDatalist, type Candidate } from "./ui";
 import { unmatchTransaction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -68,10 +68,10 @@ export default async function BankPage({
   const hasDebits = data.some((t) => t.amount < 0 && Math.abs(t.amount) - alloc(t) > 0.01);
 
   const cents = (n: number | null | undefined) => Math.round(Math.abs(n ?? 0) * 100);
-  // pro Centbetrag genau ein eindeutiger Vorschlag (Nummer) → wird vorausgefüllt
-  const uniqueByAmount = (rows: { c: number; number: string }[]) => {
+  // pro Centbetrag genau ein eindeutiger Vorschlag (Label) → wird vorausgefüllt
+  const uniqueByAmount = (rows: { c: number; label: string }[]) => {
     const seen = new Map<number, string | null>();
-    for (const r of rows) seen.set(r.c, seen.has(r.c) ? null : r.number);
+    for (const r of rows) seen.set(r.c, seen.has(r.c) ? null : r.label);
     return seen;
   };
 
@@ -99,7 +99,7 @@ export default async function BankPage({
       } — ${fmtEur(i.open_amount)}`,
     }));
     arCandidates = rows.map(({ number, label }) => ({ number, label }));
-    arPrefill = uniqueByAmount(rows.map((r) => ({ c: cents(r.amount), number: r.number })));
+    arPrefill = uniqueByAmount(rows.map((r) => ({ c: cents(r.amount), label: r.label })));
   }
 
   let erCandidates: Candidate[] = [];
@@ -123,7 +123,7 @@ export default async function BankPage({
       label: `${i.doc_number} — ${i.supplier_name ?? "?"} — ${fmtEur(i.gross_amount)}`,
     }));
     erCandidates = rows.map(({ number, label }) => ({ number, label }));
-    erPrefill = uniqueByAmount(rows.map((r) => ({ c: cents(r.amount), number: r.number })));
+    erPrefill = uniqueByAmount(rows.map((r) => ({ c: cents(r.amount), label: r.label })));
   }
 
   const total = count ?? 0;
@@ -175,7 +175,9 @@ export default async function BankPage({
 
       {error && <div className="banner-err">Fehler: {error.message}</div>}
 
-      <CandidateProvider ar={arCandidates} er={erCandidates}>
+      <InvoiceDatalist id="ar-list" options={arCandidates} />
+      <InvoiceDatalist id="er-list" options={erCandidates} />
+
       <div className="table-scroll">
         <table className="data">
           <thead>
@@ -259,10 +261,11 @@ export default async function BankPage({
                               <MatchForm
                                 txId={tx.id}
                                 side={side}
-                                defaultNumber={prefill}
+                                listId={side === "kreditor" ? "er-list" : "ar-list"}
+                                defaultValue={prefill}
                                 hint={
                                   `${tx.counterparty_name ?? ""} — ` +
-                                  (side === "kreditor" ? "ER-Nr. / Lieferant" : "Rg-Nr. / Kunde")
+                                  (side === "kreditor" ? "ER-Nr./Lieferant" : "Rg-Nr./Kunde")
                                 }
                               />
                             </>
@@ -282,7 +285,6 @@ export default async function BankPage({
           </tbody>
         </table>
       </div>
-      </CandidateProvider>
 
       {lastPage > 1 && (
         <div className="pager">
