@@ -235,8 +235,16 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   je Rechnung, ~5–10 €/Monat bei aktuellem Volumen; Batch-API −50 %. DSGVO:
   AVV in der Anthropic-Console zeichnen, optional später auf Claude via AWS
   Bedrock (Region Frankfurt) umstellen (Client-Tausch in `extractIncoming.ts`).
-- [ ] Slice 3 weiter: GoCardless-Automatik, native Rechnung, Mahnwesen,
-  DATEV-ZIP mit Belegbildern, Skonto-Ausbuchung.
+- [x] **FinTS-Anbindung** (vorgezogen): Kontoauszüge direkt von den Banken,
+  kein Drittanbieter. `python-fints` im venv `services/sync/.fints-venv`,
+  TS-Wrapper `src/fints.ts`. `imports/fints.txt` (4 Banken: KSK/VB Göppingen,
+  BW-Bank, Oberbank — FinTS-URLs eingetragen), PIN in `.env` `FINTS_PIN_*`.
+  `fints:setup --bank=ksk` (TAN-Verfahren wählen), `fints:pull [--bank] [--days]`
+  → gemeinsamer Import-/Dedup-Pfad mit `bank:import`, danach `bank:match`.
+  **Wartet auf** echten KSK-Anmeldenamen + `FINTS_PIN_KSK` zum Testen.
+  Später: `fints:transfer` (SEPA-Überweisung mit TAN).
+- [ ] FinTS-Produkt-ID bei der DK registrieren (`FINTS_PRODUCT_ID`).
+- [ ] Slice 3 weiter: native Rechnung, Mahnwesen, Skonto-Ausbuchung.
 - [ ] **~43 Nummern-Kollisionen** bereinigen (11 Keyline + 32 Ninox, überwiegend
   Kreditornummern 70xxx, die in beiden Systemen für vermutlich denselben
   Lieferanten stehen). Liste im Sync-Log.
