@@ -199,8 +199,18 @@ export default async function BankPage({
                   >
                     {fmtEur(tx.amount)}
                   </td>
-                  <td className="wrap">{tx.counterparty_name ?? "–"}</td>
-                  <td className="wrap" style={{ maxWidth: 320 }}>
+                  <td className="wrap" style={{ maxWidth: 160 }}>
+                    {tx.counterparty_name ?? "–"}
+                  </td>
+                  <td
+                    style={{
+                      maxWidth: 220,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                    title={tx.purpose ?? undefined}
+                  >
                     {tx.purpose ?? "–"}
                   </td>
                   <td>
