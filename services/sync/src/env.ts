@@ -64,7 +64,7 @@ export const env = {
   anthropicKey: () => required("ANTHROPIC_API_KEY"),
   bbutler: {
     base: () =>
-      (process.env.BB_API_BASE || "https://webservice.buchhaltungsbutler.de/api/v1").replace(
+      (process.env.BB_API_BASE || "https://app.buchhaltungsbutler.de/api/v1").replace(
         /\/+$/,
         "",
       ),
