@@ -12,7 +12,7 @@ import {
   bbPostings,
   bbPing,
 } from "./syncBButler";
-import { importBbAccounts, importBbParties } from "./bbImport";
+import { importBbAccounts, importBbParties, applyBbParties } from "./bbImport";
 import { syncNinoxOrders } from "./syncNinoxOrders";
 import { syncNinoxInvoices } from "./syncNinoxInvoices";
 import { dedupeReport } from "./dedupeReport";
@@ -264,6 +264,16 @@ async function main() {
     case "bb:import-parties": {
       console.log(`BB → Debitoren/Kreditoren an organization${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await importBbParties({ dryRun }), null, 1));
+      break;
+    }
+    case "bb:apply-parties": {
+      const f = process.argv.find((a) => a.startsWith("--file="))?.split("=")[1];
+      if (!f) {
+        console.error("--file=bb-debitoren-zuordnung.csv erforderlich");
+        process.exit(1);
+      }
+      console.log(`Zuordnungs-CSV einlesen: ${f}${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await applyBbParties({ file: f, dryRun }), null, 1));
       break;
     }
     case "incoming:prune-receipts": {

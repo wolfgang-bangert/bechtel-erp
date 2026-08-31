@@ -22,6 +22,7 @@
     "bb:postings": "tsx src/cli.ts bb:postings",
     "bb:import-accounts": "tsx src/cli.ts bb:import-accounts",
     "bb:import-parties": "tsx src/cli.ts bb:import-parties",
+    "bb:apply-parties": "tsx src/cli.ts bb:apply-parties",
     "ninox:orders": "tsx src/cli.ts ninox:orders",
     "ninox:invoices": "tsx src/cli.ts ninox:invoices",
     "datev:extf": "tsx src/cli.ts datev:extf",
