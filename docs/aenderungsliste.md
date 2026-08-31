@@ -137,6 +137,15 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Stapel — aktuell noch CLI.
 - [ ] **Bank-/Zahlungs-Buchungsstapel** (`datev_export.scope='zahlungen'`) als
   dritter Monatsexport für den Steuerberater (mit OP-Ausgleich).
+- [x] **Bank-Abgleich Soll-Seite** (Migration `20260901090000`,
+  `syncBankMatchKreditor`): Abgänge auf dem Kontoauszug → Eingangsrechnung
+  auf `paid`. Tiers: Rechnungsnr. im Verwendungszweck / Lieferant+Betrag /
+  Zahlungsavis → referenzierte Rechnungen. Betrag = brutto oder brutto−Skonto.
+  `bank:match --side=haben|soll|both`. Realtest KSK: 16 Zuordnungen, 15 ER
+  bezahlt. `bank_transaction_match` kann jetzt auf sales_invoice ODER
+  incoming_document zeigen.
+- [ ] `/bank`-UI: Soll-Zuordnungen anzeigen/manuell setzen (bisher nur Haben).
+- [ ] Sammelzahlung auf der Soll-Seite (eine Zahlung = mehrere ER-Nummern).
 
 ## Slice 3 — Fakturierung & DATEV
 
