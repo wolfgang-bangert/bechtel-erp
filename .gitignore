@@ -29,7 +29,7 @@ package-lock.json
 !.vscode/extensions.json
 
 # Sync-Reports (generiert)
-reports/*.csv
+reports/
 
 # lokale Importdateien (Bank, Xano, ...)
 imports/*

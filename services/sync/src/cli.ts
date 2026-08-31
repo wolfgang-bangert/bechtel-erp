@@ -22,6 +22,7 @@ import { syncInvoicePdfs } from "./syncInvoicePdfs";
 import { syncBankImport } from "./syncBankImport";
 import { syncBankMatch } from "./syncBankMatch";
 import { exportDatevExtf } from "./datevExtf";
+import { exportDatevKreditor } from "./datevExtfKreditor";
 import { syncMailbox } from "./syncMailbox";
 import { extractIncoming } from "./extractIncoming";
 import { purgeIncoming } from "./purgeIncoming";
@@ -190,6 +191,39 @@ async function main() {
       );
       console.log(`Summe (Rg − GS): ${r.grossTotal.toLocaleString("de-DE")} EUR`);
       console.log(`Datei: ${r.file}`);
+      console.log(`SHA-256: ${r.sha256}`);
+      break;
+    }
+    case "datev:kreditor": {
+      const arg = (n: string) => {
+        const p = process.argv.find((a) => a.startsWith(n + "="));
+        return p ? p.split("=")[1] : undefined;
+      };
+      const from = arg("--from");
+      const to = arg("--to");
+      if (!from || !to) {
+        console.log(
+          "  pnpm --filter sync datev:kreditor --from=2026-08-01 --to=2026-08-31 [--dry-run] [--no-zip]",
+        );
+        process.exit(1);
+      }
+      const withDocuments = !process.argv.includes("--no-zip");
+      const includeExtracted = process.argv.includes("--include-extracted");
+      console.log(
+        `DATEV Kreditoren-Buchungsstapel ${from} … ${to}${dryRun ? "  (DRY RUN)" : ""}` +
+          (includeExtracted ? "  (inkl. ungeprüfte — Vorschau)" : ""),
+      );
+      const r = await exportDatevKreditor({ from, to, dryRun, withDocuments, includeExtracted });
+      console.log(
+        `\n${r.docs} Eingangsrechnungen (geprüft) — ${r.booked} gebucht (${r.lines} Buchungszeilen, ${r.belege} Belege).`,
+      );
+      console.log(
+        `übersprungen ${r.skipped}: ${r.skips.noBeleg} ohne Nr./Datum, ${r.skips.noKreditor} ohne Kreditor, ` +
+          `${r.skips.badKreditor} ungültige Kreditornr., ${r.skips.noKonto} ohne Aufwandskonto`,
+      );
+      console.log(`Summe (ER − GS) brutto: ${r.grossTotal.toLocaleString("de-DE")} EUR`);
+      console.log(`CSV: ${r.csv}`);
+      if (r.zip) console.log(`ZIP: ${r.zip}`);
       console.log(`SHA-256: ${r.sha256}`);
       break;
     }

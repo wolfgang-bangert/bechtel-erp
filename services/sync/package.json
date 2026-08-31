@@ -28,6 +28,7 @@
     "ninox:orders": "tsx src/cli.ts ninox:orders",
     "ninox:invoices": "tsx src/cli.ts ninox:invoices",
     "datev:extf": "tsx src/cli.ts datev:extf",
+    "datev:kreditor": "tsx src/cli.ts datev:kreditor",
     "pdf:invoices": "tsx src/cli.ts pdf:invoices",
     "bank:import": "tsx src/cli.ts bank:import",
     "bank:match": "tsx src/cli.ts bank:match",
@@ -46,7 +47,8 @@
     "fast-xml-parser": "^5.11.1",
     "imapflow": "^1.7.6",
     "mailparser": "^3.9.17",
-    "nodemailer": "^6.9.16"
+    "nodemailer": "^6.9.16",
+    "jszip": "^3.10.1"
   },
   "devDependencies": {
     "@types/mailparser": "^3.4.6",
