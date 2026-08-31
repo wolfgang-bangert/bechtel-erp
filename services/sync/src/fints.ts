@@ -46,6 +46,7 @@ function runOp(
   op: "setup" | "pull",
   b: FintsBank,
   extra: string[] = [],
+  userOverride?: string,
 ): Record<string, unknown> {
   if (!existsSync(PY)) throw new Error(`FinTS-venv fehlt (${PY}). Einrichtung: siehe fints/README`);
   const args = [
@@ -53,7 +54,7 @@ function runOp(
     "--op", op,
     "--blz", b.blz,
     "--server", b.server,
-    "--user", b.user,
+    "--user", userOverride?.trim() || b.user,
     "--iban", b.iban,
     "--state", root(`imports/fints-state.${b.kuerzel}.b64`),
     ...extra,
@@ -75,10 +76,10 @@ function runOp(
   return json;
 }
 
-export function fintsSetup(kuerzel: string) {
+export function fintsSetup(kuerzel: string, userOverride?: string) {
   const bank = loadFintsBanks().find((b) => b.kuerzel === kuerzel);
   if (!bank) throw new Error(`Bank '${kuerzel}' nicht in imports/fints.txt`);
-  return runOp("setup", bank);
+  return runOp("setup", bank, [], userOverride);
 }
 
 type PyTxn = {

@@ -176,8 +176,11 @@ async function main() {
         console.log("  pnpm --filter sync fints:setup --bank=ksk");
         process.exit(1);
       }
-      console.log(`FinTS einrichten: ${bank}  (TAN-Abfrage folgt ggf.)`);
-      console.log(JSON.stringify(fintsSetup(bank), null, 1));
+      const userOverride = process.argv.find((a) => a.startsWith("--user="))?.split("=")[1];
+      console.log(
+        `FinTS einrichten: ${bank}${userOverride ? ` (Anmeldename ${userOverride})` : ""}  (TAN-Abfrage folgt ggf.)`,
+      );
+      console.log(JSON.stringify(fintsSetup(bank, userOverride), null, 1));
       break;
     }
     case "fints:pull": {
