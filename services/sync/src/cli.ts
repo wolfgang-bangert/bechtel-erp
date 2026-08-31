@@ -25,6 +25,7 @@ import { syncBankMatchKreditor } from "./syncBankMatchKreditor";
 import { exportDatevExtf } from "./datevExtf";
 import { exportDatevKreditor } from "./datevExtfKreditor";
 import { exportDatevZahlungen } from "./datevExtfZahlungen";
+import { skontoApply } from "./skontoApply";
 import { syncMailbox } from "./syncMailbox";
 import { extractIncoming } from "./extractIncoming";
 import { purgeIncoming } from "./purgeIncoming";
@@ -290,6 +291,28 @@ async function main() {
       console.log(`Saldo (Eingang − Ausgang): ${r.saldo.toLocaleString("de-DE")} EUR`);
       console.log(`CSV: ${r.file}`);
       console.log(`SHA-256: ${r.sha256}`);
+      break;
+    }
+    case "skonto:apply": {
+      const arg = (n: string) => process.argv.find((a) => a.startsWith(n + "="))?.split("=")[1];
+      const pct = arg("--max-percent");
+      const abs = arg("--max-abs");
+      console.log(`Skonto-Ausbuchung${dryRun ? "  (DRY RUN)" : ""}`);
+      const r = await skontoApply({
+        from: arg("--from"),
+        to: arg("--to"),
+        dryRun,
+        maxPercent: pct ? Number(pct) / 100 : undefined,
+        maxAbs: abs ? Number(abs) : undefined,
+      });
+      console.log(
+        `Kreditoren: ${r.kreditoren.count} Belege, ${r.kreditoren.summe.toLocaleString("de-DE")} EUR erhaltenes Skonto`,
+      );
+      console.log(`  ${r.kreditoren.beispiele.join("  |  ")}`);
+      console.log(
+        `Debitoren:  ${r.debitoren.count} Belege, ${r.debitoren.summe.toLocaleString("de-DE")} EUR gewährtes Skonto`,
+      );
+      console.log(`  ${r.debitoren.beispiele.join("  |  ")}`);
       break;
     }
     case "mail:fetch": {

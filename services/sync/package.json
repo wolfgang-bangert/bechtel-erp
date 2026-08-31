@@ -30,6 +30,7 @@
     "datev:extf": "tsx src/cli.ts datev:extf",
     "datev:kreditor": "tsx src/cli.ts datev:kreditor",
     "datev:zahlungen": "tsx src/cli.ts datev:zahlungen",
+    "skonto:apply": "tsx src/cli.ts skonto:apply",
     "pdf:invoices": "tsx src/cli.ts pdf:invoices",
     "bank:import": "tsx src/cli.ts bank:import",
     "bank:match": "tsx src/cli.ts bank:match",
