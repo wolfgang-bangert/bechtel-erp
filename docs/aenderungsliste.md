@@ -149,7 +149,10 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   `bank:match --side=haben|soll|both`. Realtest KSK: 16 Zuordnungen, 15 ER
   bezahlt. `bank_transaction_match` kann jetzt auf sales_invoice ODER
   incoming_document zeigen.
-- [ ] `/bank`-UI: Soll-Zuordnungen anzeigen/manuell setzen (bisher nur Haben).
+- [x] `/bank`-UI: **Soll-Seite** — Abgänge zeigen jetzt eine Zuordnungs-Auswahl
+  aus offenen Eingangsrechnungen (Betrag-nah), gesetzte Zuordnungen verlinken
+  auf `/eingangsrechnungen/[id]`, Zahlstatus wird gesetzt. `MatchForm` mit
+  `side=debitor|kreditor`.
 - [ ] Sammelzahlung auf der Soll-Seite (eine Zahlung = mehrere ER-Nummern).
 
 ## Slice 3 — Fakturierung & DATEV
