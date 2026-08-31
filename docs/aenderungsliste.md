@@ -98,8 +98,17 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   - **Offen zum Sichten:** 203 Debitoren / 207 Kreditoren in
     `imports/bb-debitoren-offen.csv` / `bb-kreditoren-offen.csv` (Privatpersonen,
     Namensvarianten, in BB abgeschnittene Namen).
-- [ ] Offene CSVs manuell zuordnen (UI oder gemeinsam), dann ist der
-  Ausgangs-DATEV-Export nicht mehr durch fehlende Debitorennummern blockiert.
+- [x] Matcher nachgeschärft (Wortreihenfolge, in BB abgeschnittene Namen,
+  Adresse PLZ+Hausnr+Straße). Offene Fälle → `imports/bb-*-zuordnung.csv`
+  (Vorschlag + score, nach score sortiert, Spalte `UEBERNEHMEN`).
+  Rücklauf per `bb:apply-parties --file=…`.
+- [x] **185 fehlende Kreditoren als Lieferanten angelegt** (`bb:create-suppliers`,
+  Migration `20260831130000` erlaubt `external_ref.system='buchhaltungsbutler'`).
+  Orgs 3655→3840, `supplier_number` 405→598. 25 namensähnliche in
+  `imports/bb-kreditoren-nicht-angelegt.csv`.
+- [ ] **Rest manuell:** `imports/bb-debitoren-zuordnung.csv` (166) + die 25
+  Kreditoren. Danach ist der Ausgangs-DATEV-Export nicht mehr durch fehlende
+  Debitorennummern blockiert.
 
 ## Slice 3 — Fakturierung & DATEV
 
