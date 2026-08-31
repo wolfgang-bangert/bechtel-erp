@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { env } from "./env";
 import { fetchNinoxRecords } from "./ninox";
+import { splitStreet } from "./addr";
 
 type Options = { dryRun?: boolean };
 
@@ -28,7 +29,15 @@ async function pagedSelect<T>(table: string, columns: string): Promise<T[]> {
   return out;
 }
 
-type Addr = { line1: string; line2: string | null; zip: string | null; city: string | null; country: string };
+type Addr = {
+  line1: string;
+  line2: string | null;
+  street: string | null;
+  house_number: string | null;
+  zip: string | null;
+  city: string | null;
+  country: string;
+};
 
 function buildAddress(f: Record<string, unknown>): Addr | null {
   let street = s(f["Straße"]);
@@ -55,9 +64,12 @@ function buildAddress(f: Record<string, unknown>): Addr | null {
     .filter(Boolean)
     .join(", ");
 
+  const parts = splitStreet(street);
   return {
     line1: street || city || "—",
     line2: addition || null,
+    street: parts.street,
+    house_number: parts.houseNumber,
     zip: zip || null,
     city: city || null,
     country: (country || "DE").slice(0, 2).toUpperCase() || "DE",
@@ -112,6 +124,9 @@ export async function syncNinoxAddresses(opts: Options = {}) {
         kind: "general",
         line1: a.line1,
         line2: a.line2,
+        street: a.street,
+        house_number: a.house_number,
+        address_addition: a.line2,
         zip: a.zip,
         city: a.city,
         country: a.country,

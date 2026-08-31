@@ -34,7 +34,7 @@ export default async function OrganisationDetail({
       .eq("organization_id", id),
     supabase
       .from("address")
-      .select("kind, is_default, line1, line2, zip, city, country")
+      .select("kind, is_default, line1, line2, street, house_number, address_addition, zip, city, country")
       .eq("organization_id", id),
     supabase
       .from("contact")
@@ -132,7 +132,12 @@ export default async function OrganisationDetail({
             <div className="row" key={i}>
               <span className="w-code">{a.kind}</span>
               <span className="w-name">
-                {[a.line1, a.line2, [a.zip, a.city].filter(Boolean).join(" "), a.country]
+                {[
+                  [a.street ?? a.line1, a.house_number].filter(Boolean).join(" "),
+                  a.address_addition ?? a.line2,
+                  [a.zip, a.city].filter(Boolean).join(" "),
+                  a.country,
+                ]
                   .filter(Boolean)
                   .join(", ")}
               </span>

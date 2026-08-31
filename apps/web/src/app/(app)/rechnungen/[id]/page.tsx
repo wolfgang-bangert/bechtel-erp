@@ -107,7 +107,14 @@ export default async function RechnungDetail({
         <dd>{fmtDate(inv.paid_at)}</dd>
         <dt>Rechnungsanschrift</dt>
         <dd>
-          {[addr.addressee ?? addr.name, addr.street ?? addr.line1, [addr.zip_code ?? addr.zip, addr.town ?? addr.city].filter(Boolean).join(" ")]
+          {[
+            addr.addressee ?? addr.name,
+            [addr.street ?? addr.line1, addr.number ?? addr.house_number]
+              .filter(Boolean)
+              .join(" "),
+            addr.addition ?? addr.line2,
+            [addr.zip_code ?? addr.zip, addr.town ?? addr.city].filter(Boolean).join(" "),
+          ]
             .filter(Boolean)
             .join(", ") || "–"}
         </dd>

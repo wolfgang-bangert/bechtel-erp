@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { fetchKeylineOrgAddresses, type KeylineAddress } from "./keyline";
+import { joinStreet } from "./addr";
 
 type Options = { dryRun?: boolean };
 
@@ -42,15 +43,17 @@ function pickPrimary(addrs: KeylineAddress[], orgName: string): KeylineAddress |
 }
 
 function toAddressRow(a: KeylineAddress, orgId: string) {
-  const line1 = [a.street, a.number]
-    .map((x) => (x ?? "").trim())
-    .filter(Boolean)
-    .join(" ");
+  const street = a.street?.trim() || null;
+  const houseNumber = a.number?.trim() || null;
+  const line1 = joinStreet(street, houseNumber);
   return {
     organization_id: orgId,
     kind: "general",
     line1: line1 || a.addressee?.trim() || "—",
     line2: a.addition?.trim() || null,
+    street,
+    house_number: houseNumber,
+    address_addition: a.addition?.trim() || null,
     zip: a.zip_code?.trim() || null,
     city: a.town?.trim() || null,
     country: (a.country_code?.trim() || "DE").toUpperCase(),
