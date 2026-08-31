@@ -24,6 +24,7 @@ import { syncBankMatch } from "./syncBankMatch";
 import { syncBankMatchKreditor } from "./syncBankMatchKreditor";
 import { exportDatevExtf } from "./datevExtf";
 import { exportDatevKreditor } from "./datevExtfKreditor";
+import { exportDatevZahlungen } from "./datevExtfZahlungen";
 import { syncMailbox } from "./syncMailbox";
 import { extractIncoming } from "./extractIncoming";
 import { purgeIncoming } from "./purgeIncoming";
@@ -268,6 +269,26 @@ async function main() {
       console.log(`Summe (ER − GS) brutto: ${r.grossTotal.toLocaleString("de-DE")} EUR`);
       console.log(`CSV: ${r.csv}`);
       if (r.zip) console.log(`ZIP: ${r.zip}`);
+      console.log(`SHA-256: ${r.sha256}`);
+      break;
+    }
+    case "datev:zahlungen": {
+      const arg = (n: string) => process.argv.find((a) => a.startsWith(n + "="))?.split("=")[1];
+      const from = arg("--from");
+      const to = arg("--to");
+      if (!from || !to) {
+        console.log("  pnpm --filter sync datev:zahlungen --from=2026-08-01 --to=2026-08-31 [--dry-run]");
+        process.exit(1);
+      }
+      console.log(`DATEV Zahlungs-Buchungsstapel ${from} … ${to}${dryRun ? "  (DRY RUN)" : ""}`);
+      const r = await exportDatevZahlungen({ from, to, dryRun });
+      console.log(
+        `\n${r.matches} Zuordnungen im Zeitraum — ${r.lines} Buchungszeilen. ` +
+          `übersprungen ${r.skipped} (${r.skips.noGeldkonto} ohne Geldkonto, ` +
+          `${r.skips.noPartnerNr} ohne Debitor/Kreditor, ${r.skips.noRgNr} ohne Rg-Nr).`,
+      );
+      console.log(`Saldo (Eingang − Ausgang): ${r.saldo.toLocaleString("de-DE")} EUR`);
+      console.log(`CSV: ${r.file}`);
       console.log(`SHA-256: ${r.sha256}`);
       break;
     }

@@ -29,6 +29,7 @@
     "ninox:invoices": "tsx src/cli.ts ninox:invoices",
     "datev:extf": "tsx src/cli.ts datev:extf",
     "datev:kreditor": "tsx src/cli.ts datev:kreditor",
+    "datev:zahlungen": "tsx src/cli.ts datev:zahlungen",
     "pdf:invoices": "tsx src/cli.ts pdf:invoices",
     "bank:import": "tsx src/cli.ts bank:import",
     "bank:match": "tsx src/cli.ts bank:match",
