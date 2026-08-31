@@ -62,4 +62,14 @@ export const env = {
   /** Weiterleitungsziel für Mahnungen; leer = keine Weiterleitung. */
   dunningForwardTo: () => (process.env.DUNNING_FORWARD_TO || "").trim(),
   anthropicKey: () => required("ANTHROPIC_API_KEY"),
+  bbutler: {
+    base: () =>
+      (process.env.BB_API_BASE || "https://webservice.buchhaltungsbutler.de/api/v1").replace(
+        /\/+$/,
+        "",
+      ),
+    client: () => required("BB_API_CLIENT"),
+    secret: () => required("BB_API_SECRET"),
+    apiKey: () => required("BB_API_KEY"),
+  },
 };

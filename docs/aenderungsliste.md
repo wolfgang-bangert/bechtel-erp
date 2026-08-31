@@ -76,6 +76,19 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
 - [ ] **Webhook** erst nach Deployment von werk (braucht öffentliche URL); vorher
   prüfen, ob Keyline Webhooks anbietet.
 
+## BuchhaltungsButler-Import (SKR03 + Debitoren)
+
+- [x] **API-Client gebaut** (`services/sync/src/bbutler.ts` + `syncBButler.ts`).
+  BB API v1: alle POST, Basic-Auth `client:secret`, `api_key` im Body wählt den
+  Mandanten. Base `https://webservice.buchhaltungsbutler.de/api/v1` (per
+  `BB_API_BASE` überschreibbar). Befehle: `bb:ping`, `bb:accounts`
+  (`settings/get/postingaccounts`), `bb:debtors`, `bb:creditors`, `bb:postings`
+  (`--from= --to=`). Jeder schreibt `imports/bb-<name>.{json,csv}`.
+- [ ] **Wartet auf Credentials** in `.env`: `BB_API_CLIENT` / `BB_API_SECRET` /
+  `BB_API_KEY` (BuchhaltungsButler → Einstellungen → Schnittstellen und
+  API-Zugang). Danach: `bb:accounts` + `bb:debtors` ziehen, prüfen, dann in
+  `ledger_account` bzw. `organization.debitor` importieren.
+
 ## Slice 3 — Fakturierung & DATEV
 
 - [x] **DATEV EXTF-Buchungsstapel (Ausgangsrechnungen)** — `datev:extf`,

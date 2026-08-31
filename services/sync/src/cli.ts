@@ -5,6 +5,13 @@ import { syncNinoxPeople } from "./syncNinoxPeople";
 import { syncNinoxAddresses } from "./syncNinoxAddresses";
 import { syncKeylineOrders } from "./syncKeylineOrders";
 import { syncKeylineInvoices, refreshKeylineInvoice } from "./syncKeylineInvoices";
+import {
+  bbAccounts,
+  bbDebtors,
+  bbCreditors,
+  bbPostings,
+  bbPing,
+} from "./syncBButler";
 import { syncNinoxOrders } from "./syncNinoxOrders";
 import { syncNinoxInvoices } from "./syncNinoxInvoices";
 import { dedupeReport } from "./dedupeReport";
@@ -220,6 +227,32 @@ async function main() {
           1,
         ),
       );
+      break;
+    }
+    case "bb:ping": {
+      console.log(JSON.stringify(await bbPing(), null, 1));
+      break;
+    }
+    case "bb:accounts": {
+      console.log("BuchhaltungsButler → Kontenrahmen holen …");
+      console.log(JSON.stringify(await bbAccounts(), null, 1));
+      break;
+    }
+    case "bb:debtors": {
+      console.log("BuchhaltungsButler → Debitoren holen …");
+      console.log(JSON.stringify(await bbDebtors(), null, 1));
+      break;
+    }
+    case "bb:creditors": {
+      console.log("BuchhaltungsButler → Kreditoren holen …");
+      console.log(JSON.stringify(await bbCreditors(), null, 1));
+      break;
+    }
+    case "bb:postings": {
+      const from = process.argv.find((a) => a.startsWith("--from="))?.split("=")[1];
+      const to = process.argv.find((a) => a.startsWith("--to="))?.split("=")[1];
+      console.log("BuchhaltungsButler → Buchungen holen …");
+      console.log(JSON.stringify(await bbPostings({ from, to }), null, 1));
       break;
     }
     case "incoming:prune-receipts": {
