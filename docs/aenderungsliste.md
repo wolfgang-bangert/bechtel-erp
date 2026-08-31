@@ -135,8 +135,13 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   wie der CLI-Export.
 - [ ] Web-Button „DATEV-Export herunterladen" (Zeitraum → CSV/ZIP) für beide
   Stapel — aktuell noch CLI.
-- [ ] **Bank-/Zahlungs-Buchungsstapel** (`datev_export.scope='zahlungen'`) als
-  dritter Monatsexport für den Steuerberater (mit OP-Ausgleich).
+- [x] **Bank-/Zahlungs-Buchungsstapel** (`datev:zahlungen --from --to`,
+  `datevExtfZahlungen.ts`): je zugeordneter Bankbewegung eine Zeile —
+  Eingang `Geldkonto an Debitor` (S), Ausgang `Geldkonto an Kreditor` (H),
+  Belegfeld 1 = ausgeglichene Rechnungsnr. Geldkonto aus
+  `bank_account.ledger_account` (KSK 1230, VB 1220, BW-Bank 1210). Skonto-Rest
+  bleibt offen. Vorschau 07–09/2026: 52 Zeilen. **Das ist der 3. Monatsexport
+  für den Steuerberater** (Debitoren + Kreditoren + Zahlungen).
 - [x] **Bank-Abgleich Soll-Seite** (Migration `20260901090000`,
   `syncBankMatchKreditor`): Abgänge auf dem Kontoauszug → Eingangsrechnung
   auf `paid`. Tiers: Rechnungsnr. im Verwendungszweck / Lieferant+Betrag /
