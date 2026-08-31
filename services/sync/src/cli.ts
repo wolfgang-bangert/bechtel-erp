@@ -21,6 +21,7 @@ import { dedupeMerge } from "./mergeOrganizations";
 import { syncInvoicePdfs } from "./syncInvoicePdfs";
 import { syncBankImport } from "./syncBankImport";
 import { syncBankMatch } from "./syncBankMatch";
+import { syncBankMatchKreditor } from "./syncBankMatchKreditor";
 import { exportDatevExtf } from "./datevExtf";
 import { exportDatevKreditor } from "./datevExtfKreditor";
 import { syncMailbox } from "./syncMailbox";
@@ -166,8 +167,16 @@ async function main() {
       break;
     }
     case "bank:match": {
-      console.log(`Bank-Umsätze <-> offene Rechnungen${dryRun ? "  (DRY RUN)" : ""}`);
-      console.log(JSON.stringify(await syncBankMatch({ dryRun }), null, 1));
+      const side = process.argv.find((a) => a.startsWith("--side="))?.split("=")[1] ?? "both";
+      console.log(`Bank-Abgleich (${side})${dryRun ? "  (DRY RUN)" : ""}`);
+      if (side === "haben" || side === "both") {
+        console.log("Haben (Kundenzahlungen ↔ Ausgangsrechnungen):");
+        console.log(JSON.stringify(await syncBankMatch({ dryRun }), null, 1));
+      }
+      if (side === "soll" || side === "both") {
+        console.log("Soll (eigene Zahlungen ↔ Eingangsrechnungen):");
+        console.log(JSON.stringify(await syncBankMatchKreditor({ dryRun }), null, 1));
+      }
       break;
     }
     case "fints:setup": {

@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import type { CamtEntry } from "./camt";
 import { importBankEntries } from "./syncBankImport";
 import { syncBankMatch } from "./syncBankMatch";
+import { syncBankMatchKreditor } from "./syncBankMatchKreditor";
 
 const root = (p: string) => fileURLToPath(new URL(`../../../${p}`, import.meta.url));
 const svc = (p: string) => fileURLToPath(new URL(`../${p}`, import.meta.url));
@@ -149,7 +150,12 @@ export async function fintsPull(opts: { kuerzel?: string; days?: number; dryRun?
   const imp = await importBankEntries(all, { dryRun });
   const importedCount = "imported" in imp ? (imp.imported ?? 0) : 0;
   let matched: unknown = null;
-  if (!dryRun && match && importedCount > 0) matched = await syncBankMatch({ dryRun: false });
+  if (!dryRun && match && importedCount > 0) {
+    matched = {
+      haben: await syncBankMatch({ dryRun: false }),
+      soll: await syncBankMatchKreditor({ dryRun: false }),
+    };
+  }
 
   return { banks: perBank, ...imp, match: matched };
 }

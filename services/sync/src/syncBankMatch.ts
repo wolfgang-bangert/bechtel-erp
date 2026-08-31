@@ -6,7 +6,7 @@ type Options = { dryRun?: boolean };
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Tokens aus dem Verwendungszweck, die eine Rechnungsnummer sein könnten. */
-function candidateTokens(purpose: string): string[] {
+export function candidateTokens(purpose: string): string[] {
   const t = new Set<string>();
   const add = (s: string) => {
     const c = s.trim();
