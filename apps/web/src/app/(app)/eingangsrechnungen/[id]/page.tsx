@@ -40,20 +40,26 @@ export default async function IncomingDetail({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: doc, error }, { data: itemsRaw }, { data: taxCodes }, { data: costCenters }] =
-    await Promise.all([
-      supabase.from("incoming_document").select("*").eq("id", id).maybeSingle(),
-      supabase
-        .from("incoming_document_item")
-        .select(
-          "id, position, description, quantity, unit_price, tax_rate, net_amount, ledger_account, tax_code_id, material_ref, " +
-            "incoming_document_allocation ( id, link_type, sales_order_id, material_ref, cost_center_id, amount, note, sales_order:sales_order_id ( order_number ) )",
-        )
-        .eq("incoming_document_id", id)
-        .order("position", { nullsFirst: false }),
-      supabase.from("tax_code").select("id, code, name").eq("direction", "input").order("code"),
-      supabase.from("cost_center").select("id, number, name").eq("is_active", true).order("number"),
-    ]);
+  const [
+    { data: doc, error },
+    { data: itemsRaw },
+    { data: taxCodes },
+    { data: costCenters },
+    { data: ledgerAccounts },
+  ] = await Promise.all([
+    supabase.from("incoming_document").select("*").eq("id", id).maybeSingle(),
+    supabase
+      .from("incoming_document_item")
+      .select(
+        "id, position, description, quantity, unit_price, tax_rate, net_amount, ledger_account, tax_code_id, material_ref, " +
+          "incoming_document_allocation ( id, link_type, sales_order_id, material_ref, cost_center_id, amount, note, sales_order:sales_order_id ( order_number ) )",
+      )
+      .eq("incoming_document_id", id)
+      .order("position", { nullsFirst: false }),
+    supabase.from("tax_code").select("id, code, name").eq("direction", "input").order("code"),
+    supabase.from("cost_center").select("id, number, name").eq("is_active", true).order("number"),
+    supabase.from("ledger_account").select("number, name").eq("is_active", true).order("number"),
+  ]);
 
   if (error) return <div className="banner-err">Fehler: {error.message}</div>;
   if (!doc) notFound();
@@ -206,6 +212,10 @@ export default async function IncomingDetail({
               items={items}
               taxCodes={(taxCodes ?? []).map((t) => ({ id: t.id, label: `${t.code} – ${t.name}` }))}
               costCenters={(costCenters ?? []).map((c) => ({ id: c.id, label: `${c.number} – ${c.name}` }))}
+              ledgerAccounts={(ledgerAccounts ?? []).map((a) => ({
+                value: a.number,
+                label: `${a.number} – ${a.name}`,
+              }))}
             />
           </div>
         )}

@@ -43,14 +43,31 @@ export function ReviewForm({
   items,
   taxCodes,
   costCenters,
+  ledgerAccounts,
 }: {
   doc: Record<string, unknown>;
   items: Pos[];
   taxCodes: Opt[];
   costCenters: Opt[];
+  ledgerAccounts: { value: string; label: string }[];
 }) {
   const [state, action, pending] = useActionState(saveIncoming, empty);
   const v = (k: string) => (doc[k] == null ? "" : String(doc[k]));
+
+  const accountOptions = (current: string) => {
+    const has = ledgerAccounts.some((a) => a.value === current);
+    return (
+      <>
+        <option value="">–</option>
+        {current && !has && <option value={current}>{current} (nicht im Kontenrahmen)</option>}
+        {ledgerAccounts.map((a) => (
+          <option key={a.value} value={a.value}>
+            {a.label}
+          </option>
+        ))}
+      </>
+    );
+  };
   const [positions, setPositions] = useState<Pos[]>(
     items.length
       ? items
@@ -205,7 +222,12 @@ export function ReviewForm({
         Gilt für alle Positionen ohne eigene Angabe.
       </p>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <F name="ledger_account" label="Aufwandskonto (SKR03)" w={180} />
+        <div className="field" style={{ width: 300 }}>
+          <label htmlFor="ledger_account">Aufwandskonto (SKR03)</label>
+          <select id="ledger_account" name="ledger_account" defaultValue={v("ledger_account")}>
+            {accountOptions(v("ledger_account"))}
+          </select>
+        </div>
         <div className="field" style={{ width: 220 }}>
           <label htmlFor="tax_code_id">Steuerschlüssel</label>
           <select id="tax_code_id" name="tax_code_id" defaultValue={v("tax_code_id")}>
@@ -286,9 +308,14 @@ export function ReviewForm({
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-              <div className="field" style={{ width: 150 }}>
+              <div className="field" style={{ width: 260 }}>
                 <label>Konto (überschreibt)</label>
-                <input value={p.ledger_account} onChange={(e) => patchPos(pi, { ledger_account: e.target.value })} />
+                <select
+                  value={p.ledger_account}
+                  onChange={(e) => patchPos(pi, { ledger_account: e.target.value })}
+                >
+                  {accountOptions(p.ledger_account)}
+                </select>
               </div>
               <div className="field" style={{ width: 200 }}>
                 <label>Steuerschlüssel</label>

@@ -305,6 +305,28 @@ export async function extractIncoming(opts: Options = {}) {
       ]),
   );
 
+  // Vorsteuer-Schlüssel nach Satz — der Satz selbst kommt aus der Rechnung.
+  const taxByRate = new Map<number, string>(
+    (
+      await pagedSelect<{ id: string; rate: number; direction: string; is_active: boolean }>(
+        "tax_code",
+        "id, rate, direction, is_active",
+      )
+    )
+      .filter((t) => t.direction === "input" && t.is_active)
+      .map((t) => [Math.round(Number(t.rate)), t.id]),
+  );
+  const rateToCode = (rate: unknown): string | null => {
+    const r = Math.round(Number(rate));
+    return Number.isFinite(r) && taxByRate.has(r) ? taxByRate.get(r)! : null;
+  };
+  /** dominanter USt-Satz aus einer tax_breakdown */
+  const dominantRate = (tb: Record<string, number> | undefined): number | null => {
+    const keys = Object.keys(tb ?? {});
+    if (!keys.length) return null;
+    return Number(keys.sort((a, b) => ((tb![b] ?? 0) - (tb![a] ?? 0)))[0]);
+  };
+
   let ok = 0;
   let failed = 0;
   let advice = 0;
@@ -438,9 +460,12 @@ export async function extractIncoming(opts: Options = {}) {
           advice_debit_date: isAdvice ? date(e.advice?.debit_date) : null,
           advice_reference: isHint && refs.length ? refs : null,
           forwarded_at: null,
-          // Vorkontierungs-Vorschlag aus posting_rule (Lieferant → Aufwandskonto)
+          // Vorkontierungs-Vorschlag aus posting_rule (Lieferant → Aufwandskonto).
+          // Steuerschlüssel aus dem USt-Satz der Rechnung, sonst aus der Regel.
           ledger_account: rule?.expense_account ?? null,
-          tax_code_id: rule?.tax_code_id ?? null,
+          tax_code_id: isHint
+            ? null
+            : (rateToCode(dominantRate(e.tax_breakdown)) ?? rule?.tax_code_id ?? null),
           extraction: {
             ...(e as unknown as Record<string, unknown>),
             _vorkontierung: rule
@@ -467,7 +492,7 @@ export async function extractIncoming(opts: Options = {}) {
             tax_rate: num(li.tax_rate),
             net_amount: num(li.net_amount),
             ledger_account: rule?.expense_account ?? null,
-            tax_code_id: rule?.tax_code_id ?? null,
+            tax_code_id: rateToCode(li.tax_rate) ?? rule?.tax_code_id ?? null,
             raw: li,
           }));
       if (items.length) {
