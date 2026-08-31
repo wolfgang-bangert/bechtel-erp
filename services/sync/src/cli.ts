@@ -28,6 +28,7 @@ import { extractIncoming } from "./extractIncoming";
 import { purgeIncoming } from "./purgeIncoming";
 import { pruneReceiptDuplicates } from "./pruneReceipts";
 import { forwardDunnings } from "./forwardDunnings";
+import { fintsSetup, fintsPull } from "./fints";
 import { supabase } from "./supabase";
 
 const cmd = process.argv[2] ?? "";
@@ -167,6 +168,37 @@ async function main() {
     case "bank:match": {
       console.log(`Bank-Umsätze <-> offene Rechnungen${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await syncBankMatch({ dryRun }), null, 1));
+      break;
+    }
+    case "fints:setup": {
+      const bank = process.argv.find((a) => a.startsWith("--bank="))?.split("=")[1];
+      if (!bank) {
+        console.log("  pnpm --filter sync fints:setup --bank=ksk");
+        process.exit(1);
+      }
+      console.log(`FinTS einrichten: ${bank}  (TAN-Abfrage folgt ggf.)`);
+      console.log(JSON.stringify(fintsSetup(bank), null, 1));
+      break;
+    }
+    case "fints:pull": {
+      const bank = process.argv.find((a) => a.startsWith("--bank="))?.split("=")[1];
+      const daysArg = process.argv.find((a) => a.startsWith("--days="))?.split("=")[1];
+      const noMatch = process.argv.includes("--no-match");
+      console.log(
+        `FinTS Umsätze abrufen${bank ? ` (${bank})` : " (alle)"}${dryRun ? "  (DRY RUN)" : ""}`,
+      );
+      console.log(
+        JSON.stringify(
+          await fintsPull({
+            kuerzel: bank,
+            days: daysArg ? Number(daysArg) : undefined,
+            dryRun,
+            match: !noMatch,
+          }),
+          null,
+          1,
+        ),
+      );
       break;
     }
     case "datev:extf": {

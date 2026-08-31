@@ -32,6 +32,8 @@
     "pdf:invoices": "tsx src/cli.ts pdf:invoices",
     "bank:import": "tsx src/cli.ts bank:import",
     "bank:match": "tsx src/cli.ts bank:match",
+    "fints:setup": "tsx src/cli.ts fints:setup",
+    "fints:pull": "tsx src/cli.ts fints:pull",
     "mail:fetch": "tsx src/cli.ts mail:fetch",
     "incoming:extract": "tsx src/cli.ts incoming:extract",
     "incoming:purge": "tsx src/cli.ts incoming:purge",

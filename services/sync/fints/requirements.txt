@@ -1,0 +1,2 @@
+fints>=5,<6
+urllib3<2

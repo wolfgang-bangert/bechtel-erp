@@ -35,6 +35,14 @@ async function ensureBankAccount(iban: string): Promise<string> {
 export async function syncBankImport(opts: Options) {
   const { file, dryRun = false, includePending = false } = opts;
   const entries: CamtEntry[] = parseFile(file, includePending);
+  return importBankEntries(entries, { dryRun });
+}
+
+/** Bereits geparste Kontobewegungen dedupen und schreiben (CAMT-Datei oder FinTS). */
+export async function importBankEntries(
+  entries: CamtEntry[],
+  { dryRun = false }: { dryRun?: boolean } = {},
+) {
   if (entries.length === 0) return { entries: 0, imported: 0, duplikate: 0, dryRun };
 
   const ibans = [...new Set(entries.map((e) => normIban(e.iban)))];
