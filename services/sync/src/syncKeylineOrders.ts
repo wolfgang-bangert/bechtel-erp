@@ -1,4 +1,5 @@
 import { fetchKeylinePaged } from "./keyline";
+import { supabase } from "./supabase";
 import {
   bulkUpsertByExternalId,
   loadKeylineOrgMap,
@@ -6,7 +7,22 @@ import {
   setSyncState,
 } from "./db";
 
-type Options = { dryRun?: boolean };
+type Options = { dryRun?: boolean; since?: Date | null; full?: boolean };
+
+const SINCE_OVERLAP_MS = 24 * 3600_000;
+
+async function resolveSince(opts: Options): Promise<Date | null> {
+  if (opts.full) return null;
+  if (opts.since !== undefined) return opts.since;
+  const { data } = await supabase
+    .from("external_sync_state")
+    .select("last_run_at")
+    .eq("system", "keyline")
+    .eq("resource", "orders")
+    .maybeSingle();
+  if (!data?.last_run_at) return null;
+  return new Date(new Date(data.last_run_at).getTime() - SINCE_OVERLAP_MS);
+}
 
 const cents = (v: unknown): number | null =>
   v == null || v === "" ? null : Math.round(Number(v)) / 100;
@@ -33,6 +49,9 @@ type KOrder = {
 export async function syncKeylineOrders(opts: Options = {}) {
   const { dryRun = false } = opts;
   const startedAt = new Date();
+  const since = await resolveSince(opts);
+  console.log(since ? `  inkrementell seit ${since.toISOString()}` : "  Vollständiger Lauf");
+  const cutoff = since ? since.getTime() : null;
   const orgMap = await loadKeylineOrgMap();
 
   const existingOrders = new Set(
@@ -61,9 +80,18 @@ export async function syncKeylineOrders(opts: Options = {}) {
   const orderRows: Record<string, unknown>[] = [];
   let seen = 0;
   let noOrg = 0;
+  let skipped = 0;
+  let staleStreak = 0;
 
   await fetchKeylinePaged<KOrder>("/sales/orders", async (rows, meta) => {
+    let pageNewest = 0;
     for (const o of rows) {
+      const upd = o.updated_at ? Date.parse(o.updated_at) : NaN;
+      if (Number.isFinite(upd)) pageNewest = Math.max(pageNewest, upd);
+      if (cutoff != null && Number.isFinite(upd) && upd < cutoff) {
+        skipped += 1;
+        continue;
+      }
       seen += 1;
       const orgId = o.customer_id != null ? orgMap.get(String(o.customer_id)) : undefined;
       if (!orgId) noOrg += 1;
@@ -82,7 +110,16 @@ export async function syncKeylineOrders(opts: Options = {}) {
         synced_at: new Date().toISOString(),
       });
     }
-    process.stdout.write(`\r  Aufträge geladen: ${seen}/${meta.total}   `);
+    process.stdout.write(
+      `\r  Aufträge: geladen ${seen}, übersprungen ${skipped} / ${meta.total}   `,
+    );
+    if (cutoff != null && pageNewest > 0 && pageNewest < cutoff) {
+      staleStreak += 1;
+      if (staleStreak >= 2) return false;
+    } else {
+      staleStreak = 0;
+    }
+    return true;
   });
   process.stdout.write("\n");
 

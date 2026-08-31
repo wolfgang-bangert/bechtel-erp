@@ -85,7 +85,10 @@ export async function fetchKeylineOrganizations(
 /** Generischer seitenweiser Abruf einer Keyline-Listen-Ressource. */
 export async function fetchKeylinePaged<T = Record<string, unknown>>(
   path: string,
-  onPage: (rows: T[], meta: { page: number; total: number }) => Promise<void>,
+  onPage: (
+    rows: T[],
+    meta: { page: number; total: number },
+  ) => Promise<void | boolean>,
 ): Promise<void> {
   let page = 1;
   for (;;) {
@@ -97,9 +100,23 @@ export async function fetchKeylinePaged<T = Record<string, unknown>>(
     const perPage = Number(
       res.headers.get("x-keyline-results-per-page") ?? (rows.length || 1),
     );
-    await onPage(rows, { page, total });
-    if (rows.length === 0 || page * perPage >= total) break;
+    // onPage darf false zurückgeben → vorzeitig abbrechen (inkrementeller Sync).
+    const cont = await onPage(rows, { page, total });
+    if (cont === false || rows.length === 0 || page * perPage >= total) break;
     page += 1;
+  }
+}
+
+/** Einzelnen Keyline-Datensatz als JSON holen (z.B. eine Rechnung). null = 404. */
+export async function fetchKeylineOne<T = Record<string, unknown>>(
+  path: string,
+): Promise<T | null> {
+  try {
+    const res = await klGet(path);
+    return (await res.json()) as T;
+  } catch (err) {
+    if (err instanceof Error && /\b404\b/.test(err.message)) return null;
+    throw err;
   }
 }
 

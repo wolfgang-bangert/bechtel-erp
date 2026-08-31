@@ -58,6 +58,24 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
 - [ ] **Slice 2 offen:** Keyline-Kontakte (nur über Aufträge verfügbar);
   Xano-Einmalimport; 335 mittlere Dubletten.
 
+## Keyline-Abgleich
+
+- [x] **Inkrementeller Sync.** Keyline v2 hat **keinen** Datumsfilter (alle
+  Parameter werden ignoriert), aber `/accounting/customer_invoices` und
+  `/sales/orders` liefern **nach `updated_at` absteigend**. `keyline:invoices`
+  und `keyline:orders` laufen jetzt inkrementell ab `external_sync_state.
+  last_run_at − 24 h` und brechen ab, sobald zwei Seiten komplett vor dem
+  Stichtag liegen. Realmessung: ~3 Seiten statt 118, wenige Sekunden. `--full`
+  erzwingt Vollscan, `--since=ISO` setzt den Stichtag manuell.
+- [x] **`keyline:invoice --id=<keyline-id>`** — genau eine Rechnung nachziehen
+  (1 API-Call, kein Scan). Für „Kollege hat in Keyline was geändert".
+- [x] **`scripts/sync-keyline.sh`** + **`ops/de.bechtel.werk.keyline-sync.plist`**
+  (launchd, alle 30 min, Log in `logs/`). Installieren:
+  `cp "ops/de.bechtel.werk.keyline-sync.plist" ~/Library/LaunchAgents/ &&
+  launchctl load ~/Library/LaunchAgents/de.bechtel.werk.keyline-sync.plist`
+- [ ] **Webhook** erst nach Deployment von werk (braucht öffentliche URL); vorher
+  prüfen, ob Keyline Webhooks anbietet.
+
 ## Slice 3 — Fakturierung & DATEV
 
 - [x] **DATEV EXTF-Buchungsstapel (Ausgangsrechnungen)** — `datev:extf`,

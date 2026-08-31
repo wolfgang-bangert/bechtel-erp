@@ -14,6 +14,7 @@
     "dedupe:merge": "tsx src/cli.ts dedupe:merge",
     "keyline:orders": "tsx src/cli.ts keyline:orders",
     "keyline:invoices": "tsx src/cli.ts keyline:invoices",
+    "keyline:invoice": "tsx src/cli.ts keyline:invoice",
     "ninox:orders": "tsx src/cli.ts ninox:orders",
     "ninox:invoices": "tsx src/cli.ts ninox:invoices",
     "datev:extf": "tsx src/cli.ts datev:extf",

@@ -34,3 +34,4 @@ reports/*.csv
 # lokale Importdateien (Bank, Xano, ...)
 imports/*
 !imports/.gitkeep
+logs/

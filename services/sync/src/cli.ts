@@ -4,7 +4,7 @@ import { syncNinoxFirmen } from "./syncNinoxFirmen";
 import { syncNinoxPeople } from "./syncNinoxPeople";
 import { syncNinoxAddresses } from "./syncNinoxAddresses";
 import { syncKeylineOrders } from "./syncKeylineOrders";
-import { syncKeylineInvoices } from "./syncKeylineInvoices";
+import { syncKeylineInvoices, refreshKeylineInvoice } from "./syncKeylineInvoices";
 import { syncNinoxOrders } from "./syncNinoxOrders";
 import { syncNinoxInvoices } from "./syncNinoxInvoices";
 import { dedupeReport } from "./dedupeReport";
@@ -86,8 +86,11 @@ async function main() {
       break;
     }
     case "keyline:orders": {
+      const full = process.argv.includes("--full");
+      const sinceArg = process.argv.find((a) => a.startsWith("--since="));
+      const since = sinceArg ? new Date(sinceArg.split("=")[1]) : undefined;
       console.log(`Keyline -> Supabase: Aufträge${dryRun ? "  (DRY RUN)" : ""}`);
-      const r = await syncKeylineOrders({ dryRun });
+      const r = await syncKeylineOrders({ dryRun, full, since });
       console.log(
         `\nFertig. ${r.seen} Aufträge — geschrieben ${"orders" in r ? r.orders : 0}` +
           `${"items" in r ? `, Positionen ${r.items}` : ""}, ohne Org ${r.noOrg}` +
@@ -96,13 +99,26 @@ async function main() {
       break;
     }
     case "keyline:invoices": {
+      const full = process.argv.includes("--full");
+      const sinceArg = process.argv.find((a) => a.startsWith("--since="));
+      const since = sinceArg ? new Date(sinceArg.split("=")[1]) : undefined;
       console.log(`Keyline -> Supabase: Rechnungen${dryRun ? "  (DRY RUN)" : ""}`);
-      const r = await syncKeylineInvoices({ dryRun });
+      const r = await syncKeylineInvoices({ dryRun, full, since });
       console.log(
-        `\nFertig. ${r.invoices} Rechnungen + ${r.creditNotes} Gutschriften — ` +
+        `\nFertig (${"mode" in r ? r.mode : "?"}). ${r.invoices} Rechnungen + ${r.creditNotes} Gutschriften — ` +
           `${"written" in r ? `geschrieben ${r.written}` : ""}, ohne Org ${r.noOrg}` +
           (dryRun ? "  (DRY RUN)" : ""),
       );
+      break;
+    }
+    case "keyline:invoice": {
+      const idArg = process.argv.find((a) => a.startsWith("--id="));
+      if (!idArg) {
+        console.error("--id=<keyline-id> erforderlich");
+        process.exit(1);
+      }
+      const r = await refreshKeylineInvoice(Number(idArg.split("=")[1]));
+      console.log(JSON.stringify(r, null, 1));
       break;
     }
     case "ninox:orders": {
@@ -250,8 +266,9 @@ async function main() {
       console.log("  pnpm --filter sync ninox:firmen        [--dry-run]");
       console.log("  pnpm --filter sync ninox:people        [--dry-run]");
       console.log("  pnpm --filter sync ninox:addresses     [--dry-run]");
-      console.log("  pnpm --filter sync keyline:orders      [--dry-run]");
-      console.log("  pnpm --filter sync keyline:invoices    [--dry-run]");
+      console.log("  pnpm --filter sync keyline:orders      [--dry-run] [--full] [--since=ISO]");
+      console.log("  pnpm --filter sync keyline:invoices    [--dry-run] [--full] [--since=ISO]");
+      console.log("  pnpm --filter sync keyline:invoice     --id=<keyline-id>");
       console.log("  pnpm --filter sync ninox:orders        [--dry-run]");
       console.log("  pnpm --filter sync ninox:invoices      [--dry-run]");
       console.log("  pnpm --filter sync mail:fetch          [--dry-run] [--limit=N] [--since=DAYS] [--all]");
