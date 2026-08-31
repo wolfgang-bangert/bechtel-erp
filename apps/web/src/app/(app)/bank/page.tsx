@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
-import { MatchForm, InvoiceDatalist, type Candidate } from "./ui";
+import { MatchForm, CandidateProvider, type Candidate } from "./ui";
 import { unmatchTransaction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -61,15 +61,17 @@ export default async function BankPage({
   const count = res.count;
   const data = (res.data ?? []) as unknown as TxRow[];
 
-  // Gemeinsame Kandidatenlisten (eine Datalist je Seite, von allen Zeilen genutzt).
-  const hasCredits = data.some((t) => t.amount > 0 && (t.matches ?? []).length === 0);
-  const hasDebits = data.some((t) => t.amount < 0 && (t.matches ?? []).length === 0);
+  // Gemeinsame Kandidatenlisten (einmal je Seite, von allen Zeilen genutzt).
+  const alloc = (t: TxRow) =>
+    (t.matches ?? []).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0);
+  const hasCredits = data.some((t) => t.amount > 0 && Math.abs(t.amount) - alloc(t) > 0.01);
+  const hasDebits = data.some((t) => t.amount < 0 && Math.abs(t.amount) - alloc(t) > 0.01);
 
   const cents = (n: number | null | undefined) => Math.round(Math.abs(n ?? 0) * 100);
-  // pro Centbetrag genau ein eindeutiger Vorschlag → wird vorausgefüllt
-  const uniqueByAmount = (rows: { c: number; label: string }[]) => {
+  // pro Centbetrag genau ein eindeutiger Vorschlag (Nummer) → wird vorausgefüllt
+  const uniqueByAmount = (rows: { c: number; number: string }[]) => {
     const seen = new Map<number, string | null>();
-    for (const r of rows) seen.set(r.c, seen.has(r.c) ? null : r.label);
+    for (const r of rows) seen.set(r.c, seen.has(r.c) ? null : r.number);
     return seen;
   };
 
@@ -97,7 +99,7 @@ export default async function BankPage({
       } — ${fmtEur(i.open_amount)}`,
     }));
     arCandidates = rows.map(({ number, label }) => ({ number, label }));
-    arPrefill = uniqueByAmount(rows.map((r) => ({ c: cents(r.amount), label: r.label })));
+    arPrefill = uniqueByAmount(rows.map((r) => ({ c: cents(r.amount), number: r.number })));
   }
 
   let erCandidates: Candidate[] = [];
@@ -121,7 +123,7 @@ export default async function BankPage({
       label: `${i.doc_number} — ${i.supplier_name ?? "?"} — ${fmtEur(i.gross_amount)}`,
     }));
     erCandidates = rows.map(({ number, label }) => ({ number, label }));
-    erPrefill = uniqueByAmount(rows.map((r) => ({ c: cents(r.amount), label: r.label })));
+    erPrefill = uniqueByAmount(rows.map((r) => ({ c: cents(r.amount), number: r.number })));
   }
 
   const total = count ?? 0;
@@ -173,9 +175,7 @@ export default async function BankPage({
 
       {error && <div className="banner-err">Fehler: {error.message}</div>}
 
-      <InvoiceDatalist id="ar-list" options={arCandidates} />
-      <InvoiceDatalist id="er-list" options={erCandidates} />
-
+      <CandidateProvider ar={arCandidates} er={erCandidates}>
       <div className="table-scroll">
         <table className="data">
           <thead>
@@ -204,49 +204,62 @@ export default async function BankPage({
                     {tx.purpose ?? "–"}
                   </td>
                   <td>
-                    {matches.length > 0 ? (
-                      <div className="rows" style={{ gap: 3 }}>
-                        {matches.map((m) => {
-                          const inc = m.incoming_document;
-                          const href = inc
-                            ? `/eingangsrechnungen/${inc.id}`
-                            : `/rechnungen/${m.sales_invoice?.id}`;
-                          const label = inc
-                            ? (inc.doc_number ?? "?")
-                            : (m.sales_invoice?.invoice_number ?? "?");
-                          return (
-                            <div key={m.id} className="row" style={{ padding: "4px 8px" }}>
-                              <Link href={href}>{label}</Link>
-                              <span className="count">{fmtEur(m.amount)}</span>
-                              {m.auto && <span className="tag">auto</span>}
-                              <form action={unmatchTransaction}>
-                                <input type="hidden" name="match_id" value={m.id} />
-                                <input type="hidden" name="tx_id" value={tx.id} />
-                                <button className="ghost" style={{ padding: "2px 8px" }}>
-                                  aufheben
-                                </button>
-                              </form>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : tx.amount > 0 ? (
-                      <MatchForm
-                        txId={tx.id}
-                        listId="ar-list"
-                        side="debitor"
-                        defaultValue={arPrefill.get(cents(tx.amount)) ?? undefined}
-                        hint={`${tx.counterparty_name ?? ""} — Rg-Nr. / Kunde`.trim()}
-                      />
-                    ) : (
-                      <MatchForm
-                        txId={tx.id}
-                        listId="er-list"
-                        side="kreditor"
-                        defaultValue={erPrefill.get(cents(tx.amount)) ?? undefined}
-                        hint={`${tx.counterparty_name ?? ""} — ER-Nr. / Lieferant`.trim()}
-                      />
-                    )}
+                    {(() => {
+                      const side = tx.amount > 0 ? "debitor" : "kreditor";
+                      const allocated =
+                        Math.round(
+                          matches.reduce((s, m) => s + Math.abs(m.amount ?? 0), 0) * 100,
+                        ) / 100;
+                      const remaining = Math.round((Math.abs(tx.amount) - allocated) * 100) / 100;
+                      const prefill =
+                        (side === "debitor" ? arPrefill : erPrefill).get(cents(remaining)) ??
+                        undefined;
+                      return (
+                        <div className="rows" style={{ gap: 4 }}>
+                          {matches.map((m) => {
+                            const inc = m.incoming_document;
+                            const href = inc
+                              ? `/eingangsrechnungen/${inc.id}`
+                              : `/rechnungen/${m.sales_invoice?.id}`;
+                            const label = inc
+                              ? (inc.doc_number ?? "?")
+                              : (m.sales_invoice?.invoice_number ?? "?");
+                            return (
+                              <div key={m.id} className="row" style={{ padding: "4px 8px" }}>
+                                <Link href={href}>{label}</Link>
+                                <span className="count">{fmtEur(m.amount)}</span>
+                                {m.auto && <span className="tag">auto</span>}
+                                <form action={unmatchTransaction}>
+                                  <input type="hidden" name="match_id" value={m.id} />
+                                  <input type="hidden" name="tx_id" value={tx.id} />
+                                  <button className="ghost" style={{ padding: "2px 8px" }}>
+                                    aufheben
+                                  </button>
+                                </form>
+                              </div>
+                            );
+                          })}
+                          {remaining > 0.01 && (
+                            <>
+                              {matches.length > 0 && (
+                                <span className="count">
+                                  offen: {fmtEur(remaining)} — weitere Rechnung zuordnen
+                                </span>
+                              )}
+                              <MatchForm
+                                txId={tx.id}
+                                side={side}
+                                defaultNumber={prefill}
+                                hint={
+                                  `${tx.counterparty_name ?? ""} — ` +
+                                  (side === "kreditor" ? "ER-Nr. / Lieferant" : "Rg-Nr. / Kunde")
+                                }
+                              />
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                 </tr>
               );
@@ -259,6 +272,7 @@ export default async function BankPage({
           </tbody>
         </table>
       </div>
+      </CandidateProvider>
 
       {lastPage > 1 && (
         <div className="pager">

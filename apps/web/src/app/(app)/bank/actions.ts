@@ -18,8 +18,7 @@ export async function matchTransaction(
   formData: FormData,
 ): Promise<MatchState> {
   const txId = String(formData.get("tx_id") ?? "");
-  const side = String(formData.get("side") ?? "debitor"); // debitor = Kundenzahlung, kreditor = Lieferantenzahlung
-  // Feld enthält entweder eine reine Nummer oder "NR — Partner — Betrag" aus der Datalist.
+  const side = String(formData.get("side") ?? "debitor");
   const rawInput =
     String(formData.get("invoice_number") ?? "").trim() ||
     String(formData.get("invoice_number_manual") ?? "").trim();
@@ -34,47 +33,65 @@ export async function matchTransaction(
     .single();
   if (te || !tx) return { error: "Umsatz nicht gefunden." };
 
+  // bereits zugeordneter Betrag dieser Buchung
+  const { data: existing } = await supabase
+    .from("bank_transaction_match")
+    .select("amount")
+    .eq("bank_transaction_id", txId);
+  const allocated = r2((existing ?? []).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0));
+  const remaining = r2(Math.abs(tx.amount) - allocated);
+  if (remaining <= 0.005) return { error: "Buchung ist bereits vollständig zugeordnet." };
+
   if (side === "kreditor") {
     const { data: doc, error: de } = await supabase
       .from("incoming_document")
-      .select("id, gross_amount, doc_number")
+      .select("id, gross_amount")
       .eq("doc_number", number)
       .in("doc_type", ["invoice", "credit_note"])
       .limit(1)
       .maybeSingle();
     if (de) return { error: de.message };
     if (!doc) return { error: `Keine Eingangsrechnung mit Nummer ${number}.` };
-
+    const amt = r2(Math.min(remaining, Math.max(doc.gross_amount ?? remaining, 0)) || remaining);
     const { error: me } = await supabase.from("bank_transaction_match").insert({
       bank_transaction_id: txId,
       incoming_document_id: doc.id,
-      amount: r2(Math.abs(tx.amount)),
+      amount: amt,
       auto: false,
     });
-    if (me) return { error: me.code === "23505" ? "Bereits zugeordnet." : me.message };
+    if (me) return { error: me.code === "23505" ? "Diese Eingangsrechnung ist schon zugeordnet." : me.message };
   } else {
     const { data: inv, error: ie } = await supabase
       .from("sales_invoice")
-      .select("id, open_amount, invoice_number")
+      .select("id, open_amount")
       .eq("invoice_number", number)
       .eq("kind", "invoice")
       .maybeSingle();
     if (ie) return { error: ie.message };
     if (!inv) return { error: `Keine Rechnung mit Nummer ${number}.` };
-
-    const amount =
-      r2(Math.min(Math.abs(tx.amount), Math.max(inv.open_amount ?? 0, 0))) ||
-      r2(Math.abs(tx.amount));
+    const amt = r2(Math.min(remaining, Math.max(inv.open_amount ?? remaining, 0)) || remaining);
     const { error: me } = await supabase.from("bank_transaction_match").insert({
       bank_transaction_id: txId,
       sales_invoice_id: inv.id,
-      amount,
+      amount: amt,
       auto: false,
     });
-    if (me) return { error: me.code === "23505" ? "Bereits zugeordnet." : me.message };
+    if (me) return { error: me.code === "23505" ? "Diese Rechnung ist schon zugeordnet." : me.message };
   }
 
-  await supabase.from("bank_transaction").update({ match_status: "matched" }).eq("id", txId);
+  // Status: voll oder teilweise zugeordnet?
+  const { data: after } = await supabase
+    .from("bank_transaction_match")
+    .select("amount")
+    .eq("bank_transaction_id", txId);
+  const nowAllocated = r2((after ?? []).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0));
+  await supabase
+    .from("bank_transaction")
+    .update({
+      match_status: nowAllocated + 0.005 >= Math.abs(tx.amount) ? "matched" : "partial",
+    })
+    .eq("id", txId);
+
   revalidateAll();
   return { ok: true };
 }
@@ -86,14 +103,23 @@ export async function unmatchTransaction(formData: FormData): Promise<void> {
   const supabase = await createClient();
   await supabase.from("bank_transaction_match").delete().eq("id", matchId);
   if (txId) {
-    const { count } = await supabase
+    const { data: rest } = await supabase
       .from("bank_transaction_match")
-      .select("id", { count: "exact", head: true })
+      .select("amount")
       .eq("bank_transaction_id", txId);
-    await supabase
+    const { data: tx } = await supabase
       .from("bank_transaction")
-      .update({ match_status: (count ?? 0) > 0 ? "partial" : "unmatched" })
-      .eq("id", txId);
+      .select("amount")
+      .eq("id", txId)
+      .maybeSingle();
+    const alloc = r2((rest ?? []).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0));
+    const status =
+      alloc <= 0.005
+        ? "unmatched"
+        : tx && alloc + 0.005 >= Math.abs(tx.amount)
+          ? "matched"
+          : "partial";
+    await supabase.from("bank_transaction").update({ match_status: status }).eq("id", txId);
   }
   revalidateAll();
 }
