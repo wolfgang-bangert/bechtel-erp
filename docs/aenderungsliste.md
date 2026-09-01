@@ -275,7 +275,12 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   - Später: `fints:transfer` (SEPA-Überweisung mit TAN); launchd für täglichen
     `fints:pull`.
 - [ ] FinTS-Produkt-ID bei der DK registrieren (`FINTS_PRODUCT_ID`).
-- [ ] Slice 3 weiter: native Rechnung, Mahnwesen, Skonto-Ausbuchung.
+- [x] **Eingangsrechnungen automatisiert** (`scripts/eingangsrechnungen-holen.sh`
+  = `mail:fetch --since=7` + `incoming:extract --limit=100`):
+  `ops/de.bechtel.werk.eingangsrechnungen.plist` (launchd alle 30 min),
+  `eingangsrechnungen-holen.command` (Schreibtisch) + `pnpm eingang` /
+  `werk-eingang` manuell.
+- [ ] Slice 3 weiter: native Rechnung, Mahnwesen.
 - [ ] **~43 Nummern-Kollisionen** bereinigen (11 Keyline + 32 Ninox, überwiegend
   Kreditornummern 70xxx, die in beiden Systemen für vermutlich denselben
   Lieferanten stehen). Liste im Sync-Log.
