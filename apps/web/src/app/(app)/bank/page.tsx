@@ -187,8 +187,7 @@ export default async function BankPage({
             <tr>
               <th>Datum</th>
               <th style={{ textAlign: "right" }}>Betrag</th>
-              <th>Gegenseite</th>
-              <th>Verwendungszweck</th>
+              <th>Gegenseite / Verwendungszweck</th>
               <th>Zuordnung</th>
             </tr>
           </thead>
@@ -204,19 +203,22 @@ export default async function BankPage({
                   >
                     {fmtEur(tx.amount)}
                   </td>
-                  <td className="wrap" style={{ maxWidth: 160 }}>
-                    {tx.counterparty_name ?? "–"}
-                  </td>
-                  <td
-                    style={{
-                      maxWidth: 220,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                    title={tx.purpose ?? undefined}
-                  >
-                    {tx.purpose ?? "–"}
+                  <td style={{ maxWidth: 320 }}>
+                    <div className="wrap" style={{ fontSize: 14, fontWeight: 600 }}>
+                      {tx.counterparty_name ?? "–"}
+                    </div>
+                    <div
+                      className="count"
+                      style={{
+                        marginTop: 2,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                      title={tx.purpose ?? undefined}
+                    >
+                      {tx.purpose ?? "–"}
+                    </div>
                   </td>
                   <td>
                     {(() => {
@@ -284,7 +286,7 @@ export default async function BankPage({
             })}
             {data.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ color: "var(--muted)" }}>Keine Umsätze.</td>
+                <td colSpan={4} style={{ color: "var(--muted)" }}>Keine Umsätze.</td>
               </tr>
             )}
           </tbody>
