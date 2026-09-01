@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>de.bechtel.werk.eingangsrechnungen</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/wolfgangbangert/neues ERP/scripts/eingangsrechnungen-holen.sh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/wolfgangbangert/.local/node/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/wolfgangbangert/neues ERP</string>
+
+  <!-- alle 30 Minuten -->
+  <key>StartInterval</key>
+  <integer>1800</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/wolfgangbangert/neues ERP/logs/eingangsrechnungen.launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/wolfgangbangert/neues ERP/logs/eingangsrechnungen.launchd.log</string>
+</dict>
+</plist>

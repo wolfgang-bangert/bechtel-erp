@@ -11,6 +11,7 @@
     "restart": "bash scripts/restart-web.sh",
     "stop": "lsof -nP -tiTCP:3000 -sTCP:LISTEN | xargs kill 2>/dev/null || true",
     "banken": "pnpm --filter sync fints:pull",
+    "eingang": "bash scripts/eingangsrechnungen-holen.sh",
     "build": "pnpm --filter web build",
     "db:push": "pnpm --filter @werk/db push",
     "db:reset": "pnpm --filter @werk/db reset",
