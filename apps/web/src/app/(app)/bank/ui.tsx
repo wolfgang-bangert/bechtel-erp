@@ -24,12 +24,16 @@ export function MatchForm({
   side = "debitor",
   defaultValue,
   hint,
+  showAmount = false,
+  remaining,
 }: {
   txId: string;
   listId: string;
   side?: "debitor" | "kreditor";
   defaultValue?: string;
   hint?: string;
+  showAmount?: boolean;
+  remaining?: number;
 }) {
   const [state, action, pending] = useActionState(matchTransaction, empty);
 
@@ -45,6 +49,14 @@ export function MatchForm({
         placeholder={hint ?? (side === "kreditor" ? "ER-Nr. / Lieferant …" : "Rg-Nr. / Kunde …")}
         style={{ width: 250, ...(defaultValue ? { borderColor: "#3a7" } : {}) }}
       />
+      {showAmount && (
+        <input
+          name="alloc_amount"
+          inputMode="decimal"
+          placeholder={remaining != null ? `Betrag (Rest ${remaining.toFixed(2)})` : "Betrag"}
+          style={{ width: 140 }}
+        />
+      )}
       <button type="submit" disabled={pending}>
         {pending ? "…" : "zuordnen"}
       </button>

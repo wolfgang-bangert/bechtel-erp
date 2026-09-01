@@ -52,7 +52,10 @@ export default async function BankPage({
       { count: "exact" },
     );
   if (account) query = query.eq("bank_account_id", account);
-  if (status) query = query.eq("match_status", status);
+  // "offen" zeigt auch teilweise zugeordnete (Sammelzahlungen), damit man
+  // dort weitere Rechnungen anhängen kann.
+  if (status === "unmatched") query = query.in("match_status", ["unmatched", "partial"]);
+  else if (status) query = query.eq("match_status", status);
 
   const res = await query
     .order("booking_date", { ascending: false })
@@ -164,9 +167,9 @@ export default async function BankPage({
         </select>
         <select name="status" defaultValue={status}>
           <option value="">alle</option>
-          <option value="unmatched">offen</option>
+          <option value="unmatched">offen (inkl. teilweise)</option>
+          <option value="partial">nur teilweise</option>
           <option value="matched">zugeordnet</option>
-          <option value="partial">teilweise</option>
           <option value="ignored">ignoriert</option>
         </select>
         <button type="submit">Anzeigen</button>
@@ -263,6 +266,8 @@ export default async function BankPage({
                                 side={side}
                                 listId={side === "kreditor" ? "er-list" : "ar-list"}
                                 defaultValue={prefill}
+                                showAmount
+                                remaining={remaining}
                                 hint={
                                   `${tx.counterparty_name ?? ""} — ` +
                                   (side === "kreditor" ? "ER-Nr./Lieferant" : "Rg-Nr./Kunde")

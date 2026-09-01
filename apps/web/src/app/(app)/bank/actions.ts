@@ -25,6 +25,9 @@ export async function matchTransaction(
   const number = rawInput.split(/\s+[–—-]\s+|\s{2,}/)[0].trim();
   if (!txId || !number) return { error: "Rechnungsnummer eingeben oder aus der Liste wählen." };
 
+  const allocRaw = String(formData.get("alloc_amount") ?? "").trim().replace(",", ".");
+  const allocInput = allocRaw ? Number(allocRaw) : null;
+
   const supabase = await createClient();
   const { data: tx, error: te } = await supabase
     .from("bank_transaction")
@@ -52,7 +55,9 @@ export async function matchTransaction(
       .maybeSingle();
     if (de) return { error: de.message };
     if (!doc) return { error: `Keine Eingangsrechnung mit Nummer ${number}.` };
-    const amt = r2(Math.min(remaining, Math.max(doc.gross_amount ?? remaining, 0)) || remaining);
+    const want =
+      allocInput && allocInput > 0 ? allocInput : Math.max(doc.gross_amount ?? remaining, 0) || remaining;
+    const amt = r2(Math.min(remaining, want));
     const { error: me } = await supabase.from("bank_transaction_match").insert({
       bank_transaction_id: txId,
       incoming_document_id: doc.id,
@@ -69,7 +74,9 @@ export async function matchTransaction(
       .maybeSingle();
     if (ie) return { error: ie.message };
     if (!inv) return { error: `Keine Rechnung mit Nummer ${number}.` };
-    const amt = r2(Math.min(remaining, Math.max(inv.open_amount ?? remaining, 0)) || remaining);
+    const want =
+      allocInput && allocInput > 0 ? allocInput : Math.max(inv.open_amount ?? remaining, 0) || remaining;
+    const amt = r2(Math.min(remaining, want));
     const { error: me } = await supabase.from("bank_transaction_match").insert({
       bank_transaction_id: txId,
       sales_invoice_id: inv.id,
