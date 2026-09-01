@@ -265,14 +265,13 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   kein Drittanbieter. `python-fints` im venv `services/sync/.fints-venv`,
   TS-Wrapper `src/fints.ts`. `imports/fints.txt` (4 Banken: KSK/VB Göppingen,
   BW-Bank, Oberbank — FinTS-URLs eingetragen), PIN in `.env` `FINTS_PIN_*`.
-  `fints:setup --bank=ksk` (TAN-Verfahren wählen, `--user=` für alternativen
+  `fints:setup --bank=<k>` (TAN-Verfahren wählen, `--user=` für alternativen
   Anmeldenamen), `fints:pull [--bank] [--days]` → gemeinsamer Import-/Dedup-Pfad
-  mit `bank:import`, danach `bank:match`.
-  - **KSK Göppingen: läuft** (TAN 923 S-pushTAN, Umsatzabruf SCA-frei).
-  - **Volksbank / BW-Bank: `fints:setup` noch offen** (PIN in `.env`).
-  - **Oberbank: geparkt** — `Could not find system_id` (python-fints ↔
-    Bankverlag-HBCI-Tunnel). Vorerst manueller CAMT-Import; später EBICS oder
-    direkter FinTS-Endpunkt.
+  mit `bank:import`, danach `bank:match` (Haben + Soll).
+  - **Alle 4 Banken laufen** (KSK, Volksbank, BW-Bank, Oberbank). `fints:pull`
+    ohne `--bank` holt alle.
+  - **`banken-abrufen.command`** (Schreibtisch) + `pnpm banken` / `werk-banken`
+    als Ein-Klick-Abruf; Fenster bleibt für TAN-Freigaben offen.
   - Später: `fints:transfer` (SEPA-Überweisung mit TAN); launchd für täglichen
     `fints:pull`.
 - [ ] FinTS-Produkt-ID bei der DK registrieren (`FINTS_PRODUCT_ID`).
