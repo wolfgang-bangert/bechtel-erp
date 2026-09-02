@@ -389,3 +389,17 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   `…/packagings/{id}/shipment` liefert Liefer-/Absenderadresse + Carrier +
   `white_label`, **kein** Gewicht/Packstück/Tracking → nur als Prefill nutzbar
   (Knopf „aus Keyline-Auftrag" kommt mit der Auftragsverknüpfung).
+- [x] **Kunden-Schnellanlage aus der Versanderfassung.**
+  `/versand/neu`: „＋ Neuen Kunden anlegen" (Firma + Adresse + Ansprechpartner)
+  legt `organization` (relation customer, `customer_number`), `address`
+  (`source='werk'`) und `contact` an und springt direkt in die Erfassung.
+  Dublettenwarnung bei Name (+ PLZ), „Trotzdem anlegen".
+  `/versand/[id]` Schritt 1: „＋ Adresse" / „＋ Ansprechpartner" — legt beim
+  Kunden an **und** übernimmt in die Sendung.
+  Migrationen `20260903100000` / `_110000` / `_120000`: Nummernkreise
+  `customer_number` / `supplier_number` waren durch den Altimport hinter dem
+  Ist-Stand (next_number kollidierte); zusätzlich schnitt `lpad()` in
+  `next_number()` 6-stellige Nummern auf 5 ab. Sequenzen auf 100000 gesetzt
+  (ein Junk-Datensatz `organization.name='name'` hatte sie zwischenzeitlich auf
+  12 Mio. hochgezogen), `next_number()` füllt jetzt nur noch auf, kürzt nie.
+  → **offen:** Junk-Org „name" (customer_number 12312313) prüfen/löschen.

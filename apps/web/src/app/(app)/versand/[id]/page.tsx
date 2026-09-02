@@ -126,7 +126,7 @@ export default async function SendungPage({
 
       <Step n={1} title="Empfänger">
         {rec ? (
-          <RecipientPanel shipmentId={ship.id} rec={rec} />
+          <RecipientPanel shipmentId={ship.id} organizationId={org?.id ?? ""} rec={rec} />
         ) : (
           <div className="banner-err">Kein Empfänger — Datensatz unvollständig.</div>
         )}

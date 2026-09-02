@@ -4,6 +4,8 @@ import { useActionState, useState, type ReactNode } from "react";
 import {
   updateShipment,
   updateRecipient,
+  addAddress,
+  addContact,
   updateSender,
   updateWeight,
   applySuggestion,
@@ -455,13 +457,17 @@ export function HeaderForm({
 // ---------------------------------------------------------------- Empfänger + Prüfung
 export function RecipientPanel({
   shipmentId,
+  organizationId,
   rec,
 }: {
   shipmentId: string;
+  organizationId: string;
   rec: Rec;
 }) {
   const [state, action, pending] = useActionState(updateRecipient, empty);
   const [vState, vAction, vPending] = useActionState(verifyAddress, empty);
+  const [aState, aAction, aPending] = useActionState(addAddress, empty);
+  const [cState, cAction, cPending] = useActionState(addContact, empty);
   const issues = rec.verify_result?.issues ?? [];
 
   return (
@@ -580,6 +586,100 @@ export function RecipientPanel({
           <Msg state={state} />
         </div>
       </form>
+
+      {organizationId && (
+        <div className="row" style={{ border: "none", padding: 0, gap: 18, flexWrap: "wrap" }}>
+          <details>
+            <summary style={{ cursor: "pointer", color: "var(--muted)" }}>
+              ＋ Adresse beim Kunden anlegen
+            </summary>
+            <form action={aAction} className="rows" style={{ marginTop: 8 }}>
+              <input type="hidden" name="shipment_id" value={shipmentId} />
+              <input type="hidden" name="recipient_id" value={rec.id} />
+              <input type="hidden" name="organization_id" value={organizationId} />
+              <div className="row" style={{ border: "none", padding: 0 }}>
+                <label className="field" style={{ flex: 3 }}>
+                  <span>Straße</span>
+                  <input name="street" />
+                </label>
+                <label className="field" style={{ flex: 1 }}>
+                  <span>Hausnr.</span>
+                  <input name="house_number" />
+                </label>
+              </div>
+              <label className="field">
+                <span>Adresszusatz</span>
+                <input name="address_addition" />
+              </label>
+              <div className="row" style={{ border: "none", padding: 0 }}>
+                <label className="field" style={{ flex: 1 }}>
+                  <span>PLZ</span>
+                  <input name="zip" />
+                </label>
+                <label className="field" style={{ flex: 3 }}>
+                  <span>Ort</span>
+                  <input name="city" />
+                </label>
+                <label className="field" style={{ flex: 1 }}>
+                  <span>Land</span>
+                  <input name="country" defaultValue="DE" />
+                </label>
+                <label className="field" style={{ flex: 1 }}>
+                  <span>Art</span>
+                  <select name="addr_kind" defaultValue="shipping">
+                    <option value="shipping">Liefer</option>
+                    <option value="billing">Rechnung</option>
+                    <option value="general">allgemein</option>
+                  </select>
+                </label>
+              </div>
+              <div className="row" style={{ border: "none", padding: 0, gap: 10 }}>
+                <button type="submit" disabled={aPending}>
+                  {aPending ? "…" : "Anlegen & übernehmen"}
+                </button>
+                <Msg state={aState} />
+              </div>
+            </form>
+          </details>
+
+          <details>
+            <summary style={{ cursor: "pointer", color: "var(--muted)" }}>
+              ＋ Ansprechpartner beim Kunden anlegen
+            </summary>
+            <form action={cAction} className="rows" style={{ marginTop: 8 }}>
+              <input type="hidden" name="shipment_id" value={shipmentId} />
+              <input type="hidden" name="recipient_id" value={rec.id} />
+              <input type="hidden" name="organization_id" value={organizationId} />
+              <div className="row" style={{ border: "none", padding: 0 }}>
+                <label className="field" style={{ flex: 1 }}>
+                  <span>Vorname</span>
+                  <input name="first_name" />
+                </label>
+                <label className="field" style={{ flex: 1 }}>
+                  <span>Nachname *</span>
+                  <input name="last_name" required />
+                </label>
+              </div>
+              <div className="row" style={{ border: "none", padding: 0 }}>
+                <label className="field" style={{ flex: 2 }}>
+                  <span>E-Mail</span>
+                  <input name="email" type="email" />
+                </label>
+                <label className="field" style={{ flex: 1 }}>
+                  <span>Telefon</span>
+                  <input name="phone" />
+                </label>
+              </div>
+              <div className="row" style={{ border: "none", padding: 0, gap: 10 }}>
+                <button type="submit" disabled={cPending}>
+                  {cPending ? "…" : "Anlegen & übernehmen"}
+                </button>
+                <Msg state={cState} />
+              </div>
+            </form>
+          </details>
+        </div>
+      )}
     </div>
   );
 }

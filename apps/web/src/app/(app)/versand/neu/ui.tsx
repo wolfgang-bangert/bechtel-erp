@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { createShipment, type State } from "../actions";
+import { createShipment, createCustomer, type State } from "../actions";
 
 type Addr = {
   id: string;
@@ -278,6 +278,94 @@ export function NewShipmentForm({
         <button type="submit" disabled={pending}>
           {pending ? "…" : "Sendung anlegen"}
         </button>
+        {state.error && <span className="msg-err">{state.error}</span>}
+      </div>
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------- Kunde schnell anlegen
+export function NewCustomerForm({ defaultName }: { defaultName: string }) {
+  const [state, action, pending] = useActionState(createCustomer, empty);
+  const isDupe = state.note === "dupe";
+  return (
+    <form action={action} className="rows" style={{ maxWidth: 620 }}>
+      <label className="field">
+        <span>Firma *</span>
+        <input name="name" defaultValue={defaultName} required autoFocus />
+      </label>
+
+      <h2>Adresse</h2>
+      <div className="row" style={{ border: "none", padding: 0 }}>
+        <label className="field" style={{ flex: 3 }}>
+          <span>Straße</span>
+          <input name="street" />
+        </label>
+        <label className="field" style={{ flex: 1 }}>
+          <span>Hausnr.</span>
+          <input name="house_number" />
+        </label>
+      </div>
+      <label className="field">
+        <span>Adresszusatz</span>
+        <input name="address_addition" />
+      </label>
+      <div className="row" style={{ border: "none", padding: 0 }}>
+        <label className="field" style={{ flex: 1 }}>
+          <span>PLZ</span>
+          <input name="zip" />
+        </label>
+        <label className="field" style={{ flex: 3 }}>
+          <span>Ort</span>
+          <input name="city" />
+        </label>
+        <label className="field" style={{ flex: 1 }}>
+          <span>Land</span>
+          <input name="country" defaultValue="DE" />
+        </label>
+        <label className="field" style={{ flex: 1 }}>
+          <span>Art</span>
+          <select name="addr_kind" defaultValue="shipping">
+            <option value="shipping">Liefer</option>
+            <option value="billing">Rechnung</option>
+            <option value="general">allgemein</option>
+          </select>
+        </label>
+      </div>
+
+      <h2>Ansprechpartner</h2>
+      <div className="row" style={{ border: "none", padding: 0 }}>
+        <label className="field" style={{ flex: 1 }}>
+          <span>Vorname</span>
+          <input name="contact_first" />
+        </label>
+        <label className="field" style={{ flex: 1 }}>
+          <span>Nachname</span>
+          <input name="contact_last" />
+        </label>
+      </div>
+      <div className="row" style={{ border: "none", padding: 0 }}>
+        <label className="field" style={{ flex: 2 }}>
+          <span>E-Mail</span>
+          <input name="contact_email" type="email" />
+        </label>
+        <label className="field" style={{ flex: 1 }}>
+          <span>Telefon</span>
+          <input name="contact_phone" />
+        </label>
+      </div>
+
+      <div className="row" style={{ border: "none", padding: 0, gap: 10 }}>
+        {!isDupe && (
+          <button type="submit" disabled={pending}>
+            {pending ? "…" : "Kunde anlegen"}
+          </button>
+        )}
+        {isDupe && (
+          <button type="submit" name="force" value="1" disabled={pending}>
+            {pending ? "…" : "Trotzdem anlegen"}
+          </button>
+        )}
         {state.error && <span className="msg-err">{state.error}</span>}
       </div>
     </form>

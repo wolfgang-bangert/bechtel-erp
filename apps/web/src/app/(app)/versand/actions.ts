@@ -130,6 +130,167 @@ export async function createShipment(_prev: State, fd: FormData): Promise<State>
   redirect(`/versand/${ship.id}`);
 }
 
+// ---------------------------------------------------------------- Kunde/Adresse/Kontakt aus der Erfassung anlegen
+export async function createCustomer(_prev: State, fd: FormData): Promise<State> {
+  const name = s(fd, "name");
+  if (!name) return { error: "Firmenname fehlt" };
+  const supabase = await createClient();
+  const zip = s(fd, "zip");
+
+  if (!fd.get("force")) {
+    const like = `%${name.replace(/[%,]/g, "")}%`;
+    const { data: sim } = await supabase
+      .from("organization")
+      .select("id, name, addresses:address(zip)")
+      .ilike("name", like)
+      .limit(5);
+    const hits = (sim ?? []).filter((o) => {
+      if (!zip) return true;
+      const addrs = (o.addresses ?? []) as { zip: string | null }[];
+      return addrs.length === 0 || addrs.some((a) => a.zip === zip);
+    });
+    if (hits.length)
+      return {
+        error: `Ähnliche Kunden: ${hits.map((h) => h.name).join(" · ")}. Zum Anlegen „Trotzdem anlegen".`,
+        note: "dupe",
+      };
+  }
+
+  // Nummernkreis kann durch Altimport hinter dem Ist-Stand liegen → wenige Retries.
+  let org: { id: string } | null = null;
+  let orgErr: { code?: string; message: string } | null = null;
+  for (let attempt = 0; attempt < 20 && !org; attempt++) {
+    const { data: numRow, error: numErr } = await supabase.rpc("next_number", {
+      p_key: "customer_number",
+    });
+    if (numErr) return { error: `Nummernkreis: ${numErr.message}` };
+    const res = await supabase
+      .from("organization")
+      .insert({
+        relation: "customer",
+        name,
+        customer_number: numRow as string,
+        email: s(fd, "contact_email"),
+        phone: s(fd, "contact_phone"),
+      })
+      .select("id")
+      .single();
+    org = res.data;
+    orgErr = res.error;
+    if (orgErr && orgErr.code !== "23505") break;
+  }
+  if (!org) return { error: orgErr?.message ?? "Kunde konnte nicht angelegt werden" };
+
+  const street = s(fd, "street");
+  if (street || zip || s(fd, "city")) {
+    const { error: aErr } = await supabase.from("address").insert({
+      organization_id: org.id,
+      source: "werk",
+      kind: s(fd, "addr_kind") ?? "shipping",
+      is_default: true,
+      line1: [street, s(fd, "house_number")].filter(Boolean).join(" ") || name,
+      street,
+      house_number: s(fd, "house_number"),
+      address_addition: s(fd, "address_addition"),
+      zip,
+      city: s(fd, "city"),
+      country: s(fd, "country") ?? "DE",
+    });
+    if (aErr) return { error: `Kunde angelegt, Adresse fehlgeschlagen: ${aErr.message}` };
+  }
+
+  const ln = s(fd, "contact_last");
+  if (ln) {
+    await supabase.from("contact").insert({
+      organization_id: org.id,
+      first_name: s(fd, "contact_first") ?? "",
+      last_name: ln,
+      email: s(fd, "contact_email"),
+      phone: s(fd, "contact_phone"),
+      is_primary: true,
+    });
+  }
+
+  revalidatePath("/versand/neu");
+  redirect(`/versand/neu?org=${org.id}`);
+}
+
+export async function addAddress(_prev: State, fd: FormData): Promise<State> {
+  const shipmentId = s(fd, "shipment_id");
+  const recipientId = s(fd, "recipient_id");
+  const organizationId = s(fd, "organization_id");
+  if (!shipmentId || !recipientId || !organizationId) return { error: "id fehlt" };
+  const street = s(fd, "street");
+  const country = s(fd, "country") ?? "DE";
+  const supabase = await createClient();
+  const { data: addr, error } = await supabase
+    .from("address")
+    .insert({
+      organization_id: organizationId,
+      source: "werk",
+      kind: s(fd, "addr_kind") ?? "shipping",
+      is_default: false,
+      line1: [street, s(fd, "house_number")].filter(Boolean).join(" ") || "-",
+      street,
+      house_number: s(fd, "house_number"),
+      address_addition: s(fd, "address_addition"),
+      zip: s(fd, "zip"),
+      city: s(fd, "city"),
+      country,
+    })
+    .select("id")
+    .single();
+  if (error) return { error: error.message };
+
+  await supabase
+    .from("shipment_recipient")
+    .update({
+      street,
+      house_number: s(fd, "house_number"),
+      address_addition: s(fd, "address_addition"),
+      zip: s(fd, "zip"),
+      city: s(fd, "city"),
+      country,
+      source_address_id: addr.id,
+      verified: false,
+      verified_at: null,
+      verified_by: null,
+    })
+    .eq("id", recipientId);
+  revalidatePath(`/versand/${shipmentId}`);
+  return { ok: true, note: "Adresse angelegt & übernommen" };
+}
+
+export async function addContact(_prev: State, fd: FormData): Promise<State> {
+  const shipmentId = s(fd, "shipment_id");
+  const recipientId = s(fd, "recipient_id");
+  const organizationId = s(fd, "organization_id");
+  if (!shipmentId || !recipientId || !organizationId) return { error: "id fehlt" };
+  const ln = s(fd, "last_name");
+  if (!ln) return { error: "Nachname fehlt" };
+  const supabase = await createClient();
+  const { error } = await supabase.from("contact").insert({
+    organization_id: organizationId,
+    first_name: s(fd, "first_name") ?? "",
+    last_name: ln,
+    email: s(fd, "email"),
+    phone: s(fd, "phone"),
+    is_primary: false,
+  });
+  if (error) return { error: error.message };
+
+  const patch: Record<string, unknown> = {
+    contact_name: [s(fd, "first_name"), ln].filter(Boolean).join(" "),
+  };
+  const ph = s(fd, "phone");
+  const em = s(fd, "email");
+  if (ph) patch.phone = ph;
+  if (em) patch.email = em;
+  await supabase.from("shipment_recipient").update(patch).eq("id", recipientId);
+  revalidatePath(`/versand/${shipmentId}`);
+  return { ok: true, note: "Ansprechpartner angelegt & übernommen" };
+}
+
 // ---------------------------------------------------------------- Kopf/Empfänger ändern
 export async function updateShipment(_prev: State, fd: FormData): Promise<State> {
   const id = s(fd, "id");

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { NewShipmentForm } from "./ui";
+import { NewShipmentForm, NewCustomerForm } from "./ui";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +60,15 @@ export default async function NeueSendungPage({
             {!results.length && <div className="row">Keine Treffer.</div>}
           </div>
         )}
+
+        <details style={{ marginTop: 18 }} open={q !== "" && !results.length}>
+          <summary style={{ cursor: "pointer", color: "var(--muted)" }}>
+            ＋ Neuen Kunden anlegen
+          </summary>
+          <div style={{ marginTop: 10 }}>
+            <NewCustomerForm defaultName={results.length ? "" : q} />
+          </div>
+        </details>
       </>
     );
   }
