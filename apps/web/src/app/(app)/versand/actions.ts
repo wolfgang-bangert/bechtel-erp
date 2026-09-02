@@ -341,6 +341,73 @@ export async function updateRecipient(_prev: State, fd: FormData): Promise<State
   return { ok: true };
 }
 
+// ---------------------------------------------------------------- Auftragsverknüpfung
+export async function linkOrder(_prev: State, fd: FormData): Promise<State> {
+  const id = s(fd, "shipment_id");
+  if (!id) return { error: "id fehlt" };
+  const sales_order_id = s(fd, "sales_order_id"); // null = lösen
+  const supabase = await createClient();
+  const { error } = await supabase.from("shipment").update({ sales_order_id }).eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath(`/versand/${id}`);
+  return { ok: true, note: sales_order_id ? "Auftrag verknüpft" : "Verknüpfung gelöst" };
+}
+
+export async function importOrderItems(_prev: State, fd: FormData): Promise<State> {
+  const shipmentId = s(fd, "shipment_id");
+  const recipientId = s(fd, "recipient_id");
+  if (!shipmentId || !recipientId) return { error: "id fehlt" };
+  const replace = fd.get("replace") != null;
+  const supabase = await createClient();
+
+  const { data: ship } = await supabase
+    .from("shipment")
+    .select("sales_order_id")
+    .eq("id", shipmentId)
+    .maybeSingle();
+  if (!ship?.sales_order_id) return { error: "Kein Auftrag verknüpft" };
+
+  const { data: srcItems, error: e1 } = await supabase
+    .from("sales_order_item")
+    .select("id, position, description, quantity, kind")
+    .eq("sales_order_id", ship.sales_order_id)
+    .order("position");
+  if (e1) return { error: e1.message };
+  const rows = (srcItems ?? []).filter((it) => (it.description ?? "").trim() !== "");
+  if (!rows.length) return { error: "Auftrag hat keine übernehmbaren Positionen" };
+
+  if (replace) {
+    await supabase.from("shipment_item").delete().eq("shipment_recipient_id", recipientId);
+  }
+  let basePos = 0;
+  if (!replace) {
+    const { data: existing } = await supabase
+      .from("shipment_item")
+      .select("position")
+      .eq("shipment_recipient_id", recipientId)
+      .order("position", { ascending: false })
+      .limit(1);
+    basePos = existing?.[0]?.position ?? 0;
+  }
+
+  const insert = rows.map((it, i) => ({
+    shipment_recipient_id: recipientId,
+    position: replace ? it.position ?? i + 1 : basePos + i + 1,
+    sales_order_item_id: it.id,
+    description: (it.description ?? "").trim(),
+    quantity: Number(it.quantity) || 1,
+    unit: null,
+    // Produktart aus dem Auftrag als Notiz erhalten (Keyline: "kind")
+    note: it.kind ? String(it.kind) : null,
+  }));
+  const { error: e2 } = await supabase.from("shipment_item").insert(insert);
+  if (e2) return { error: e2.message };
+
+  await recomputeWeight(supabase, shipmentId);
+  revalidatePath(`/versand/${shipmentId}`);
+  return { ok: true, note: `${insert.length} Position(en) übernommen` };
+}
+
 // ---------------------------------------------------------------- Absender (Schritt 2)
 export async function updateSender(_prev: State, fd: FormData): Promise<State> {
   const id = s(fd, "id");

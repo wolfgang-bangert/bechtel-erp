@@ -410,3 +410,12 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Positionserfassung (Sendung Schritt 3) Artikel-Auswahl → füllt Bezeichnung +
   Einheit und rechnet **Positionsgewicht = Menge × kg/Einheit** (überschreibbar,
   aktualisiert sich bei Mengenänderung).
+- [x] **Versand: Auftragsverknüpfung + Positionsübernahme.**
+  `/versand/[id]` Schritt 3: „Auftrag suchen" (nach Auftragsnummer, Kunde
+  vorausgewählt, „alle Kunden" optional) → verknüpft `shipment.sales_order_id`
+  mit einem gespiegelten `sales_order` (Keyline **oder** Ninox). „Positionen
+  übernehmen" kopiert `sales_order_item` → `shipment_item` (mit
+  `sales_order_item_id`, Produktart als Notiz), „ersetzen" leert vorher.
+  Danach Gewicht-Recompute. Grundlage für Kartonberechnung, Verteilerliste,
+  Keyline-Prefill. Kein Migrationsbedarf (Spalten existierten).
+  Bestand: 16768 Keyline- + 5010 Ninox-Aufträge sind gespiegelt.

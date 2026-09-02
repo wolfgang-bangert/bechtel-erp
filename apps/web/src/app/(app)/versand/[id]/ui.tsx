@@ -7,6 +7,8 @@ import {
   addAddress,
   addContact,
   updateSender,
+  linkOrder,
+  importOrderItems,
   updateWeight,
   applySuggestion,
   updateNotify,
@@ -223,6 +225,109 @@ export function SenderPanel({
         <Msg state={state} />
       </div>
     </form>
+  );
+}
+
+// ---------------------------------------------------------------- Auftrag verknüpfen (Schritt 3)
+export function OrderPanel({
+  shipmentId,
+  recipientId,
+  linked,
+  query,
+  all,
+  results,
+}: {
+  shipmentId: string;
+  recipientId: string;
+  linked: {
+    id: string;
+    source: string;
+    order_number: string | null;
+    order_date: string | null;
+    itemCount: number;
+  } | null;
+  query: string;
+  all: boolean;
+  results: { id: string; source: string; order_number: string | null; order_date: string | null }[];
+}) {
+  const [lState, lAction, lPending] = useActionState(linkOrder, empty);
+  const [iState, iAction, iPending] = useActionState(importOrderItems, empty);
+
+  return (
+    <div className="rows" style={{ maxWidth: 720, marginBottom: 10 }}>
+      {linked ? (
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <span>
+            Auftrag{" "}
+            <a href={`/auftraege/${linked.id}`}>
+              {linked.order_number ?? linked.id.slice(0, 8)}
+            </a>{" "}
+            <span className="tag">{linked.source}</span>{" "}
+            {linked.order_date && (
+              <span style={{ color: "var(--muted)" }}>{linked.order_date}</span>
+            )}{" "}
+            <span style={{ color: "var(--muted)" }}>· {linked.itemCount} Positionen</span>
+          </span>
+          <span style={{ display: "flex", gap: 6 }}>
+            <form action={iAction}>
+              <input type="hidden" name="shipment_id" value={shipmentId} />
+              <input type="hidden" name="recipient_id" value={recipientId} />
+              <button type="submit" disabled={iPending}>
+                {iPending ? "…" : "Positionen übernehmen"}
+              </button>
+            </form>
+            <form action={iAction}>
+              <input type="hidden" name="shipment_id" value={shipmentId} />
+              <input type="hidden" name="recipient_id" value={recipientId} />
+              <input type="hidden" name="replace" value="1" />
+              <button type="submit" className="ghost" disabled={iPending} title="vorhandene Positionen ersetzen">
+                ersetzen
+              </button>
+            </form>
+            <form action={lAction}>
+              <input type="hidden" name="shipment_id" value={shipmentId} />
+              <button type="submit" className="ghost" disabled={lPending}>
+                lösen
+              </button>
+            </form>
+          </span>
+        </div>
+      ) : (
+        <div className="row" style={{ color: "var(--muted)" }}>
+          Kein Auftrag verknüpft — Positionen manuell erfassen oder Auftrag suchen.
+        </div>
+      )}
+      {(lState.ok || lState.error || iState.ok || iState.error) && (
+        <div className="row" style={{ border: "none", padding: "0 10px" }}>
+          <Msg state={lState.ok || lState.error ? lState : iState} />
+        </div>
+      )}
+
+      <form method="get" className="row" style={{ gap: 8, background: "var(--tag-bg)" }}>
+        <input name="ordq" defaultValue={query} placeholder="Auftragsnummer" style={{ width: 160 }} />
+        <label className="chk" style={{ display: "flex", gap: 5 }}>
+          <input type="checkbox" name="ordall" value="1" defaultChecked={all} /> alle Kunden
+        </label>
+        <button type="submit">Auftrag suchen</button>
+      </form>
+      {query && (
+        <>
+          {results.map((o) => (
+            <form key={o.id} action={lAction} className="row">
+              <input type="hidden" name="shipment_id" value={shipmentId} />
+              <input type="hidden" name="sales_order_id" value={o.id} />
+              <span className="w-name">{o.order_number ?? o.id.slice(0, 8)}</span>
+              <span className="tag">{o.source}</span>
+              <span style={{ color: "var(--muted)" }}>{o.order_date ?? ""}</span>
+              <button type="submit" disabled={lPending}>
+                verknüpfen
+              </button>
+            </form>
+          ))}
+          {!results.length && <div className="row">Keine Treffer.</div>}
+        </>
+      )}
+    </div>
   );
 }
 

@@ -7,6 +7,7 @@ import {
   HeaderForm,
   RecipientPanel,
   SenderPanel,
+  OrderPanel,
   WeightPanel,
   SuggestionTable,
   NotifyPanel,
@@ -50,10 +51,13 @@ type ShipmentDetail = {
 
 export default async function SendungPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ ordq?: string; ordall?: string }>;
 }) {
   const { id } = await params;
+  const sp = await searchParams;
   const supabase = await createClient();
 
   const { data } = await supabase
@@ -93,6 +97,43 @@ export default async function SendungPage({
   const org = ship.organization;
   const carrier = ship.carrier;
   const rec = (Array.isArray(ship.recipient) ? ship.recipient[0] : ship.recipient) ?? undefined;
+
+  // Auftragsverknüpfung
+  let linkedOrder:
+    | { id: string; source: string; order_number: string | null; order_date: string | null; itemCount: number }
+    | null = null;
+  if (ship.sales_order_id) {
+    const { data: lo } = await supabase
+      .from("sales_order")
+      .select("id, source, order_number, order_date, items:sales_order_item(count)")
+      .eq("id", ship.sales_order_id)
+      .maybeSingle();
+    if (lo) {
+      const c = Array.isArray(lo.items) ? (lo.items[0] as { count: number } | undefined)?.count ?? 0 : 0;
+      linkedOrder = {
+        id: lo.id,
+        source: lo.source,
+        order_number: lo.order_number,
+        order_date: lo.order_date,
+        itemCount: c,
+      };
+    }
+  }
+  const ordq = (sp.ordq ?? "").trim();
+  const ordAll = sp.ordall === "1";
+  let orderResults: { id: string; source: string; order_number: string | null; order_date: string | null }[] = [];
+  if (ordq) {
+    const like = `%${ordq.replace(/[%,]/g, "")}%`;
+    let oq = supabase
+      .from("sales_order")
+      .select("id, source, order_number, order_date")
+      .ilike("order_number", like)
+      .order("order_date", { ascending: false })
+      .limit(20);
+    if (!ordAll && org?.id) oq = oq.eq("organization_id", org.id);
+    const { data: od } = await oq;
+    orderResults = od ?? [];
+  }
 
   const packages = (rec?.packages ?? []).slice().sort((a, b) => a.position - b.position);
   const items = (rec?.items ?? []).slice().sort((a, b) => a.position - b.position);
@@ -160,6 +201,16 @@ export default async function SendungPage({
       </Step>
 
       <Step n={3} title="Inhalt & Gewicht">
+        {rec && (
+          <OrderPanel
+            shipmentId={ship.id}
+            recipientId={rec.id}
+            linked={linkedOrder}
+            query={ordq}
+            all={ordAll}
+            results={orderResults}
+          />
+        )}
         {rec && (
           <ItemsPanel
             shipmentId={ship.id}
