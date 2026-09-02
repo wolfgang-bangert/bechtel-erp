@@ -66,7 +66,7 @@ export default async function SendungPage({
         "recipient:shipment_recipient(id, name, addition, street, house_number, address_addition, zip, city, country, " +
         "contact_name, phone, email, verified, verified_at, verified_by, verify_result, " +
         "packages:shipment_package(id, position, art, packaging_ref, weight_kg, length_cm, width_cm, height_cm, tracking_number), " +
-        "items:shipment_item(id, position, description, quantity, unit, weight_kg, note, customs_value, customs_tariff_no, origin_country))",
+        "items:shipment_item(id, position, description, quantity, unit, weight_kg, versand_artikel_id, note, customs_value, customs_tariff_no, origin_country))",
     )
     .eq("id", id)
     .maybeSingle();
@@ -74,12 +74,21 @@ export default async function SendungPage({
   const ship = data as unknown as ShipmentDetail | null;
   if (!ship) notFound();
 
-  const { data: carriers } = await supabase
-    .from("carrier")
-    .select("id, code, name, art")
-    .eq("is_active", true)
-    .order("name");
+  const [{ data: carriers }, { data: artikel }] = await Promise.all([
+    supabase.from("carrier").select("id, code, name, art").eq("is_active", true).order("name"),
+    supabase
+      .from("versand_artikel")
+      .select("id, bezeichnung, einheit, gewicht_kg")
+      .eq("is_active", true)
+      .order("bezeichnung"),
+  ]);
   const carrierList = (carriers ?? []) as { id: string; code: string; name: string; art: string }[];
+  const artikelList = (artikel ?? []) as {
+    id: string;
+    bezeichnung: string;
+    einheit: string;
+    gewicht_kg: number;
+  }[];
 
   const org = ship.organization;
   const carrier = ship.carrier;
@@ -151,7 +160,14 @@ export default async function SendungPage({
       </Step>
 
       <Step n={3} title="Inhalt & Gewicht">
-        {rec && <ItemsPanel shipmentId={ship.id} recipientId={rec.id} items={items} />}
+        {rec && (
+          <ItemsPanel
+            shipmentId={ship.id}
+            recipientId={rec.id}
+            items={items}
+            artikel={artikelList}
+          />
+        )}
         <WeightPanel
           id={ship.id}
           mode={ship.weight_mode}

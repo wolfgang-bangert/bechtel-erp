@@ -627,6 +627,7 @@ export async function saveItem(_prev: State, fd: FormData): Promise<State> {
     quantity: num(fd, "quantity") ?? 1,
     unit: s(fd, "unit"),
     weight_kg: num(fd, "weight_kg"),
+    versand_artikel_id: s(fd, "versand_artikel_id"),
     note: s(fd, "note"),
     customs_value: num(fd, "customs_value"),
     customs_tariff_no: s(fd, "customs_tariff_no"),

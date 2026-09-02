@@ -44,11 +44,14 @@ export type Item = {
   quantity: number;
   unit: string | null;
   weight_kg: number | null;
+  versand_artikel_id: string | null;
   note: string | null;
   customs_value: number | null;
   customs_tariff_no: string | null;
   origin_country: string | null;
 };
+
+export type Artikel = { id: string; bezeichnung: string; einheit: string; gewicht_kg: number };
 
 export type Rec = {
   id: string;
@@ -823,20 +826,63 @@ function ItemRow({
   shipmentId,
   recipientId,
   row,
+  artikel,
 }: {
   shipmentId: string;
   recipientId: string;
   row?: Item;
+  artikel: Artikel[];
 }) {
   const [sState, sAction, sPending] = useActionState(saveItem, empty);
   const [dState, dAction, dPending] = useActionState(deleteItem, empty);
   const isNew = !row;
+
+  const setField = (form: HTMLFormElement, name: string, value: string) => {
+    const el = form.elements.namedItem(name) as HTMLInputElement | null;
+    if (el) el.value = value;
+  };
+  const recalc = (form: HTMLFormElement) => {
+    const aid = (form.elements.namedItem("versand_artikel_id") as HTMLSelectElement | null)?.value;
+    const a = artikel.find((x) => x.id === aid);
+    if (!a) return;
+    const qty =
+      Number(
+        String((form.elements.namedItem("quantity") as HTMLInputElement | null)?.value ?? "")
+          .replace(",", "."),
+      ) || 0;
+    setField(form, "weight_kg", String(Math.round(a.gewicht_kg * qty * 1000) / 1000));
+  };
+
   return (
     <form action={sAction} className={isNew ? "row new" : "row"}>
       <input type="hidden" name="shipment_id" value={shipmentId} />
       <input type="hidden" name="recipient_id" value={recipientId} />
       {row && <input type="hidden" name="id" value={row.id} />}
       <input name="position" defaultValue={row?.position ?? ""} placeholder="#" style={{ width: 42 }} />
+      {artikel.length > 0 && (
+        <select
+          name="versand_artikel_id"
+          defaultValue={row?.versand_artikel_id ?? ""}
+          style={{ width: 120 }}
+          title="Versandartikel"
+          onChange={(e) => {
+            const form = e.currentTarget.form;
+            const a = artikel.find((x) => x.id === e.currentTarget.value);
+            if (form && a) {
+              setField(form, "description", a.bezeichnung);
+              setField(form, "unit", a.einheit);
+              recalc(form);
+            }
+          }}
+        >
+          <option value="">– frei –</option>
+          {artikel.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.bezeichnung}
+            </option>
+          ))}
+        </select>
+      )}
       <input
         name="description"
         defaultValue={row?.description ?? ""}
@@ -850,6 +896,7 @@ function ItemRow({
         placeholder="Menge"
         style={{ width: 70 }}
         inputMode="decimal"
+        onChange={(e) => e.currentTarget.form && recalc(e.currentTarget.form)}
       />
       <input name="unit" defaultValue={row?.unit ?? ""} placeholder="Einheit" style={{ width: 70 }} />
       <input
@@ -888,15 +935,18 @@ export function ItemsPanel({
   shipmentId,
   recipientId,
   items,
+  artikel,
 }: {
   shipmentId: string;
   recipientId: string;
   items: Item[];
+  artikel: Artikel[];
 }) {
   return (
-    <div className="rows" style={{ maxWidth: 720 }}>
+    <div className="rows" style={{ maxWidth: 780 }}>
       <div className="row head">
         <span style={{ width: 42 }}>#</span>
+        {artikel.length > 0 && <span style={{ width: 120 }}>Artikel</span>}
         <span className="w-name">Bezeichnung</span>
         <span style={{ width: 70 }}>Menge</span>
         <span style={{ width: 70 }}>Einheit</span>
@@ -904,9 +954,21 @@ export function ItemsPanel({
         <span style={{ width: 120 }}>Notiz</span>
       </div>
       {items.map((it) => (
-        <ItemRow key={it.id} shipmentId={shipmentId} recipientId={recipientId} row={it} />
+        <ItemRow
+          key={it.id}
+          shipmentId={shipmentId}
+          recipientId={recipientId}
+          row={it}
+          artikel={artikel}
+        />
       ))}
-      <ItemRow shipmentId={shipmentId} recipientId={recipientId} />
+      <ItemRow shipmentId={shipmentId} recipientId={recipientId} artikel={artikel} />
+      {artikel.length === 0 && (
+        <p className="lead" style={{ marginTop: 4 }}>
+          Tipp: wiederkehrende Artikel mit Gewicht unter{" "}
+          <a href="/einstellungen/versandartikel">Einstellungen → Versandartikel</a> anlegen.
+        </p>
+      )}
     </div>
   );
 }

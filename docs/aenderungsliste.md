@@ -403,3 +403,10 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   (ein Junk-Datensatz `organization.name='name'` hatte sie zwischenzeitlich auf
   12 Mio. hochgezogen), `next_number()` füllt jetzt nur noch auf, kürzt nie.
   → **offen:** Junk-Org „name" (customer_number 12312313) prüfen/löschen.
+- [x] **Versandartikel-Stamm.** Migration `20260903130000_versand_artikel.sql`:
+  `versand_artikel` (bezeichnung, einheit, `gewicht_kg` je Einheit, ean, aktiv;
+  RLS lesen `is_staff`, schreiben admin/office/shipping); `shipment_item`
+  +`versand_artikel_id`. Pflege unter `/einstellungen/versandartikel`. In der
+  Positionserfassung (Sendung Schritt 3) Artikel-Auswahl → füllt Bezeichnung +
+  Einheit und rechnet **Positionsgewicht = Menge × kg/Einheit** (überschreibbar,
+  aktualisiert sich bei Mengenänderung).
