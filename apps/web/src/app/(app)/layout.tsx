@@ -38,6 +38,8 @@ export default async function AppLayout({
         <Link href="/einstellungen/kostenstellen">Kostenstellen</Link>
         <Link href="/einstellungen/frachtpreise">Frachtpreise</Link>
         <Link href="/einstellungen/versandartikel">Versandartikel</Link>
+        <Link href="/einstellungen/packmittel">Kartonagen</Link>
+        <Link href="/einstellungen/packregeln">Kartonregeln</Link>
         <Link href="/einstellungen/nummernkreise">Nummernkreise</Link>
         <Link href="/einstellungen/firmenprofil">Firmenprofil</Link>
 

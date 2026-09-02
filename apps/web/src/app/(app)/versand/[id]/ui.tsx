@@ -10,6 +10,8 @@ import {
   linkOrder,
   importOrderItems,
   updateWeight,
+  proposePackages,
+  createPackmittel,
   applySuggestion,
   updateNotify,
   verifyAddress,
@@ -31,6 +33,7 @@ export type Pkg = {
   id: string;
   position: number;
   art: string;
+  packmittel_id: string | null;
   packaging_ref: string | null;
   weight_kg: number | null;
   length_cm: number | null;
@@ -54,6 +57,15 @@ export type Item = {
 };
 
 export type Artikel = { id: string; bezeichnung: string; einheit: string; gewicht_kg: number };
+
+export type Packmittel = {
+  id: string;
+  bezeichnung: string;
+  laenge_mm: number | null;
+  breite_mm: number | null;
+  hoehe_mm: number | null;
+  leergewicht_kg: number;
+};
 
 export type Rec = {
   id: string;
@@ -798,15 +810,21 @@ function PackageRow({
   recipientId,
   row,
   defaultArt,
+  packmittel,
 }: {
   shipmentId: string;
   recipientId: string;
   row?: Pkg;
   defaultArt: string;
+  packmittel: Packmittel[];
 }) {
   const [sState, sAction, sPending] = useActionState(savePackage, empty);
   const [dState, dAction, dPending] = useActionState(deletePackage, empty);
   const isNew = !row;
+  const setF = (form: HTMLFormElement, name: string, v: string) => {
+    const el = form.elements.namedItem(name) as HTMLInputElement | null;
+    if (el) el.value = v;
+  };
   return (
     <form action={sAction} className={isNew ? "row new" : "row"}>
       <input type="hidden" name="shipment_id" value={shipmentId} />
@@ -816,30 +834,55 @@ function PackageRow({
         name="position"
         defaultValue={row?.position ?? ""}
         placeholder="#"
-        style={{ width: 42 }}
+        style={{ width: 40 }}
       />
-      <select name="art" defaultValue={row?.art ?? defaultArt} style={{ width: 100 }}>
+      <select name="art" defaultValue={row?.art ?? defaultArt} style={{ width: 88 }}>
         {PACK_ART.map((a) => (
           <option key={a} value={a}>
             {a}
           </option>
         ))}
       </select>
+      {packmittel.length > 0 && (
+        <select
+          name="packmittel_id"
+          defaultValue={row?.packmittel_id ?? ""}
+          style={{ width: 130 }}
+          title="Kartonage (füllt Maße + Tara vor)"
+          onChange={(e) => {
+            const form = e.currentTarget.form;
+            const pm = packmittel.find((x) => x.id === e.currentTarget.value);
+            if (!form || !pm) return;
+            if (pm.laenge_mm != null) setF(form, "length_cm", String(pm.laenge_mm / 10));
+            if (pm.breite_mm != null) setF(form, "width_cm", String(pm.breite_mm / 10));
+            if (pm.hoehe_mm != null) setF(form, "height_cm", String(pm.hoehe_mm / 10));
+            const w = form.elements.namedItem("weight_kg") as HTMLInputElement | null;
+            if (w && !w.value && pm.leergewicht_kg) w.value = String(pm.leergewicht_kg);
+          }}
+        >
+          <option value="">– frei –</option>
+          {packmittel.map((pm) => (
+            <option key={pm.id} value={pm.id}>
+              {pm.bezeichnung}
+            </option>
+          ))}
+        </select>
+      )}
       <input
         name="weight_kg"
         defaultValue={row?.weight_kg ?? ""}
         placeholder="kg"
-        style={{ width: 70 }}
+        style={{ width: 62 }}
         inputMode="decimal"
       />
-      <input name="length_cm" defaultValue={row?.length_cm ?? ""} placeholder="L" style={{ width: 52 }} />
-      <input name="width_cm" defaultValue={row?.width_cm ?? ""} placeholder="B" style={{ width: 52 }} />
-      <input name="height_cm" defaultValue={row?.height_cm ?? ""} placeholder="H" style={{ width: 52 }} />
+      <input name="length_cm" defaultValue={row?.length_cm ?? ""} placeholder="L" style={{ width: 46 }} />
+      <input name="width_cm" defaultValue={row?.width_cm ?? ""} placeholder="B" style={{ width: 46 }} />
+      <input name="height_cm" defaultValue={row?.height_cm ?? ""} placeholder="H" style={{ width: 46 }} />
       <input
         name="tracking_number"
         defaultValue={row?.tracking_number ?? ""}
         placeholder="Tracking-Nr"
-        style={{ width: 150 }}
+        style={{ width: 130 }}
       />
       <button type="submit" disabled={sPending}>
         {sPending ? "…" : isNew ? "+" : "Speichern"}
@@ -864,26 +907,88 @@ function PackageRow({
   );
 }
 
+function NewPackmittel({ shipmentId }: { shipmentId: string }) {
+  const [state, action, pending] = useActionState(createPackmittel, empty);
+  return (
+    <details style={{ marginTop: 6 }}>
+      <summary style={{ cursor: "pointer", color: "var(--muted)" }}>＋ neue Kartonage</summary>
+      <form action={action} className="row new" style={{ marginTop: 6 }}>
+        <input type="hidden" name="shipment_id" value={shipmentId} />
+        <input name="bezeichnung" placeholder="Bezeichnung" required style={{ width: 180 }} />
+        <input name="kategorie" placeholder="Kategorie" style={{ width: 110 }} />
+        <input name="laenge_mm" placeholder="L mm" style={{ width: 64 }} inputMode="numeric" />
+        <input name="breite_mm" placeholder="B mm" style={{ width: 64 }} inputMode="numeric" />
+        <input name="hoehe_mm" placeholder="H mm" style={{ width: 64 }} inputMode="numeric" />
+        <input name="leergewicht_kg" placeholder="Tara kg" style={{ width: 70 }} inputMode="decimal" />
+        <input name="material" placeholder="Material" style={{ width: 90 }} />
+        <button type="submit" disabled={pending}>
+          {pending ? "…" : "Anlegen"}
+        </button>
+        <Msg state={state} />
+      </form>
+    </details>
+  );
+}
+
 export function PackagesPanel({
   shipmentId,
   recipientId,
   carrierArt,
   packages,
+  packmittel,
+  hasOrder,
+  hasItems,
 }: {
   shipmentId: string;
   recipientId: string;
   carrierArt: string;
   packages: Pkg[];
+  packmittel: Packmittel[];
+  hasOrder: boolean;
+  hasItems: boolean;
 }) {
   const [gState, gAction, gPending] = useActionState(generatePackages, empty);
+  const [pState, pAction, pPending] = useActionState(proposePackages, empty);
   const defaultArt = carrierArt === "spedition" ? "palette" : "paket";
   return (
-    <div className="rows" style={{ maxWidth: 720 }}>
-      <form action={gAction} className="row" style={{ background: "var(--tag-bg)" }}>
+    <div className="rows" style={{ maxWidth: 900 }}>
+      <div className="row" style={{ background: "var(--tag-bg)", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ color: "var(--muted)", fontSize: 12 }}>Vorschlag aus Positionen:</span>
+        <form action={pAction} style={{ display: "inline" }}>
+          <input type="hidden" name="shipment_id" value={shipmentId} />
+          <input type="hidden" name="recipient_id" value={recipientId} />
+          <button type="submit" disabled={pPending || !hasItems} title={hasItems ? "" : "erst Positionen erfassen (Schritt 3)"}>
+            {pPending ? "…" : "Packstücke vorschlagen"}
+          </button>
+        </form>
+        <form action={pAction} style={{ display: "inline" }}>
+          <input type="hidden" name="shipment_id" value={shipmentId} />
+          <input type="hidden" name="recipient_id" value={recipientId} />
+          <input type="hidden" name="replace" value="1" />
+          <button
+            type="submit"
+            className="ghost"
+            disabled={pPending || !hasItems}
+            onClick={(e) => {
+              if (packages.length && !confirm("Vorhandene Packstücke ersetzen?")) e.preventDefault();
+            }}
+          >
+            ersetzen
+          </button>
+        </form>
+        <Msg state={pState} />
+        {!hasOrder && hasItems && (
+          <span style={{ color: "var(--muted)", fontSize: 12 }}>
+            (Regeln greifen über die Positionsbezeichnung — Auftrag optional)
+          </span>
+        )}
+      </div>
+
+      <form action={gAction} className="row" style={{ background: "var(--tag-bg)", flexWrap: "wrap" }}>
         <input type="hidden" name="shipment_id" value={shipmentId} />
         <input type="hidden" name="recipient_id" value={recipientId} />
         <input type="hidden" name="art" value={defaultArt} />
-        <span style={{ color: "var(--muted)", fontSize: 12 }}>aus Gewicht erzeugen:</span>
+        <span style={{ color: "var(--muted)", fontSize: 12 }}>oder aus Gewicht:</span>
         <input name="total_weight" placeholder="Gesamt kg" style={{ width: 90 }} inputMode="decimal" />
         <input
           name="max_kg"
@@ -900,17 +1005,18 @@ export function PackagesPanel({
             if (packages.length && !confirm("Vorhandene Packstücke ersetzen?")) e.preventDefault();
           }}
         >
-          {gPending ? "…" : "Packstücke erzeugen"}
+          {gPending ? "…" : "erzeugen"}
         </button>
         <Msg state={gState} />
       </form>
 
       <div className="row head">
-        <span style={{ width: 42 }}>#</span>
-        <span style={{ width: 100 }}>Art</span>
-        <span style={{ width: 70 }}>kg</span>
-        <span style={{ width: 168 }}>L / B / H (cm)</span>
-        <span style={{ width: 150 }}>Tracking</span>
+        <span style={{ width: 40 }}>#</span>
+        <span style={{ width: 88 }}>Art</span>
+        {packmittel.length > 0 && <span style={{ width: 130 }}>Kartonage</span>}
+        <span style={{ width: 62 }}>kg</span>
+        <span style={{ width: 150 }}>L / B / H (cm)</span>
+        <span style={{ width: 130 }}>Tracking</span>
       </div>
       {packages.map((p) => (
         <PackageRow
@@ -919,9 +1025,16 @@ export function PackagesPanel({
           recipientId={recipientId}
           row={p}
           defaultArt={defaultArt}
+          packmittel={packmittel}
         />
       ))}
-      <PackageRow shipmentId={shipmentId} recipientId={recipientId} defaultArt={defaultArt} />
+      <PackageRow
+        shipmentId={shipmentId}
+        recipientId={recipientId}
+        defaultArt={defaultArt}
+        packmittel={packmittel}
+      />
+      <NewPackmittel shipmentId={shipmentId} />
     </div>
   );
 }

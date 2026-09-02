@@ -652,6 +652,7 @@ export async function savePackage(_prev: State, fd: FormData): Promise<State> {
     shipment_recipient_id: recipientId,
     position: num(fd, "position") ?? 1,
     art: s(fd, "art") ?? "paket",
+    packmittel_id: s(fd, "packmittel_id"),
     packaging_ref: s(fd, "packaging_ref"),
     weight_kg: num(fd, "weight_kg"),
     length_cm: num(fd, "length_cm"),
@@ -666,6 +667,100 @@ export async function savePackage(_prev: State, fd: FormData): Promise<State> {
   if (error) return { error: error.message };
   revalidatePath(`/versand/${shipmentId}`);
   return { ok: true };
+}
+
+// ---------------------------------------------------------------- Kartonvorschlag (Schritt 6)
+export async function proposePackages(_prev: State, fd: FormData): Promise<State> {
+  const shipmentId = s(fd, "shipment_id");
+  const recipientId = s(fd, "recipient_id");
+  if (!shipmentId || !recipientId) return { error: "id fehlt" };
+  const replace = fd.get("replace") != null;
+  const supabase = await createClient();
+
+  const { packe } = await import("@/lib/packe");
+  const [{ data: regeln }, { data: items }] = await Promise.all([
+    supabase
+      .from("packregel")
+      .select(
+        "produkt_tag, stueck_von, stueck_bis, prio, spedition_erlaubt, packmittel_id, " +
+          "packmittel:packmittel_id(bezeichnung, leergewicht_kg, laenge_mm, breite_mm, hoehe_mm)",
+      )
+      .eq("is_active", true),
+    supabase
+      .from("shipment_item")
+      .select("description, quantity, weight_kg")
+      .eq("shipment_recipient_id", recipientId)
+      .order("position"),
+  ]);
+  if (!items?.length) return { error: "Keine Positionen (Schritt 3) — nichts zu packen" };
+
+  const { vorschlag, hinweise } = packe(
+    items,
+    (regeln ?? []) as unknown as Parameters<typeof packe>[1],
+  );
+  if (!vorschlag.length)
+    return { error: hinweise.join(" · ") || "Kein Vorschlag möglich — bitte manuell" };
+
+  if (replace) {
+    await supabase.from("shipment_package").delete().eq("shipment_recipient_id", recipientId);
+  }
+  let pos = 0;
+  if (!replace) {
+    const { data: ex } = await supabase
+      .from("shipment_package")
+      .select("position")
+      .eq("shipment_recipient_id", recipientId)
+      .order("position", { ascending: false })
+      .limit(1);
+    pos = ex?.[0]?.position ?? 0;
+  }
+
+  const rows: Record<string, unknown>[] = [];
+  for (const v of vorschlag) {
+    for (let k = 0; k < v.anzahl; k++) {
+      pos += 1;
+      rows.push({
+        shipment_recipient_id: recipientId,
+        position: pos,
+        art: "karton",
+        packmittel_id: v.packmittel_id,
+        packaging_ref: v.packmittel_bezeichnung,
+        weight_kg: v.gewicht_kg || null,
+        length_cm: v.laenge_cm,
+        width_cm: v.breite_cm,
+        height_cm: v.hoehe_cm,
+      });
+    }
+  }
+  const { error } = await supabase.from("shipment_package").insert(rows);
+  if (error) return { error: error.message };
+  revalidatePath(`/versand/${shipmentId}`);
+  return {
+    ok: true,
+    note:
+      `${rows.length} Packstück(e) vorgeschlagen — bitte prüfen/anpassen` +
+      (hinweise.length ? ` · ${hinweise.join(" · ")}` : ""),
+  };
+}
+
+export async function createPackmittel(_prev: State, fd: FormData): Promise<State> {
+  const shipmentId = s(fd, "shipment_id");
+  const bezeichnung = s(fd, "bezeichnung");
+  if (!bezeichnung) return { error: "Bezeichnung fehlt" };
+  const supabase = await createClient();
+  const { error } = await supabase.from("packmittel").insert({
+    bezeichnung,
+    kategorie: s(fd, "kategorie"),
+    laenge_mm: num(fd, "laenge_mm"),
+    breite_mm: num(fd, "breite_mm"),
+    hoehe_mm: num(fd, "hoehe_mm"),
+    leergewicht_kg: num(fd, "leergewicht_kg") ?? 0,
+    material: s(fd, "material"),
+  });
+  if (error) return { error: error.message };
+  if (shipmentId) revalidatePath(`/versand/${shipmentId}`);
+  revalidatePath("/einstellungen/packmittel");
+  return { ok: true, note: "Kartonage angelegt" };
 }
 
 export async function deletePackage(_prev: State, fd: FormData): Promise<State> {

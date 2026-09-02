@@ -419,3 +419,18 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Danach Gewicht-Recompute. Grundlage für Kartonberechnung, Verteilerliste,
   Keyline-Prefill. Kein Migrationsbedarf (Spalten existierten).
   Bestand: 16768 Keyline- + 5010 Ninox-Aufträge sind gespiegelt.
+- [x] **Versand: Kartonberechnung als Vorschlag (nicht starr).**
+  Migration `20260904090000_packmittel.sql`: `packmittel` (Kartonstamm: Maße mm,
+  Tara, Material, FEFCO, …) + `packregel` (produkt_tag Freitext, Stück von/bis,
+  Kartonage, „Spedition erlaubt", Prio) + `shipment_package.packmittel_id`.
+  Import aus Ninox `ZG`/`XG` (`pnpm --filter sync packmittel:import`): 99
+  Kartonagen, 298 Regeln (297 mit Tag, 291 mit Karton). produkt_tag = Ninox
+  Grundprodukt-Bezeichnung — **lose** Zuordnung, kein starrer Schlüssel.
+  Logik `apps/web/src/lib/packe.ts`: Regel greift, wenn produkt_tag in der
+  Positionsbezeichnung vorkommt und die Menge im Band liegt; Menge über allen
+  Bändern → aufgeteilt + „geschätzt"; kein Treffer → Hinweis, kein Fehler.
+  Sendung Schritt 6: Button **„Packstücke vorschlagen"** (füllt die Liste vor,
+  jede Zeile bleibt editierbar), **Kartonage-Dropdown** je Zeile (füllt Maße +
+  Tara), **„＋ neue Kartonage"** direkt aus der Sendung. „aus Gewicht erzeugen"
+  bleibt als Alternative. Pflege `/einstellungen/packmittel` +
+  `/einstellungen/packregeln`.

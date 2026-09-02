@@ -69,7 +69,7 @@ export default async function SendungPage({
         "organization:organization_id(id, name), carrier:carrier_id(id, name, art), " +
         "recipient:shipment_recipient(id, name, addition, street, house_number, address_addition, zip, city, country, " +
         "contact_name, phone, email, verified, verified_at, verified_by, verify_result, " +
-        "packages:shipment_package(id, position, art, packaging_ref, weight_kg, length_cm, width_cm, height_cm, tracking_number), " +
+        "packages:shipment_package(id, position, art, packmittel_id, packaging_ref, weight_kg, length_cm, width_cm, height_cm, tracking_number), " +
         "items:shipment_item(id, position, description, quantity, unit, weight_kg, versand_artikel_id, note, customs_value, customs_tariff_no, origin_country))",
     )
     .eq("id", id)
@@ -78,11 +78,16 @@ export default async function SendungPage({
   const ship = data as unknown as ShipmentDetail | null;
   if (!ship) notFound();
 
-  const [{ data: carriers }, { data: artikel }] = await Promise.all([
+  const [{ data: carriers }, { data: artikel }, { data: packmittel }] = await Promise.all([
     supabase.from("carrier").select("id, code, name, art").eq("is_active", true).order("name"),
     supabase
       .from("versand_artikel")
       .select("id, bezeichnung, einheit, gewicht_kg")
+      .eq("is_active", true)
+      .order("bezeichnung"),
+    supabase
+      .from("packmittel")
+      .select("id, bezeichnung, laenge_mm, breite_mm, hoehe_mm, leergewicht_kg")
       .eq("is_active", true)
       .order("bezeichnung"),
   ]);
@@ -92,6 +97,14 @@ export default async function SendungPage({
     bezeichnung: string;
     einheit: string;
     gewicht_kg: number;
+  }[];
+  const packmittelList = (packmittel ?? []) as {
+    id: string;
+    bezeichnung: string;
+    laenge_mm: number | null;
+    breite_mm: number | null;
+    hoehe_mm: number | null;
+    leergewicht_kg: number;
   }[];
 
   const org = ship.organization;
@@ -268,6 +281,9 @@ export default async function SendungPage({
             recipientId={rec.id}
             carrierArt={carrier?.art ?? "paket"}
             packages={packages}
+            packmittel={packmittelList}
+            hasOrder={!!linkedOrder}
+            hasItems={items.length > 0}
           />
         )}
         <p className="lead" style={{ marginTop: 6 }}>

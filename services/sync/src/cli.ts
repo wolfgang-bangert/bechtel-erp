@@ -299,6 +299,12 @@ async function main() {
       console.log(JSON.stringify(await importFracht({ dryRun }), null, 1));
       break;
     }
+    case "packmittel:import": {
+      console.log(`Kartonagen/Regeln aus Ninox importieren${dryRun ? "  (DRY RUN)" : ""}`);
+      const { importPackmittel } = await import("./importPackmittel");
+      console.log(JSON.stringify(await importPackmittel({ dryRun }), null, 1));
+      break;
+    }
     case "skonto:apply": {
       const arg = (n: string) => process.argv.find((a) => a.startsWith(n + "="))?.split("=")[1];
       const pct = arg("--max-percent");
