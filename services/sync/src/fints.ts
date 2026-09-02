@@ -6,6 +6,7 @@ import type { CamtEntry } from "./camt";
 import { importBankEntries } from "./syncBankImport";
 import { syncBankMatch } from "./syncBankMatch";
 import { syncBankMatchKreditor } from "./syncBankMatchKreditor";
+import { supabase } from "./supabase";
 
 const root = (p: string) => fileURLToPath(new URL(`../../../${p}`, import.meta.url));
 const svc = (p: string) => fileURLToPath(new URL(`../${p}`, import.meta.url));
@@ -20,6 +21,7 @@ export type FintsBank = {
   user: string;
   server: string;
   blz: string;
+  customer: string; // Kundennummer, falls abweichend von der Teilnehmernummer (user)
 };
 
 export function loadFintsBanks(): FintsBank[] {
@@ -29,10 +31,18 @@ export function loadFintsBanks(): FintsBank[] {
   for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
     const s = line.trim();
     if (!s || s.startsWith("#")) continue;
-    const [kuerzel, iban, tanVerfahren, user, server] = s.split(";").map((x) => x.trim());
+    const [kuerzel, iban, tanVerfahren, user, server, customer] = s.split(";").map((x) => x.trim());
     if (!kuerzel || !iban || !user || !server) continue;
     const clean = iban.replace(/\s+/g, "").toUpperCase();
-    out.push({ kuerzel, iban: clean, tanVerfahren: tanVerfahren ?? "", user, server, blz: clean.slice(4, 12) });
+    out.push({
+      kuerzel,
+      iban: clean,
+      tanVerfahren: tanVerfahren ?? "",
+      user,
+      server,
+      blz: clean.slice(4, 12),
+      customer: customer ?? "",
+    });
   }
   return out;
 }
@@ -56,6 +66,7 @@ function runOp(
     "--blz", b.blz,
     "--server", b.server,
     "--user", userOverride?.trim() || b.user,
+    ...(b.customer ? ["--customer", b.customer] : []),
     "--iban", b.iban,
     "--state", root(`imports/fints-state.${b.kuerzel}.b64`),
     ...extra,
@@ -136,18 +147,45 @@ export async function fintsPull(opts: { kuerzel?: string; days?: number; dryRun?
 
   const perBank: Record<string, unknown>[] = [];
   const all: CamtEntry[] = [];
+  const balances: { iban: string; balance: number; balance_date: string | null }[] = [];
   for (const b of banks) {
     try {
-      const r = runOp("pull", b, ["--days", String(days)]) as { transactions?: PyTxn[]; iban?: string };
-      const entries = (r.transactions ?? []).map((t) => toCamtEntry((r.iban as string) || b.iban, t));
+      const r = runOp("pull", b, ["--days", String(days)]) as {
+        transactions?: PyTxn[];
+        iban?: string;
+        balance?: number | null;
+        balance_date?: string | null;
+      };
+      const iban = (r.iban as string) || b.iban;
+      const entries = (r.transactions ?? []).map((t) => toCamtEntry(iban, t));
       all.push(...entries);
-      perBank.push({ bank: b.kuerzel, geholt: entries.length });
+      if (typeof r.balance === "number") {
+        balances.push({ iban, balance: r.balance, balance_date: r.balance_date ?? null });
+      }
+      perBank.push({
+        bank: b.kuerzel,
+        geholt: entries.length,
+        saldo: typeof r.balance === "number" ? r.balance : null,
+      });
     } catch (err) {
       perBank.push({ bank: b.kuerzel, fehler: err instanceof Error ? err.message : String(err) });
     }
   }
 
   const imp = await importBankEntries(all, { dryRun });
+
+  if (!dryRun && balances.length) {
+    for (const b of balances) {
+      await supabase
+        .from("bank_account")
+        .update({
+          balance: b.balance,
+          balance_date: b.balance_date,
+          balance_at: new Date().toISOString(),
+        })
+        .eq("iban", b.iban);
+    }
+  }
   const importedCount = "imported" in imp ? (imp.imported ?? 0) : 0;
   let matched: unknown = null;
   if (!dryRun && match && importedCount > 0) {

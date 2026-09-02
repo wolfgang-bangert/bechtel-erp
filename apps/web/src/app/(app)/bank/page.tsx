@@ -23,8 +23,10 @@ export default async function BankPage({
   const supabase = await createClient();
   const { data: accounts } = await supabase
     .from("bank_account")
-    .select("id, iban, label")
+    .select("id, iban, label, bank_name, balance, balance_date, balance_at, is_active")
     .order("label");
+  const accountsWithBalance = (accounts ?? []).filter((a) => a.balance != null);
+  const totalBalance = accountsWithBalance.reduce((s, a) => s + Number(a.balance), 0);
 
   type TxRow = {
     id: string;
@@ -153,6 +155,62 @@ export default async function BankPage({
         <div className="banner-err">
           Noch keine Kontobewegungen importiert. CLI:{" "}
           <code>pnpm --filter sync bank:import --file=auszug.xml</code>
+        </div>
+      )}
+
+      {(accounts ?? []).length > 0 && (
+        <div className="table-scroll" style={{ marginBottom: 14 }}>
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Konto</th>
+                <th>IBAN</th>
+                <th style={{ textAlign: "right" }}>Kontostand</th>
+                <th>Stand</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(accounts ?? []).map((a) => (
+                <tr key={a.id}>
+                  <td>
+                    <Link href={`/bank?account=${a.id}`}>{a.label}</Link>
+                    {a.bank_name ? (
+                      <span className="count" style={{ marginLeft: 6 }}>
+                        {a.bank_name}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="count">…{a.iban.slice(-6)}</td>
+                  <td
+                    style={{ textAlign: "right", fontWeight: 600 }}
+                    className={a.balance != null && Number(a.balance) < 0 ? "msg-err" : ""}
+                  >
+                    {a.balance != null ? fmtEur(Number(a.balance)) : "—"}
+                  </td>
+                  <td className="count">
+                    {a.balance_date
+                      ? fmtDate(a.balance_date)
+                      : a.balance == null
+                        ? "beim nächsten Abruf"
+                        : "—"}
+                  </td>
+                </tr>
+              ))}
+              {accountsWithBalance.length > 1 && (
+                <tr>
+                  <td style={{ fontWeight: 700 }}>Summe</td>
+                  <td />
+                  <td
+                    style={{ textAlign: "right", fontWeight: 700 }}
+                    className={totalBalance < 0 ? "msg-err" : ""}
+                  >
+                    {fmtEur(totalBalance)}
+                  </td>
+                  <td />
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       )}
 

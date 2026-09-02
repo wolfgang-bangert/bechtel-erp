@@ -434,3 +434,11 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Tara), **„＋ neue Kartonage"** direkt aus der Sendung. „aus Gewicht erzeugen"
   bleibt als Alternative. Pflege `/einstellungen/packmittel` +
   `/einstellungen/packregeln`.
+- [x] **Oberbank FinTS abgeschlossen + Kontostände im Bank-Modul.**
+  Oberbank/Bankverlag trennt Teilnehmernummer (user_id) und Kundennummer
+  (customer_id). `imports/fints.txt` hat jetzt ein optionales 6. Feld
+  „Kundennummer"; `fints_op.py` setzt `customer_id` nur, wenn angegeben.
+  Migration `20260904100000_bank_balance.sql`: `bank_account` +`balance`,
+  `balance_date`, `balance_at`. `fints:pull` ruft zusätzlich den Saldo
+  (`get_balance`) ab und schreibt ihn je IBAN aufs Konto. `/bank` zeigt oben
+  eine **Kontenübersicht** (Konto, IBAN, Kontostand, Stand, Summe).

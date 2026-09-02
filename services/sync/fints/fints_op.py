@@ -54,15 +54,16 @@ DEFAULT_PRODUCT_ID = "9FA6681DEC0CF3046BFC2F8A6"
 
 def make_client(args):
     pin = os.environ.get("FINTS_PIN") or ""
-    return FinTS3PinTanClient(
-        args.blz,
-        args.user,
-        pin,
-        args.server,
+    kwargs = dict(
         product_id=os.environ.get("FINTS_PRODUCT_ID") or DEFAULT_PRODUCT_ID,
         product_version=os.environ.get("FINTS_PRODUCT_VERSION") or "3",
         from_data=load_state(args.state),
     )
+    # Manche Banken (z.B. Oberbank/Bankverlag) trennen Teilnehmernummer (user_id)
+    # und Kundennummer (customer_id). Nur setzen, wenn abweichend angegeben.
+    if getattr(args, "customer", None):
+        kwargs["customer_id"] = args.customer
+    return FinTS3PinTanClient(args.blz, args.user, pin, args.server, **kwargs)
 
 
 def choose_tan_mechanism(client):
@@ -189,6 +190,18 @@ def op_pull(args):
         end = datetime.date.today()
         start = end - datetime.timedelta(days=args.days)
         txns = with_tan(client, client.get_transactions(acc, start, end))
+        bal_amount = None
+        bal_date = None
+        try:
+            bal = with_tan(client, client.get_balance(acc))
+            b_amt = getattr(bal, "amount", None)
+            if b_amt is not None:
+                v = b_amt.amount
+                bal_amount = float(v) if isinstance(v, decimal.Decimal) else v
+            bd = getattr(bal, "date", None)
+            bal_date = bd.isoformat() if bd else None
+        except Exception as e:  # noqa: BLE001
+            eprint(f"(Saldo nicht abrufbar: {type(e).__name__}: {e})")
     save_state(args.state, client)
 
     out = []
@@ -217,7 +230,14 @@ def op_pull(args):
                     "return_debit_notes": d.get("return_debit_notes"),
                 }
             )
-        return {"ok": True, "iban": norm_iban(acc.iban), "count": len(out), "transactions": out}
+        return {
+            "ok": True,
+            "iban": norm_iban(acc.iban),
+            "count": len(out),
+            "transactions": out,
+            "balance": bal_amount,
+            "balance_date": bal_date,
+        }
 
 
 def main():
@@ -226,6 +246,7 @@ def main():
     p.add_argument("--blz", required=True)
     p.add_argument("--server", required=True)
     p.add_argument("--user", required=True)
+    p.add_argument("--customer", default="")
     p.add_argument("--iban", required=True)
     p.add_argument("--state", default="")
     p.add_argument("--days", type=int, default=30)
