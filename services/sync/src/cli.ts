@@ -32,6 +32,7 @@ import { purgeIncoming } from "./purgeIncoming";
 import { pruneReceiptDuplicates } from "./pruneReceipts";
 import { forwardDunnings } from "./forwardDunnings";
 import { fintsSetup, fintsPull } from "./fints";
+import { importFracht } from "./importFracht";
 import { supabase } from "./supabase";
 
 const cmd = process.argv[2] ?? "";
@@ -291,6 +292,11 @@ async function main() {
       console.log(`Saldo (Eingang − Ausgang): ${r.saldo.toLocaleString("de-DE")} EUR`);
       console.log(`CSV: ${r.file}`);
       console.log(`SHA-256: ${r.sha256}`);
+      break;
+    }
+    case "fracht:import": {
+      console.log(`Frachtdaten aus Ninox importieren${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await importFracht({ dryRun }), null, 1));
       break;
     }
     case "skonto:apply": {

@@ -27,11 +27,16 @@ export default async function AppLayout({
         <Link href="/bank">Bank</Link>
         <Link href="/datev-vorschau">DATEV-Vorschau</Link>
 
+        <div className="nav-group">Versand</div>
+        <Link href="/versand">Sendungen</Link>
+        <Link href="/versand/vergleich">Frachtpreis-Vergleich</Link>
+
         <div className="nav-group">Einstellungen</div>
         <Link href="/einstellungen">Übersicht</Link>
         <Link href="/einstellungen/sachkonten">Sachkonten</Link>
         <Link href="/einstellungen/steuerschluessel">Steuerschlüssel</Link>
         <Link href="/einstellungen/kostenstellen">Kostenstellen</Link>
+        <Link href="/einstellungen/frachtpreise">Frachtpreise</Link>
         <Link href="/einstellungen/nummernkreise">Nummernkreise</Link>
         <Link href="/einstellungen/firmenprofil">Firmenprofil</Link>
 

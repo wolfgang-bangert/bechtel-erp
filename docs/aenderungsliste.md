@@ -336,3 +336,56 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Organisationen** (740 akzidenz / 1455 kalender / 1711 mixed). 32 Nummern-
   Kollisionen geloggt. `keyline:orgs` überschreibt `customer_segment` nicht mehr.
   Lauf: `pnpm --filter sync ninox:firmen`.
+- [x] **Versand Phase 1 — Frachtpreise + Preisvergleich.**
+  Migration `20260902090000_carrier_fracht.sql`: `carrier` / `carrier_zone` /
+  `carrier_rate` (+ RLS lesen=`is_staff`, schreiben admin/office/shipping;
+  Seed dhl/dpd/post/wackler). Ninox-Startbestand über `pnpm --filter sync
+  fracht:import`: 95 Wackler-Zonen (PLZ→Zone aus `EB`), 243 Wackler-kg-Staffeln
+  (`FB`), 8 DPD- + 2 Post-Staffeln (`FF`). DHL = Platzhalter 0 € (Einheitspreis
+  bis 31,5 kg, in UI pflegen).
+  Web: `/einstellungen/frachtpreise` (Staffeln je Carrier pflegen/löschen),
+  `/versand` (Frachtpreis-Vergleich: PLZ + Gewicht je Packstück → DHL/DPD/Post
+  je Packstück vs. Wackler-Spedition Gesamtgewicht→Zone, sortiert, günstigste
+  markiert). Logik in `apps/web/src/lib/fracht.ts` (`frachtvergleich`).
+  Zu schwere Packstücke werden für die Paketdienste automatisch auf mehrere
+  gleich schwere Pakete ≤ Carrier-Maximum (i. d. R. 31,5 kg) aufgeteilt,
+  optional weiter über „max kg/Paket" begrenzbar; Brief/Mailing (Post) wird
+  nicht aufgeteilt. Einzelwert im Feld = Gesamtgewicht in einem Stück.
+- [x] **Versand Phase 2 (Teil 1) — Sendungs-Erfassung.**
+  Migration `20260902100000_shipment.sql`: `shipment` (Nr. `VS-…` Jahres-Reset,
+  Status erfasst→…→zugestellt/storniert, carrier, Auftrags-FK optional),
+  `shipment_recipient` (Adress-Snapshot + `verified`/`verified_at`/`verified_by`
+  /`verify_result`), `shipment_package`, `shipment_item` (+ RLS
+  lesen `is_staff`, schreiben admin/office/shipping). Eine Sendung = ein
+  Empfänger (Verteilerliste folgt).
+  Web: `/versand` Sendungsliste, `/versand/neu` (Kunde suchen → Adresse aus der
+  Kundentabelle wählen oder frei eingeben → Carrier/Datum/Notiz), `/versand/[id]`
+  (Kopfdaten, Empfänger inkl. „Adresse prüfen" = PLZ-/Pflichtfeld-Plausibilität
+  bzw. „als geprüft markieren", Packstücke **aus Gewicht erzeugen** [max kg/Stk
+  oder Anzahl; Paket vs. Palette je Carrier-Art] + einzeln editierbar,
+  Positionen editierbar, Status).
+  Druckansichten (eigenes Layout, kein Sidebar): `/druck/lieferschein/[id]`
+  (Empfänger, Positionen, Packstück-Übersicht, Unterschriftszeile),
+  `/druck/etikett/[id]` (ein Etikett je Packstück, „Paket x von y"). „Drucken /
+  PDF"-Knopf; Absender aus `setting/company.profile`.
+  Frachtpreis-Vergleich nach `/versand/vergleich` verschoben.
+- [x] **Versand Phase 2 (Teil 2) — 8-Schritte-Ablauf.**
+  Migration `20260903090000_shipment_flow.sql`: `shipment` +Absender-Snapshot
+  (`sender_mode` bechtel/kunde/frei, sender_*), `neutral_versand` (white label),
+  `total_weight_kg` + `weight_mode` (positionen/manuell), `notify_recipient` +
+  `notify_email`, `keyline_shipment_ref`; `shipment_item` +`weight_kg`,
+  +`customs_value`/`customs_tariff_no`/`origin_country` (Proforma).
+  `/versand/[id]` als nummerierter Ablauf: **1** Empfänger · **2** Absender
+  (Bechtel / Absender des Kunden / frei, neutraler Versand) · **3** Inhalt +
+  Gewicht (Positionsgewichte → Summe *oder* manuell, Pflicht) · **4**
+  Frachtpreis-Vorschlag (inline `frachtvergleich`, „übernehmen" setzt Carrier)
+  · **5** Frachtweg · **6** Packstücke (Tracking-Nr je Stück) · **7** Druck
+  (Frachtlabels / Lieferschein / Proforma) · **8** Benachrichtigung
+  (Mail-Wunsch + Adresse; Versand später mit Carrier-API).
+  Neu `/druck/proforma/[id]` (Zollwert je Position, Warenwert gesamt).
+  Absender in Lieferschein/Etikett folgt jetzt dem Sendungs-Absender bzw.
+  bleibt bei „neutral" leer.
+  Keyline geprüft: `/logistics/shipments/{id}` bzw.
+  `…/packagings/{id}/shipment` liefert Liefer-/Absenderadresse + Carrier +
+  `white_label`, **kein** Gewicht/Packstück/Tracking → nur als Prefill nutzbar
+  (Knopf „aus Keyline-Auftrag" kommt mit der Auftragsverknüpfung).

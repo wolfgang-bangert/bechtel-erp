@@ -118,14 +118,22 @@ Funktion `frachtvergleich({ carrier?, plz, land, packstuecke: [{gewicht}], gesam
 
 ## Bauabschnitte
 
-1. **Frachtpreise**: Schema `carrier` / `carrier_zone` / `carrier_rate`,
-   Pflege-UI, CSV-Import, **Preisvergleich-Funktion + kleine Vergleichsseite**.
-   → Ninox-Daten (EB/FB/FF) ziehe ich als Startbestand.
-2. **Sendung / Packstück / Position** Schema + Erfassungs-UI, `shipment_cost`,
-   Lieferschein-PDF.
+1. ✅ **Frachtpreise**: Schema `carrier` / `carrier_zone` / `carrier_rate`,
+   Pflege-UI (`/einstellungen/frachtpreise`), Ninox-Import (`fracht:import`),
+   Preisvergleich `frachtvergleich()` + Seite `/versand/vergleich` (inkl.
+   Auto-Split zu schwerer Packstücke für Paketdienste).
+2. ⏳ **Sendung / Packstück / Position** Schema + Erfassungs-UI (`/versand`,
+   `/versand/neu`, `/versand/[id]`), Lieferschein + Etikett als Druckansicht
+   (`/druck/lieferschein/[id]`, `/druck/etikett/[id]`). **Erledigt.**
+   Offen in diesem Abschnitt: `shipment_cost` (Frachtkosten semantisch),
+   echtes PDF + S3-Archiv, Auftrags-Positionsübernahme.
 3. **Verteilerlisten-Import** + Review-Seite; **Kartonberechnung** (`XG`/`ZG`).
 4. **Proforma CH**; **Etiketten-Modul** (Designer).
 5. **Carrier-APIs** DHL → DPD → Wackler; Tracking-Push.
+
+Adressprüfung Phase 2: nur lokale Plausibilität (PLZ-Länge je Land,
+Pflichtfelder) + manuelles „als geprüft markieren". Echte Adressvalidierung
+(DHL/Post-API) zusammen mit den Carrier-APIs in Abschnitt 5.
 
 ---
 
