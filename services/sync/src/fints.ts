@@ -48,8 +48,12 @@ export function loadFintsBanks(): FintsBank[] {
 }
 
 function pinFor(kuerzel: string): string {
-  const v = process.env[`FINTS_PIN_${kuerzel.toUpperCase()}`];
-  if (!v || !v.trim()) throw new Error(`FINTS_PIN_${kuerzel.toUpperCase()} in .env fehlt`);
+  const k = kuerzel.toUpperCase();
+  // erst exakt, dann ohne angehängte Ziffer (oberbank2 -> oberbank): mehrere
+  // Konten am selben Zugang teilen sich eine PIN.
+  const base = k.replace(/\d+$/, "");
+  const v = process.env[`FINTS_PIN_${k}`] ?? (base !== k ? process.env[`FINTS_PIN_${base}`] : undefined);
+  if (!v || !v.trim()) throw new Error(`FINTS_PIN_${k} (oder FINTS_PIN_${base}) in .env fehlt`);
   return v.trim();
 }
 
@@ -176,14 +180,22 @@ export async function fintsPull(opts: { kuerzel?: string; days?: number; dryRun?
 
   if (!dryRun && balances.length) {
     for (const b of balances) {
-      await supabase
+      const patch = {
+        balance: b.balance,
+        balance_date: b.balance_date,
+        balance_at: new Date().toISOString(),
+      };
+      const { data: upd } = await supabase
         .from("bank_account")
-        .update({
-          balance: b.balance,
-          balance_date: b.balance_date,
-          balance_at: new Date().toISOString(),
-        })
-        .eq("iban", b.iban);
+        .update(patch)
+        .eq("iban", b.iban)
+        .select("id");
+      if (!upd?.length) {
+        // Konto noch nicht angelegt (0 Umsätze) → mit Saldo anlegen
+        await supabase
+          .from("bank_account")
+          .insert({ iban: b.iban, label: `Konto ${b.iban.slice(-4)}`, ...patch });
+      }
     }
   }
   const importedCount = "imported" in imp ? (imp.imported ?? 0) : 0;
