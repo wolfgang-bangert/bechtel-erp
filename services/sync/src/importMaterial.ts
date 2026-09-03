@@ -18,6 +18,19 @@ const int = (v: unknown): number | null => {
 };
 
 const PAPPAUFSTELLER_REF = "werk:pappaufsteller";
+
+/**
+ * Korrekturen zu veralteten Xano-Daten (per Materialname). Werden bei jedem
+ * Import angewandt, bis sie in Xano selbst bereinigt sind.
+ */
+const KATALOG_OVERRIDES: Record<
+  string,
+  { attribute?: Record<string, string | number> }
+> = {
+  Graupappe: {
+    attribute: { Sorte: "Karton", Grammatur_g: "300", Oberfläche: "rauh", dicke_mm: 0.48 },
+  },
+};
 /** Platzhalter/leere Katalogzeilen: kein Name, kein Kurzname, oder "Material 38". */
 const isPlaceholderRow = (r: Record<string, unknown>) => {
   const name = s(r.name);
@@ -123,7 +136,9 @@ export async function importMaterial(opts: Options = {}) {
 
   // --- Material
   const material = keepKatalog.map((r) => {
-    const attribute = flattenTags(r.tags);
+    const name = s(r.name) ?? `Material ${r.id}`;
+    const ovr = KATALOG_OVERRIDES[name];
+    const attribute = ovr?.attribute ? { ...flattenTags(r.tags), ...ovr.attribute } : flattenTags(r.tags);
     // Tischaufsteller sind in Xano an einer falschen Rolle → Pappaufsteller
     const rolleId =
       attribute.Funktion === "Tischaufsteller" && pappaufstellerId
@@ -133,7 +148,7 @@ export async function importMaterial(opts: Options = {}) {
           : null;
     return {
       xano_ref: String(r.id),
-      name: s(r.name) ?? `Material ${r.id}`,
+      name,
       name_kurz: s(r.name_kurz),
       beschreibung: s(r.beschreibung),
       rolle_id: rolleId,
