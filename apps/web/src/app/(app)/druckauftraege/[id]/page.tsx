@@ -29,6 +29,31 @@ function AddrBlock({ a }: { a: Record<string, unknown> | null }) {
   );
 }
 
+type ResolveResult = {
+  stammartikel_id: string | null;
+  gruppe: string | null;
+  attribute: Record<string, unknown>;
+  optionen: { typ: string | null; wert: string | null; sku: string }[];
+  blockstaerke_mm: number;
+  flux_template: string | null;
+  materialliste: {
+    regel: string;
+    rolle: string | null;
+    verwendung: string | null;
+    material: string | null;
+    material_kurz: string | null;
+    grammatur: string | null;
+    format: string | null;
+    menge: number;
+    produktionshinweis: string | null;
+    seite: string | null;
+    bedruckt: boolean | null;
+    ungeloest?: string;
+  }[];
+  ungeloest: string[];
+  hinweise: string[];
+};
+
 type Detail = {
   id: string;
   external_id: string;
@@ -45,6 +70,8 @@ type Detail = {
   sender: Record<string, unknown> | null;
   received_at: string;
   raw: unknown;
+  resolve_result: ResolveResult | null;
+  resolved_at: string | null;
   portal: { code?: string; name?: string } | null;
   items: { position: string | null; sku: string | null; quantity: number | null; description: string | null }[];
   files: {
@@ -71,7 +98,7 @@ export default async function DruckauftragPage({
     .from("portal_order")
     .select(
       "id, external_id, external_reference, reference_type, portal_state, description, quantity, " +
-        "deliver_date, currency, total_net, total_gross, ship_to, sender, received_at, raw, " +
+        "deliver_date, currency, total_net, total_gross, ship_to, sender, received_at, raw, resolve_result, resolved_at, " +
         "portal:portal_id(code, name), " +
         "items:portal_order_item(position, sku, quantity, description), " +
         "files:portal_order_file(id, typ, filename, bytes, storage_key, is_zip, source_url, fetched_at)",
@@ -165,6 +192,97 @@ export default async function DruckauftragPage({
       <p className="lead" style={{ marginTop: 4 }}>
         Welche Positionen produktionsrelevant sind, klärt die SKU-Regel-Engine (Phase 2).
       </p>
+
+      <h2>
+        Auflösung{" "}
+        {data.resolved_at && (
+          <span className="count">zuletzt {fmtDate(data.resolved_at)}</span>
+        )}
+      </h2>
+      {!data.resolve_result ? (
+        <p className="lead">
+          Noch nicht aufgelöst. CLI: <code>pnpm --filter sync opri:resolve --ref={data.external_reference}</code>
+        </p>
+      ) : (
+        (() => {
+          const r = data.resolve_result;
+          return (
+            <>
+              <dl className="kv">
+                <dt>Produktgruppe</dt>
+                <dd>{r.gruppe ?? "—"}</dd>
+                <dt>Stammartikel erkannt</dt>
+                <dd>{r.stammartikel_id ? "ja" : "nein"}</dd>
+                <dt>Attribute</dt>
+                <dd>
+                  {Object.entries(r.attribute ?? {})
+                    .map(([k, v]) => `${k}=${v}`)
+                    .join(", ") || "—"}
+                </dd>
+                <dt>Optionen</dt>
+                <dd>
+                  {(r.optionen ?? []).map((o) => o.typ ?? o.sku).join(" · ") || "—"}
+                </dd>
+                <dt>Blockstärke</dt>
+                <dd>{r.blockstaerke_mm ? `${r.blockstaerke_mm} mm` : "—"}</dd>
+                <dt>flux_template</dt>
+                <dd>{r.flux_template ?? <span className="msg-err">nicht gesetzt (Regel fehlt)</span>}</dd>
+              </dl>
+
+              <h3 style={{ margin: "14px 0 6px", fontSize: 14 }}>Materialliste</h3>
+              {r.materialliste?.length ? (
+                <div className="table-scroll">
+                  <table className="data">
+                    <thead>
+                      <tr>
+                        <th>Rolle / Verwendung</th>
+                        <th>Material</th>
+                        <th style={{ textAlign: "right" }}>Menge</th>
+                        <th>Hinweis</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {r.materialliste.map((m, i) => (
+                        <tr key={i}>
+                          <td>
+                            {m.rolle ?? "?"}
+                            {m.verwendung ? ` · ${m.verwendung}` : ""}
+                            {m.seite ? ` · ${m.seite}` : ""}
+                          </td>
+                          <td>
+                            {m.material_kurz || m.material || "—"}
+                            {m.grammatur ? ` (${m.grammatur})` : ""}
+                            {m.format ? ` ${m.format}` : ""}
+                          </td>
+                          <td style={{ textAlign: "right" }}>{m.menge}</td>
+                          <td className="count">
+                            {m.ungeloest ? (
+                              <span className="msg-err">{m.ungeloest}</span>
+                            ) : (
+                              m.produktionshinweis ?? ""
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="lead">Keine Materialregel hat gegriffen.</p>
+              )}
+
+              {(r.ungeloest?.length || r.hinweise?.length) && (
+                <p className="lead" style={{ marginTop: 8 }}>
+                  {r.ungeloest?.length ? (
+                    <>Nicht zugeordnete SKUs: {r.ungeloest.join(", ")}. </>
+                  ) : null}
+                  {(r.hinweise ?? []).join(" · ")}
+                </p>
+              )}
+            </>
+          );
+        })()
+      )}
 
       <h2>Dateien</h2>
       <div className="table-scroll">

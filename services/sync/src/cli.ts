@@ -311,6 +311,19 @@ async function main() {
       console.log(JSON.stringify(await importMaterial({ dryRun }), null, 1));
       break;
     }
+    case "opri:import-sku": {
+      console.log(`SKU-Katalog aus Sortiment_Bechtel_Gesamt.xlsx${dryRun ? "  (DRY RUN)" : ""}`);
+      const { importOpriSku } = await import("./importOpriSku");
+      console.log(JSON.stringify(await importOpriSku({ dryRun }), null, 1));
+      break;
+    }
+    case "opri:resolve": {
+      const refArg = process.argv.find((a) => a.startsWith("--ref="))?.split("=")[1];
+      const all = process.argv.includes("--all");
+      const { resolveOpri } = await import("./opriResolve");
+      console.log(JSON.stringify(await resolveOpri({ ref: refArg, all, dryRun }), null, 1));
+      break;
+    }
     case "portal:pull": {
       const portalArg =
         process.argv.find((a) => a.startsWith("--portal="))?.split("=")[1] ?? "onlineprinters";

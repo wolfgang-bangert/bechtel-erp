@@ -38,6 +38,8 @@
     "fints:pull": "tsx src/cli.ts fints:pull",
     "fracht:import": "tsx src/cli.ts fracht:import",
     "packmittel:import": "tsx src/cli.ts packmittel:import",
+    "opri:import-sku": "tsx src/cli.ts opri:import-sku",
+    "opri:resolve": "tsx src/cli.ts opri:resolve",
     "portal:pull": "tsx src/cli.ts portal:pull",
     "material:import": "tsx src/cli.ts material:import",
     "mail:fetch": "tsx src/cli.ts mail:fetch",

@@ -462,3 +462,31 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   → Phase 2: SKU-Regel-Engine (aus Xano `_facts`/`_materials` portieren, dabei
   Fehler beheben: Produktstärke mit Deckblatt, Papier matt/glänzend aus separater
   Position) → Produktionsauftrag. Phase 3: Bündelung, Preisliste, Flux-Übergabe.
+- [x] **Materialkatalog (zentral) + Xano-Import.** Migration `20260904120000`:
+  `material_rolle` / `material` (name, name_kurz, rolle_id, attribute jsonb,
+  is_active + Platzhalter Nummer/Lieferant/Preis/Bestand) / `wire_o_durchmesser`
+  (Blockstärke → Draht/Teilung). `services/sync` `material:import` aus Xano
+  (material_rollen / material_katalog / zz_diameterDoubleWire, Abgleich xano_ref):
+  8 Rollen, 34 Materialien, 13 Wire-O-Staffeln. Aufräumen re-import-sicher im
+  Importer: Rolle „Pappaufsteller"; leere Zeilen raus; `Dicke_mikrometer` →
+  `dicke_mm` normalisiert; `KATALOG_OVERRIDES` (z.B. Graupappe = Karton 300g
+  rauh 0,48 mm). `imports/online-printers/material-liste.md` als Referenz.
+- [x] **Druckaufträge Phase 2 (Gerüst): SKU-Modell + Resolver.**
+  Migration `20260905090000_opri_produkt.sql`: `opri_produkt_gruppe`
+  (`flux_template`-Default) / `opri_stammartikel` (`flux_template`-Override,
+  NULL = erben) / `opri_sku` (flache SKU-Liste: Hauptartikel-Varianten +
+  Optionswerte, `sku_norm` zum Matchen) / `opri_material_regel` (Ebene · Modus
+  hinzufügen/ersetzen/entfernen · Bedingung → Materialzeile: Rolle, Verwendung,
+  Herkunft, Menge, Format, Produktionshinweis, `zählt_zur_blockstärke`,
+  Seite/bedruckt). `portal_order` +`resolve_result` jsonb / `resolved_at`.
+  `services/sync`: `py/sortiment_dump.py` (Excel→JSON) + `importOpriSku.ts` +
+  `opri:import-sku` — aus `Sortiment_Bechtel_Gesamt.xlsx`: 9 Gruppen, 69
+  Stammartikel, 1210 Hauptartikel-Varianten, 155 Optionen. Matching über
+  normalisierte SKU (Trennzeichen raus) — 10/10 Testaufträge treffen den
+  Stammartikel, nur Rausch-SKUs (IBONUS, Datencheck, Produktionszeit) offen.
+  `opriResolve.ts` + `opri:resolve [--ref=… | --all]`: SKU-Klassifikation →
+  Stammartikel/Gruppe + Attribute (aus SKU + description) + Optionen →
+  `flux_template`-Kaskade → Materialregeln (Pass 1 + Wire-O-Pass mit Blockstärke
+  aus Blatt×Papierdicke) → gecacht in `portal_order.resolve_result`.
+  `/druckauftraege/[id]` zeigt die Auflösung. Regeln = 0 → Materialliste leer
+  (erwartet); Regeln kommen additiv rein.
