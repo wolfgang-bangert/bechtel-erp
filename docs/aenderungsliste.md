@@ -442,3 +442,23 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   `balance_date`, `balance_at`. `fints:pull` ruft zusätzlich den Saldo
   (`get_balance`) ab und schreibt ihn je IBAN aufs Konto. `/bank` zeigt oben
   eine **Kontenübersicht** (Konto, IBAN, Kontostand, Stand, Summe).
+- [x] **Druckaufträge Phase 1 — onlineprinters-Einlesen.**
+  Neues Projekt: Kundenschnittstellen ("Portale") in werk. Migration
+  `20260904110000_portal_orders.sql`: `portal` (code, kind partner_api/hosted_app,
+  config jsonb) + `portal_order` (roh `raw` + normalisiert: Menge, Liefertermin,
+  Empfänger/Absender, Betrag, `portal_state`) + `portal_order_item` (alle SKUs
+  roh) + `portal_order_file` (printData/jobSheet/thumbnail/…, S3-Key). Seed-Zeile
+  onlineprinters.
+  Adapter `services/sync/src/portalOnlineprinters.ts` + `portal:pull
+  --portal=onlineprinters [--no-files] [--limit=N]`: holt `state.state[]=NEW`
+  read-only (kein State-Zurückschreiben → **kollisionsfreier Parallelbetrieb zu
+  n8n**), dedupliziert über `external_id`, lädt printData/jobSheet/thumbnail nach
+  werk-S3 (`portal/onlineprinters/<ref>/…`), ZIP-Erkennung per Magic-Bytes.
+  Label-Endpunkte werden NICHT gezogen (ändern den onlineprinters-Status).
+  Seite `/druckauftraege` (Liste + Detail: Positionen, Adressen, Dateien mit
+  Signed-URL, Roh-JSON). launchd `ops/de.bechtel.werk.druckauftraege.plist`
+  (alle 30 min) + `scripts/druckauftraege-holen.sh`.
+  Creds: `.env` `ONLINEPRINTERS_API_KEY` / `_API_USER` / `_API_BASE`.
+  → Phase 2: SKU-Regel-Engine (aus Xano `_facts`/`_materials` portieren, dabei
+  Fehler beheben: Produktstärke mit Deckblatt, Papier matt/glänzend aus separater
+  Position) → Produktionsauftrag. Phase 3: Bündelung, Preisliste, Flux-Übergabe.

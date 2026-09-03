@@ -305,6 +305,29 @@ async function main() {
       console.log(JSON.stringify(await importPackmittel({ dryRun }), null, 1));
       break;
     }
+    case "portal:pull": {
+      const portalArg =
+        process.argv.find((a) => a.startsWith("--portal="))?.split("=")[1] ?? "onlineprinters";
+      const limArg = process.argv.find((a) => a.startsWith("--limit="))?.split("=")[1];
+      const withFiles = !flags.has("--no-files");
+      console.log(
+        `Portal-Aufträge holen: ${portalArg}${withFiles ? "" : " (ohne Dateien)"}${dryRun ? "  (DRY RUN)" : ""}`,
+      );
+      if (portalArg !== "onlineprinters") throw new Error(`kein Adapter für Portal '${portalArg}'`);
+      const { pullOnlineprinters } = await import("./portalOnlineprinters");
+      console.log(
+        JSON.stringify(
+          await pullOnlineprinters({
+            dryRun,
+            withFiles,
+            limit: limArg ? Number(limArg) : undefined,
+          }),
+          null,
+          1,
+        ),
+      );
+      break;
+    }
     case "skonto:apply": {
       const arg = (n: string) => process.argv.find((a) => a.startsWith(n + "="))?.split("=")[1];
       const pct = arg("--max-percent");

@@ -38,6 +38,7 @@
     "fints:pull": "tsx src/cli.ts fints:pull",
     "fracht:import": "tsx src/cli.ts fracht:import",
     "packmittel:import": "tsx src/cli.ts packmittel:import",
+    "portal:pull": "tsx src/cli.ts portal:pull",
     "mail:fetch": "tsx src/cli.ts mail:fetch",
     "incoming:extract": "tsx src/cli.ts incoming:extract",
     "incoming:purge": "tsx src/cli.ts incoming:purge",

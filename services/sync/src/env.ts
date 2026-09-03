@@ -72,4 +72,13 @@ export const env = {
     secret: () => required("BB_API_SECRET"),
     apiKey: () => required("BB_API_KEY"),
   },
+  onlineprinters: {
+    base: () =>
+      (process.env.ONLINEPRINTERS_API_BASE || "https://api.partner.onlineprinters.info").replace(
+        /\/+$/,
+        "",
+      ),
+    key: () => required("ONLINEPRINTERS_API_KEY"),
+    user: () => (process.env.ONLINEPRINTERS_API_USER || "").trim(),
+  },
 };
