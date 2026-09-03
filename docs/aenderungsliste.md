@@ -519,3 +519,9 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   `einheit=bogen` → 665708106 (100× A4) ergibt 50 Netto-Bogen Graupappe.
   Vernutzung-Startbestand: 61 berechnete Zeilen. RegelForm + Druckauftrag-
   Detail entsprechend erweitert.
+- [x] **Mengenformel mit Variablen.** Resolver: `mengen_formel` versteht jetzt
+  `auflage`, `blatt`, `seiten` + Arithmetik (`+ - * / ()`), z.B.
+  `auflage*blatt`. Regeln „DKL/DWK/DW-Kalendarium-Papier" angelegt
+  (Ebene Gruppe, Herkunft aus Grammatur+Oberfläche, `auflage*blatt`, Einheit
+  Bogen). 665708106 (100× A4, 14 Blatt, 170g glänzend) → Graupappe 50 Bogen +
+  Papier „170g BD glänzend" 1400 → 700 Bogen SRA3.

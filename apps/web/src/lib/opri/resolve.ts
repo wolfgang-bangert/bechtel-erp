@@ -138,13 +138,50 @@ async function pagedAll<T>(sb: SupabaseClient, table: string, sel: string): Prom
   return out;
 }
 
-function mengeFormel(formel: string, auflage: number): number {
-  const f = (formel || "auflage").toLowerCase().replace(/\s/g, "");
-  if (f === "auflage" || f === "auflage*1") return auflage;
-  if (f === "1") return 1;
-  const m = f.match(/^auflage([+*])(\d+(?:\.\d+)?)$/);
-  if (m) return m[1] === "+" ? auflage + Number(m[2]) : auflage * Number(m[2]);
-  return auflage;
+function evalArith(s: string): number {
+  let i = 0;
+  const atom = (): number => {
+    if (s[i] === "(") {
+      i++;
+      const v = add();
+      i++;
+      return v;
+    }
+    const j = i;
+    while (i < s.length && /[\d.]/.test(s[i])) i++;
+    return Number(s.slice(j, i));
+  };
+  const mul = (): number => {
+    let v = atom();
+    while (s[i] === "*" || s[i] === "/") {
+      const op = s[i++];
+      const r = atom();
+      v = op === "*" ? v * r : v / r;
+    }
+    return v;
+  };
+  const add = (): number => {
+    let v = mul();
+    while (s[i] === "+" || s[i] === "-") {
+      const op = s[i++];
+      const r = mul();
+      v = op === "+" ? v + r : v - r;
+    }
+    return v;
+  };
+  return add();
+}
+
+function mengeFormel(formel: string, vars: Record<string, number>): number {
+  let f = (formel || "auflage").toLowerCase().replace(/\s/g, "");
+  for (const [k, v] of Object.entries(vars)) f = f.split(k).join(String(v || 0));
+  if (!/^[\d.+\-*/()]+$/.test(f)) return vars.auflage ?? 1;
+  try {
+    const val = evalArith(f);
+    return Number.isFinite(val) && val > 0 ? Math.ceil(val) : vars.auflage ?? 1;
+  } catch {
+    return vars.auflage ?? 1;
+  }
 }
 
 export async function resolvePortalOrder(
@@ -307,8 +344,9 @@ export async function resolvePortalOrder(
     );
   };
 
+  const mVars = { auflage, blatt: nnum(attr.blatt) ?? 0, seiten: nnum(attr.seiten) ?? 0 };
   const build = (r: Regel, mat: Material | null, note?: string): MaterialZeile => {
-    const m = mengeFormel(r.mengen_formel, auflage);
+    const m = mengeFormel(r.mengen_formel, mVars);
     let nutzen: number | null = null;
     let netto_bogen: number | null = null;
     let druckbogen: string | null = null;
