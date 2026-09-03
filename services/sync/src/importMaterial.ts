@@ -17,12 +17,38 @@ const int = (v: unknown): number | null => {
   return n == null ? null : Math.round(n);
 };
 
-/** tags: [{key,value}] → { key: value } */
-function flattenTags(tags: unknown): Record<string, string> {
-  if (!Array.isArray(tags)) return {};
-  const out: Record<string, string> = {};
-  for (const t of tags as { key?: string; value?: string }[]) {
-    if (t?.key && t.value != null && String(t.value).trim() !== "") out[t.key] = String(t.value);
+const PAPPAUFSTELLER_REF = "werk:pappaufsteller";
+/** Platzhalter/leere Katalogzeilen: kein Name, kein Kurzname, oder "Material 38". */
+const isPlaceholderRow = (r: Record<string, unknown>) => {
+  const name = s(r.name);
+  const kurz = s(r.name_kurz);
+  if (!name && !kurz) return true;
+  return !!name && /^material\s+\d+$/i.test(name.trim());
+};
+
+/**
+ * Xano-Feld "Dicke_mikrometer" ist uneinheitlich: Papiere in Zehntel-mm
+ * ("1,7" = 0,17 mm), Pappen als echte µm ("1450" = 1,45 mm). Auf mm normalisieren.
+ */
+function dickeInMm(raw: unknown): number | null {
+  const v = flt(raw);
+  if (v == null || v <= 0) return null;
+  const mm = v >= 50 ? v / 1000 : v / 10;
+  return Math.round(mm * 10000) / 10000;
+}
+
+/** tags: [{key,value}] → { key: value }, dabei Dicke auf dicke_mm normalisieren. */
+function flattenTags(tags: unknown): Record<string, string | number> {
+  const out: Record<string, string | number> = {};
+  if (Array.isArray(tags)) {
+    for (const t of tags as { key?: string; value?: string }[]) {
+      if (t?.key && t.value != null && String(t.value).trim() !== "") out[t.key] = String(t.value);
+    }
+  }
+  if (out.Dicke_mikrometer != null) {
+    const mm = dickeInMm(out.Dicke_mikrometer);
+    if (mm != null) out.dicke_mm = mm;
+    delete out.Dicke_mikrometer;
   }
   return out;
 }
@@ -54,6 +80,8 @@ export async function importMaterial(opts: Options = {}) {
     sort: int(r.sort) ?? 100,
     is_active: r.aktiv !== false,
   }));
+  // werk-eigene Rolle (nicht in Xano): Pappaufsteller
+  rollen.push({ xano_ref: PAPPAUFSTELLER_REF, name: "Pappaufsteller", sort: 55, is_active: true });
   const wire = wireRaw.map((r) => ({
     xano_ref: String(r.id),
     blockstaerke_min: flt(r.Blockstaerke_Min) ?? 0,
@@ -67,10 +95,17 @@ export async function importMaterial(opts: Options = {}) {
     bezeichnung: s(r.Durchmesser_Wire),
   }));
 
+  // Platzhalter/leere Einträge ("Material 38" o.ä.) nicht übernehmen
+  const skipRefs = new Set(
+    katalogRaw.filter((r) => isPlaceholderRow(r)).map((r) => String(r.id)),
+  );
+  const keepKatalog = katalogRaw.filter((r) => !skipRefs.has(String(r.id)));
+
   const summary = {
     dryRun,
     rollen: rollen.length,
-    material: katalogRaw.length,
+    material: keepKatalog.length,
+    uebersprungen: skipRefs.size,
     wire_o: wire.length,
   };
   if (dryRun) return summary;
@@ -84,22 +119,37 @@ export async function importMaterial(opts: Options = {}) {
   }
   const { data: rolleRows } = await supabase.from("material_rolle").select("id, xano_ref");
   const rolleByXano = new Map((rolleRows ?? []).map((x) => [x.xano_ref as string, x.id as string]));
+  const pappaufstellerId = rolleByXano.get(PAPPAUFSTELLER_REF) ?? null;
 
   // --- Material
-  const material = katalogRaw.map((r) => ({
-    xano_ref: String(r.id),
-    name: s(r.name) ?? `Material ${r.id}`,
-    name_kurz: s(r.name_kurz),
-    beschreibung: s(r.beschreibung),
-    rolle_id: r.material_rollen_id != null ? rolleByXano.get(String(r.material_rollen_id)) ?? null : null,
-    attribute: flattenTags(r.tags),
-    is_active: true,
-  }));
+  const material = keepKatalog.map((r) => {
+    const attribute = flattenTags(r.tags);
+    // Tischaufsteller sind in Xano an einer falschen Rolle → Pappaufsteller
+    const rolleId =
+      attribute.Funktion === "Tischaufsteller" && pappaufstellerId
+        ? pappaufstellerId
+        : r.material_rollen_id != null
+          ? rolleByXano.get(String(r.material_rollen_id)) ?? null
+          : null;
+    return {
+      xano_ref: String(r.id),
+      name: s(r.name) ?? `Material ${r.id}`,
+      name_kurz: s(r.name_kurz),
+      beschreibung: s(r.beschreibung),
+      rolle_id: rolleId,
+      attribute,
+      is_active: true,
+    };
+  });
   for (let i = 0; i < material.length; i += 100) {
     const { error } = await supabase
       .from("material")
       .upsert(material.slice(i, i + 100), { onConflict: "xano_ref" });
     if (error) throw new Error(`material: ${error.message}`);
+  }
+  // übersprungene Platzhalter, die evtl. aus einem früheren Import stammen, entfernen
+  if (skipRefs.size) {
+    await supabase.from("material").delete().in("xano_ref", [...skipRefs]);
   }
 
   // --- Wire-O
