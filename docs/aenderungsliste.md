@@ -498,3 +498,15 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   (Liste + Formular für `opri_material_regel`: Ebene, Modus, Bedingung,
   Rolle/Verwendung/Herkunft/Menge/Format/Produktionshinweis,
   `zählt_zur_blockstärke`, Seite/bedruckt, Prio). Nav-Gruppe „onlineprinters".
+- [x] **Formate + Druckbögen + Vernutzung.** Migration `20260905100000`:
+  `format` (Endformate, Maße mm, Kategorie din/quadrat/sonder — DIN geseedet,
+  halb/Quadrat/Sonder Platzhalter), `druckbogen` (SRA3 [Standard] / SRA3+ /
+  SRA2 / B2 / 70×100, mit Greiferrand), `vernutzung` (n:m `format×druckbogen →
+  nutzen` + Anordnung, Randzugabe, `★ Standard`, `quelle` berechnet/manuell).
+  `apps/web/src/lib/nutzen.ts` `berechneNutzen()` (Geometrie, beide
+  Ausrichtungen). UIs `/einstellungen/formate` (CRUD) und
+  `/einstellungen/vernutzung` (Zeilen je Format, „Vorschläge erzeugen" füllt
+  aus der Geometrie, manuelle Zeilen bleiben). Nav ergänzt.
+- [x] **Regel-Seed:** „Wandkalender-Graupappe" (`opri_material_regel`, Ebene DWK)
+  aus `materialregeln.rtf` angelegt — bei 665708106 erscheint die Graupappe-
+  Zeile, `blockstaerke_mm` 2,38 → 2,86 (Graupappe 0,48 zählt mit).

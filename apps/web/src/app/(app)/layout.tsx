@@ -41,6 +41,8 @@ export default async function AppLayout({
         <Link href="/einstellungen/sachkonten">Sachkonten</Link>
         <Link href="/einstellungen/steuerschluessel">Steuerschlüssel</Link>
         <Link href="/einstellungen/kostenstellen">Kostenstellen</Link>
+        <Link href="/einstellungen/formate">Formate & Bögen</Link>
+        <Link href="/einstellungen/vernutzung">Vernutzung</Link>
         <Link href="/einstellungen/frachtpreise">Frachtpreise</Link>
         <Link href="/einstellungen/versandartikel">Versandartikel</Link>
         <Link href="/einstellungen/packmittel">Kartonagen</Link>
