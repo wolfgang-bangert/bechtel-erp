@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolvePortalOrder } from "@/lib/opri/resolve";
+import { erzeugeDruckjobs } from "@/lib/druck/materialize";
 
 export type State = { ok?: boolean; error?: string; note?: string };
 
@@ -24,6 +25,26 @@ export async function resolveOrderAction(_prev: State, fd: FormData): Promise<St
       note: result.stammartikel_id
         ? `aufgelöst — ${n} Materialzeile(n), ${result.ungeloest.length} SKU offen`
         : "kein Stammartikel erkannt",
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export async function druckjobsAction(_prev: State, fd: FormData): Promise<State> {
+  const id = String(fd.get("id") ?? "");
+  if (!id) return { error: "id fehlt" };
+  const supabase = await createClient();
+  try {
+    const r = await erzeugeDruckjobs(supabase, id);
+    revalidatePath(`/druckauftraege/${id}`);
+    revalidatePath("/druck");
+    const bat = r.batches.map((b) => `${b.nummer} (${b.jobs})`).join(", ");
+    return {
+      ok: true,
+      note: `${r.jobs} Druckjob(s) in ${r.batches.length} Batch(es): ${bat}${
+        r.batches_neu ? ` · ${r.batches_neu} neu` : ""
+      }`,
     };
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };

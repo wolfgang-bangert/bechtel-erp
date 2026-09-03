@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { fmtDate } from "@/lib/format";
 import { ResolveButton } from "./ResolveButton";
+import { DruckjobsButton } from "./DruckjobsButton";
 
 export const dynamic = "force-dynamic";
 
@@ -130,6 +131,29 @@ export default async function DruckauftragPage({
       url: f.storage_key ? await signedGetUrl(f.storage_key) : null,
     })),
   );
+
+  const { data: jobsRaw } = await supabase
+    .from("druckjob")
+    .select(
+      "id, bauteil, papier, farbigkeit, format, druckbogen, nutzen, netto_bogen, auflage, cello, cello_seiten, status, batch:batch_id(nummer, status)",
+    )
+    .eq("portal_order_id", id)
+    .order("created_at", { ascending: true });
+  const jobs = (jobsRaw ?? []) as unknown as {
+    id: string;
+    bauteil: string;
+    papier: string | null;
+    farbigkeit: string | null;
+    format: string | null;
+    druckbogen: string | null;
+    nutzen: number | null;
+    netto_bogen: number | null;
+    auflage: number;
+    cello: string;
+    cello_seiten: number;
+    status: string;
+    batch: { nummer: string; status: string } | null;
+  }[];
 
   return (
     <>
@@ -317,7 +341,63 @@ export default async function DruckauftragPage({
         })()
       )}
 
-      <h2>Dateien</h2>
+      <div className="toolbar" style={{ justifyContent: "space-between", marginTop: 18 }}>
+        <h2 style={{ margin: 0 }}>
+          Druckjobs {jobs.length > 0 && <span className="tag">{jobs.length}</span>}
+        </h2>
+        <DruckjobsButton id={data.id} />
+      </div>
+      {jobs.length === 0 ? (
+        <p className="lead">
+          Noch keine Druckjobs. „Druckjobs erzeugen" legt pro bedrucktem Bauteil einen Job an und
+          sortiert ihn in einen Batch (Schlüssel: Verfahren · Cello · Papier · Druckbogen).
+        </p>
+      ) : (
+        <div className="table-scroll">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Bauteil</th>
+                <th>Papier / Farbe</th>
+                <th style={{ textAlign: "right" }}>Bogen</th>
+                <th>Cello</th>
+                <th>Batch</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {jobs.map((j) => (
+                <tr key={j.id}>
+                  <td>{j.bauteil}</td>
+                  <td>
+                    {j.papier ?? "—"}
+                    {j.farbigkeit ? ` · ${j.farbigkeit}` : ""}
+                    {j.format ? ` · ${j.format}` : ""}
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    {j.netto_bogen != null ? j.netto_bogen : "—"}
+                    {j.druckbogen ? ` ${j.druckbogen}` : ""}
+                    {j.nutzen ? ` (${j.nutzen}-up)` : ""}
+                  </td>
+                  <td>
+                    {j.cello === "keine" ? "—" : `${j.cello}, ${j.cello_seiten}-seitig`}
+                  </td>
+                  <td>
+                    {j.batch ? (
+                      <Link href="/druck">{j.batch.nummer}</Link>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="count">{j.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h2 style={{ marginTop: 18 }}>Dateien</h2>
       <div className="table-scroll">
         <table className="data">
           <thead>
