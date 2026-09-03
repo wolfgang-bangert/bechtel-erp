@@ -321,6 +321,9 @@ export async function resolvePortalOrder(
   if (!attr.blatt && bl) attr.blatt = Number(bl[1]);
   if (!attr.oberflaeche && /coated|gestrichen/i.test(desc)) attr.oberflaeche = "glänzend";
   if (!attr.format) attr.format = decodeFormat(desc);
+  const seitenM = desc.match(/(\d+)\s*(?:pages|Seiten|seitig)/i);
+  if (!attr.seiten && seitenM) attr.seiten = Number(seitenM[1]);
+  if (!attr.blatt && attr.seiten) attr.blatt = Math.round(Number(attr.seiten) / 2);
 
   const grp0 = gruppeKuerzel ? gruppen.get(gruppeKuerzel) : undefined;
   const fluxTemplate =
@@ -353,7 +356,9 @@ export async function resolvePortalOrder(
         const ma = m.attribute ?? {};
         if (g != null && nnum(ma.Grammatur_g) !== g) return false;
         if (sorte && String(ma.Sorte ?? "").toLowerCase() !== sorte.toLowerCase()) return false;
-        if (ober) {
+        // Offset/Recycling sind ungestrichen – ein „glänzend" stammt dann vom Umschlag,
+        // nicht vom Inhaltspapier (siehe Spiral-Booklet). Oberfläche nur bei gestrichenen Sorten prüfen.
+        if (ober && !/offset|recycling/i.test(sorte)) {
           const mo = String(ma.Oberfläche ?? "").toLowerCase();
           if (ober === "glänzend" && !mo.includes("glänz")) return false;
           if (ober === "matt" && !mo.includes("matt")) return false;
@@ -428,14 +433,20 @@ export async function resolvePortalOrder(
     zeilen.push(build(r, mat, note));
   }
 
-  const papier = findPapier();
-  const papierDicke = nnum(papier?.attribute?.dicke_mm) ?? 0;
-  const blatt = nnum(attr.blatt) ?? 0;
-  let block = blatt * papierDicke;
+  // Blockstärke pro Exemplar = Σ (Blatt-pro-Exemplar × Materialdicke) über Zeilen mit Flag.
+  const auflDiv = Math.max(1, auflage);
+  let block = 0;
   for (const z of zeilen) {
     if (!z.zaehlt_zur_blockstaerke) continue;
     const m = material.find((x) => x.name === z.material);
-    block += nnum(m?.attribute?.dicke_mm) ?? 0;
+    const d = nnum(m?.attribute?.dicke_mm) ?? 0;
+    const proExpl =
+      z.einheit === "bogen" || z.einheit === "blatt" ? (z.menge > 0 ? z.menge / auflDiv : 0) : 1;
+    block += d * proExpl;
+  }
+  if (block === 0) {
+    const papier = findPapier();
+    block = (nnum(attr.blatt) ?? 0) * (nnum(papier?.attribute?.dicke_mm) ?? 0);
   }
   block = Math.round(block * 100) / 100;
 

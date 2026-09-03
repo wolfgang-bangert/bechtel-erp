@@ -22,8 +22,10 @@ function decode(text: string): Record<string, string | number> {
   if (g) a.grammatur_g = Number(g[1]);
   const blatt = text.match(/(\d+)[\s-]*Blatt/i);
   if (blatt) a.blatt = Number(blatt[1]);
-  const seiten = text.match(/(\d+)[\s-]*seitig/i);
+  const seiten = text.match(/(\d+)[\s-]*(?:seitig|pages|Seiten)/i);
   if (seiten) a.seiten = Number(seiten[1]);
+  // Booklet: 1 Blatt = 2 Seiten
+  if (a.seiten != null && a.blatt == null) a.blatt = Math.round(Number(a.seiten) / 2);
   if (/Offset/i.test(text)) a.sorte = "Offset";
   else if (/Recycling/i.test(text)) a.sorte = "Recycling";
   else if (/Multiloft/i.test(text)) a.sorte = "Multiloft";
