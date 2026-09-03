@@ -81,4 +81,13 @@ export const env = {
     key: () => required("ONLINEPRINTERS_API_KEY"),
     user: () => (process.env.ONLINEPRINTERS_API_USER || "").trim(),
   },
+  xano: {
+    metaBase: () =>
+      (process.env.XANO_META_BASE || "https://xv05-su7k-rvc8.f2.xano.io/api:meta").replace(
+        /\/+$/,
+        "",
+      ),
+    token: () => required("API-Export-Readonly"),
+    workspace: () => Number(process.env.XANO_WORKSPACE || 1),
+  },
 };

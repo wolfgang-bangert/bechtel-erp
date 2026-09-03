@@ -305,6 +305,12 @@ async function main() {
       console.log(JSON.stringify(await importPackmittel({ dryRun }), null, 1));
       break;
     }
+    case "material:import": {
+      console.log(`Materialkatalog aus Xano importieren${dryRun ? "  (DRY RUN)" : ""}`);
+      const { importMaterial } = await import("./importMaterial");
+      console.log(JSON.stringify(await importMaterial({ dryRun }), null, 1));
+      break;
+    }
     case "portal:pull": {
       const portalArg =
         process.argv.find((a) => a.startsWith("--portal="))?.split("=")[1] ?? "onlineprinters";
