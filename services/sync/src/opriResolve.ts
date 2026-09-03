@@ -13,6 +13,52 @@ const nnum = (v: unknown) => {
   return Number.isFinite(n) ? n : null;
 };
 
+/** Format-Kürzel aus Freitext (A2..A6, DL, "A4 halb", "A5-Quadrat", "N x N cm"). */
+export function decodeFormat(text: string): string | null {
+  const cm = text.match(/(\d+[.,]?\d*)\s*[x×]\s*(\d+[.,]?\d*)\s*cm/i);
+  if (cm) return `${cm[1].replace(".", ",")} × ${cm[2].replace(".", ",")} cm`;
+  const halb = text.match(/\b(A[2-6])[\s-]*halb\b/i);
+  if (halb) return `${halb[1].toUpperCase()} halb`;
+  const quad = text.match(/\b(A[2-6])[\s-]*Quadrat\b/i);
+  if (quad) return `${quad[1].toUpperCase()}-Quadrat`;
+  const a = text.match(/\b(?:DIN[\s-]*)?(A[2-6])\b/i);
+  if (a) return a[1].toUpperCase();
+  if (/\bDL\b/.test(text)) return "DL";
+  return null;
+}
+
+/** Optionswert → zusätzliche Attribute (Ausrichtung, Bindung/Hänger, Spiralfarbe). */
+export function applyOptionAttrs(
+  attr: Record<string, unknown>,
+  typ: string | null,
+  wert: string | null,
+  sku: string,
+): void {
+  const t = `${typ ?? ""} ${wert ?? ""}`.toLowerCase();
+  const s = norm(sku);
+
+  if (/gl[äa]nzend/.test(t)) attr.oberflaeche = "glänzend";
+  else if (/matt/.test(t)) attr.oberflaeche = "matt";
+
+  if (/ausrichtung|hoch-?\/?querformat/.test(t) || /XXQ/.test(s)) {
+    if (/hochformat|portrait/.test(t) || /Q00/.test(s)) attr.ausrichtung = "Hochformat";
+    else if (/querformat|landscape/.test(t) || /Q01/.test(s)) attr.ausrichtung = "Querformat";
+  }
+
+  // Bindung: B07 = Wire-O, B09 = Wire-O + Kalenderaufhänger (kein eigener Hänger-SKU von onlineprinters)
+  if (/wire-?o/.test(t) || /XX[AB]?B0/.test(s)) {
+    attr.bindung = "Wire-O";
+    if (/kalenderauf|calendar hanger|kalenderh[äa]nger/.test(t) || /B09/.test(s))
+      attr.kalenderaufhaenger = true;
+  }
+
+  if (/spiral(en)?farbe/.test(t)) {
+    if (/silber|silver/.test(t)) attr.spiralfarbe = "silber";
+    else if (/schwarz|black/.test(t)) attr.spiralfarbe = "schwarz";
+    else if (/wei[ßs]|white/.test(t)) attr.spiralfarbe = "weiß";
+  }
+}
+
 type SkuRow = {
   sku_norm: string;
   typ: "hauptartikel" | "option";
@@ -153,11 +199,7 @@ function resolveOne(
       Object.assign(attr, hit.attribute ?? {});
     } else {
       optionen.push({ typ: hit.option_typ_name, wert: hit.wert_name, sku: it.sku });
-      // Oberfläche / Farbe aus Optionstext ziehen
-      const t = `${hit.option_typ_name ?? ""} ${hit.wert_name ?? ""}`.toLowerCase();
-      if (/gl[äa]nzend/.test(t)) attr.oberflaeche = "glänzend";
-      else if (/matt/.test(t)) attr.oberflaeche = "matt";
-      if (/wire-?o/.test(t)) attr.bindung = "Wire-O";
+      applyOptionAttrs(attr, hit.option_typ_name, hit.wert_name, it.sku);
     }
   }
 
@@ -168,6 +210,7 @@ function resolveOne(
   const bl = desc.match(/(\d+)\s*(?:sheets|Blatt)/i);
   if (!attr.blatt && bl) attr.blatt = Number(bl[1]);
   if (!attr.oberflaeche && /coated|gestrichen/i.test(desc)) attr.oberflaeche = "glänzend";
+  if (!attr.format) attr.format = decodeFormat(desc);
 
   // flux_template: Stammartikel überschreibt Gruppe
   const grp = gruppeKuerzel ? order.gruppen?.get(gruppeKuerzel) : undefined;
