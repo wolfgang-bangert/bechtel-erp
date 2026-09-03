@@ -534,3 +534,11 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   angelegt → 665708106: Drahtbinderücken ¼ Zoll 3:1 schwarz, ~25 Schlaufen,
   Bindeseite Kopf. matchRegel prüft für Options-Regeln jetzt auch den
   Optionswert-Text.
+- [x] **Wire-O: Kalenderaufhänger + Schlaufen gesamt.** `ZDDWKXXB.B09` =
+  „Wire-o with calendar hanger": setzt `attr.kalenderaufhaenger` → in der
+  Schlaufenberechnung **−3 Schlaufen** (Platz für den Aufhänger). Neue
+  Zeilen-Felder `schlaufen` (pro Exemplar) + `schlaufen_gesamt`
+  (= Schlaufen/Expl. × Auflage). Regel „Wire-O-Kalenderaufhänger"
+  (option_match = kalenderaufhäng, Katalog „Kalenderaufhänger", Menge Auflage)
+  angelegt. 665708106: Wire-O ¼ Zoll 3:1, 22 Schlaufen/Expl. · 2.200 gesamt,
+  plus 100× Kalenderaufhänger.

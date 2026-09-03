@@ -53,6 +53,7 @@ type ResolveResult = {
     durchmesser?: string | null;
     teilung?: string | null;
     schlaufen?: number | null;
+    schlaufen_gesamt?: number | null;
     bindeseite?: string | null;
     produktionshinweis: string | null;
     seite: string | null;
@@ -267,7 +268,13 @@ export default async function DruckauftragPage({
                               <div className="count">
                                 Ø {m.durchmesser}
                                 {m.teilung ? ` · ${m.teilung}` : ""}
-                                {m.schlaufen ? ` · ${m.schlaufen} Schlaufen` : ""}
+                                {m.schlaufen != null
+                                  ? ` · ${m.schlaufen} Schlaufen/Expl.${
+                                      m.schlaufen_gesamt != null
+                                        ? ` · ${m.schlaufen_gesamt.toLocaleString("de-DE")} gesamt`
+                                        : ""
+                                    }`
+                                  : ""}
                                 {m.bindeseite ? ` · ${m.bindeseite}` : ""}
                               </div>
                             )}

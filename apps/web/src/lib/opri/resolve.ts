@@ -77,6 +77,7 @@ export type MaterialZeile = {
   durchmesser: string | null;
   teilung: string | null;
   schlaufen: number | null;
+  schlaufen_gesamt: number | null;
   bindeseite: string | null;
   produktionshinweis: string | null;
   zaehlt_zur_blockstaerke: boolean;
@@ -395,6 +396,7 @@ export async function resolvePortalOrder(
       durchmesser: null,
       teilung: null,
       schlaufen: null,
+      schlaufen_gesamt: null,
       bindeseite: null,
       produktionshinweis: r.produktionshinweis,
       zaehlt_zur_blockstaerke: r.zaehlt_zur_blockstaerke,
@@ -477,11 +479,16 @@ export async function resolvePortalOrder(
         const seite = String(attr.bindeseite ?? "Kopf");
         const kante = /links|rechts/i.test(seite) ? lang : kurz;
         const pitch = w.teilung === "2:1" ? 25.4 / 2 : 25.4 / 3;
-        z.schlaufen = Math.round(kante / pitch);
+        const haenger = attr.kalenderaufhaenger === true;
+        const proStk = Math.max(0, Math.round(kante / pitch) - (haenger ? 3 : 0));
+        z.schlaufen = proStk;
+        z.schlaufen_gesamt = proStk * auflage;
         z.bindeseite = seite;
         z.produktionshinweis =
           z.produktionshinweis ??
-          `Blockstärke ${block} mm → ${z.durchmesser} ${w.teilung}, ~${z.schlaufen} Schlaufen (Bindeseite ${seite}, ${kante} mm)`;
+          `Blockstärke ${block} mm → ${z.durchmesser} ${w.teilung} · ${proStk} Schlaufen/Expl.` +
+            `${haenger ? " (−3 für Kalenderaufhänger)" : ""} · ${z.schlaufen_gesamt} gesamt` +
+            ` (Bindeseite ${seite}, ${kante} mm)`;
       }
     }
     z.produktionshinweis = z.produktionshinweis ?? `Blockstärke ${block} mm → ${w?.durchmesser_zoll ?? "?"}`;
