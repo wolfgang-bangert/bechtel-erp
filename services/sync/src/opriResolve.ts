@@ -37,6 +37,18 @@ export function applyOptionAttrs(
   const t = `${typ ?? ""} ${wert ?? ""}`.toLowerCase();
   const s = norm(sku);
 
+  // Folienkaschierung / Cellophanierung: eigener Arbeitsschritt, NICHT die Papieroberfläche.
+  // Ausschluss: „transparent film" (Deckblatt) und „art print/Bilderdruck … glossy" (Papiersorte).
+  if (
+    /lamination|laminier|kaschier|cellophan|zellophan|folienveredel/.test(t) &&
+    !/transparent film|transparente folie|art print|bilderdruck/.test(t)
+  ) {
+    attr.cello = /matt/.test(t) ? "matt" : /gloss|gl[äa]nz/.test(t) ? "glanz" : (attr.cello ?? "matt");
+    attr.cello_seiten = /both sides|beidseit|zweiseit|double/.test(t) ? 2 : 1;
+  } else if (/\bfinish\b/.test(t) && /matt|gloss|gl[äa]nz/.test(t)) {
+    attr.cello = /matt/.test(t) ? "matt" : "glanz";
+  }
+
   if (/gl[äa]nzend/.test(t)) attr.oberflaeche = "glänzend";
   else if (/matt/.test(t)) attr.oberflaeche = "matt";
 
@@ -100,6 +112,7 @@ type Regel = {
   prio: number;
   einheit: string;
   vernutzung_format: string | null;
+  traegt_cello: boolean;
 };
 type Material = {
   id: string;
@@ -347,6 +360,8 @@ function resolveOne(
     zaehlt_zur_blockstaerke: boolean;
     seite: string | null;
     bedruckt: boolean | null;
+    cello: "keine" | "matt" | "glanz";
+    cello_seiten: number;
     ungeloest?: string;
   };
   const zeilen: Zeile[] = [];
@@ -415,6 +430,8 @@ function resolveOne(
       zaehlt_zur_blockstaerke: r.zaehlt_zur_blockstaerke,
       seite: r.seite,
       bedruckt: r.bedruckt,
+      cello: r.traegt_cello ? ((attr.cello as "matt" | "glanz" | undefined) ?? "matt") : "keine",
+      cello_seiten: r.traegt_cello ? (nnum(attr.cello_seiten) ?? 1) : 1,
       ...(n2 ? { ungeloest: n2 } : {}),
     };
   };
@@ -516,6 +533,7 @@ function resolveOne(
     reference: order.external_reference,
     stammartikel_id: stammartikelId,
     gruppe: gruppeKuerzel,
+    druckverfahren: grp?.druckverfahren ?? null,
     attribute: attr,
     optionen,
     blockstaerke_mm: block,

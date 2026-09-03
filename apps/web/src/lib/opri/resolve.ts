@@ -37,6 +37,17 @@ function applyOptionAttrs(
 ): void {
   const t = `${typ ?? ""} ${wert ?? ""}`.toLowerCase();
   const s = norm(sku);
+  // Folienkaschierung / Cellophanierung: eigener Arbeitsschritt, NICHT die Papieroberfläche.
+  if (
+    /lamination|laminier|kaschier|cellophan|zellophan|folienveredel/.test(t) &&
+    !/transparent film|transparente folie|art print|bilderdruck/.test(t)
+  ) {
+    attr.cello = /matt/.test(t) ? "matt" : /gloss|gl[äa]nz/.test(t) ? "glanz" : (attr.cello ?? "matt");
+    attr.cello_seiten = /both sides|beidseit|zweiseit|double/.test(t) ? 2 : 1;
+  } else if (/\bfinish\b/.test(t) && /matt|gloss|gl[äa]nz/.test(t)) {
+    attr.cello = /matt/.test(t) ? "matt" : "glanz";
+  }
+
   if (/gl[äa]nzend/.test(t)) attr.oberflaeche = "glänzend";
   else if (/matt/.test(t)) attr.oberflaeche = "matt";
   if (/ausrichtung|hoch-?\/?querformat/.test(t) || /XXQ/.test(s)) {
@@ -83,12 +94,15 @@ export type MaterialZeile = {
   zaehlt_zur_blockstaerke: boolean;
   seite: string | null;
   bedruckt: boolean | null;
+  cello: "keine" | "matt" | "glanz";
+  cello_seiten: number;
   ungeloest?: string;
 };
 export type ResolveResult = {
   reference: string | null;
   stammartikel_id: string | null;
   gruppe: string | null;
+  druckverfahren: string | null;
   attribute: Record<string, unknown>;
   optionen: { typ: string | null; wert: string | null; sku: string }[];
   blockstaerke_mm: number;
@@ -128,6 +142,7 @@ type Regel = {
   prio: number;
   einheit: string;
   vernutzung_format: string | null;
+  traegt_cello: boolean;
 };
 type Material = {
   id: string;
@@ -233,7 +248,7 @@ export async function resolvePortalOrder(
       }[]),
     sb
       .from("opri_produkt_gruppe")
-      .select("id, kuerzel, flux_template")
+      .select("id, kuerzel, flux_template, druckverfahren")
       .then((r) => r.data ?? []),
     sb.from("opri_stammartikel").select("id, flux_template").then((r) => r.data ?? []),
     sb
@@ -283,7 +298,14 @@ export async function resolvePortalOrder(
   }
   const rolleName = new Map(rollen.map((r) => [r.id as string, r.name as string]));
   const gruppen = new Map(
-    grp.map((g) => [g.kuerzel as string, { id: g.id as string, flux_template: g.flux_template as string | null }]),
+    grp.map((g) => [
+      g.kuerzel as string,
+      {
+        id: g.id as string,
+        flux_template: g.flux_template as string | null,
+        druckverfahren: (g as { druckverfahren?: string | null }).druckverfahren ?? null,
+      },
+    ]),
   );
   const stammFlux = new Map(st.map((s) => [s.id as string, s.flux_template as string | null]));
 
@@ -407,6 +429,8 @@ export async function resolvePortalOrder(
       zaehlt_zur_blockstaerke: r.zaehlt_zur_blockstaerke,
       seite: r.seite,
       bedruckt: r.bedruckt,
+      cello: r.traegt_cello ? ((attr.cello as "matt" | "glanz" | undefined) ?? "matt") : "keine",
+      cello_seiten: r.traegt_cello ? (nnum(attr.cello_seiten) ?? 1) : 1,
       ...(n2 ? { ungeloest: n2 } : {}),
     };
   };
@@ -510,6 +534,7 @@ export async function resolvePortalOrder(
     reference: order.external_reference,
     stammartikel_id: stammartikelId,
     gruppe: gruppeKuerzel,
+    druckverfahren: grp0?.druckverfahren ?? null,
     attribute: attr,
     optionen,
     blockstaerke_mm: block,
