@@ -91,6 +91,8 @@ type Regel = {
   seite: string | null;
   bedruckt: boolean | null;
   prio: number;
+  einheit: string;
+  vernutzung_format: string | null;
 };
 type Material = {
   id: string;
@@ -111,8 +113,15 @@ async function allRows<T>(table: string, sel: string): Promise<T[]> {
   return out;
 }
 
+type FormatRow = { id: string; code: string; name: string; breite_mm: number | null; hoehe_mm: number | null };
+type VernutzungRow = { format_id: string; druckbogen_id: string; nutzen: number; ist_standard: boolean };
+type BogenRow = { id: string; code: string; is_default: boolean };
+
+const fmtKey = (s: string) =>
+  (s ?? "").toLowerCase().replace(/cm|mm/g, "").replace(/[\s×x,._-]/g, "");
+
 async function loadRefData() {
-  const [skus, { data: regeln }, { data: material }, { data: rollen }, { data: wire }] =
+  const [skus, { data: regeln }, { data: material }, { data: rollen }, { data: wire }, { data: formate }, { data: vern }, { data: boegen }] =
     await Promise.all([
       allRows<SkuRow>(
         "opri_sku",
@@ -124,6 +133,9 @@ async function loadRefData() {
       supabase
         .from("wire_o_durchmesser")
         .select("blockstaerke_min, blockstaerke_max, teilung, durchmesser_zoll, durchmesser_mm"),
+      supabase.from("format").select("id, code, name, breite_mm, hoehe_mm"),
+      supabase.from("vernutzung").select("format_id, druckbogen_id, nutzen, ist_standard"),
+      supabase.from("druckbogen").select("id, code, is_default"),
     ]);
   const skuByNorm = new Map<string, SkuRow>();
   for (const s of skus) {
@@ -143,7 +155,25 @@ async function loadRefData() {
       durchmesser_zoll: string | null;
       durchmesser_mm: number | null;
     }[],
+    formate: (formate ?? []) as FormatRow[],
+    vern: (vern ?? []) as VernutzungRow[],
+    boegen: (boegen ?? []) as BogenRow[],
   };
+}
+
+/** Nutzen + Standard-Druckbogen für einen Format-String (z.B. "A4"). */
+function nutzenFor(ref: Ref, fmtStr: string | null): { nutzen: number; bogen: string | null } | null {
+  if (!fmtStr) return null;
+  const k = fmtKey(fmtStr);
+  const f = ref.formate.find((x) => fmtKey(x.code) === k || fmtKey(x.name) === k || fmtKey(x.name).includes(k));
+  if (!f) return null;
+  const rows = ref.vern.filter((v) => v.format_id === f.id);
+  if (!rows.length) return null;
+  const chosen =
+    rows.find((v) => v.ist_standard) ??
+    rows.find((v) => ref.boegen.find((b) => b.id === v.druckbogen_id)?.is_default) ??
+    rows.reduce((a, b) => (b.nutzen > a.nutzen ? b : a));
+  return { nutzen: chosen.nutzen || 1, bogen: ref.boegen.find((b) => b.id === chosen.druckbogen_id)?.code ?? null };
 }
 
 type Ref = Awaited<ReturnType<typeof loadRefData>>;
@@ -245,6 +275,10 @@ function resolveOne(
     grammatur: string | null;
     format: string | null;
     menge: number;
+    einheit: string;
+    nutzen: number | null;
+    netto_bogen: number | null;
+    druckbogen: string | null;
     produktionshinweis: string | null;
     zaehlt_zur_blockstaerke: boolean;
     seite: string | null;
@@ -272,21 +306,42 @@ function resolveOne(
     return cand[0] ?? null;
   };
 
-  const build = (r: Regel, mat: Material | null, note?: string): Zeile => ({
-    regel: r.name,
-    rolle: r.material_rolle,
-    verwendung: r.verwendung,
-    material: mat?.name ?? null,
-    material_kurz: mat?.name_kurz ?? null,
-    grammatur: r.grammatur,
-    format: r.format,
-    menge: menge(r.mengen_formel, auflage),
-    produktionshinweis: r.produktionshinweis,
-    zaehlt_zur_blockstaerke: r.zaehlt_zur_blockstaerke,
-    seite: r.seite,
-    bedruckt: r.bedruckt,
-    ...(note ? { ungeloest: note } : {}),
-  });
+  const build = (r: Regel, mat: Material | null, note?: string): Zeile => {
+    const m = menge(r.mengen_formel, auflage);
+    let nutzen: number | null = null;
+    let netto_bogen: number | null = null;
+    let druckbogen: string | null = null;
+    let n2 = note;
+    if (r.einheit === "bogen" || r.einheit === "blatt") {
+      const v = nutzenFor(ref, r.vernutzung_format || (attr.format as string | null));
+      if (v) {
+        nutzen = v.nutzen;
+        druckbogen = v.bogen;
+        netto_bogen = Math.ceil(m / Math.max(1, v.nutzen));
+      } else if (!n2) {
+        n2 = `keine Vernutzung für Format '${r.vernutzung_format || attr.format || "?"}'`;
+      }
+    }
+    return {
+      regel: r.name,
+      rolle: r.material_rolle,
+      verwendung: r.verwendung,
+      material: mat?.name ?? null,
+      material_kurz: mat?.name_kurz ?? null,
+      grammatur: r.grammatur,
+      format: r.format,
+      menge: m,
+      einheit: r.einheit ?? "stück",
+      nutzen,
+      netto_bogen,
+      druckbogen,
+      produktionshinweis: r.produktionshinweis,
+      zaehlt_zur_blockstaerke: r.zaehlt_zur_blockstaerke,
+      seite: r.seite,
+      bedruckt: r.bedruckt,
+      ...(n2 ? { ungeloest: n2 } : {}),
+    };
+  };
 
   // Pass 1: alles außer Wire-O (damit Blockstärke steht)
   for (const r of applicable.filter((x) => x.herkunft !== "wire_o_blockstaerke")) {

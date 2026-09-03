@@ -19,6 +19,8 @@ export type Regel = {
   herkunft: string | null;
   material_id: string | null;
   mengen_formel: string;
+  einheit: string;
+  vernutzung_format: string | null;
   grammatur: string | null;
   format: string | null;
   produktionshinweis: string | null;
@@ -160,13 +162,31 @@ export function RegelForm({
 
       <div className="row" style={{ border: "none", padding: 0 }}>
         <F label="Mengenformel">
-          <input name="mengen_formel" defaultValue={regel?.mengen_formel ?? "auflage"} placeholder="auflage" style={{ width: 120 }} />
+          <input name="mengen_formel" defaultValue={regel?.mengen_formel ?? "auflage"} placeholder="auflage" style={{ width: 110 }} />
         </F>
+        <F label="Einheit">
+          <select name="einheit" defaultValue={regel?.einheit ?? "stück"}>
+            <option value="stück">Stück</option>
+            <option value="bogen">Bogen (Netto)</option>
+            <option value="blatt">Blatt</option>
+            <option value="m²">m²</option>
+          </select>
+        </F>
+        <F label="Vernutzung-Format">
+          <input
+            name="vernutzung_format"
+            defaultValue={regel?.vernutzung_format ?? ""}
+            placeholder="leer = Produktformat"
+            style={{ width: 130 }}
+          />
+        </F>
+      </div>
+      <div className="row" style={{ border: "none", padding: 0 }}>
         <F label="Grammatur">
           <input name="grammatur" defaultValue={regel?.grammatur ?? ""} style={{ width: 90 }} />
         </F>
-        <F label="Format">
-          <input name="format" defaultValue={regel?.format ?? ""} placeholder="31,5 × 43,8 cm" style={{ width: 130 }} />
+        <F label="Format (Info)">
+          <input name="format" defaultValue={regel?.format ?? ""} placeholder="31,5 × 43,8 cm" style={{ width: 150 }} />
         </F>
       </div>
 

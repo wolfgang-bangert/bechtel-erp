@@ -46,6 +46,10 @@ type ResolveResult = {
     grammatur: string | null;
     format: string | null;
     menge: number;
+    einheit?: string;
+    nutzen?: number | null;
+    netto_bogen?: number | null;
+    druckbogen?: string | null;
     produktionshinweis: string | null;
     seite: string | null;
     bedruckt: boolean | null;
@@ -256,7 +260,15 @@ export default async function DruckauftragPage({
                             {m.grammatur ? ` (${m.grammatur})` : ""}
                             {m.format ? ` ${m.format}` : ""}
                           </td>
-                          <td style={{ textAlign: "right" }}>{m.menge}</td>
+                          <td style={{ textAlign: "right" }}>
+                            {m.menge} {m.einheit && m.einheit !== "stück" ? "" : "Stk"}
+                            {m.netto_bogen != null && (
+                              <div className="count">
+                                {m.netto_bogen} Bogen{m.druckbogen ? ` ${m.druckbogen}` : ""}
+                                {m.nutzen ? ` (${m.nutzen}-up)` : ""}
+                              </div>
+                            )}
+                          </td>
                           <td className="count">
                             {m.ungeloest ? (
                               <span className="msg-err">{m.ungeloest}</span>

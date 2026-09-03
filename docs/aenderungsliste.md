@@ -510,3 +510,12 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
 - [x] **Regel-Seed:** „Wandkalender-Graupappe" (`opri_material_regel`, Ebene DWK)
   aus `materialregeln.rtf` angelegt — bei 665708106 erscheint die Graupappe-
   Zeile, `blockstaerke_mm` 2,38 → 2,86 (Graupappe 0,48 zählt mit).
+- [x] **Materialregeln: Ausgabeeinheit + Netto-Bogen.** Migration
+  `20260905110000`: `opri_material_regel` +`einheit` (stück/bogen/blatt/m²) +
+  `vernutzung_format` (Format-Code für die Nutzen-Berechnung; leer = Produkt-
+  format). Resolver rechnet bei `einheit=bogen`: `netto_bogen = ceil(menge /
+  nutzen)` über `vernutzung` (★-Standard bzw. Default-Bogen). Materialzeile
+  zeigt „100 Stück · 50 Bogen SRA3 (2-up)". Regel „Wandkalender-Graupappe" auf
+  `einheit=bogen` → 665708106 (100× A4) ergibt 50 Netto-Bogen Graupappe.
+  Vernutzung-Startbestand: 61 berechnete Zeilen. RegelForm + Druckauftrag-
+  Detail entsprechend erweitert.

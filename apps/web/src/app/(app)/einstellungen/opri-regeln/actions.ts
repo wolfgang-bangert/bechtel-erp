@@ -47,6 +47,8 @@ export async function saveRegel(_p: State, fd: FormData): Promise<State> {
     herkunft: s(fd, "herkunft"),
     material_id: s(fd, "herkunft") === "katalog_fix" ? s(fd, "material_id") : null,
     mengen_formel: s(fd, "mengen_formel") ?? "auflage",
+    einheit: s(fd, "einheit") ?? "stück",
+    vernutzung_format: s(fd, "vernutzung_format"),
     grammatur: s(fd, "grammatur"),
     format: s(fd, "format"),
     produktionshinweis: s(fd, "produktionshinweis"),

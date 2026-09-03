@@ -64,6 +64,10 @@ export type MaterialZeile = {
   grammatur: string | null;
   format: string | null;
   menge: number;
+  einheit: string;
+  nutzen: number | null;
+  netto_bogen: number | null;
+  druckbogen: string | null;
   produktionshinweis: string | null;
   zaehlt_zur_blockstaerke: boolean;
   seite: string | null;
@@ -111,6 +115,8 @@ type Regel = {
   seite: string | null;
   bedruckt: boolean | null;
   prio: number;
+  einheit: string;
+  vernutzung_format: string | null;
 };
 type Material = {
   id: string;
@@ -154,7 +160,7 @@ export async function resolvePortalOrder(
   if (error) throw new Error(error.message);
   if (!order) throw new Error("Auftrag nicht gefunden");
 
-  const [skus, regeln, material, rollen, wire, grp, st] = await Promise.all([
+  const [skus, regeln, material, rollen, wire, grp, st, formate, vern, boegen] = await Promise.all([
     pagedAll<SkuRow>(
       sb,
       "opri_sku",
@@ -182,7 +188,40 @@ export async function resolvePortalOrder(
       .select("id, kuerzel, flux_template")
       .then((r) => r.data ?? []),
     sb.from("opri_stammartikel").select("id, flux_template").then((r) => r.data ?? []),
+    sb
+      .from("format")
+      .select("id, code, name, breite_mm, hoehe_mm")
+      .then((r) => (r.data ?? []) as { id: string; code: string; name: string; breite_mm: number | null; hoehe_mm: number | null }[]),
+    sb
+      .from("vernutzung")
+      .select("format_id, druckbogen_id, nutzen, ist_standard")
+      .then((r) => (r.data ?? []) as { format_id: string; druckbogen_id: string; nutzen: number; ist_standard: boolean }[]),
+    sb
+      .from("druckbogen")
+      .select("id, code, is_default")
+      .then((r) => (r.data ?? []) as { id: string; code: string; is_default: boolean }[]),
   ]);
+
+  const fmtKey = (x: string) =>
+    (x ?? "").toLowerCase().replace(/cm|mm/g, "").replace(/[\s×x,._-]/g, "");
+  const nutzenFor = (fmtStr: string | null): { nutzen: number; bogen: string | null } | null => {
+    if (!fmtStr) return null;
+    const k = fmtKey(fmtStr);
+    const f = formate.find(
+      (x) => fmtKey(x.code) === k || fmtKey(x.name) === k || fmtKey(x.name).includes(k),
+    );
+    if (!f) return null;
+    const rows = vern.filter((v) => v.format_id === f.id);
+    if (!rows.length) return null;
+    const chosen =
+      rows.find((v) => v.ist_standard) ??
+      rows.find((v) => boegen.find((b) => b.id === v.druckbogen_id)?.is_default) ??
+      rows.reduce((a, b) => (b.nutzen > a.nutzen ? b : a));
+    return {
+      nutzen: chosen.nutzen || 1,
+      bogen: boegen.find((b) => b.id === chosen.druckbogen_id)?.code ?? null,
+    };
+  };
 
   const skuByNorm = new Map<string, SkuRow>();
   for (const s of skus) {
@@ -268,21 +307,42 @@ export async function resolvePortalOrder(
     );
   };
 
-  const build = (r: Regel, mat: Material | null, note?: string): MaterialZeile => ({
-    regel: r.name,
-    rolle: r.material_rolle,
-    verwendung: r.verwendung,
-    material: mat?.name ?? null,
-    material_kurz: mat?.name_kurz ?? null,
-    grammatur: r.grammatur,
-    format: r.format,
-    menge: mengeFormel(r.mengen_formel, auflage),
-    produktionshinweis: r.produktionshinweis,
-    zaehlt_zur_blockstaerke: r.zaehlt_zur_blockstaerke,
-    seite: r.seite,
-    bedruckt: r.bedruckt,
-    ...(note ? { ungeloest: note } : {}),
-  });
+  const build = (r: Regel, mat: Material | null, note?: string): MaterialZeile => {
+    const m = mengeFormel(r.mengen_formel, auflage);
+    let nutzen: number | null = null;
+    let netto_bogen: number | null = null;
+    let druckbogen: string | null = null;
+    let n2 = note;
+    if (r.einheit === "bogen" || r.einheit === "blatt") {
+      const v = nutzenFor(r.vernutzung_format || (attr.format as string | null));
+      if (v) {
+        nutzen = v.nutzen;
+        druckbogen = v.bogen;
+        netto_bogen = Math.ceil(m / Math.max(1, v.nutzen));
+      } else if (!n2) {
+        n2 = `keine Vernutzung für Format '${r.vernutzung_format || attr.format || "?"}'`;
+      }
+    }
+    return {
+      regel: r.name,
+      rolle: r.material_rolle,
+      verwendung: r.verwendung,
+      material: mat?.name ?? null,
+      material_kurz: mat?.name_kurz ?? null,
+      grammatur: r.grammatur,
+      format: r.format,
+      menge: m,
+      einheit: r.einheit ?? "stück",
+      nutzen,
+      netto_bogen,
+      druckbogen,
+      produktionshinweis: r.produktionshinweis,
+      zaehlt_zur_blockstaerke: r.zaehlt_zur_blockstaerke,
+      seite: r.seite,
+      bedruckt: r.bedruckt,
+      ...(n2 ? { ungeloest: n2 } : {}),
+    };
+  };
 
   const zeilen: MaterialZeile[] = [];
   const suppressed = new Set<string>();
