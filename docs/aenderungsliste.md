@@ -490,3 +490,11 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   aus Blatt×Papierdicke) → gecacht in `portal_order.resolve_result`.
   `/druckauftraege/[id]` zeigt die Auflösung. Regeln = 0 → Materialliste leer
   (erwartet); Regeln kommen additiv rein.
+- [x] **Druckaufträge Phase 2: Pflege-UIs + „neu auflösen".**
+  `apps/web/src/lib/opri/resolve.ts` (Web-Port des Resolvers). Auf
+  `/druckauftraege/[id]` Button **„neu auflösen"** (Server-Action, schreibt
+  `resolve_result`). Neu: `/einstellungen/opri-produkte` (`flux_template` je
+  Gruppe/Stammartikel, leer = erben) und `/einstellungen/opri-regeln`
+  (Liste + Formular für `opri_material_regel`: Ebene, Modus, Bedingung,
+  Rolle/Verwendung/Herkunft/Menge/Format/Produktionshinweis,
+  `zählt_zur_blockstärke`, Seite/bedruckt, Prio). Nav-Gruppe „onlineprinters".

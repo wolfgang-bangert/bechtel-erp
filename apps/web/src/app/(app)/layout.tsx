@@ -22,6 +22,10 @@ export default async function AppLayout({
         <Link href="/druckauftraege">Druckaufträge</Link>
         <Link href="/rechnungen">Rechnungen</Link>
 
+        <div className="nav-group">onlineprinters</div>
+        <Link href="/einstellungen/opri-produkte">Produkte / Flux</Link>
+        <Link href="/einstellungen/opri-regeln">Materialregeln</Link>
+
         <div className="nav-group">Buchhaltung</div>
         <Link href="/offene-posten">Offene Posten</Link>
         <Link href="/eingangsrechnungen">Eingangsrechnungen</Link>

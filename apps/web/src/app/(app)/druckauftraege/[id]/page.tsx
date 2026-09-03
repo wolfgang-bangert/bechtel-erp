@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { fmtDate } from "@/lib/format";
+import { ResolveButton } from "./ResolveButton";
 
 export const dynamic = "force-dynamic";
 
@@ -193,16 +194,17 @@ export default async function DruckauftragPage({
         Welche Positionen produktionsrelevant sind, klärt die SKU-Regel-Engine (Phase 2).
       </p>
 
-      <h2>
-        Auflösung{" "}
-        {data.resolved_at && (
-          <span className="count">zuletzt {fmtDate(data.resolved_at)}</span>
-        )}
-      </h2>
+      <div className="toolbar" style={{ justifyContent: "space-between" }}>
+        <h2 style={{ margin: 0 }}>
+          Auflösung{" "}
+          {data.resolved_at && (
+            <span className="count">zuletzt {fmtDate(data.resolved_at)}</span>
+          )}
+        </h2>
+        <ResolveButton id={data.id} />
+      </div>
       {!data.resolve_result ? (
-        <p className="lead">
-          Noch nicht aufgelöst. CLI: <code>pnpm --filter sync opri:resolve --ref={data.external_reference}</code>
-        </p>
+        <p className="lead">Noch nicht aufgelöst — „neu auflösen" klicken.</p>
       ) : (
         (() => {
           const r = data.resolve_result;
