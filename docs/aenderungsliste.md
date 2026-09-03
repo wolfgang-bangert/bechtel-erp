@@ -525,3 +525,12 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   (Ebene Gruppe, Herkunft aus Grammatur+Oberfläche, `auflage*blatt`, Einheit
   Bogen). 665708106 (100× A4, 14 Blatt, 170g glänzend) → Graupappe 50 Bogen +
   Papier „170g BD glänzend" 1400 → 700 Bogen SRA3.
+- [x] **Wire-O in der Materialliste.** Resolver-Zeile bei
+  `herkunft = wire_o_blockstaerke`: Draht-Ø + mm (aus Blockstärke),
+  Teilung (3:1/2:1), **Schlaufenzahl** = Bindekante / (25,4/Teilung) und
+  Bindeseite (aus „Bindung"-Option; Default Kopf). Bindekante aus dem
+  Format (Kopf/Fuß = kurze, links/rechts = lange Kante; bei Querformat
+  getauscht). Regel „Wire-O-Spirale" (Ebene Option, `option_match = wire-o`)
+  angelegt → 665708106: Drahtbinderücken ¼ Zoll 3:1 schwarz, ~25 Schlaufen,
+  Bindeseite Kopf. matchRegel prüft für Options-Regeln jetzt auch den
+  Optionswert-Text.

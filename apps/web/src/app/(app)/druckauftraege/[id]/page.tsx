@@ -50,6 +50,10 @@ type ResolveResult = {
     nutzen?: number | null;
     netto_bogen?: number | null;
     druckbogen?: string | null;
+    durchmesser?: string | null;
+    teilung?: string | null;
+    schlaufen?: number | null;
+    bindeseite?: string | null;
     produktionshinweis: string | null;
     seite: string | null;
     bedruckt: boolean | null;
@@ -259,6 +263,14 @@ export default async function DruckauftragPage({
                             {m.material_kurz || m.material || "—"}
                             {m.grammatur ? ` (${m.grammatur})` : ""}
                             {m.format ? ` ${m.format}` : ""}
+                            {m.durchmesser && (
+                              <div className="count">
+                                Ø {m.durchmesser}
+                                {m.teilung ? ` · ${m.teilung}` : ""}
+                                {m.schlaufen ? ` · ${m.schlaufen} Schlaufen` : ""}
+                                {m.bindeseite ? ` · ${m.bindeseite}` : ""}
+                              </div>
+                            )}
                           </td>
                           <td style={{ textAlign: "right" }}>
                             {m.menge} {m.einheit && m.einheit !== "stück" ? "" : "Stk"}

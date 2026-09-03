@@ -57,6 +57,13 @@ export function applyOptionAttrs(
     else if (/schwarz|black/.test(t)) attr.spiralfarbe = "schwarz";
     else if (/wei[ßs]|white/.test(t)) attr.spiralfarbe = "weiß";
   }
+
+  if (/bindung/.test(t) || /XXXXB[BK]/.test(s)) {
+    if (/am kopf|top|BKO/i.test(t) || /BKO/.test(s)) attr.bindeseite = "Kopf";
+    else if (/am fu[ßs]|bottom|BFU/i.test(t) || /BFU/.test(s)) attr.bindeseite = "Fuß";
+    else if (/links|left|BLI/i.test(t) || /BLI/.test(s)) attr.bindeseite = "links";
+    else if (/rechts|right|BRE/i.test(t) || /BRE/.test(s)) attr.bindeseite = "rechts";
+  }
 }
 
 type SkuRow = {
@@ -161,11 +168,20 @@ async function loadRefData() {
   };
 }
 
-/** Nutzen + Standard-Druckbogen für einen Format-String (z.B. "A4"). */
-function nutzenFor(ref: Ref, fmtStr: string | null): { nutzen: number; bogen: string | null } | null {
+/** Format-Zeile zu einem Format-String (z.B. "A4"). */
+function findFmt(ref: Ref, fmtStr: string | null): FormatRow | null {
   if (!fmtStr) return null;
   const k = fmtKey(fmtStr);
-  const f = ref.formate.find((x) => fmtKey(x.code) === k || fmtKey(x.name) === k || fmtKey(x.name).includes(k));
+  return (
+    ref.formate.find(
+      (x) => fmtKey(x.code) === k || fmtKey(x.name) === k || fmtKey(x.name).includes(k),
+    ) ?? null
+  );
+}
+
+/** Nutzen + Standard-Druckbogen für einen Format-String (z.B. "A4"). */
+function nutzenFor(ref: Ref, fmtStr: string | null): { nutzen: number; bogen: string | null } | null {
+  const f = findFmt(ref, fmtStr);
   if (!f) return null;
   const rows = ref.vern.filter((v) => v.format_id === f.id);
   if (!rows.length) return null;
@@ -297,6 +313,7 @@ function resolveOne(
       return optionen.some(
         (o) =>
           (o.typ ?? "").toLowerCase().includes(needle) ||
+          (o.wert ?? "").toLowerCase().includes(needle) ||
           norm(o.sku).startsWith(norm(r.option_match!)),
       );
     }
@@ -318,6 +335,10 @@ function resolveOne(
     nutzen: number | null;
     netto_bogen: number | null;
     druckbogen: string | null;
+    durchmesser: string | null;
+    teilung: string | null;
+    schlaufen: number | null;
+    bindeseite: string | null;
     produktionshinweis: string | null;
     zaehlt_zur_blockstaerke: boolean;
     seite: string | null;
@@ -379,6 +400,10 @@ function resolveOne(
       nutzen,
       netto_bogen,
       druckbogen,
+      durchmesser: null,
+      teilung: null,
+      schlaufen: null,
+      bindeseite: null,
       produktionshinweis: r.produktionshinweis,
       zaehlt_zur_blockstaerke: r.zaehlt_zur_blockstaerke,
       seite: r.seite,
@@ -441,6 +466,27 @@ function resolveOne(
       note = block > 0 ? `keine Wire-O-Staffel für ${block} mm` : "Blockstärke = 0 (Blatt/Papier fehlt)";
     }
     const z = build(r, mat, note);
+    if (w) {
+      z.durchmesser =
+        `${(w.durchmesser_zoll ?? "").trim()}${w.durchmesser_mm ? ` (${w.durchmesser_mm} mm)` : ""}`.trim() || null;
+      z.teilung = w.teilung;
+      // Bindekante: Kopf/Fuß = kurze Kante, links/rechts = lange Kante (Hochformat-Konvention);
+      // bei Querformat getauscht.
+      const f = findFmt(ref, (attr.format as string | null) ?? null);
+      if (f && f.breite_mm && f.hoehe_mm) {
+        let kurz = Math.min(f.breite_mm, f.hoehe_mm);
+        let lang = Math.max(f.breite_mm, f.hoehe_mm);
+        if (String(attr.ausrichtung) === "Querformat") [kurz, lang] = [lang, kurz];
+        const seite = String(attr.bindeseite ?? "Kopf");
+        const kante = /links|rechts/i.test(seite) ? lang : kurz;
+        const pitch = w.teilung === "2:1" ? 25.4 / 2 : 25.4 / 3;
+        z.schlaufen = Math.round(kante / pitch);
+        z.bindeseite = seite;
+        z.produktionshinweis =
+          z.produktionshinweis ??
+          `Blockstärke ${block} mm → ${z.durchmesser} ${w.teilung}, ~${z.schlaufen} Schlaufen (Bindeseite ${seite}, ${kante} mm)`;
+      }
+    }
     z.produktionshinweis = z.produktionshinweis ?? `Blockstärke ${block} mm → ${w?.durchmesser_zoll ?? "?"}`;
     zeilen.push(z);
   }
