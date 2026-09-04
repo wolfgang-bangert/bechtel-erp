@@ -16,7 +16,11 @@ export async function saveGruppe(_p: RowState, fd: FormData): Promise<RowState> 
   const supabase = await createClient();
   const { error } = await supabase
     .from("opri_produkt_gruppe")
-    .update({ flux_template: s(fd.get("flux_template")), druckverfahren: s(fd.get("druckverfahren")) })
+    .update({
+      flux_template: s(fd.get("flux_template")),
+      flux_template_id: s(fd.get("flux_template_id")),
+      druckverfahren: s(fd.get("druckverfahren")),
+    })
     .eq("id", id);
   if (error) return { error: error.message };
   revalidatePath("/einstellungen/opri-produkte");
@@ -29,7 +33,10 @@ export async function saveStamm(_p: RowState, fd: FormData): Promise<RowState> {
   const supabase = await createClient();
   const { error } = await supabase
     .from("opri_stammartikel")
-    .update({ flux_template: s(fd.get("flux_template")) })
+    .update({
+      flux_template: s(fd.get("flux_template")),
+      flux_template_id: s(fd.get("flux_template_id")),
+    })
     .eq("id", id);
   if (error) return { error: error.message };
   revalidatePath("/einstellungen/opri-produkte");
