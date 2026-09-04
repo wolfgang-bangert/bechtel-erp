@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { fluxCatalog } from "@/lib/flux/catalog";
 import { PaperRow } from "./PaperRow";
+import { NewMaterialForm } from "./NewMaterialForm";
 
 export const dynamic = "force-dynamic";
 
@@ -15,14 +16,17 @@ type Mat = {
 
 export default async function MaterialkatalogPage() {
   const supabase = await createClient();
-  const [{ data, error }, cat] = await Promise.all([
+  const [{ data, error }, cat, { data: rollen }] = await Promise.all([
     supabase
       .from("material")
       .select("id, name, name_kurz, attribute, flux_paper_type, rolle:rolle_id(name)")
       .eq("is_active", true)
       .order("name"),
     fluxCatalog(),
+    supabase.from("material_rolle").select("id, name").order("sort"),
   ]);
+  const rollenList = (rollen ?? []) as { id: string; name: string }[];
+  const papierRolleId = rollenList.find((r) => r.name === "Papier")?.id ?? null;
   const mats = (data ?? []) as unknown as Mat[];
   const rows = mats
     .map((m) => ({
@@ -63,6 +67,8 @@ export default async function MaterialkatalogPage() {
       </div>
 
       {error && <div className="banner-err">Fehler: {error.message}</div>}
+
+      <NewMaterialForm rollen={rollenList} papierRolleId={papierRolleId} />
 
       <datalist id="flux-papertypes">
         {cat.paperTypes.map((p) => (
