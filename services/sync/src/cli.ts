@@ -347,6 +347,28 @@ async function main() {
       );
       break;
     }
+    case "portal:import-file": {
+      const pathArg =
+        process.argv.find((a) => a.startsWith("--file="))?.split("=")[1] ??
+        "imports/online-printers/data-online-printers-first-100.json";
+      const limArg = process.argv.find((a) => a.startsWith("--limit="))?.split("=")[1];
+      const grpArg = process.argv.find((a) => a.startsWith("--groups="))?.split("=")[1];
+      console.log(`Portal-Aufträge aus Datei: ${pathArg}${dryRun ? "  (DRY RUN)" : ""}`);
+      const { importOnlineprintersFile } = await import("./portalImportFile");
+      console.log(
+        JSON.stringify(
+          await importOnlineprintersFile(pathArg, {
+            dryRun,
+            skipExisting: flags.has("--skip-existing"),
+            limit: limArg ? Number(limArg) : undefined,
+            groups: grpArg ? grpArg.split(",").map((x) => x.trim()) : undefined,
+          }),
+          null,
+          1,
+        ),
+      );
+      break;
+    }
     case "skonto:apply": {
       const arg = (n: string) => process.argv.find((a) => a.startsWith(n + "="))?.split("=")[1];
       const pct = arg("--max-percent");
