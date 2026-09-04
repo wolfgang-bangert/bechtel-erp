@@ -52,22 +52,26 @@ async function get<T>(path: string): Promise<T> {
 
 function normServices(raw: unknown): FluxService[] {
   if (!Array.isArray(raw)) return [];
-  return raw.map((s) => {
-    const o = s as Record<string, unknown>;
-    const opts = Array.isArray(o.options)
-      ? (o.options as unknown[]).map((x) =>
-          typeof x === "string"
-            ? { id: x, name: x }
-            : { id: String((x as Record<string, unknown>).id ?? ""), name: String((x as Record<string, unknown>).name ?? (x as Record<string, unknown>).id ?? "") },
-        )
-      : [];
-    return {
-      id: String(o.id ?? o.serviceId ?? ""),
-      name: String(o.name ?? o.id ?? o.serviceId ?? ""),
-      defaultOptionId: o.defaultOptionId ? String(o.defaultOptionId) : undefined,
-      options: opts,
-    };
-  });
+  return raw
+    .filter((s): s is Record<string, unknown> => !!s && typeof s === "object")
+    .map((o) => {
+      const opts = Array.isArray(o.options)
+        ? (o.options as unknown[])
+            .map((x) => {
+              if (x == null) return null;
+              if (typeof x === "string") return { id: x, name: x };
+              const xo = x as Record<string, unknown>;
+              return { id: String(xo.id ?? ""), name: String(xo.name ?? xo.id ?? "") };
+            })
+            .filter((x): x is FluxServiceOption => !!x)
+        : [];
+      return {
+        id: String(o.id ?? o.serviceId ?? ""),
+        name: String(o.name ?? o.id ?? o.serviceId ?? ""),
+        defaultOptionId: o.defaultOptionId ? String(o.defaultOptionId) : undefined,
+        options: opts,
+      };
+    });
 }
 
 export async function fluxCatalog(): Promise<FluxCatalog> {
@@ -84,7 +88,8 @@ export async function fluxCatalog(): Promise<FluxCatalog> {
       get<Record<string, unknown>[]>("/signatures"),
     ]);
 
-    const products: FluxProduct[] = (prodRaw ?? [])
+    const products: FluxProduct[] = (Array.isArray(prodRaw) ? prodRaw : [])
+      .filter((p): p is Record<string, unknown> => !!p && typeof p === "object")
       .map((p) => ({
         id: String(p.id ?? ""),
         name: String(p.name ?? ""),
@@ -92,26 +97,39 @@ export async function fluxCatalog(): Promise<FluxCatalog> {
         useStandardWorksteps: Boolean(p.useStandardWorksteps),
         services: normServices(p.services),
       }))
+      .filter((p) => p.name)
       .sort((a, b) => {
         const oa = a.name.toLowerCase().startsWith("opri_") ? 0 : 1;
         const ob = b.name.toLowerCase().startsWith("opri_") ? 0 : 1;
         return oa - ob || a.name.localeCompare(b.name, "de");
       });
 
-    const paperTypes = Object.values(paperRaw ?? {}).flat().filter(Boolean) as string[];
-    const printers: FluxPrinter[] = (printRaw ?? []).map((p) => ({
-      id: String(p.id ?? ""),
-      name: String(p.name ?? p.id ?? ""),
-      color: p.color as boolean | undefined,
-    }));
-    const signatures: FluxSignature[] = (sigRaw ?? []).map((s) => {
-      const ss = s.sheetSize as Record<string, unknown> | undefined;
-      return {
-        id: String(s.id ?? ""),
-        name: String(s.name ?? ""),
-        sheetSize: ss ? { name: ss.name ? String(ss.name) : undefined, width: Number(ss.width) || undefined, height: Number(ss.height) || undefined } : undefined,
-      };
-    });
+    const paperTypes = (
+      paperRaw && typeof paperRaw === "object" ? Object.values(paperRaw).flat() : []
+    ).filter((x): x is string => typeof x === "string" && x.length > 0);
+
+    const printers: FluxPrinter[] = (Array.isArray(printRaw) ? printRaw : [])
+      .filter((p): p is Record<string, unknown> => !!p && typeof p === "object")
+      .map((p) => ({
+        id: String(p.id ?? ""),
+        name: String(p.name ?? p.id ?? ""),
+        color: p.color as boolean | undefined,
+      }))
+      .filter((p) => p.name);
+
+    const signatures: FluxSignature[] = (Array.isArray(sigRaw) ? sigRaw : [])
+      .filter((s): s is Record<string, unknown> => !!s && typeof s === "object")
+      .map((s) => {
+        const ss = s.sheetSize as Record<string, unknown> | undefined;
+        return {
+          id: String(s.id ?? ""),
+          name: String(s.name ?? ""),
+          sheetSize: ss
+            ? { name: ss.name ? String(ss.name) : undefined, width: Number(ss.width) || undefined, height: Number(ss.height) || undefined }
+            : undefined,
+        };
+      })
+      .filter((s) => s.name);
 
     const data: FluxCatalog = { ok: true, products, paperTypes, printers, signatures };
     cache = { at: Date.now(), data };
