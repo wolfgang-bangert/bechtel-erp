@@ -26,6 +26,8 @@ export default async function AppLayout({
         <Link href="/druck">Druck-Dashboard</Link>
         <Link href="/einstellungen/opri-produkte">Produkte / Flux</Link>
         <Link href="/einstellungen/opri-regeln">Materialregeln</Link>
+        <Link href="/einstellungen/flux-templates">flux-Templates</Link>
+        <Link href="/einstellungen/materialkatalog">Materialkatalog</Link>
 
         <div className="nav-group">Buchhaltung</div>
         <Link href="/offene-posten">Offene Posten</Link>

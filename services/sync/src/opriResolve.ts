@@ -113,6 +113,7 @@ type Regel = {
   einheit: string;
   vernutzung_format: string | null;
   traegt_cello: boolean;
+  flux_template_id: string | null;
 };
 type Material = {
   id: string;
@@ -120,6 +121,18 @@ type Material = {
   name_kurz: string | null;
   rolle_id: string | null;
   attribute: Record<string, unknown>;
+  flux_paper_type: string | null;
+};
+type FluxTpl = {
+  id: string;
+  name: string;
+  flux_product: string;
+  printer_name: string | null;
+  signature: string | null;
+  paper_type: string | null;
+  paper_type_back: string | null;
+  services: Record<string, unknown> | null;
+  extra: Record<string, unknown> | null;
 };
 
 async function allRows<T>(table: string, sel: string): Promise<T[]> {
@@ -141,14 +154,14 @@ const fmtKey = (s: string) =>
   (s ?? "").toLowerCase().replace(/cm|mm/g, "").replace(/[\s×x,._-]/g, "");
 
 async function loadRefData() {
-  const [skus, { data: regeln }, { data: material }, { data: rollen }, { data: wire }, { data: formate }, { data: vern }, { data: boegen }] =
+  const [skus, { data: regeln }, { data: material }, { data: rollen }, { data: wire }, { data: formate }, { data: vern }, { data: boegen }, { data: fluxTpls }] =
     await Promise.all([
       allRows<SkuRow>(
         "opri_sku",
         "sku_norm, typ, stammartikel_id, gruppe_kuerzel, option_typ_name, option_typ_sku, wert_name, bezeichnung, attribute",
       ),
       supabase.from("opri_material_regel").select("*").eq("is_active", true),
-      supabase.from("material").select("id, name, name_kurz, rolle_id, attribute").eq("is_active", true),
+      supabase.from("material").select("id, name, name_kurz, rolle_id, attribute, flux_paper_type").eq("is_active", true),
       supabase.from("material_rolle").select("id, name"),
       supabase
         .from("wire_o_durchmesser")
@@ -156,6 +169,9 @@ async function loadRefData() {
       supabase.from("format").select("id, code, name, breite_mm, hoehe_mm"),
       supabase.from("vernutzung").select("format_id, druckbogen_id, nutzen, ist_standard"),
       supabase.from("druckbogen").select("id, code, is_default"),
+      supabase
+        .from("flux_template")
+        .select("id, name, flux_product, printer_name, signature, paper_type, paper_type_back, services, extra"),
     ]);
   const skuByNorm = new Map<string, SkuRow>();
   for (const s of skus) {
@@ -178,6 +194,7 @@ async function loadRefData() {
     formate: (formate ?? []) as FormatRow[],
     vern: (vern ?? []) as VernutzungRow[],
     boegen: (boegen ?? []) as BogenRow[],
+    tplById: new Map<string, FluxTpl>(((fluxTpls ?? []) as FluxTpl[]).map((t) => [t.id, t])),
   };
 }
 
@@ -271,8 +288,12 @@ function resolveOne(
     description: string | null;
     quantity: number | null;
     items: { sku: string | null; description: string | null }[];
-    gruppen?: Map<string, { id: string; flux_template: string | null; druckverfahren: string | null }>;
+    gruppen?: Map<
+      string,
+      { id: string; flux_template: string | null; flux_template_id: string | null; druckverfahren: string | null }
+    >;
     stammFlux?: Map<string, string | null>;
+    stammTplId?: Map<string, string | null>;
   },
 ) {
   const auflage = Number(order.quantity) || 1;
@@ -362,6 +383,12 @@ function resolveOne(
     bedruckt: boolean | null;
     cello: "keine" | "matt" | "glanz";
     cello_seiten: number;
+    flux_product: string | null;
+    flux_paper_type: string | null;
+    flux_paper_type_back: string | null;
+    flux_printer: string | null;
+    flux_signature: string | null;
+    flux_services: Record<string, unknown>;
     ungeloest?: string;
   };
   const zeilen: Zeile[] = [];
@@ -392,8 +419,13 @@ function resolveOne(
     blatt: nnum(attr.blatt) ?? 0,
     seiten: nnum(attr.seiten) ?? 0,
   };
+  const grpTplId = grp?.flux_template_id ?? null;
+  const stTplId = stammartikelId ? order.stammTplId?.get(stammartikelId) ?? null : null;
   const build = (r: Regel, mat: Material | null, note?: string): Zeile => {
     const m = menge(r.mengen_formel, mVars);
+    const tplId = r.flux_template_id ?? stTplId ?? grpTplId;
+    const tpl = tplId ? ref.tplById.get(tplId) ?? null : null;
+    const flux_paper_type = tpl?.paper_type ?? mat?.flux_paper_type ?? null;
     let nutzen: number | null = null;
     let netto_bogen: number | null = null;
     let druckbogen: string | null = null;
@@ -432,6 +464,12 @@ function resolveOne(
       bedruckt: r.bedruckt,
       cello: r.traegt_cello ? ((attr.cello as "matt" | "glanz" | undefined) ?? "matt") : "keine",
       cello_seiten: r.traegt_cello ? (nnum(attr.cello_seiten) ?? 1) : 1,
+      flux_product: tpl?.flux_product ?? null,
+      flux_paper_type,
+      flux_paper_type_back: tpl?.paper_type_back ?? null,
+      flux_printer: tpl?.printer_name ?? null,
+      flux_signature: tpl?.signature ?? null,
+      flux_services: (tpl?.services as Record<string, unknown> | null) ?? {},
       ...(n2 ? { ungeloest: n2 } : {}),
     };
   };
@@ -558,15 +596,23 @@ export async function resolveOpri(opts: Options = {}) {
 
   const { data: grp } = await supabase
     .from("opri_produkt_gruppe")
-    .select("id, kuerzel, flux_template, druckverfahren");
+    .select("id, kuerzel, flux_template, flux_template_id, druckverfahren");
   const gruppen = new Map(
     (grp ?? []).map((g) => [
       g.kuerzel as string,
-      { id: g.id as string, flux_template: g.flux_template as string | null, druckverfahren: g.druckverfahren as string | null },
+      {
+        id: g.id as string,
+        flux_template: g.flux_template as string | null,
+        flux_template_id: (g as { flux_template_id: string | null }).flux_template_id ?? null,
+        druckverfahren: g.druckverfahren as string | null,
+      },
     ]),
   );
-  const { data: st } = await supabase.from("opri_stammartikel").select("id, flux_template");
+  const { data: st } = await supabase.from("opri_stammartikel").select("id, flux_template, flux_template_id");
   const stammFlux = new Map((st ?? []).map((s) => [s.id as string, s.flux_template as string | null]));
+  const stammTplId = new Map(
+    (st ?? []).map((s) => [s.id as string, (s as { flux_template_id: string | null }).flux_template_id ?? null]),
+  );
 
   const results = [];
   for (const o of orders ?? []) {
@@ -578,6 +624,7 @@ export async function resolveOpri(opts: Options = {}) {
       items: (o.items ?? []) as { sku: string | null; description: string | null }[],
       gruppen,
       stammFlux,
+      stammTplId,
     });
     results.push(r);
     if (!dryRun) {

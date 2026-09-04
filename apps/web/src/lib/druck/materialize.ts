@@ -60,25 +60,26 @@ export async function erzeugeDruckjobs(
       (f) => f.typ === "printData" && f.storage_key,
     )?.storage_key ?? null;
 
-  // flux_product per Cascade (Stammartikel → Gruppe), sonst flux_template
-  let fluxProduct: string | null = null;
+  // flux_product per Cascade (Stammartikel → Gruppe), sonst flux_template –
+  // Fallback nur, wenn die Materialzeile kein flux-Template aufgelöst hat.
+  let fluxProductFallback: string | null = null;
   if (rr.stammartikel_id) {
     const { data: st } = await sb
       .from("opri_stammartikel")
       .select("flux_product")
       .eq("id", rr.stammartikel_id)
       .maybeSingle();
-    fluxProduct = (st?.flux_product as string | null) ?? null;
+    fluxProductFallback = (st?.flux_product as string | null) ?? null;
   }
-  if (!fluxProduct && rr.gruppe) {
+  if (!fluxProductFallback && rr.gruppe) {
     const { data: g } = await sb
       .from("opri_produkt_gruppe")
       .select("flux_product")
       .eq("kuerzel", rr.gruppe)
       .maybeSingle();
-    fluxProduct = (g?.flux_product as string | null) ?? null;
+    fluxProductFallback = (g?.flux_product as string | null) ?? null;
   }
-  fluxProduct = fluxProduct ?? rr.flux_template ?? null;
+  fluxProductFallback = fluxProductFallback ?? rr.flux_template ?? null;
 
   const auflage = Number(order.quantity) || 0;
   const uebersprungen: string[] = [];
@@ -149,6 +150,10 @@ export async function erzeugeDruckjobs(
   const perBatch = new Map<string, number>();
   for (const z of druckzeilen) {
     const batch = await batchFor(z);
+    const services: Record<string, unknown> = { ...(z.flux_services ?? {}) };
+    if (z.flux_paper_type) services["Papiersorte"] = z.flux_paper_type;
+    if (z.flux_paper_type_back) services["Papiersorte Rückseite"] = z.flux_paper_type_back;
+
     const { error: jErr } = await sb.from("druckjob").insert({
       portal_order_id: portalOrderId,
       batch_id: batch.id,
@@ -163,7 +168,11 @@ export async function erzeugeDruckjobs(
       auflage,
       cello: z.cello ?? "keine",
       cello_seiten: z.cello_seiten ?? 1,
-      flux_product: fluxProduct,
+      flux_product: z.flux_product ?? fluxProductFallback,
+      flux_services: services,
+      flux_paper_type: z.flux_paper_type ?? null,
+      flux_signature: z.flux_signature ?? null,
+      flux_printer: z.flux_printer ?? null,
       pdf_storage_key: printKey,
       status: "in_batch",
     });

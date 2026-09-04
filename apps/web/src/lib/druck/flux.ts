@@ -18,6 +18,8 @@ type Job = {
   zuschuss: number;
   flux_product: string | null;
   flux_services: Record<string, unknown> | null;
+  flux_signature: string | null;
+  flux_printer: string | null;
   pdf_storage_key: string | null;
   order: { external_reference: string | null } | null;
 };
@@ -46,7 +48,7 @@ export async function uebergebeBatchAnFlux(
   const { data: jobsRaw, error: jErr } = await sb
     .from("druckjob")
     .select(
-      "id, bauteil, papier, auflage, zuschuss, flux_product, flux_services, pdf_storage_key, order:portal_order_id(external_reference)",
+      "id, bauteil, papier, auflage, zuschuss, flux_product, flux_services, flux_signature, flux_printer, pdf_storage_key, order:portal_order_id(external_reference)",
     )
     .eq("batch_id", batchId)
     .in("status", ["in_batch", "offen"]);
@@ -72,6 +74,8 @@ export async function uebergebeBatchAnFlux(
         type: "print",
         copies: (Number(j.auflage) || 0) + (Number(j.zuschuss) || 0),
         services: j.flux_services ?? {},
+        ...(j.flux_signature ? { signature: j.flux_signature } : {}),
+        ...(j.flux_printer ? { printerName: j.flux_printer } : {}),
         pageSources: url ? [{ url, originalFileName: `${ref}_${j.bauteil}.pdf` }] : [],
       };
     }),

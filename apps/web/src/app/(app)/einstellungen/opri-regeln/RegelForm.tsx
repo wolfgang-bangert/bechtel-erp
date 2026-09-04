@@ -21,6 +21,7 @@ export type Regel = {
   mengen_formel: string;
   einheit: string;
   vernutzung_format: string | null;
+  flux_template_id: string | null;
   grammatur: string | null;
   format: string | null;
   produktionshinweis: string | null;
@@ -46,12 +47,14 @@ export function RegelForm({
   stammartikel,
   material,
   rollen,
+  fluxTemplates,
 }: {
   regel?: Regel;
   gruppen: Opt[];
   stammartikel: Opt[];
   material: Opt[];
   rollen: string[];
+  fluxTemplates: Opt[];
 }) {
   const [state, action, pending] = useActionState(saveRegel, empty);
   const [dState, dAction] = useActionState(deleteRegel, empty);
@@ -181,6 +184,15 @@ export function RegelForm({
           />
         </F>
       </div>
+
+      <F label="flux-Template (für den Druckjob dieses Bauteils)">
+        <select name="flux_template_id" defaultValue={regel?.flux_template_id ?? ""}>
+          <option value="">— (erbt von Stammartikel / Produktgruppe)</option>
+          {fluxTemplates.map((t) => (
+            <option key={t.id} value={t.id}>{t.label}</option>
+          ))}
+        </select>
+      </F>
       <div className="row" style={{ border: "none", padding: 0 }}>
         <F label="Grammatur">
           <input name="grammatur" defaultValue={regel?.grammatur ?? ""} style={{ width: 90 }} />

@@ -49,6 +49,7 @@ export async function saveRegel(_p: State, fd: FormData): Promise<State> {
     mengen_formel: s(fd, "mengen_formel") ?? "auflage",
     einheit: s(fd, "einheit") ?? "stück",
     vernutzung_format: s(fd, "vernutzung_format"),
+    flux_template_id: s(fd, "flux_template_id"),
     grammatur: s(fd, "grammatur"),
     format: s(fd, "format"),
     produktionshinweis: s(fd, "produktionshinweis"),

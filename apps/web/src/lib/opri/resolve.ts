@@ -96,7 +96,25 @@ export type MaterialZeile = {
   bedruckt: boolean | null;
   cello: "keine" | "matt" | "glanz";
   cello_seiten: number;
+  flux_product: string | null;
+  flux_paper_type: string | null;
+  flux_paper_type_back: string | null;
+  flux_printer: string | null;
+  flux_signature: string | null;
+  flux_services: Record<string, unknown>;
   ungeloest?: string;
+};
+
+type FluxTpl = {
+  id: string;
+  name: string;
+  flux_product: string;
+  printer_name: string | null;
+  signature: string | null;
+  paper_type: string | null;
+  paper_type_back: string | null;
+  services: Record<string, unknown> | null;
+  extra: Record<string, unknown> | null;
 };
 export type ResolveResult = {
   reference: string | null;
@@ -143,6 +161,7 @@ type Regel = {
   einheit: string;
   vernutzung_format: string | null;
   traegt_cello: boolean;
+  flux_template_id: string | null;
 };
 type Material = {
   id: string;
@@ -150,6 +169,7 @@ type Material = {
   name_kurz: string | null;
   rolle_id: string | null;
   attribute: Record<string, unknown>;
+  flux_paper_type: string | null;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -223,7 +243,7 @@ export async function resolvePortalOrder(
   if (error) throw new Error(error.message);
   if (!order) throw new Error("Auftrag nicht gefunden");
 
-  const [skus, regeln, material, rollen, wire, grp, st, formate, vern, boegen] = await Promise.all([
+  const [skus, regeln, material, rollen, wire, grp, st, formate, vern, boegen, fluxTpls] = await Promise.all([
     pagedAll<SkuRow>(
       sb,
       "opri_sku",
@@ -232,7 +252,7 @@ export async function resolvePortalOrder(
     sb.from("opri_material_regel").select("*").eq("is_active", true).then((r) => (r.data ?? []) as Regel[]),
     sb
       .from("material")
-      .select("id, name, name_kurz, rolle_id, attribute")
+      .select("id, name, name_kurz, rolle_id, attribute, flux_paper_type")
       .eq("is_active", true)
       .then((r) => (r.data ?? []) as Material[]),
     sb.from("material_rolle").select("id, name").then((r) => r.data ?? []),
@@ -248,9 +268,9 @@ export async function resolvePortalOrder(
       }[]),
     sb
       .from("opri_produkt_gruppe")
-      .select("id, kuerzel, flux_template, druckverfahren")
+      .select("id, kuerzel, flux_template, flux_template_id, druckverfahren")
       .then((r) => r.data ?? []),
-    sb.from("opri_stammartikel").select("id, flux_template").then((r) => r.data ?? []),
+    sb.from("opri_stammartikel").select("id, flux_template, flux_template_id").then((r) => r.data ?? []),
     sb
       .from("format")
       .select("id, code, name, breite_mm, hoehe_mm")
@@ -263,7 +283,13 @@ export async function resolvePortalOrder(
       .from("druckbogen")
       .select("id, code, is_default")
       .then((r) => (r.data ?? []) as { id: string; code: string; is_default: boolean }[]),
+    sb
+      .from("flux_template")
+      .select("id, name, flux_product, printer_name, signature, paper_type, paper_type_back, services, extra")
+      .then((r) => (r.data ?? []) as FluxTpl[]),
   ]);
+
+  const tplById = new Map<string, FluxTpl>(fluxTpls.map((t) => [t.id, t]));
 
   const fmtKey = (x: string) =>
     (x ?? "").toLowerCase().replace(/cm|mm/g, "").replace(/[\s×x,._-]/g, "");
@@ -303,11 +329,15 @@ export async function resolvePortalOrder(
       {
         id: g.id as string,
         flux_template: g.flux_template as string | null,
+        flux_template_id: (g as { flux_template_id?: string | null }).flux_template_id ?? null,
         druckverfahren: (g as { druckverfahren?: string | null }).druckverfahren ?? null,
       },
     ]),
   );
   const stammFlux = new Map(st.map((s) => [s.id as string, s.flux_template as string | null]));
+  const stammTplId = new Map(
+    st.map((s) => [s.id as string, (s as { flux_template_id?: string | null }).flux_template_id ?? null]),
+  );
 
   const auflage = Number(order.quantity) || 1;
   const ungeloest: string[] = [];
@@ -391,8 +421,15 @@ export async function resolvePortalOrder(
   };
 
   const mVars = { auflage, blatt: nnum(attr.blatt) ?? 0, seiten: nnum(attr.seiten) ?? 0 };
+  const grpTplId = grp0?.flux_template_id ?? null;
+  const stTplId = stammartikelId ? stammTplId.get(stammartikelId) ?? null : null;
   const build = (r: Regel, mat: Material | null, note?: string): MaterialZeile => {
     const m = mengeFormel(r.mengen_formel, mVars);
+    const tpl = (() => {
+      const id = r.flux_template_id ?? stTplId ?? grpTplId;
+      return id ? tplById.get(id) ?? null : null;
+    })();
+    const flux_paper_type = tpl?.paper_type ?? mat?.flux_paper_type ?? null;
     let nutzen: number | null = null;
     let netto_bogen: number | null = null;
     let druckbogen: string | null = null;
@@ -431,6 +468,12 @@ export async function resolvePortalOrder(
       bedruckt: r.bedruckt,
       cello: r.traegt_cello ? ((attr.cello as "matt" | "glanz" | undefined) ?? "matt") : "keine",
       cello_seiten: r.traegt_cello ? (nnum(attr.cello_seiten) ?? 1) : 1,
+      flux_product: tpl?.flux_product ?? null,
+      flux_paper_type,
+      flux_paper_type_back: tpl?.paper_type_back ?? null,
+      flux_printer: tpl?.printer_name ?? null,
+      flux_signature: tpl?.signature ?? null,
+      flux_services: (tpl?.services as Record<string, unknown> | null) ?? {},
       ...(n2 ? { ungeloest: n2 } : {}),
     };
   };
