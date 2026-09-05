@@ -133,14 +133,15 @@ export default async function DruckauftragPage({
   );
 
   const { data: jobsRaw } = await supabase
-    .from("druckjob")
+    .from("job")
     .select(
-      "id, bauteil, papier, farbigkeit, format, druckbogen, nutzen, netto_bogen, auflage, cello, cello_seiten, status, batch:batch_id(nummer, status)",
+      "id, typ, bauteil, papier, farbigkeit, format, druckbogen, nutzen, netto_bogen, auflage, cello, cello_seiten, teilung, durchmesser, schlaufen_gesamt, status, batch:batch_id(nummer, typ, status)",
     )
     .eq("portal_order_id", id)
     .order("created_at", { ascending: true });
   const jobs = (jobsRaw ?? []) as unknown as {
     id: string;
+    typ: string;
     bauteil: string;
     papier: string | null;
     farbigkeit: string | null;
@@ -151,8 +152,11 @@ export default async function DruckauftragPage({
     auflage: number;
     cello: string;
     cello_seiten: number;
+    teilung: string | null;
+    durchmesser: string | null;
+    schlaufen_gesamt: number | null;
     status: string;
-    batch: { nummer: string; status: string } | null;
+    batch: { nummer: string; typ: string; status: string } | null;
   }[];
 
   return (
@@ -343,24 +347,25 @@ export default async function DruckauftragPage({
 
       <div className="toolbar" style={{ justifyContent: "space-between", marginTop: 18 }}>
         <h2 style={{ margin: 0 }}>
-          Druckjobs {jobs.length > 0 && <span className="tag">{jobs.length}</span>}
+          Arbeitsvorgänge {jobs.length > 0 && <span className="tag">{jobs.length}</span>}
         </h2>
         <DruckjobsButton id={data.id} />
       </div>
       {jobs.length === 0 ? (
         <p className="lead">
-          Noch keine Druckjobs. „Druckjobs erzeugen" legt pro bedrucktem Bauteil einen Job an und
-          sortiert ihn in einen Batch (Schlüssel: Verfahren · Cello · Papier · Druckbogen).
+          Noch keine Jobs. „Jobs erzeugen" legt Druck-, Cello-, Binde- und Aufhänger-Vorgänge
+          an und sortiert sie in Batches.
         </p>
       ) : (
         <div className="table-scroll">
           <table className="data">
             <thead>
               <tr>
+                <th>Typ</th>
                 <th>Bauteil</th>
                 <th>Papier / Farbe</th>
-                <th style={{ textAlign: "right" }}>Bogen</th>
-                <th>Cello</th>
+                <th style={{ textAlign: "right" }}>Menge</th>
+                <th>Cello / Wire-O</th>
                 <th>Batch</th>
                 <th>Status</th>
               </tr>
@@ -368,6 +373,7 @@ export default async function DruckauftragPage({
             <tbody>
               {jobs.map((j) => (
                 <tr key={j.id}>
+                  <td><span className="tag">{j.typ}</span></td>
                   <td>{j.bauteil}</td>
                   <td>
                     {j.papier ?? "—"}
@@ -375,20 +381,20 @@ export default async function DruckauftragPage({
                     {j.format ? ` · ${j.format}` : ""}
                   </td>
                   <td style={{ textAlign: "right" }}>
-                    {j.netto_bogen != null ? j.netto_bogen : "—"}
-                    {j.druckbogen ? ` ${j.druckbogen}` : ""}
-                    {j.nutzen ? ` (${j.nutzen}-up)` : ""}
+                    {j.typ === "druck"
+                      ? `${j.netto_bogen ?? "—"}${j.druckbogen ? ` ${j.druckbogen}` : ""}${j.nutzen ? ` (${j.nutzen}-up)` : ""}`
+                      : j.typ === "binden"
+                        ? `${j.schlaufen_gesamt?.toLocaleString("de-DE") ?? "—"} Schlaufen`
+                        : `${j.auflage.toLocaleString("de-DE")} Expl.`}
                   </td>
                   <td>
-                    {j.cello === "keine" ? "—" : `${j.cello}, ${j.cello_seiten}-seitig`}
+                    {j.cello !== "keine"
+                      ? `Cello ${j.cello}, ${j.cello_seiten}-seitig`
+                      : j.durchmesser || j.teilung
+                        ? [j.teilung, j.durchmesser].filter(Boolean).join(" · ")
+                        : "—"}
                   </td>
-                  <td>
-                    {j.batch ? (
-                      <Link href="/druck">{j.batch.nummer}</Link>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
+                  <td>{j.batch ? <Link href="/druck">{j.batch.nummer}</Link> : "—"}</td>
                   <td className="count">{j.status}</td>
                 </tr>
               ))}

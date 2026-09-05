@@ -23,12 +23,12 @@ export async function setBatchStatusAction(_prev: State, fd: FormData): Promise<
   if (status === "gedruckt") patch.gedruckt_at = new Date().toISOString();
   if (status === "cellophaniert") patch.cello_erledigt_at = new Date().toISOString();
 
-  const { error } = await supabase.from("druck_batch").update(patch).eq("id", id);
+  const { error } = await supabase.from("batch").update(patch).eq("id", id);
   if (error) return { error: error.message };
 
   if (JOB_STATUS[status]) {
     await supabase
-      .from("druckjob")
+      .from("job")
       .update({ status: JOB_STATUS[status] })
       .eq("batch_id", id)
       .neq("status", "storniert");
@@ -46,7 +46,7 @@ export async function batchAnFluxAction(_prev: State, fd: FormData): Promise<Sta
     const r = await uebergebeBatchAnFlux(supabase, id);
 
     await supabase
-      .from("druck_batch")
+      .from("batch")
       .update({
         status: "an_flux",
         an_flux_at: new Date().toISOString(),
@@ -57,14 +57,14 @@ export async function batchAnFluxAction(_prev: State, fd: FormData): Promise<Sta
       .eq("id", id);
 
     const { data: jobs } = await supabase
-      .from("druckjob")
+      .from("job")
       .select("id")
       .eq("batch_id", id)
       .in("status", ["in_batch", "offen"]);
     const ids = (jobs ?? []).map((j) => j.id as string);
     for (let i = 0; i < ids.length; i++) {
       await supabase
-        .from("druckjob")
+        .from("job")
         .update({
           status: "an_flux",
           flux_order_id: r.orderId ?? null,

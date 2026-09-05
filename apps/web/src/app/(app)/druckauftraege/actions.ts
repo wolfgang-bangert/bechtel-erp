@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolvePortalOrder } from "@/lib/opri/resolve";
-import { erzeugeDruckjobs } from "@/lib/druck/materialize";
+import { erzeugeJobs } from "@/lib/druck/materialize";
 
 export type State = { ok?: boolean; error?: string; note?: string };
 
@@ -36,15 +36,17 @@ export async function druckjobsAction(_prev: State, fd: FormData): Promise<State
   if (!id) return { error: "id fehlt" };
   const supabase = await createClient();
   try {
-    const r = await erzeugeDruckjobs(supabase, id);
+    const r = await erzeugeJobs(supabase, id);
     revalidatePath(`/druckauftraege/${id}`);
     revalidatePath("/druck");
-    const bat = r.batches.map((b) => `${b.nummer} (${b.jobs})`).join(", ");
+    const typen = Object.entries(r.nach_typ)
+      .map(([t, n]) => `${n} ${t}`)
+      .join(", ");
     return {
       ok: true,
-      note: `${r.jobs} Druckjob(s) in ${r.batches.length} Batch(es): ${bat}${
+      note: `${r.jobs} Job(s) [${typen}] in ${r.batches.length} Batch(es)${
         r.batches_neu ? ` · ${r.batches_neu} neu` : ""
-      }`,
+      }${r.uebersprungen.length ? ` · übersprungen: ${r.uebersprungen.join("; ")}` : ""}`,
     };
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };

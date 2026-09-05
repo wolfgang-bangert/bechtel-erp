@@ -1,18 +1,26 @@
 /**
- * Erzeugt aus der Auflösung eines Druckauftrags (portal_order.resolve_result)
- * die Druckjobs und ordnet sie Batches zu.
+ * Erzeugt aus der Auflösung eines Auftrags (portal_order.resolve_result) die
+ * Arbeitsvorgänge (job) und ordnet sie Batches zu.
  *
- * Regel: jede Materialzeile mit Bogen/Blatt und bedruckt ≠ false wird ein
- * Druckjob – außer Graukarton/Graupappe („bis auf Graukarton alles bedrucken").
- * Batch-Schlüssel: druckverfahren | cello | papier | druckbogen.
- * Cello-Batches (matt/glanz) tragen den Extra-Schritt Cellophanieren.
+ *   druck      – jede bedruckte Bogen/Blatt-Zeile (außer Graukarton/Graupappe)
+ *                Batch-Schlüssel: verfahren | cello | papier | druckbogen  → flux
+ *   cello      – wenn eine Zeile cello ≠ keine trägt
+ *                Batch-Schlüssel: matt|glanz | papier  (nach dem Umschlag-Druck)
+ *   binden     – wenn eine Wire-O-Zeile da ist
+ *                Batch-Schlüssel: teilung | durchmesser  (nach allen Druck-/Cello-Jobs)
+ *   aufhaenger – wenn Kalenderaufhänger; nach dem Binden
+ *
+ * abhaengig_von hält die Reihenfolge fürs spätere Planungsboard.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ResolveResult } from "@/lib/opri/resolve";
 
 type Zeile = ResolveResult["materialliste"][number];
+type Typ = "druck" | "cello" | "binden" | "aufhaenger";
 
 const NICHT_BEDRUCKT = /graukarton|graupappe|graukart/i;
+const IST_WIREO = /drahtbinder|wire-?o/i;
+const IST_AUFHAENGER = /aufh[äa]nger/i;
 
 const norm = (v: unknown) => (v == null ? "" : String(v).trim());
 
@@ -23,24 +31,18 @@ function istDruckzeile(z: Zeile): boolean {
   if (NICHT_BEDRUCKT.test(`${z.material ?? ""} ${z.material_kurz ?? ""} ${z.rolle ?? ""}`)) return false;
   return true;
 }
-
-function batchSchluessel(p: {
-  druckverfahren: string | null;
-  cello: string;
-  papier: string | null;
-  druckbogen: string | null;
-}): string {
-  return [norm(p.druckverfahren), p.cello || "keine", norm(p.papier), norm(p.druckbogen)].join(" | ");
-}
+const istWireOzeile = (z: Zeile) => z.teilung != null || IST_WIREO.test(z.rolle ?? "");
+const istAufhaengerZeile = (z: Zeile) => IST_AUFHAENGER.test(`${z.rolle ?? ""} ${z.verwendung ?? ""}`);
 
 export type MaterializeResult = {
   jobs: number;
+  nach_typ: Record<string, number>;
   batches_neu: number;
-  batches: { nummer: string; schluessel: string; jobs: number }[];
+  batches: { nummer: string; typ: string; schluessel: string; jobs: number }[];
   uebersprungen: string[];
 };
 
-export async function erzeugeDruckjobs(
+export async function erzeugeJobs(
   sb: SupabaseClient,
   portalOrderId: string,
 ): Promise<MaterializeResult> {
@@ -60,8 +62,8 @@ export async function erzeugeDruckjobs(
       (f) => f.typ === "printData" && f.storage_key,
     )?.storage_key ?? null;
 
-  // flux_product per Cascade (Stammartikel → Gruppe), sonst flux_template –
-  // Fallback nur, wenn die Materialzeile kein flux-Template aufgelöst hat.
+  // flux_product-Fallback (Stammartikel → Gruppe → flux_template), nur wenn die
+  // Zeile selbst kein Template aufgelöst hat.
   let fluxProductFallback: string | null = null;
   if (rr.stammartikel_id) {
     const { data: st } = await sb
@@ -82,112 +84,227 @@ export async function erzeugeDruckjobs(
   fluxProductFallback = fluxProductFallback ?? rr.flux_template ?? null;
 
   const auflage = Number(order.quantity) || 0;
+  const verfahren = rr.druckverfahren ?? null;
+  const farbigkeit = (rr.attribute?.farbigkeit as string | undefined) ?? null;
   const uebersprungen: string[] = [];
-  const druckzeilen = (rr.materialliste ?? []).filter((z) => {
+
+  const zeilen = rr.materialliste ?? [];
+  const druckzeilen = zeilen.filter((z) => {
     const ok = istDruckzeile(z);
-    if (!ok && (z.material || z.material_kurz)) {
+    if (!ok && (z.material || z.material_kurz) && !istWireOzeile(z) && !istAufhaengerZeile(z)) {
       uebersprungen.push(`${z.regel}: ${z.material_kurz || z.material}`);
     }
     return ok;
   });
+  const celloZeilen = zeilen.filter((z) => (z.cello ?? "keine") !== "keine");
+  const wireOzeile = zeilen.find(istWireOzeile) ?? null;
+  const hatAufhaenger = rr.attribute?.kalenderaufhaenger === true || zeilen.some(istAufhaengerZeile);
 
-  // vorhandene, noch nicht an flux gegebene Jobs dieses Auftrags ersetzen
+  // vorhandene, noch nicht übergebene Jobs dieses Auftrags ersetzen
   await sb
-    .from("druckjob")
+    .from("job")
     .delete()
     .eq("portal_order_id", portalOrderId)
     .in("status", ["offen", "in_batch"]);
 
+  // ---- Batch-Zuordnung -----------------------------------------------------
   const batchCache = new Map<string, { id: string; nummer: string }>();
   let batchesNeu = 0;
+  const perBatch = new Map<string, { typ: string; schluessel: string; jobs: number }>();
 
-  async function batchFor(z: Zeile): Promise<{ id: string; nummer: string }> {
-    const key = batchSchluessel({
-      druckverfahren: rr!.druckverfahren ?? null,
-      cello: z.cello ?? "keine",
-      papier: z.material_kurz || z.material,
-      druckbogen: z.druckbogen ?? null,
-    });
-    const cached = batchCache.get(key);
+  async function getBatch(
+    typ: Typ,
+    schluessel: string,
+    meta: Record<string, unknown>,
+  ): Promise<{ id: string; nummer: string }> {
+    const cacheKey = `${typ}::${schluessel}`;
+    const cached = batchCache.get(cacheKey);
     if (cached) return cached;
 
     const { data: offen } = await sb
-      .from("druck_batch")
+      .from("batch")
       .select("id, nummer")
-      .eq("schluessel", key)
+      .eq("typ", typ)
+      .eq("schluessel", schluessel)
       .in("status", ["offen", "bereit"])
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
     if (offen) {
       const hit = { id: offen.id as string, nummer: offen.nummer as string };
-      batchCache.set(key, hit);
+      batchCache.set(cacheKey, hit);
+      perBatch.set(hit.nummer, { typ, schluessel, jobs: 0 });
       return hit;
     }
 
-    const { data: nummerRow, error: nErr } = await sb.rpc("next_number", { p_key: "druck_batch" });
+    const { data: nummerRow, error: nErr } = await sb.rpc("next_number", { p_key: "batch" });
     if (nErr) throw new Error(`Batch-Nummer: ${nErr.message}`);
     const { data: neu, error: bErr } = await sb
-      .from("druck_batch")
-      .insert({
-        nummer: nummerRow as unknown as string,
-        schluessel: key,
-        druckverfahren: rr!.druckverfahren ?? null,
-        cello: z.cello ?? "keine",
-        cello_seiten: z.cello_seiten ?? 1,
-        papier: z.material_kurz || z.material,
-        druckbogen: z.druckbogen ?? null,
-      })
+      .from("batch")
+      .insert({ nummer: nummerRow as unknown as string, typ, schluessel, ...meta })
       .select("id, nummer")
       .single();
     if (bErr) throw new Error(`Batch anlegen: ${bErr.message}`);
     batchesNeu++;
     const hit = { id: neu.id as string, nummer: neu.nummer as string };
-    batchCache.set(key, hit);
+    batchCache.set(cacheKey, hit);
+    perBatch.set(hit.nummer, { typ, schluessel, jobs: 0 });
     return hit;
   }
 
-  const perBatch = new Map<string, number>();
+  const bump = (nummer: string) => {
+    const e = perBatch.get(nummer);
+    if (e) e.jobs++;
+  };
+
+  // ---- 1) Druck-Jobs -----------------------------------------------------
+  const druckJobIds: string[] = [];
+  const celloDruckJobIds: string[] = [];
   for (const z of druckzeilen) {
-    const batch = await batchFor(z);
+    const papier = z.material_kurz || z.material;
+    const schluessel = [norm(verfahren), z.cello ?? "keine", norm(papier), norm(z.druckbogen)].join(" | ");
+    const batch = await getBatch("druck", schluessel, {
+      druckverfahren: verfahren,
+      cello: z.cello ?? "keine",
+      cello_seiten: z.cello_seiten ?? 1,
+      papier,
+      druckbogen: z.druckbogen ?? null,
+    });
+
     const services: Record<string, unknown> = { ...(z.flux_services ?? {}) };
     if (z.flux_paper_type) services["Papiersorte"] = z.flux_paper_type;
     if (z.flux_paper_type_back) services["Papiersorte Rückseite"] = z.flux_paper_type_back;
 
-    const { error: jErr } = await sb.from("druckjob").insert({
+    const { data: j, error: jErr } = await sb
+      .from("job")
+      .insert({
+        portal_order_id: portalOrderId,
+        batch_id: batch.id,
+        typ: "druck",
+        bauteil: z.verwendung || z.rolle || z.regel,
+        quelle_regel: z.regel,
+        papier,
+        farbigkeit,
+        format: z.format || (rr.attribute?.format as string | undefined) || null,
+        druckbogen: z.druckbogen ?? null,
+        nutzen: z.nutzen ?? null,
+        netto_bogen: z.netto_bogen ?? null,
+        auflage,
+        cello: z.cello ?? "keine",
+        cello_seiten: z.cello_seiten ?? 1,
+        flux_product: z.flux_product ?? fluxProductFallback,
+        flux_services: services,
+        flux_paper_type: z.flux_paper_type ?? null,
+        flux_signature: z.flux_signature ?? null,
+        flux_printer: z.flux_printer ?? null,
+        pdf_storage_key: printKey,
+        status: "in_batch",
+      })
+      .select("id")
+      .single();
+    if (jErr) throw new Error(`Druckjob: ${jErr.message}`);
+    druckJobIds.push(j.id as string);
+    if ((z.cello ?? "keine") !== "keine") celloDruckJobIds.push(j.id as string);
+    bump(batch.nummer);
+  }
+
+  // ---- 2) Cello-Job ----------------------------------------------------
+  const celloJobIds: string[] = [];
+  if (celloZeilen.length) {
+    const cz = celloZeilen[0];
+    const cello = cz.cello ?? "matt";
+    const papier = cz.material_kurz || cz.material;
+    const schluessel = [cello, norm(papier)].join(" | ");
+    const batch = await getBatch("cello", schluessel, {
+      cello,
+      cello_seiten: cz.cello_seiten ?? 1,
+      papier,
+    });
+    const { data: j, error: jErr } = await sb
+      .from("job")
+      .insert({
+        portal_order_id: portalOrderId,
+        batch_id: batch.id,
+        typ: "cello",
+        bauteil: `Cellophanieren ${cello}${cz.cello_seiten === 2 ? " (2-seitig)" : ""}`,
+        quelle_regel: cz.regel,
+        papier,
+        auflage,
+        cello,
+        cello_seiten: cz.cello_seiten ?? 1,
+        abhaengig_von: celloDruckJobIds,
+        status: "in_batch",
+      })
+      .select("id")
+      .single();
+    if (jErr) throw new Error(`Cello-Job: ${jErr.message}`);
+    celloJobIds.push(j.id as string);
+    bump(batch.nummer);
+  } else if ((rr.attribute?.cello as string | undefined) && (rr.attribute?.cello as string) !== "keine") {
+    uebersprungen.push(`Cello ${rr.attribute?.cello} erkannt, aber keine Regel trägt sie (traegt_cello)`);
+  }
+
+  // ---- 3) Binde-Job --------------------------------------------------
+  const bindeJobIds: string[] = [];
+  if (wireOzeile) {
+    const z = wireOzeile;
+    const schluessel = [norm(z.teilung), norm(z.durchmesser)].join(" | ");
+    const batch = await getBatch("binden", schluessel, {
+      // batch-Spalten druckbogen/papier bleiben leer; teilung/durchmesser stehen am Job
+    });
+    const { data: j, error: jErr } = await sb
+      .from("job")
+      .insert({
+        portal_order_id: portalOrderId,
+        batch_id: batch.id,
+        typ: "binden",
+        bauteil: `Wire-O binden${z.durchmesser ? ` ${z.durchmesser}` : ""}`,
+        quelle_regel: z.regel,
+        auflage,
+        teilung: z.teilung ?? null,
+        durchmesser: z.durchmesser ?? null,
+        schlaufen: z.schlaufen ?? null,
+        schlaufen_gesamt: z.schlaufen_gesamt ?? null,
+        bindeseite: z.bindeseite ?? null,
+        abhaengig_von: [...druckJobIds, ...celloJobIds],
+        status: "in_batch",
+      })
+      .select("id")
+      .single();
+    if (jErr) throw new Error(`Binde-Job: ${jErr.message}`);
+    bindeJobIds.push(j.id as string);
+    bump(batch.nummer);
+  }
+
+  // ---- 4) Aufhänger-Job --------------------------------------------
+  if (hatAufhaenger) {
+    const batch = await getBatch("aufhaenger", "aufhaenger", {});
+    const { error: jErr } = await sb.from("job").insert({
       portal_order_id: portalOrderId,
       batch_id: batch.id,
-      bauteil: z.verwendung || z.rolle || z.regel,
-      quelle_regel: z.regel,
-      papier: z.material_kurz || z.material,
-      farbigkeit: (rr.attribute?.farbigkeit as string | undefined) ?? null,
-      format: z.format || (rr.attribute?.format as string | undefined) || null,
-      druckbogen: z.druckbogen ?? null,
-      nutzen: z.nutzen ?? null,
-      netto_bogen: z.netto_bogen ?? null,
+      typ: "aufhaenger",
+      bauteil: "Kalenderaufhänger montieren",
       auflage,
-      cello: z.cello ?? "keine",
-      cello_seiten: z.cello_seiten ?? 1,
-      flux_product: z.flux_product ?? fluxProductFallback,
-      flux_services: services,
-      flux_paper_type: z.flux_paper_type ?? null,
-      flux_signature: z.flux_signature ?? null,
-      flux_printer: z.flux_printer ?? null,
-      pdf_storage_key: printKey,
+      abhaengig_von: bindeJobIds.length ? bindeJobIds : druckJobIds,
       status: "in_batch",
     });
-    if (jErr) throw new Error(`Druckjob: ${jErr.message}`);
-    perBatch.set(batch.nummer, (perBatch.get(batch.nummer) ?? 0) + 1);
+    if (jErr) throw new Error(`Aufhänger-Job: ${jErr.message}`);
+    bump(batch.nummer);
+  }
+
+  const alle = [...perBatch.entries()];
+  const nachTyp: Record<string, number> = {};
+  let jobsGesamt = 0;
+  for (const [, e] of alle) {
+    nachTyp[e.typ] = (nachTyp[e.typ] ?? 0) + e.jobs;
+    jobsGesamt += e.jobs;
   }
 
   return {
-    jobs: druckzeilen.length,
+    jobs: jobsGesamt,
+    nach_typ: nachTyp,
     batches_neu: batchesNeu,
-    batches: [...batchCache.entries()].map(([schluessel, b]) => ({
-      nummer: b.nummer,
-      schluessel,
-      jobs: perBatch.get(b.nummer) ?? 0,
-    })),
+    batches: alle.map(([nummer, e]) => ({ nummer, typ: e.typ, schluessel: e.schluessel, jobs: e.jobs })),
     uebersprungen: [...new Set(uebersprungen)],
   };
 }

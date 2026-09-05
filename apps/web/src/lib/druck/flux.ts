@@ -38,19 +38,21 @@ export async function uebergebeBatchAnFlux(
   batchId: string,
 ): Promise<FluxHandoff> {
   const { data: batch, error: bErr } = await sb
-    .from("druck_batch")
-    .select("id, nummer, cello, papier, druckbogen")
+    .from("batch")
+    .select("id, nummer, typ, cello, papier, druckbogen")
     .eq("id", batchId)
     .maybeSingle();
   if (bErr) throw new Error(bErr.message);
   if (!batch) throw new Error("Batch nicht gefunden");
+  if (batch.typ !== "druck") throw new Error(`Batch ${batch.nummer} ist kein Druck-Batch (${batch.typ})`);
 
   const { data: jobsRaw, error: jErr } = await sb
-    .from("druckjob")
+    .from("job")
     .select(
       "id, bauteil, papier, auflage, zuschuss, flux_product, flux_services, flux_signature, flux_printer, pdf_storage_key, order:portal_order_id(external_reference)",
     )
     .eq("batch_id", batchId)
+    .eq("typ", "druck")
     .in("status", ["in_batch", "offen"]);
   if (jErr) throw new Error(jErr.message);
   const jobs = (jobsRaw ?? []) as unknown as Job[];
