@@ -324,6 +324,21 @@ async function main() {
       console.log(JSON.stringify(await resolveOpri({ ref: refArg, all, dryRun }), null, 1));
       break;
     }
+    case "preise:import": {
+      const { importPreise } = await import("./importPreise");
+      console.log(JSON.stringify(await importPreise(), null, 1));
+      break;
+    }
+    case "preise:rollover": {
+      const { rolloverPreise } = await import("./importPreise");
+      console.log(JSON.stringify(await rolloverPreise(), null, 1));
+      break;
+    }
+    case "preise:match": {
+      const { matchPreise } = await import("./importPreise");
+      console.log(JSON.stringify(await matchPreise(), null, 1));
+      break;
+    }
     case "portal:pull": {
       const portalArg =
         process.argv.find((a) => a.startsWith("--portal="))?.split("=")[1] ?? "onlineprinters";

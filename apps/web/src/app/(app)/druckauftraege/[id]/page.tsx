@@ -5,6 +5,7 @@ import { signedGetUrl } from "@/lib/storage";
 import { fmtDate } from "@/lib/format";
 import { ResolveButton } from "./ResolveButton";
 import { DruckjobsButton } from "./DruckjobsButton";
+import { PreisPanel } from "./PreisPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -83,6 +84,13 @@ type Detail = {
   raw: unknown;
   resolve_result: ResolveResult | null;
   resolved_at: string | null;
+  versand_datum: string | null;
+  preis_netto: number | null;
+  preis_quelle: string | null;
+  berechnet: boolean;
+  ist_rekla: boolean;
+  rekla_vermerk: string | null;
+  abrechnung: { id: string; jahr: number; kw: number; status: string } | null;
   portal: { code?: string; name?: string } | null;
   items: { position: string | null; sku: string | null; quantity: number | null; description: string | null }[];
   files: {
@@ -110,6 +118,8 @@ export default async function DruckauftragPage({
     .select(
       "id, external_id, external_reference, reference_type, portal_state, description, quantity, " +
         "deliver_date, currency, total_net, total_gross, ship_to, sender, received_at, raw, resolve_result, resolved_at, " +
+        "versand_datum, preis_netto, preis_quelle, berechnet, ist_rekla, rekla_vermerk, " +
+        "abrechnung:abrechnung_id(id, jahr, kw, status), " +
         "portal:portal_id(code, name), " +
         "items:portal_order_item(position, sku, quantity, description), " +
         "files:portal_order_file(id, typ, filename, bytes, storage_key, is_zip, source_url, fetched_at)",
@@ -202,6 +212,34 @@ export default async function DruckauftragPage({
           <AddrBlock a={data.sender as Record<string, unknown> | null} />
         </div>
       </div>
+
+      <h2 style={{ marginTop: 18 }}>
+        Preis &amp; Abrechnung
+        {data.abrechnung && (
+          <span className="tag" style={{ marginLeft: 6 }}>
+            KW {data.abrechnung.kw}/{data.abrechnung.jahr} · {data.abrechnung.status}
+          </span>
+        )}
+      </h2>
+      {data.abrechnung ? (
+        <p className="lead">
+          Bereits in{" "}
+          <Link href={`/abrechnung/${data.abrechnung.id}`}>
+            Abrechnung KW {data.abrechnung.kw}/{data.abrechnung.jahr}
+          </Link>{" "}
+          ({data.abrechnung.status}). Änderungen dort vornehmen.
+        </p>
+      ) : (
+        <PreisPanel
+          id={data.id}
+          versandDatum={data.versand_datum}
+          berechnet={data.berechnet}
+          istRekla={data.ist_rekla}
+          reklaVermerk={data.rekla_vermerk}
+          preisNetto={data.preis_netto}
+          preisQuelle={data.preis_quelle}
+        />
+      )}
 
       <h2>
         Positionen <span className="tag">{items.length}</span>
