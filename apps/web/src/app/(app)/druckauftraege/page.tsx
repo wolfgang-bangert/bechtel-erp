@@ -58,11 +58,17 @@ export default async function DruckauftraegePage({
   const supabase = await createClient();
 
   const [{ data: gruppen }, { data: stammartikel }] = await Promise.all([
-    supabase.from("opri_produkt_gruppe").select("kuerzel, name").order("kuerzel"),
-    supabase.from("opri_stammartikel").select("id, sku, name").order("sku").limit(2000),
+    supabase.from("opri_produkt_gruppe").select("id, kuerzel, name").order("kuerzel"),
+    supabase.from("opri_stammartikel").select("id, sku, name, gruppe_id").order("sku").limit(2000),
   ]);
   const gruppeName = new Map((gruppen ?? []).map((g) => [g.kuerzel as string, g.name as string]));
+  const gruppeIdByKuerzel = new Map((gruppen ?? []).map((g) => [g.kuerzel as string, g.id as string]));
   const stammName = new Map((stammartikel ?? []).map((s) => [s.id as string, `${s.sku} — ${s.name}`]));
+  // Stammartikel-Auswahl auf die gewählte Produktgruppe eingrenzen
+  const selGruppeId = gruppe ? gruppeIdByKuerzel.get(gruppe) : undefined;
+  const stammOptionen = (stammartikel ?? []).filter(
+    (s) => !selGruppeId || s.gruppe_id === selGruppeId,
+  );
 
   let query = supabase
     .from("portal_order")
@@ -131,11 +137,11 @@ export default async function DruckauftraegePage({
             ))}
           </select>
         </label>
-        <label className="field" style={{ width: 240 }}>
-          <span>Stammartikel</span>
+        <label className="field" style={{ width: 260 }}>
+          <span>Stammartikel{gruppe ? "" : " (erst Gruppe wählen)"}</span>
           <select name="stamm" defaultValue={stamm}>
             <option value="">alle</option>
-            {(stammartikel ?? []).map((s) => (
+            {stammOptionen.map((s) => (
               <option key={s.id as string} value={s.id as string}>
                 {s.sku as string} — {s.name as string}
               </option>
@@ -157,67 +163,73 @@ export default async function DruckauftraegePage({
 
       {error && <div className="banner-err">Fehler beim Laden: {error.message}</div>}
 
-      <div className="table-scroll">
-        <table className="data">
-          <thead>
-            <tr>
-              <th style={{ width: 56 }}></th>
-              <th>Produkt</th>
-              <th style={{ textAlign: "right", width: 70 }}>Menge</th>
-              <th style={{ width: 110 }}>Status</th>
-              <th>Lieferanschrift</th>
-            </tr>
-          </thead>
-          <tbody>
-            {withThumbs.map((r) => {
-              const rr = r.resolve_result;
-              const produkt =
-                (rr?.gruppe && gruppeName.get(rr.gruppe)) ||
-                r.description ||
-                "—";
-              const sub = attrLine(rr?.attribute);
-              return (
-                <tr key={r.id}>
-                  <td>
-                    {r.thumb ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={r.thumb}
-                        alt=""
-                        style={{ width: 48, height: 62, objectFit: "cover", borderRadius: 3, border: "1px solid var(--border)" }}
-                      />
-                    ) : (
-                      <div
-                        style={{ width: 48, height: 62, borderRadius: 3, border: "1px dashed var(--border)", background: "var(--tag-bg)" }}
-                      />
-                    )}
-                  </td>
-                  <td>
-                    <Link href={`/druckauftraege/${r.id}`} style={{ fontSize: 15, fontWeight: 600 }}>
-                      {produkt}
-                    </Link>
-                    {sub && <div className="count" style={{ marginTop: 2 }}>{sub}</div>}
-                    <div className="count" style={{ marginTop: 2 }}>
-                      {r.external_reference}
-                      {rr?.stammartikel_id && stammName.get(rr.stammartikel_id)
-                        ? ` · ${stammName.get(rr.stammartikel_id)!.split(" — ")[0]}`
-                        : ""}
-                      {` · ${r.items?.[0]?.count ?? 0} Pos.`}
-                    </div>
-                  </td>
-                  <td style={{ textAlign: "right" }}>{r.quantity != null ? Number(r.quantity).toLocaleString("de-DE") : "—"}</td>
-                  <td><span className="tag">{r.portal_state ?? "?"}</span></td>
-                  <td className="count"><Adr a={r.ship_to} /></td>
-                </tr>
-              );
-            })}
-            {!withThumbs.length && (
+      {/* volle Breite: über die 1000px-Contentbox hinaus */}
+      <div style={{ width: "calc(100vw - 220px - 64px)", maxWidth: 1600 }}>
+        <div className="table-scroll">
+          <table className="data" style={{ width: "100%" }}>
+            <thead>
               <tr>
-                <td colSpan={5} style={{ color: "var(--muted)" }}>Keine Druckaufträge.</td>
+                <th style={{ width: 56 }}></th>
+                <th style={{ textAlign: "right", width: 78 }}>Auflage</th>
+                <th>Produkt</th>
+                <th style={{ width: 120 }}>Status</th>
+                <th style={{ width: 300 }}>Lieferanschrift</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {withThumbs.map((r) => {
+                const rr = r.resolve_result;
+                const produkt = (rr?.gruppe && gruppeName.get(rr.gruppe)) || r.description || "—";
+                const sub = attrLine(rr?.attribute);
+                const stammSku =
+                  rr?.stammartikel_id && stammName.get(rr.stammartikel_id)
+                    ? stammName.get(rr.stammartikel_id)!.split(" — ")[0]
+                    : null;
+                return (
+                  <tr key={r.id}>
+                    <td>
+                      {r.thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={r.thumb}
+                          alt=""
+                          style={{ width: 48, height: 62, objectFit: "cover", borderRadius: 3, border: "1px solid var(--border)" }}
+                        />
+                      ) : (
+                        <div
+                          style={{ width: 48, height: 62, borderRadius: 3, border: "1px dashed var(--border)", background: "var(--tag-bg)" }}
+                        />
+                      )}
+                    </td>
+                    <td style={{ textAlign: "right", fontWeight: 600, fontSize: 15 }}>
+                      {r.quantity != null ? Number(r.quantity).toLocaleString("de-DE") : "—"}
+                    </td>
+                    <td>
+                      <Link href={`/druckauftraege/${r.id}`} style={{ fontSize: 15, fontWeight: 600 }}>
+                        <span className="count" style={{ fontWeight: 600 }}>{r.external_reference}</span>
+                        {"  "}
+                        {produkt}
+                      </Link>
+                      {sub && <div className="count" style={{ marginTop: 2 }}>{sub}</div>}
+                      {(stammSku || r.items?.[0]?.count) && (
+                        <div className="count" style={{ marginTop: 2 }}>
+                          {[stammSku, `${r.items?.[0]?.count ?? 0} Pos.`].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
+                    </td>
+                    <td><span className="tag">{r.portal_state ?? "?"}</span></td>
+                    <td className="count"><Adr a={r.ship_to} /></td>
+                  </tr>
+                );
+              })}
+              {!withThumbs.length && (
+                <tr>
+                  <td colSpan={5} style={{ color: "var(--muted)" }}>Keine Druckaufträge.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {lastPage > 1 && (
