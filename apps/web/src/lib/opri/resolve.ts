@@ -392,7 +392,23 @@ export async function resolvePortalOrder(
     (stammartikelId ? stammFlux.get(stammartikelId) ?? null : null) ?? grp0?.flux_template ?? null;
   if (!fluxTemplate) hinweise.push("kein flux_template (Regel fehlt)");
 
-  const matchRegel = (r: Regel): boolean => {
+  const bedingungOk = (r: Regel): boolean => {
+    const b = (r as { bedingung?: Record<string, unknown> }).bedingung;
+    if (!b || typeof b !== "object" || !Object.keys(b).length) return true;
+    for (const [k, v] of Object.entries(b)) {
+      if (k.endsWith("_min")) {
+        const n = nnum(attr[k.slice(0, -4)]);
+        if (n == null || n < Number(v)) return false;
+      } else if (k.endsWith("_max")) {
+        const n = nnum(attr[k.slice(0, -4)]);
+        if (n == null || n > Number(v)) return false;
+      } else if (String(attr[k] ?? "").toLowerCase() !== String(v).toLowerCase()) {
+        return false;
+      }
+    }
+    return true;
+  };
+  const ebeneOk = (r: Regel): boolean => {
     if (r.ebene === "gruppe") return !!grp0 && r.gruppe_id === grp0.id;
     if (r.ebene === "stammartikel") return !!stammartikelId && r.stammartikel_id === stammartikelId;
     if (r.ebene === "option") {
@@ -407,6 +423,7 @@ export async function resolvePortalOrder(
     }
     return false;
   };
+  const matchRegel = (r: Regel): boolean => ebeneOk(r) && bedingungOk(r);
   const applicable = regeln.filter(matchRegel).sort((a, b) => a.prio - b.prio);
 
   const findPapier = (): Material | null => {
@@ -515,6 +532,17 @@ export async function resolvePortalOrder(
           })) ||
         null;
       if (!mat) note = `kein ${r.material_rolle ?? "Material"} für Format '${attr.format ?? "?"}'`;
+    } else if (r.herkunft === "aus_farbe_text") {
+      const want = String(attr.farbe ?? "").toLowerCase().trim();
+      mat =
+        (want &&
+          material.find((m) => {
+            if (r.material_rolle && rolleName.get(m.rolle_id ?? "") !== r.material_rolle) return false;
+            const mf = String(m.attribute?.Farbe ?? m.attribute?.farbe ?? "").toLowerCase();
+            return !!mf && mf === want;
+          })) ||
+        null;
+      if (!mat) note = `kein ${r.material_rolle ?? "Material"} für Farbe '${attr.farbe ?? "?"}'`;
     } else if (r.herkunft) {
       note = `Herkunft '${r.herkunft}' noch nicht implementiert`;
     }

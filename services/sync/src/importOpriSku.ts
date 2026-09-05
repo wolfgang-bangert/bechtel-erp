@@ -33,7 +33,7 @@ function decode(text: string): Record<string, string | number> {
   const fbg = text.match(/([14]\/[04])[\s-]*(?:farb|fbg|farbig)/i);
   if (fbg) a.farbigkeit = fbg[1];
   const farbe = text.match(
-    /\b(gelb|blau|t[üu]rkis|hellgr[üu]n|dunkelgr[üu]n|schwarz|magenta|rot|rosa|violett|orange|wei[ßs]|silber)\b/i,
+    /\b(gelb|blau|t[üu]rkis|hellgr[üu]n|dunkelgr[üu]n|schwarz|magenta|rot|rosa|lila|violett|orange|wei[ßs]|silber)\b/i,
   );
   if (farbe) a.farbe = farbe[1].toLowerCase();
   return a;

@@ -351,7 +351,25 @@ function resolveOne(
   if (!fluxTemplate) hinweise.push("kein flux_template (Regel fehlt)");
 
   // --- Materialregeln anwenden
-  const matchRegel = (r: Regel): boolean => {
+  // Zusatzbedingung (JSON) gegen die Attribute prüfen: {"farbigkeit":"4/4"},
+  // {"grammatur_g_min":250}, {"grammatur_g_max":170} …
+  const bedingungOk = (r: Regel): boolean => {
+    const b = r.bedingung;
+    if (!b || typeof b !== "object" || !Object.keys(b).length) return true;
+    for (const [k, v] of Object.entries(b)) {
+      if (k.endsWith("_min")) {
+        const n = nnum(attr[k.slice(0, -4)]);
+        if (n == null || n < Number(v)) return false;
+      } else if (k.endsWith("_max")) {
+        const n = nnum(attr[k.slice(0, -4)]);
+        if (n == null || n > Number(v)) return false;
+      } else if (String(attr[k] ?? "").toLowerCase() !== String(v).toLowerCase()) {
+        return false;
+      }
+    }
+    return true;
+  };
+  const ebeneOk = (r: Regel): boolean => {
     if (r.ebene === "gruppe") return !!grp && r.gruppe_id === grp.id;
     if (r.ebene === "stammartikel") return !!stammartikelId && r.stammartikel_id === stammartikelId;
     if (r.ebene === "option") {
@@ -366,6 +384,7 @@ function resolveOne(
     }
     return false;
   };
+  const matchRegel = (r: Regel): boolean => ebeneOk(r) && bedingungOk(r);
 
   const applicable = ref.regeln.filter(matchRegel).sort((a, b) => a.prio - b.prio);
 
@@ -509,6 +528,17 @@ function resolveOne(
           })) ||
         null;
       if (!mat) note = `kein ${r.material_rolle ?? "Material"} für Format '${attr.format ?? "?"}'`;
+    } else if (r.herkunft === "aus_farbe_text") {
+      const want = String(attr.farbe ?? "").toLowerCase().trim();
+      mat =
+        (want &&
+          ref.material.find((m) => {
+            if (r.material_rolle && ref.rolleName.get(m.rolle_id ?? "") !== r.material_rolle) return false;
+            const mf = String(m.attribute?.Farbe ?? m.attribute?.farbe ?? "").toLowerCase();
+            return !!mf && mf === want;
+          })) ||
+        null;
+      if (!mat) note = `kein ${r.material_rolle ?? "Material"} für Farbe '${attr.farbe ?? "?"}'`;
     } else if (r.herkunft) {
       note = `Herkunft '${r.herkunft}' noch nicht implementiert`;
     }
