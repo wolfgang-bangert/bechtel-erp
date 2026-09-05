@@ -8,6 +8,7 @@ const root = (p: string) => fileURLToPath(new URL(`../../../${p}`, import.meta.u
 const PY = svc(".fints-venv/bin/python");
 const SCRIPT = svc("py/preise_dump.py");
 const DEFAULT_XLSX = root("imports/online-printers/Preisllisten Schwabenprint.xlsx");
+const MULTILOFT_XLSX = root("imports/online-printers/Multiloft.xlsx");
 
 type PreisRow = {
   kategorie: string;
@@ -85,7 +86,11 @@ export async function importPreise() {
   if (!existsSync(PY)) throw new Error(`Python-venv fehlt (${PY})`);
   if (!existsSync(datei)) throw new Error(`Datei fehlt: ${datei}`);
 
-  const res = spawnSync(PY, [SCRIPT, datei], { encoding: "utf8", maxBuffer: 128 * 1024 * 1024 });
+  const mlArg = arg("multiloft") ?? (existsSync(MULTILOFT_XLSX) ? MULTILOFT_XLSX : "");
+  const res = spawnSync(PY, [SCRIPT, datei, mlArg].filter(Boolean), {
+    encoding: "utf8",
+    maxBuffer: 128 * 1024 * 1024,
+  });
   if (res.status !== 0) throw new Error(`preise_dump.py: ${res.stderr?.slice(0, 400)}`);
   const parsed = JSON.parse(res.stdout) as {
     rows: PreisRow[];

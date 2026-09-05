@@ -213,8 +213,41 @@ def parse_longform(ws, cfg):
     return out
 
 
+def parse_multiloft(path):
+    """Multiloft.xlsx / Tabelle2: je Farbigkeit (4/4, 4/0) eine Auflage->Gesamt-Staffel."""
+    wb = openpyxl.load_workbook(path, data_only=True)
+    ws = wb["Tabelle2"] if "Tabelle2" in wb.sheetnames else wb[wb.sheetnames[0]]
+    out = []
+    farb = None
+    for r in ws.iter_rows(values_only=True):
+        c0 = s(r[0]) if r else ""
+        low = c0.lower()
+        if "multiloft" in low:
+            farb = "4/0" if "4/0" in low else "4/4"
+            continue
+        a = as_int(r[0]) if r else None
+        p = num(r[1]) if r and len(r) > 1 else None
+        if a is None or p is None or farb is None:
+            continue
+        out.append(
+            {
+                "kategorie": "Multiloft",
+                "produktgruppe": "PVF",
+                "format": None,
+                "blatt": None,
+                "sorte": None,
+                "farbigkeit": farb,
+                "spalten_key": "gesamt",
+                "auflage": a,
+                "preis_netto": p,
+            }
+        )
+    return out
+
+
 def main():
     path = sys.argv[1]
+    multiloft_path = sys.argv[2] if len(sys.argv) > 2 else None
     wb = openpyxl.load_workbook(path, data_only=True)
     rows = []
     seen = {}
@@ -233,6 +266,13 @@ def main():
             continue
         seen[sheet] = len(r)
         rows.extend(r)
+    if multiloft_path:
+        try:
+            ml = parse_multiloft(multiloft_path)
+            seen["Multiloft.xlsx"] = len(ml)
+            rows.extend(ml)
+        except Exception as exc:  # noqa: BLE001
+            seen["Multiloft.xlsx"] = f"Fehler: {exc}"
     json.dump({"rows": rows, "spiral": spiral, "sheets": seen}, sys.stdout, ensure_ascii=False)
 
 
