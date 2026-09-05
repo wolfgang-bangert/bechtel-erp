@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { NeueListe } from "./NeueListe";
 
 export const dynamic = "force-dynamic";
 
@@ -23,19 +25,11 @@ export default async function PreislistenPage() {
     <>
       <h1>Preislisten</h1>
       <p className="lead">
-        Zeitraum-gültige Ausgaben (Schwabenprint / IVS Abele). Die Auswahl je Auftrag läuft über das
-        <strong> Versanddatum</strong> (Fallback Lieferdatum). Import &amp; Fortschreibung per CLI:
+        Zeitraum-gültige Ausgaben. Auswahl je Auftrag über das <strong>Versanddatum</strong>
+        (Fallback Lieferdatum). Alle Preise liegen in der Datenbank (Tabellen{" "}
+        <code>preis_liste</code> + <code>preis</code>) — auf eine Ausgabe klicken, um sie zu sehen
+        und zu bearbeiten.
       </p>
-      <pre className="code-block" style={{ whiteSpace: "pre-wrap" }}>
-{`pnpm --filter sync exec tsx src/cli.ts preise:import \\
-  --name="Schwabenprint bis 2026-08-31" --ab=2026-01-01 --bis=2026-08-31
-
-pnpm --filter sync exec tsx src/cli.ts preise:rollover \\
-  --basis="Schwabenprint bis 2026-08-31" --name="Schwabenprint ab 2026-09-01" \\
-  --ab=2026-09-01 --prozent=5
-
-pnpm --filter sync exec tsx src/cli.ts preise:match --all`}
-      </pre>
 
       <div className="table-scroll">
         <table className="data">
@@ -52,7 +46,9 @@ pnpm --filter sync exec tsx src/cli.ts preise:match --all`}
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} style={{ opacity: r.is_active ? 1 : 0.5 }}>
-                <td>{r.name}</td>
+                <td>
+                  <Link href={`/einstellungen/preislisten/${r.id}`}>{r.name}</Link>
+                </td>
                 <td className="count">{r.lieferant ?? "—"}</td>
                 <td className="count">{r.gueltig_ab}</td>
                 <td className="count">{r.gueltig_bis ?? "unbefristet"}</td>
@@ -64,12 +60,20 @@ pnpm --filter sync exec tsx src/cli.ts preise:match --all`}
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={6} style={{ color: "var(--muted)" }}>Noch keine Preisliste importiert.</td>
+                <td colSpan={6} style={{ color: "var(--muted)" }}>Noch keine Preisliste.</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      <h2 style={{ marginTop: 22 }}>Neue Ausgabe</h2>
+      <NeueListe basen={rows.map((r) => ({ id: r.id, name: r.name }))} />
+
+      <p className="lead" style={{ marginTop: 18 }}>
+        Excel-Import (nur für die Alt-Ausgaben nötig):{" "}
+        <code>pnpm --filter sync exec tsx src/cli.ts preise:import --name=… --ab=… [--bis=…]</code>
+      </p>
     </>
   );
 }
