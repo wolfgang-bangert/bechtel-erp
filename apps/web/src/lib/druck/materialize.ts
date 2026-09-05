@@ -99,7 +99,8 @@ export async function erzeugeJobs(
   });
   const celloZeilen = zeilen.filter((z) => (z.cello ?? "keine") !== "keine");
   const wireOzeile = zeilen.find(istWireOzeile) ?? null;
-  const hatAufhaenger = rr.attribute?.kalenderaufhaenger === true || zeilen.some(istAufhaengerZeile);
+  // Kalenderaufhänger: kein eigener Vorgang – wird beim Binden mit montiert
+  // (läuft als Komponente in den Binde-Job).
 
   // vorhandene, noch nicht übergebene Jobs dieses Auftrags ersetzen
   await sb
@@ -307,29 +308,7 @@ export async function erzeugeJobs(
     bump(batch.nummer);
   }
 
-  // ---- 4) Aufhänger-Job --------------------------------------------
-  if (hatAufhaenger) {
-    const batch = await getBatch("aufhaenger", "aufhaenger", {});
-    const { error: jErr } = await sb.from("job").insert({
-      portal_order_id: portalOrderId,
-      batch_id: batch.id,
-      typ: "aufhaenger",
-      bauteil: "Kalenderaufhänger montieren",
-      auflage,
-      abhaengig_von: bindeJobIds.length ? bindeJobIds : druckJobIds,
-      komponenten: [
-        ...(bindeJobIds.length
-          ? [{ quelle: "job", ref: bindeJobIds[0], bezeichnung: "gebundener Block" }]
-          : druckJobs.map((d) => ({ quelle: "druck", ref: d.id, bezeichnung: d.bauteil }))),
-        { quelle: "material", bezeichnung: "Kalenderaufhänger", menge: auflage, einheit: "Stück" },
-      ],
-      status: "in_batch",
-    });
-    if (jErr) throw new Error(`Aufhänger-Job: ${jErr.message}`);
-    bump(batch.nummer);
-  }
-
-  // ---- 5) Konfektion (Multiloft: Cover + Inlay + Cover stapeln, Nutzen schneiden)
+  // ---- 4) Konfektion (Multiloft: Cover + Inlay + Cover stapeln, Nutzen schneiden)
   const inlayZeile = zeilen.find(
     (z) => IST_INLAY.test(z.rolle ?? "") || IST_INLAY.test(z.verwendung ?? ""),
   );

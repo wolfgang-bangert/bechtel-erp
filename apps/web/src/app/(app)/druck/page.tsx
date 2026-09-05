@@ -40,8 +40,7 @@ type Batch = {
 const TYPEN: { typ: string; label: string; hint: string }[] = [
   { typ: "druck", label: "Drucken", hint: "Schlüssel: Verfahren · Cello · Papier · Druckbogen — geht an flux" },
   { typ: "cello", label: "Cellophanieren", hint: "Schlüssel: matt/glanz · Papier — nach dem Umschlag-Druck" },
-  { typ: "binden", label: "Binden (Wire-O)", hint: "Schlüssel: Teilung · Durchmesser — nach allen Druck-/Cello-Jobs" },
-  { typ: "aufhaenger", label: "Aufhänger montieren", hint: "nach dem Binden" },
+  { typ: "binden", label: "Binden (Wire-O)", hint: "Schlüssel: Teilung · Durchmesser — Kalenderaufhänger wird hier mit montiert" },
   { typ: "konfektion", label: "Konfektion", hint: "Multiloft: Cover + Inlay + Cover stapeln, Nutzen schneiden" },
 ];
 
