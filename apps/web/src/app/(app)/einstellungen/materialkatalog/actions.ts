@@ -57,3 +57,42 @@ export async function setFluxPaperType(_p: State, fd: FormData): Promise<State> 
   revalidatePath("/einstellungen/materialkatalog");
   return { ok: true };
 }
+
+/** Einen Attribut-Schlüssel am Material mergen (read-modify-write auf attribute-JSON). */
+async function patchAttribute(
+  id: string,
+  key: string,
+  value: string | number | null,
+): Promise<State> {
+  const supabase = await createClient();
+  const { data: current, error: rErr } = await supabase
+    .from("material")
+    .select("attribute")
+    .eq("id", id)
+    .maybeSingle();
+  if (rErr) return { error: rErr.message };
+  const attribute = { ...((current?.attribute as Record<string, unknown>) ?? {}) };
+  if (value == null || value === "") delete attribute[key];
+  else attribute[key] = value;
+  const { error } = await supabase.from("material").update({ attribute }).eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/einstellungen/materialkatalog");
+  return { ok: true };
+}
+
+/** Dicke (mm) am Material pflegen — Basis für die Blockstärkenberechnung (Wire-O). */
+export async function setDicke(_p: State, fd: FormData): Promise<State> {
+  const id = String(fd.get("id") ?? "");
+  if (!id) return { error: "id fehlt" };
+  const raw = s(fd, "dicke_mm");
+  const dicke = raw == null ? null : Number(raw.replace(",", "."));
+  if (raw != null && !Number.isFinite(dicke)) return { error: "Dicke ist keine Zahl." };
+  return patchAttribute(id, "dicke_mm", dicke);
+}
+
+/** Format am Material pflegen — Ziel für Regeln mit Herkunft „aus Format". */
+export async function setFormat(_p: State, fd: FormData): Promise<State> {
+  const id = String(fd.get("id") ?? "");
+  if (!id) return { error: "id fehlt" };
+  return patchAttribute(id, "Format", s(fd, "format"));
+}

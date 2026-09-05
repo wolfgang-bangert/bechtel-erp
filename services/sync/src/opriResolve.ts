@@ -488,6 +488,17 @@ function resolveOne(
     } else if (r.herkunft === "aus_grammatur_oberflaeche") {
       mat = findPapier();
       if (!mat) note = `kein Papier für ${attr.grammatur_g ?? "?"}g / ${attr.oberflaeche ?? "?"}`;
+    } else if (r.herkunft === "aus_format") {
+      const want = fmtKey(((attr.format as string | null) ?? "").toString());
+      mat =
+        (want &&
+          ref.material.find((m) => {
+            if (r.material_rolle && ref.rolleName.get(m.rolle_id ?? "") !== r.material_rolle) return false;
+            const mf = (m.attribute?.Format ?? m.attribute?.format) as string | undefined;
+            return !!mf && fmtKey(mf.toString()) === want;
+          })) ||
+        null;
+      if (!mat) note = `kein ${r.material_rolle ?? "Material"} für Format '${attr.format ?? "?"}'`;
     } else if (r.herkunft) {
       note = `Herkunft '${r.herkunft}' noch nicht implementiert`;
     }
