@@ -235,10 +235,13 @@ function nutzenFor(ref: Ref, fmtStr: string | null): { nutzen: number; bogen: st
 type Ref = Awaited<ReturnType<typeof loadRefData>>;
 
 function wireOFromBlock(ref: Ref, blockMm: number, teilung = "3:1") {
+  const inRange = (w: (typeof ref.wire)[number]) =>
+    blockMm >= w.blockstaerke_min && blockMm <= w.blockstaerke_max;
+  // bevorzugte Teilung, sonst die andere (dicke Blöcke gibt es nur in 2:1)
   return (
-    ref.wire.find(
-      (w) => w.teilung === teilung && blockMm >= w.blockstaerke_min && blockMm <= w.blockstaerke_max,
-    ) ?? null
+    ref.wire.find((w) => w.teilung === teilung && inRange(w)) ??
+    ref.wire.find((w) => inRange(w)) ??
+    null
   );
 }
 

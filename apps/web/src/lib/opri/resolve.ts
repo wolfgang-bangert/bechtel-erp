@@ -568,11 +568,11 @@ export async function resolvePortalOrder(
 
   for (const r of applicable.filter((x) => x.herkunft === "wire_o_blockstaerke")) {
     if (r.modus === "entfernen") continue;
+    const inRange = (x: (typeof wire)[number]) =>
+      block >= x.blockstaerke_min && block <= x.blockstaerke_max;
     const w =
       block > 0
-        ? wire.find(
-            (x) => x.teilung === "3:1" && block >= x.blockstaerke_min && block <= x.blockstaerke_max,
-          ) ?? null
+        ? wire.find((x) => x.teilung === "3:1" && inRange(x)) ?? wire.find(inRange) ?? null
         : null;
     let mat: Material | null = null;
     let note: string | undefined;
