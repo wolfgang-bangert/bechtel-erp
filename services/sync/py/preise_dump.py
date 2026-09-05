@@ -22,7 +22,7 @@ MATRIX = {
     "Preisliste Wochenkalender": {"kategorie": "Wochenkalender", "gruppe": "WOK"},
     "Preisliste Wandkalender": {"kategorie": "Wandkalender", "gruppe": "DWK"},
     "Preisliste Tischkalender": {"kategorie": "Tischkalender", "gruppe": "DKL"},
-    "Preisliste Wochentischkalender": {"kategorie": "Wochentischkalender", "gruppe": "DWT"},
+    "Preisliste Wochentischkalender": {"kategorie": "Wochentischkalender", "gruppe": "DK0"},
     "Preisliste Blöcke 4-4 farbig": {"kategorie": "Blöcke", "gruppe": "PBS"},
     "Preisliste Blöcke 1-1 farbig": {"kategorie": "Blöcke", "gruppe": "PBS"},
 }
