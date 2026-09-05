@@ -8,8 +8,25 @@
  */
 import { readFileSync } from "node:fs";
 import { supabase } from "./supabase";
+import { xanoTableRows } from "./xano";
 
 type Options = { limit?: number; groups?: string[]; dryRun?: boolean; skipExisting?: boolean };
+
+const XANO_ORDERS_TABLE = 465; // data-online-printers
+
+/** Versanddatum = wann die Labels erzeugt wurden (stateLog). */
+function versandDatum(o: Record<string, unknown>): string | null {
+  const log = (o.stateLog as { state?: string; createdAt?: number }[] | undefined) ?? [];
+  const prio = ["SHIPPING_LABEL_CREATED", "DELIVERY_NOTE_CREATED", "FINISHED"];
+  for (const st of prio) {
+    const hits = log
+      .filter((e) => e.state === st && e.createdAt)
+      .map((e) => e.createdAt as number)
+      .sort((a, b) => a - b);
+    if (hits.length) return new Date(hits[0]).toISOString().slice(0, 10);
+  }
+  return null;
+}
 
 type RawAddr = Record<string, unknown> | null | undefined;
 const s = (v: unknown) => {
@@ -50,12 +67,25 @@ const mainGroup = (skus: string[]) => {
 };
 
 export async function importOnlineprintersFile(path: string, opts: Options = {}) {
-  const { limit, groups, dryRun = false, skipExisting = false } = opts;
-
   const parsed = JSON.parse(readFileSync(path, "utf8"));
   const all: Record<string, unknown>[] = Array.isArray(parsed)
     ? parsed
     : (parsed.member ?? parsed["hydra:member"] ?? parsed.data ?? parsed.items ?? []);
+  return ingestOrders(all, `Datei ${path}`, opts);
+}
+
+/** Alle Aufträge live aus der Xano-Tabelle data-online-printers (486+). */
+export async function importOnlineprintersXano(opts: Options = {}) {
+  const all = await xanoTableRows<Record<string, unknown>>(XANO_ORDERS_TABLE);
+  return ingestOrders(all, `Xano-Tabelle ${XANO_ORDERS_TABLE}`, opts);
+}
+
+async function ingestOrders(
+  all: Record<string, unknown>[],
+  quelle: string,
+  opts: Options = {},
+) {
+  const { limit, groups, dryRun = false, skipExisting = false } = opts;
 
   const { data: portal, error: pErr } = await supabase
     .from("portal")
@@ -123,6 +153,7 @@ export async function importOnlineprintersFile(path: string, opts: Options = {})
       description: s(o.description),
       quantity: num(o.quantity),
       deliver_date: tsFrom(o.deliverDate ?? o.deliverDate_raw),
+      versand_datum: versandDatum(o),
       currency: s(o.currency)?.slice(0, 3) ?? null,
       total_net: num(o.totalNet ?? o.totalNetEur),
       total_gross: num(o.totalGross ?? o.totalGrossEur),
@@ -178,5 +209,5 @@ export async function importOnlineprintersFile(path: string, opts: Options = {})
     }
   }
 
-  return { dryRun, quelle: path, gelesen: orders.length, neu: created, aktualisiert: updated, uebersprungen: skipped, positionen: itemCount, gruppen, fehler: errors };
+  return { dryRun, quelle, gelesen: orders.length, neu: created, aktualisiert: updated, uebersprungen: skipped, positionen: itemCount, gruppen, fehler: errors };
 }

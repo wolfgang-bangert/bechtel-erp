@@ -324,6 +324,25 @@ async function main() {
       console.log(JSON.stringify(await resolveOpri({ ref: refArg, all, dryRun }), null, 1));
       break;
     }
+    case "portal:import-xano": {
+      const limArg = process.argv.find((a) => a.startsWith("--limit="))?.split("=")[1];
+      const grpArg = process.argv.find((a) => a.startsWith("--groups="))?.split("=")[1];
+      console.log(`Portal-Aufträge live aus Xano${dryRun ? "  (DRY RUN)" : ""}`);
+      const { importOnlineprintersXano } = await import("./portalImportFile");
+      console.log(
+        JSON.stringify(
+          await importOnlineprintersXano({
+            dryRun,
+            skipExisting: flags.has("--skip-existing"),
+            limit: limArg ? Number(limArg) : undefined,
+            groups: grpArg ? grpArg.split(",").map((x) => x.trim()) : undefined,
+          }),
+          null,
+          1,
+        ),
+      );
+      break;
+    }
     case "preise:import": {
       const { importPreise } = await import("./importPreise");
       console.log(JSON.stringify(await importPreise(), null, 1));
