@@ -97,7 +97,7 @@ export async function importPreise() {
   // preis_liste anlegen/aktualisieren (Abgleich über name)
   const listeRow = {
     name,
-    lieferant: arg("lieferant") ?? "Schwabenprint",
+    lieferant: arg("lieferant") ?? null,
     gueltig_ab: ab,
     gueltig_bis: arg("bis") ?? null,
     aufschlag_prozent: 0,
@@ -157,7 +157,7 @@ export async function rolloverPreise() {
     .from("preis_liste")
     .insert({
       name,
-      lieferant: "Schwabenprint",
+      lieferant: arg("lieferant") ?? null,
       gueltig_ab: ab,
       gueltig_bis: arg("bis") ?? null,
       basis_liste_id: basisliste.id,
