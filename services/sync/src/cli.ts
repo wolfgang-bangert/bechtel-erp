@@ -343,6 +343,13 @@ async function main() {
       );
       break;
     }
+    case "jobs:sync": {
+      const { jobsSync } = await import("./jobsSync");
+      console.log(
+        JSON.stringify(await jobsSync({ generate: !flags.has("--no-generate") }), null, 1),
+      );
+      break;
+    }
     case "preise:import": {
       const { importPreise } = await import("./importPreise");
       console.log(JSON.stringify(await importPreise(), null, 1));
@@ -379,6 +386,12 @@ async function main() {
           1,
         ),
       );
+      if (!dryRun && !flags.has("--no-jobs")) {
+        const { resolveOpri } = await import("./opriResolve");
+        await resolveOpri({}); // neueste Aufträge auflösen
+        const { jobsSync } = await import("./jobsSync");
+        console.log("jobs:sync →", JSON.stringify(await jobsSync()));
+      }
       break;
     }
     case "portal:import-file": {
