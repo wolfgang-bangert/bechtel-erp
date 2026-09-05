@@ -82,6 +82,9 @@ function BatchCard({ b }: { b: Batch }) {
       <div className="toolbar" style={{ justifyContent: "space-between", marginBottom: 6 }}>
         <div>
           <strong>{b.nummer}</strong>{" "}
+          {b.typ === "cello" && b.schluessel && (
+            <Badge>{b.schluessel.split(" | ")[0]}</Badge>
+          )}
           {b.cello !== "keine" && <Badge>Cello {b.cello}, {b.cello_seiten}-seitig</Badge>}
           {b.papier && <Badge>{b.papier}</Badge>}
           {b.druckbogen && <Badge>{b.druckbogen}</Badge>}

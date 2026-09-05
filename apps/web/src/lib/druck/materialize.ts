@@ -212,12 +212,16 @@ export async function erzeugeJobs(
   const druckJobIds = druckJobs.map((d) => d.id);
 
   // ---- 2) Cello-Job ----------------------------------------------------
+  // Die Cello sitzt auf einem Bauteil (Deckblatt / Umschlag). Ein Batch =
+  // alle gleichartigen Bauteile mit gleicher Cello-Art + Papier.
   const celloJobIds: string[] = [];
   if (celloZeilen.length) {
     const cz = celloZeilen[0];
     const cello = cz.cello ?? "matt";
     const papier = cz.material_kurz || cz.material;
-    const schluessel = [cello, norm(papier)].join(" | ");
+    const bauteilArt = cz.verwendung || cz.rolle || "Bauteil";
+    const seitenTxt = cz.cello_seiten === 2 ? "2-seitig" : "einseitig";
+    const schluessel = [bauteilArt, cello, norm(papier)].join(" | ");
     const batch = await getBatch("cello", schluessel, {
       cello,
       cello_seiten: cz.cello_seiten ?? 1,
@@ -229,13 +233,18 @@ export async function erzeugeJobs(
         portal_order_id: portalOrderId,
         batch_id: batch.id,
         typ: "cello",
-        bauteil: `Cellophanieren ${cello}${cz.cello_seiten === 2 ? " (2-seitig)" : ""}`,
+        bauteil: `${bauteilArt} cellophanieren (${cello}, ${seitenTxt})`,
         quelle_regel: cz.regel,
         papier,
         auflage,
         cello,
         cello_seiten: cz.cello_seiten ?? 1,
         abhaengig_von: celloDruckJobIds,
+        komponenten: celloDruckJobIds.map((id) => ({
+          quelle: "druck",
+          ref: id,
+          bezeichnung: bauteilArt,
+        })),
         status: "in_batch",
       })
       .select("id")
