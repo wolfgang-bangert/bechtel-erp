@@ -10,9 +10,10 @@ Zwei Sheet-Familien:
             Kopfzeile mit NUMMER | Format | GROESSE | FARBE | ... | 10 | 20 | ...
             je Datenzeile ein Artikel, Preise ueber die Auflage-Spalten.
 
-Nicht behandelt (eigene Logik noetig): Spiralbooklet, Bloecke (Staffel/"weitere N").
+Spiralbooklet: eigener Komponenten-Aufbau (parse_spiralbooklet).
 """
 import json
+import re
 import sys
 
 import openpyxl
@@ -22,6 +23,8 @@ MATRIX = {
     "Preisliste Wandkalender": {"kategorie": "Wandkalender", "gruppe": "DWK"},
     "Preisliste Tischkalender": {"kategorie": "Tischkalender", "gruppe": "DKL"},
     "Preisliste Wochentischkalender": {"kategorie": "Wochentischkalender", "gruppe": "DWT"},
+    "Preisliste Blöcke 4-4 farbig": {"kategorie": "Blöcke", "gruppe": "PBS"},
+    "Preisliste Blöcke 1-1 farbig": {"kategorie": "Blöcke", "gruppe": "PBS"},
 }
 LONGFORM = {
     "Preisliste Speisekarte": {"kategorie": "Speisekarte", "gruppe": "DSK"},
@@ -111,9 +114,15 @@ def parse_matrix(ws, cfg):
     rows = list(ws.iter_rows(values_only=True))
     key_row = None
     for i, r in enumerate(rows):
-        if r and s(r[0]).lower() in ("auflage", "kombi"):
+        if not r or s(r[0]).lower() not in ("auflage", "kombi"):
+            continue
+        # die Zeile mit den kombinierten Spalten-Keys hat Buchstaben+Ziffern
+        # (z.B. "A554170") – nicht nur "170". Wochentischkalender hat beide Zeilen.
+        if any(re.search(r"[A-Za-z].*\d", s(x)) for x in r[1:6]):
             key_row = i
             break
+        if key_row is None:
+            key_row = i  # Fallback
     if key_row is None or key_row < 3:
         return []
     fmt_r, blatt_r, sorte_r = rows[key_row - 3], rows[key_row - 2], rows[key_row - 1]
@@ -125,10 +134,11 @@ def parse_matrix(ws, cfg):
         if not key:
             continue
         blatt_cell = s(blatt_r[c]) if c < len(blatt_r) else ""
-        farb = ""
-        blatt = as_int(blatt_cell.split()[0]) if blatt_cell else None
-        if "/" in blatt_cell:
-            farb = blatt_cell.split()[-1]
+        # "13"  |  "13 4/0"  |  "50 4/ 4"  |  "50 0/ 0"
+        bm = re.match(r"\s*(\d+)", blatt_cell)
+        blatt = as_int(bm.group(1)) if bm else None
+        fm = re.search(r"(\d+)\s*/\s*(\d+)", blatt_cell)
+        farb = f"{fm.group(1)}/{fm.group(2)}" if fm else ""
         cols.append(
             {
                 "col": c,
@@ -182,7 +192,15 @@ def parse_longform(ws, cfg):
     col_farbe = idx.get("FARBE")
     # Auflage-Spalten: numerische Header rechts der Stammspalten
     aufl_cols = [(j, as_int(x)) for j, x in enumerate(head) if as_int(x) is not None and j > (col_farbe or 0)]
+    # "mit Cello" steht als verbundene Zelle nur in der ersten Spalte des Bereichs
     cello_row = rows[hdr - 1] if hdr > 0 else ()
+    cello_by_col = {}
+    cur = False
+    for j in range(len(head)):
+        cell = (s(cello_row[j]) if j < len(cello_row) else "").lower()
+        if "cello" in cell:
+            cur = "ohne" not in cell  # "mit Cello" → True, "ohne Cello" → False
+        cello_by_col[j] = cur
 
     out = []
     for r in rows[hdr + 1 :]:
@@ -196,16 +214,16 @@ def parse_longform(ws, cfg):
             p = num(r[j]) if j < len(r) else None
             if p is None:
                 continue
-            cello = "mit Cello" in s(cello_row[j]) if j < len(cello_row) else False
+            cello = cello_by_col.get(j, False)
             out.append(
                 {
                     "kategorie": cfg["kategorie"],
                     "produktgruppe": cfg["gruppe"],
                     "format": fmt or None,
-                    "blatt": as_int(farbe),
+                    "blatt": as_int(farbe),  # Seitenzahl der Karte
                     "sorte": (gr or None),
-                    "farbigkeit": None,
-                    "spalten_key": f"{nr}_{gr}_{farbe}{'_C' if cello else ''}",
+                    "farbigkeit": "cello" if cello else "ohne",
+                    "spalten_key": f"{nr}_{gr}_{farbe}_{'C' if cello else 'nc'}",
                     "auflage": aufl,
                     "preis_netto": p,
                 }

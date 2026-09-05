@@ -78,6 +78,21 @@ const fmtKey = (s: string | null) =>
   (s ?? "").toLowerCase().replace(/cm|mm/g, "").replace(/[\s×x,._-]/g, "");
 
 // ---------------------------------------------------------------- Import
+/** Preise einer Liste löschen – seitenweise (ein DELETE über 20k Zeilen läuft in den Timeout). */
+async function deletePreise(listeId: string) {
+  for (;;) {
+    const { data, error } = await supabase.from("preis").select("id").eq("liste_id", listeId).limit(1000);
+    if (error) throw new Error(`preis select: ${error.message}`);
+    if (!data?.length) break;
+    for (let i = 0; i < data.length; i += 100) {
+      const ids = data.slice(i, i + 100).map((r) => r.id as string);
+      const { error: dErr } = await supabase.from("preis").delete().in("id", ids);
+      if (dErr) throw new Error(`preis delete: ${dErr.message}`);
+    }
+    if (data.length < 1000) break;
+  }
+}
+
 export async function importPreise() {
   const datei = arg("datei") ?? DEFAULT_XLSX;
   const name = arg("name");
@@ -113,7 +128,7 @@ export async function importPreise() {
   if (exist) {
     await supabase.from("preis_liste").update(listeRow).eq("id", exist.id);
     listeId = exist.id;
-    await supabase.from("preis").delete().eq("liste_id", listeId);
+    await deletePreise(listeId);
   } else {
     const { data, error } = await supabase.from("preis_liste").insert(listeRow).select("id").single();
     if (error) throw new Error(`preis_liste: ${error.message}`);
@@ -121,11 +136,26 @@ export async function importPreise() {
   }
 
   // Duplikate (spalten_key + auflage) zusammenfassen; Spiralbooklet-Zeilen anhängen
+  // Schlüssel EXAKT wie der DB-Index preis_uniq (coalesce(...,'') je Textfeld)
   const seen = new Set<string>();
+  const dups: string[] = [];
   const rows = [...parsed.rows, ...spiralRows].filter((r) => {
-    const k = `${r.kategorie}|${r.format}|${r.spalten_key}|${r.sorte}|${r.farbigkeit}|${r.auflage}`;
-    return seen.has(k) ? false : seen.add(k);
+    const k = [
+      r.kategorie,
+      r.format ?? "",
+      r.spalten_key,
+      r.sorte ?? "",
+      r.farbigkeit ?? "",
+      r.auflage,
+    ].join("");
+    if (seen.has(k)) {
+      if (dups.length < 20) dups.push(k);
+      return false;
+    }
+    seen.add(k);
+    return true;
   });
+  if (dups.length) console.error("Dubletten übersprungen:", dups.slice(0, 8));
 
   for (let i = 0; i < rows.length; i += 500) {
     const batch = rows.slice(i, i + 500).map((r) => ({ ...r, liste_id: listeId }));
@@ -226,6 +256,69 @@ function sorteKey(attr: OrderAttr): string | null {
   return `${g}${offset ? "OFF" : ""}`;
 }
 
+const pbsFmt = (f: string) => fmtKey(f.replace(/[- ]?quadrat/i, "q"));
+
+/** Speisekarten (DSK): Format · Seitenzahl · Grammatur · Cello. */
+async function dskPreis(
+  listeId: string,
+  attr: OrderAttr,
+  auflage: number,
+): Promise<{ netto: number; aufbau: string } | null> {
+  const { data: rows } = await supabase
+    .from("preis")
+    .select("format, blatt, sorte, farbigkeit, preis_netto, spalten_key")
+    .eq("liste_id", listeId)
+    .eq("kategorie", "Speisekarte")
+    .eq("auflage", auflage);
+  if (!rows?.length) return null;
+  const fmt = fmtKey(String(attr.format ?? ""));
+  const seiten =
+    attr.seiten != null ? Number(attr.seiten) : attr.blatt != null ? Number(attr.blatt) * 2 : null;
+  const gram = attr.grammatur_g != null ? String(Number(attr.grammatur_g)) : null;
+  const cello = attr.cello && attr.cello !== "keine" ? "cello" : "ohne";
+  const hit = rows.find(
+    (p) =>
+      fmtKey(String(p.format ?? "")) === fmt &&
+      (p.blatt == null || seiten == null || Number(p.blatt) === seiten) &&
+      (p.sorte == null || gram == null || String(Number(p.sorte)) === gram) &&
+      String(p.farbigkeit) === cello,
+  );
+  if (!hit) return null;
+  return { netto: Math.round(Number(hit.preis_netto) * 100) / 100, aufbau: `${hit.spalten_key}` };
+}
+
+/** Schreibblöcke (PBS): 1 Zeile über Format · Blatt · Sorte · Farbigkeit. */
+async function pbsPreis(
+  listeId: string,
+  attr: OrderAttr,
+  auflage: number,
+): Promise<{ netto: number; aufbau: string } | null> {
+  const { data: rows } = await supabase
+    .from("preis")
+    .select("format, blatt, sorte, farbigkeit, preis_netto, spalten_key")
+    .eq("liste_id", listeId)
+    .eq("kategorie", "Blöcke")
+    .eq("auflage", auflage);
+  if (!rows?.length) return null;
+  const fmt = pbsFmt(String(attr.format ?? ""));
+  const blatt = attr.blatt != null ? Number(attr.blatt) : null;
+  const sorte = /recycl/i.test(String(attr.sorte ?? "")) ? "80R" : "80OF";
+  const fb = String(attr.farbigkeit ?? "");
+  const farb = /^4\//.test(fb) ? "4/4" : /^1\//.test(fb) ? "1/1" : "0/0";
+  const hit = rows.find(
+    (p) =>
+      pbsFmt(String(p.format ?? "")) === fmt &&
+      (p.blatt == null || blatt == null || Number(p.blatt) === blatt) &&
+      String(p.sorte) === sorte &&
+      String(p.farbigkeit) === farb,
+  );
+  if (!hit) return null;
+  return {
+    netto: Math.round(Number(hit.preis_netto) * 100) / 100,
+    aufbau: `${hit.spalten_key} (${farb}, ${sorte})`,
+  };
+}
+
 /** Spiralbooklet: Preis aus Komponenten (siehe apps/web/src/lib/preise/match.ts). */
 async function spiralPreis(
   listeId: string,
@@ -304,6 +397,36 @@ export async function matchPreise() {
 
     const attr = rr.attribute ?? {};
     const auflage = Number(o.quantity) || 0;
+
+    if (rr.gruppe === "DSK") {
+      const p = await dskPreis(liste.id, attr, auflage);
+      if (p) {
+        await supabase.from("portal_order").update({ preis_id: null, preis_netto: p.netto, preis_quelle: "auto" }).eq("id", o.id);
+        treffer++;
+      } else {
+        await supabase.from("portal_order").update({ preis_quelle: "kein_treffer" }).eq("id", o.id);
+        ohne++;
+        if (beispiele.length < 12) beispiele.push(`${o.external_reference} DSK/${attr.format ?? "?"}/${attr.blatt ?? "?"}Bl/${auflage}`);
+      }
+      continue;
+    }
+
+    if (rr.gruppe === "PBS") {
+      const p = await pbsPreis(liste.id, attr, auflage);
+      if (p) {
+        await supabase
+          .from("portal_order")
+          .update({ preis_id: null, preis_netto: p.netto, preis_quelle: "auto" })
+          .eq("id", o.id);
+        treffer++;
+      } else {
+        await supabase.from("portal_order").update({ preis_quelle: "kein_treffer" }).eq("id", o.id);
+        ohne++;
+        if (beispiele.length < 12)
+          beispiele.push(`${o.external_reference} PBS/${attr.format ?? "?"}/${attr.blatt ?? "?"}Bl/${attr.farbigkeit ?? "?"}/${auflage}`);
+      }
+      continue;
+    }
 
     if (rr.gruppe === "DSP") {
       const sp = await spiralPreis(liste.id, String(attr.format ?? ""), attr, auflage);

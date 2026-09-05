@@ -19,6 +19,80 @@ export type MatchResult =
   | { ok: true; preis_netto: number; liste: string; spalten_key: string }
   | { ok: false; grund: string };
 
+const pbsFmt = (f: string) =>
+  fmtKey(f.replace(/[- ]?quadrat/i, "q")); // A4-Quadrat → A4Q
+
+/** Speisekarten (DSK): 1 Zeile über Format · Seitenzahl · Grammatur · Cello. */
+export async function dskPreis(
+  sb: SupabaseClient,
+  listeId: string,
+  attr: Record<string, unknown>,
+  auflage: number,
+): Promise<{ netto: number; aufbau: string } | null> {
+  const { data: rows } = await sb
+    .from("preis")
+    .select("format, blatt, sorte, farbigkeit, preis_netto, spalten_key")
+    .eq("liste_id", listeId)
+    .eq("kategorie", "Speisekarte")
+    .eq("auflage", auflage);
+  if (!rows?.length) return null;
+  const fmt = fmtKey(String(attr.format ?? ""));
+  const seiten =
+    attr.seiten != null ? Number(attr.seiten) : attr.blatt != null ? Number(attr.blatt) * 2 : null;
+  const gram = attr.grammatur_g != null ? String(Number(attr.grammatur_g)) : null;
+  const cello = attr.cello && attr.cello !== "keine" ? "cello" : "ohne";
+  const hit = rows.find(
+    (p) =>
+      fmtKey(String(p.format ?? "")) === fmt &&
+      (p.blatt == null || seiten == null || Number(p.blatt) === seiten) &&
+      (p.sorte == null || gram == null || String(Number(p.sorte)) === gram) &&
+      String(p.farbigkeit) === cello,
+  );
+  if (!hit) return null;
+  return {
+    netto: Math.round(Number(hit.preis_netto) * 100) / 100,
+    aufbau: `${hit.spalten_key} (${seiten ?? "?"} S., ${cello})`,
+  };
+}
+
+/** Schreibblöcke (PBS): 1 Zeile über Format · Blatt · Sorte(80OF/80R) · Farbigkeit. */
+export async function pbsPreis(
+  sb: SupabaseClient,
+  listeId: string,
+  attr: Record<string, unknown>,
+  auflage: number,
+): Promise<{ netto: number; aufbau: string } | null> {
+  const { data: rows } = await sb
+    .from("preis")
+    .select("format, blatt, sorte, farbigkeit, preis_netto, spalten_key")
+    .eq("liste_id", listeId)
+    .eq("kategorie", "Blöcke")
+    .eq("auflage", auflage);
+  if (!rows?.length) return null;
+
+  const fmt = pbsFmt(String(attr.format ?? ""));
+  const blatt = attr.blatt != null ? Number(attr.blatt) : null;
+  const recy = /recycl/i.test(String(attr.sorte ?? ""));
+  const sorte = recy ? "80R" : "80OF";
+  // onlineprinters bedruckt die Blätter 1-seitig (4/0). Schwabenprint kennt
+  // 4/4 (farbig) · 1/1 · 0/0 → 4/0→4/4, 1/0→1/1, sonst 0/0.
+  const fb = String(attr.farbigkeit ?? "");
+  const farb = /^4\//.test(fb) ? "4/4" : /^1\//.test(fb) ? "1/1" : "0/0";
+
+  const hit = rows.find(
+    (p) =>
+      pbsFmt(String(p.format ?? "")) === fmt &&
+      (p.blatt == null || blatt == null || Number(p.blatt) === blatt) &&
+      String(p.sorte) === sorte &&
+      String(p.farbigkeit) === farb,
+  );
+  if (!hit) return null;
+  return {
+    netto: Math.round(Number(hit.preis_netto) * 100) / 100,
+    aufbau: `${hit.spalten_key} (${farb}, ${sorte})`,
+  };
+}
+
 /**
  * Spiralbooklet: Preis aus Komponenten aufbauen (Inhalt-Papier + optional
  * Umschlag / Cello / Deckblatt / Schlussblatt), je exakter Auflage.
@@ -108,6 +182,33 @@ export async function matchOnePreis(sb: SupabaseClient, portalOrderId: string): 
 
   const attr = rr.attribute ?? {};
   const auflage = Number(o.quantity) || 0;
+
+  if (rr.gruppe === "DSK") {
+    const p = await dskPreis(sb, liste.id, attr, auflage);
+    if (!p) {
+      await sb.from("portal_order").update({ preis_quelle: "kein_treffer" }).eq("id", portalOrderId);
+      const s2 = attr.seiten ?? (attr.blatt != null ? Number(attr.blatt) * 2 : "?");
+      return { ok: false, grund: `kein Speisekarten-Preis für ${attr.format ?? "?"}/${s2}S/${auflage}` };
+    }
+    await sb
+      .from("portal_order")
+      .update({ preis_id: null, preis_netto: p.netto, preis_quelle: "auto" })
+      .eq("id", portalOrderId);
+    return { ok: true, preis_netto: p.netto, liste: liste.name as string, spalten_key: p.aufbau };
+  }
+
+  if (rr.gruppe === "PBS") {
+    const p = await pbsPreis(sb, liste.id, attr, auflage);
+    if (!p) {
+      await sb.from("portal_order").update({ preis_quelle: "kein_treffer" }).eq("id", portalOrderId);
+      return { ok: false, grund: `kein Blöcke-Preis für ${attr.format ?? "?"}/${attr.blatt ?? "?"}Bl/${attr.farbigkeit ?? "?"}/${auflage}` };
+    }
+    await sb
+      .from("portal_order")
+      .update({ preis_id: null, preis_netto: p.netto, preis_quelle: "auto" })
+      .eq("id", portalOrderId);
+    return { ok: true, preis_netto: p.netto, liste: liste.name as string, spalten_key: p.aufbau };
+  }
 
   // Spiralbooklet: Preis aus Komponenten
   if (rr.gruppe === "DSP") {
