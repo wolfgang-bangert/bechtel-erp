@@ -123,7 +123,7 @@ export async function importPreise() {
   // Duplikate (spalten_key + auflage) zusammenfassen; Spiralbooklet-Zeilen anhängen
   const seen = new Set<string>();
   const rows = [...parsed.rows, ...spiralRows].filter((r) => {
-    const k = `${r.kategorie}|${r.format}|${r.spalten_key}|${r.sorte}|${r.auflage}`;
+    const k = `${r.kategorie}|${r.format}|${r.spalten_key}|${r.sorte}|${r.farbigkeit}|${r.auflage}`;
     return seen.has(k) ? false : seen.add(k);
   });
 
@@ -181,6 +181,7 @@ export async function rolloverPreise() {
       .from("preis")
       .select("*")
       .eq("liste_id", basisliste.id)
+      .order("id")
       .range(from, from + 999);
     if (error) throw new Error(error.message);
     if (!data?.length) break;

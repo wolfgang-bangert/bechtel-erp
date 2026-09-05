@@ -64,7 +64,12 @@ export async function kopiereListeAction(_p: State, fd: FormData): Promise<State
 
   const faktor = 1 + prozent / 100;
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from("preis").select("*").eq("liste_id", basisId).range(from, from + 999);
+    const { data, error } = await supabase
+      .from("preis")
+      .select("*")
+      .eq("liste_id", basisId)
+      .order("id")
+      .range(from, from + 999);
     if (error) return { error: error.message };
     if (!data?.length) break;
     const batch = data.map((p) => {
