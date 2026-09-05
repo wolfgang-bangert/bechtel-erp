@@ -135,7 +135,7 @@ export default async function DruckauftragPage({
   const { data: jobsRaw } = await supabase
     .from("job")
     .select(
-      "id, typ, bauteil, papier, farbigkeit, format, druckbogen, nutzen, netto_bogen, auflage, cello, cello_seiten, teilung, durchmesser, schlaufen_gesamt, status, batch:batch_id(nummer, typ, status)",
+      "id, typ, bauteil, papier, farbigkeit, format, druckbogen, nutzen, netto_bogen, auflage, cello, cello_seiten, teilung, durchmesser, schlaufen_gesamt, komponenten, status, batch:batch_id(nummer, typ, status)",
     )
     .eq("portal_order_id", id)
     .order("created_at", { ascending: true });
@@ -155,6 +155,7 @@ export default async function DruckauftragPage({
     teilung: string | null;
     durchmesser: string | null;
     schlaufen_gesamt: number | null;
+    komponenten: { quelle: string; bezeichnung: string | null; rolle?: string | null; menge?: number | null; einheit?: string | null }[] | null;
     status: string;
     batch: { nummer: string; typ: string; status: string } | null;
   }[];
@@ -374,7 +375,22 @@ export default async function DruckauftragPage({
               {jobs.map((j) => (
                 <tr key={j.id}>
                   <td><span className="tag">{j.typ}</span></td>
-                  <td>{j.bauteil}</td>
+                  <td>
+                    {j.bauteil}
+                    {j.komponenten && j.komponenten.length > 0 && (
+                      <div className="count" style={{ marginTop: 3 }}>
+                        führt zusammen:{" "}
+                        {j.komponenten
+                          .map(
+                            (k) =>
+                              `${k.bezeichnung ?? "?"}${
+                                k.menge != null ? ` (${k.menge.toLocaleString("de-DE")}${k.einheit ? " " + k.einheit : ""})` : ""
+                              }`,
+                          )
+                          .join("  +  ")}
+                      </div>
+                    )}
+                  </td>
                   <td>
                     {j.papier ?? "—"}
                     {j.farbigkeit ? ` · ${j.farbigkeit}` : ""}

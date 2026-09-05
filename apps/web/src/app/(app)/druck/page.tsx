@@ -16,6 +16,7 @@ type Job = {
   teilung: string | null;
   durchmesser: string | null;
   schlaufen_gesamt: number | null;
+  komponenten: { bezeichnung: string | null; menge?: number | null; einheit?: string | null }[] | null;
   status: string;
   order: { external_reference: string | null } | null;
 };
@@ -121,7 +122,22 @@ function BatchCard({ b }: { b: Batch }) {
                     "—"
                   )}
                 </td>
-                <td>{j.bauteil}</td>
+                <td>
+                  {j.bauteil}
+                  {j.komponenten && j.komponenten.length > 0 && (
+                    <div className="count" style={{ marginTop: 3 }}>
+                      führt zusammen:{" "}
+                      {j.komponenten
+                        .map(
+                          (k) =>
+                            `${k.bezeichnung ?? "?"}${
+                              k.menge != null ? ` (${k.menge.toLocaleString("de-DE")}${k.einheit ? " " + k.einheit : ""})` : ""
+                            }`,
+                        )
+                        .join("  +  ")}
+                    </div>
+                  )}
+                </td>
                 <td style={{ textAlign: "right" }}>
                   {j.typ === "druck"
                     ? `${j.netto_bogen ?? "—"}${j.druckbogen ? ` ${j.druckbogen}` : ""}${j.nutzen ? ` (${j.nutzen}-up)` : ""}`
@@ -155,7 +171,7 @@ export default async function DruckDashboard() {
     .from("batch")
     .select(
       "id, nummer, typ, schluessel, druckverfahren, cello, cello_seiten, papier, druckbogen, status, created_at, an_flux_at, flux_order_id, " +
-        "job(id, typ, bauteil, netto_bogen, druckbogen, nutzen, auflage, zuschuss, teilung, durchmesser, schlaufen_gesamt, status, order:portal_order_id(external_reference))",
+        "job(id, typ, bauteil, netto_bogen, druckbogen, nutzen, auflage, zuschuss, teilung, durchmesser, schlaufen_gesamt, komponenten, status, order:portal_order_id(external_reference))",
     )
     .neq("status", "storniert")
     .order("created_at", { ascending: true });

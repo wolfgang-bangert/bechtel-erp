@@ -158,7 +158,7 @@ export async function erzeugeJobs(
   };
 
   // ---- 1) Druck-Jobs -----------------------------------------------------
-  const druckJobIds: string[] = [];
+  const druckJobs: { id: string; bauteil: string; netto_bogen: number | null; druckbogen: string | null }[] = [];
   const celloDruckJobIds: string[] = [];
   for (const z of druckzeilen) {
     const papier = z.material_kurz || z.material;
@@ -203,10 +203,11 @@ export async function erzeugeJobs(
       .select("id")
       .single();
     if (jErr) throw new Error(`Druckjob: ${jErr.message}`);
-    druckJobIds.push(j.id as string);
+    druckJobs.push({ id: j.id as string, bauteil: z.verwendung || z.rolle || z.regel, netto_bogen: z.netto_bogen ?? null, druckbogen: z.druckbogen ?? null });
     if ((z.cello ?? "keine") !== "keine") celloDruckJobIds.push(j.id as string);
     bump(batch.nummer);
   }
+  const druckJobIds = druckJobs.map((d) => d.id);
 
   // ---- 2) Cello-Job ----------------------------------------------------
   const celloJobIds: string[] = [];
@@ -245,13 +246,41 @@ export async function erzeugeJobs(
   }
 
   // ---- 3) Binde-Job --------------------------------------------------
+  // Der Binde-Job führt zusammen: die Druck-Vorgänge + alle nicht-gedruckten
+  // Teile (Aufsteller, Graupappe, Wire-O, …). Das steckt in komponenten[].
   const bindeJobIds: string[] = [];
   if (wireOzeile) {
     const z = wireOzeile;
     const schluessel = [norm(z.teilung), norm(z.durchmesser)].join(" | ");
-    const batch = await getBatch("binden", schluessel, {
-      // batch-Spalten druckbogen/papier bleiben leer; teilung/durchmesser stehen am Job
-    });
+    const batch = await getBatch("binden", schluessel, {});
+
+    const komponenten: Record<string, unknown>[] = [
+      ...druckJobs.map((d) => ({
+        quelle: "druck",
+        ref: d.id,
+        bezeichnung: d.bauteil,
+        menge: d.netto_bogen,
+        einheit: d.druckbogen ? `Bogen ${d.druckbogen}` : "Bogen",
+      })),
+      ...celloJobIds.map((id) => ({ quelle: "job", ref: id, bezeichnung: "Cellophanieren" })),
+      ...zeilen
+        .filter((x) => x !== z && !druckzeilen.includes(x) && (x.material || x.material_kurz))
+        .map((x) => ({
+          quelle: "material",
+          bezeichnung: x.material_kurz || x.material,
+          rolle: x.rolle,
+          menge: x.netto_bogen ?? x.menge,
+          einheit: x.netto_bogen ? `Bogen ${x.druckbogen ?? ""}`.trim() : x.einheit,
+        })),
+      {
+        quelle: "material",
+        bezeichnung: z.material_kurz || z.material,
+        rolle: z.rolle,
+        menge: z.schlaufen_gesamt ?? auflage,
+        einheit: z.schlaufen_gesamt ? "Schlaufen" : "Stück",
+      },
+    ];
+
     const { data: j, error: jErr } = await sb
       .from("job")
       .insert({
@@ -267,6 +296,7 @@ export async function erzeugeJobs(
         schlaufen_gesamt: z.schlaufen_gesamt ?? null,
         bindeseite: z.bindeseite ?? null,
         abhaengig_von: [...druckJobIds, ...celloJobIds],
+        komponenten,
         status: "in_batch",
       })
       .select("id")
@@ -286,6 +316,12 @@ export async function erzeugeJobs(
       bauteil: "Kalenderaufhänger montieren",
       auflage,
       abhaengig_von: bindeJobIds.length ? bindeJobIds : druckJobIds,
+      komponenten: [
+        ...(bindeJobIds.length
+          ? [{ quelle: "job", ref: bindeJobIds[0], bezeichnung: "gebundener Block" }]
+          : druckJobs.map((d) => ({ quelle: "druck", ref: d.id, bezeichnung: d.bauteil }))),
+        { quelle: "material", bezeichnung: "Kalenderaufhänger", menge: auflage, einheit: "Stück" },
+      ],
       status: "in_batch",
     });
     if (jErr) throw new Error(`Aufhänger-Job: ${jErr.message}`);
