@@ -27,6 +27,67 @@ LONGFORM = {
     "Preisliste Speisekarte": {"kategorie": "Speisekarte", "gruppe": "DSK"},
 }
 
+# Spiralbooklet: Komponenten-Aufbau + Auflage-Staffel (4 Anker je Spalte).
+# Spaltenreihenfolge B..P wie im Sheet.
+SPIRAL_COLS = [
+    ("inhalt_135", "8s"),
+    ("inhalt_135", "per2"),
+    ("inhalt_300", "8s"),
+    ("inhalt_300", "per2"),
+    ("inhalt_offset", "8s"),
+    ("inhalt_offset", "per2"),
+    ("umschlag_170", "x"),
+    ("umschlag_250", "x"),
+    ("umschlag_300", "x"),
+    ("cello", "8s"),
+    ("cello", "per2"),
+    ("deckblatt", "x"),
+    ("schlussblatt_folie", "x"),
+    ("karton_grau", "x"),
+    ("karton_weiss", "x"),
+]
+SPIRAL_ANCHORS = {"10": "b10", "weitere 10": "w10", "500": "b500", "weitere 100": "w100"}
+
+
+def _spiral_fmt(text):
+    t = text.upper()
+    if "DINLANG" in t or "105 X 210" in t or "105X210" in t:
+        return "DL"
+    for base in ("A4", "A5", "A6"):
+        if base in t:
+            return f"{base}-Quadrat" if "QUADRAT" in t else base
+    return None
+
+
+def parse_spiralbooklet(ws, kategorie="Spiralbooklet", gruppe="DSP"):
+    rows = list(ws.iter_rows(values_only=True))
+    out = []
+    fmt = None
+    for r in rows:
+        c0 = s(r[0]) if r else ""
+        joined = " ".join(s(x) for x in (r or []))
+        f = _spiral_fmt(joined)
+        if f:
+            fmt = f
+        anchor = SPIRAL_ANCHORS.get(c0.lower())
+        if anchor and fmt:
+            for idx, (colkey, sub) in enumerate(SPIRAL_COLS):
+                v = num(r[idx + 1]) if idx + 1 < len(r) else None
+                if v is None:
+                    continue
+                out.append(
+                    {
+                        "kategorie": kategorie,
+                        "produktgruppe": gruppe,
+                        "format": fmt,
+                        "spalten_key": colkey,
+                        "sub": sub,
+                        "anchor": anchor,
+                        "wert": v,
+                    }
+                )
+    return out
+
 
 def s(v):
     return "" if v is None else str(v).strip()
@@ -157,16 +218,22 @@ def main():
     wb = openpyxl.load_workbook(path, data_only=True)
     rows = []
     seen = {}
+    spiral = []
     for sheet in wb.sheetnames:
         if sheet in MATRIX:
             r = parse_matrix(wb[sheet], MATRIX[sheet])
         elif sheet in LONGFORM:
             r = parse_longform(wb[sheet], LONGFORM[sheet])
+        elif sheet == "Preisliste Spiralbooklet":
+            r = parse_spiralbooklet(wb[sheet])
+            spiral = r
+            seen[sheet] = len(r)
+            continue
         else:
             continue
         seen[sheet] = len(r)
         rows.extend(r)
-    json.dump({"rows": rows, "sheets": seen}, sys.stdout, ensure_ascii=False)
+    json.dump({"rows": rows, "spiral": spiral, "sheets": seen}, sys.stdout, ensure_ascii=False)
 
 
 if __name__ == "__main__":

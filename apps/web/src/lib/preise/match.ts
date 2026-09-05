@@ -19,6 +19,68 @@ export type MatchResult =
   | { ok: true; preis_netto: number; liste: string; spalten_key: string }
   | { ok: false; grund: string };
 
+/**
+ * Spiralbooklet: Preis aus Komponenten aufbauen (Inhalt-Papier + optional
+ * Umschlag / Cello / Deckblatt / Schlussblatt), je exakter Auflage.
+ */
+export async function spiralPreis(
+  sb: SupabaseClient,
+  listeId: string,
+  format: string,
+  attr: Record<string, unknown>,
+  auflage: number,
+): Promise<{ netto: number; aufbau: string } | null> {
+  const { data: rows } = await sb
+    .from("preis")
+    .select("spalten_key, sorte, preis_netto")
+    .eq("liste_id", listeId)
+    .eq("kategorie", "Spiralbooklet")
+    .eq("format", format)
+    .eq("auflage", auflage);
+  if (!rows?.length) return null;
+
+  const P = (key: string, sub: string) =>
+    Number(rows.find((r) => r.spalten_key === key && r.sorte === sub)?.preis_netto ?? 0);
+
+  const seiten =
+    Number(attr.seiten ?? (attr.blatt != null ? Number(attr.blatt) * 2 : 8)) || 8;
+  const extra = Math.max(0, Math.ceil((seiten - 8) / 2));
+  const g = Number(attr.grammatur_g) || 0;
+  const offset = /offset/i.test(String(attr.sorte ?? ""));
+  const ic = offset ? "inhalt_offset" : g >= 280 ? "inhalt_300" : "inhalt_135";
+
+  const teile: string[] = [];
+  let netto = P(ic, "8s") + extra * P(ic, "per2");
+  teile.push(`${ic}${extra ? ` +${extra}×2S.` : ""}`);
+
+  const ug = Number(attr.umschlag_g) || 0;
+  if ([170, 250, 300].includes(ug)) {
+    netto += P(`umschlag_${ug}`, "x");
+    teile.push(`umschlag_${ug}`);
+  }
+  if (attr.cello === "matt" || attr.cello === "glanz") {
+    netto += P("cello", "8s") + extra * P("cello", "per2");
+    teile.push("cello");
+  }
+  if (attr.deckblatt === true) {
+    netto += P("deckblatt", "x");
+    teile.push("deckblatt");
+  }
+  const sbl = String(attr.schlussblatt ?? "");
+  if (sbl === "folie") {
+    netto += P("schlussblatt_folie", "x");
+    teile.push("schlussblatt");
+  } else if (sbl === "grau") {
+    netto += P("karton_grau", "x");
+    teile.push("karton_grau");
+  } else if (sbl === "weiss") {
+    netto += P("karton_weiss", "x");
+    teile.push("karton_weiss");
+  }
+
+  return { netto: Math.round(netto * 100) / 100, aufbau: teile.join(" + ") };
+}
+
 export async function matchOnePreis(sb: SupabaseClient, portalOrderId: string): Promise<MatchResult> {
   const { data: o, error } = await sb
     .from("portal_order")
@@ -46,6 +108,21 @@ export async function matchOnePreis(sb: SupabaseClient, portalOrderId: string): 
 
   const attr = rr.attribute ?? {};
   const auflage = Number(o.quantity) || 0;
+
+  // Spiralbooklet: Preis aus Komponenten
+  if (rr.gruppe === "DSP") {
+    const sp = await spiralPreis(sb, liste.id, String(attr.format ?? ""), attr, auflage);
+    if (!sp) {
+      await sb.from("portal_order").update({ preis_quelle: "kein_treffer" }).eq("id", portalOrderId);
+      return { ok: false, grund: `keine Spiralbooklet-Preise für ${attr.format ?? "?"}/${auflage}` };
+    }
+    await sb
+      .from("portal_order")
+      .update({ preis_id: null, preis_netto: sp.netto, preis_quelle: "auto" })
+      .eq("id", portalOrderId);
+    return { ok: true, preis_netto: sp.netto, liste: liste.name as string, spalten_key: sp.aufbau };
+  }
+
   const { data: kandidaten } = await sb
     .from("preis")
     .select("id, format, blatt, sorte, farbigkeit, preis_netto, spalten_key")

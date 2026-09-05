@@ -49,6 +49,16 @@ export function applyOptionAttrs(
     attr.cello = /matt/.test(t) ? "matt" : "glanz";
   }
 
+  // Spiral-Booklet-Komponenten (für die Preis-Kalkulation)
+  if (/umschlag/.test(t)) {
+    const g = t.match(/(\d{2,3})\s*g/);
+    if (g) attr.umschlag_g = Number(g[1]);
+  }
+  if (/deckblatt/.test(t)) attr.deckblatt = true;
+  if (/schlussblatt/.test(t)) {
+    attr.schlussblatt = /grau/.test(t) ? "grau" : /wei[ßs]/.test(t) ? "weiss" : "folie";
+  }
+
   if (/gl[äa]nzend/.test(t)) attr.oberflaeche = "glänzend";
   else if (/matt/.test(t)) attr.oberflaeche = "matt";
 
