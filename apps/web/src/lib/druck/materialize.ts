@@ -16,11 +16,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ResolveResult } from "@/lib/opri/resolve";
 
 type Zeile = ResolveResult["materialliste"][number];
-type Typ = "druck" | "cello" | "binden" | "aufhaenger";
+type Typ = "druck" | "cello" | "binden" | "aufhaenger" | "konfektion";
 
 const NICHT_BEDRUCKT = /graukarton|graupappe|graukart/i;
 const IST_WIREO = /drahtbinder|wire-?o/i;
 const IST_AUFHAENGER = /aufh[äa]nger/i;
+const IST_INLAY = /inlay/i;
 
 const norm = (v: unknown) => (v == null ? "" : String(v).trim());
 
@@ -325,6 +326,67 @@ export async function erzeugeJobs(
       status: "in_batch",
     });
     if (jErr) throw new Error(`Aufhänger-Job: ${jErr.message}`);
+    bump(batch.nummer);
+  }
+
+  // ---- 5) Konfektion (Multiloft: Cover + Inlay + Cover stapeln, Nutzen schneiden)
+  const inlayZeile = zeilen.find(
+    (z) => IST_INLAY.test(z.rolle ?? "") || IST_INLAY.test(z.verwendung ?? ""),
+  );
+  if (inlayZeile) {
+    const dbogen = inlayZeile.druckbogen ?? druckJobs[0]?.druckbogen ?? null;
+    const fmt = inlayZeile.format ?? (rr.attribute?.format as string | undefined) ?? null;
+    const schluessel = [norm(fmt), norm(dbogen)].join(" | ");
+    const batch = await getBatch("konfektion", schluessel, { papier: fmt, druckbogen: dbogen });
+
+    // alle nicht bedruckten Bogen-Zeilen (Inlay, Blanko-Rückblatt) als Material
+    const matZeilen = zeilen.filter(
+      (z) =>
+        z !== inlayZeile &&
+        z.bedruckt === false &&
+        (z.einheit === "bogen" || z.einheit === "blatt") &&
+        (z.material || z.material_kurz),
+    );
+    const komponenten: Record<string, unknown>[] = [
+      ...druckJobs.map((d) => ({
+        quelle: "druck",
+        ref: d.id,
+        bezeichnung: d.bauteil,
+        menge: d.netto_bogen,
+        einheit: d.druckbogen ? `Bogen ${d.druckbogen}` : "Bogen",
+      })),
+      {
+        quelle: "material",
+        bezeichnung: inlayZeile.material_kurz || inlayZeile.material,
+        rolle: inlayZeile.rolle,
+        menge: inlayZeile.netto_bogen ?? inlayZeile.menge,
+        einheit: inlayZeile.netto_bogen ? `Bogen ${inlayZeile.druckbogen ?? ""}`.trim() : inlayZeile.einheit,
+      },
+      ...matZeilen.map((z) => ({
+        quelle: "material",
+        bezeichnung: z.material_kurz || z.material,
+        rolle: z.rolle,
+        menge: z.netto_bogen ?? z.menge,
+        einheit: z.netto_bogen ? `Bogen ${z.druckbogen ?? ""}`.trim() : z.einheit,
+      })),
+    ];
+
+    const { error: jErr } = await sb.from("job").insert({
+      portal_order_id: portalOrderId,
+      batch_id: batch.id,
+      typ: "konfektion",
+      bauteil: "Multiloft konfektionieren (Cover + Inlay + Cover, Nutzen schneiden)",
+      quelle_regel: inlayZeile.regel,
+      papier: fmt,
+      druckbogen: dbogen,
+      nutzen: inlayZeile.nutzen ?? null,
+      netto_bogen: inlayZeile.netto_bogen ?? null,
+      auflage,
+      abhaengig_von: druckJobIds,
+      komponenten,
+      status: "in_batch",
+    });
+    if (jErr) throw new Error(`Konfektion-Job: ${jErr.message}`);
     bump(batch.nummer);
   }
 
