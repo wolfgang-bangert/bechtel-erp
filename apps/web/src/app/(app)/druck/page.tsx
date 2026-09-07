@@ -72,6 +72,7 @@ function BatchCard({ b }: { b: Batch }) {
 
   return (
     <div
+      id={b.nummer}
       style={{
         border: "1px solid var(--border)",
         borderRadius: "var(--radius)",
@@ -184,9 +185,14 @@ export default async function DruckDashboard() {
     <>
       <div className="toolbar" style={{ justifyContent: "space-between" }}>
         <h1 style={{ margin: 0 }}>Druck-Dashboard</h1>
-        <Link href="/druckauftraege" className="ghost" style={{ padding: "7px 12px" }}>
-          Druckaufträge →
-        </Link>
+        <div className="toolbar" style={{ gap: 8 }}>
+          <Link href="/druck/plan" className="ghost" style={{ padding: "7px 12px" }}>
+            Belegungs-Board →
+          </Link>
+          <Link href="/druckauftraege" className="ghost" style={{ padding: "7px 12px" }}>
+            Druckaufträge →
+          </Link>
+        </div>
       </div>
       <p className="lead">
         Batches sammeln Arbeitsvorgänge auftragsübergreifend. „an flux übergeben" gilt nur für

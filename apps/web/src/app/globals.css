@@ -313,3 +313,71 @@ table.data td.wrap {
 .table-scroll {
   overflow-x: auto;
 }
+
+/* ---- Belegungs-Board (/druck/plan) -------------------------------------- */
+.plan-wrap {
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.plan-grid {
+  display: grid;
+  grid-template-columns: 220px repeat(3, minmax(240px, 1fr));
+  gap: 10px;
+  min-width: 980px;
+}
+.plan-col-head {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 2px;
+}
+.plan-lane-head {
+  border-left: 4px solid var(--border);
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  align-self: start;
+}
+.plan-cell {
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 6px;
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.plan-cell.drop {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+}
+.plan-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--muted);
+  border-radius: 6px;
+  padding: 8px 9px;
+  cursor: grab;
+  font-size: 13px;
+}
+.plan-card:active {
+  cursor: grabbing;
+}
+.plan-card.dragging {
+  opacity: 0.4;
+}
+.plan-card .pc-meta {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 4px;
+}
+.plan-card input.pc-dauer {
+  width: 56px;
+  font-size: 11px;
+  padding: 1px 4px;
+  margin-top: 4px;
+}

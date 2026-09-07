@@ -24,6 +24,7 @@ export default async function AppLayout({
 
         <div className="nav-group">onlineprinters</div>
         <Link href="/druck">Druck-Dashboard</Link>
+        <Link href="/druck/plan">Belegungs-Board</Link>
         <Link href="/abrechnung">Wochen-Abrechnung</Link>
         <Link href="/einstellungen/opri-produkte">Produkte / Flux</Link>
         <Link href="/einstellungen/opri-regeln">Materialregeln</Link>
@@ -47,6 +48,7 @@ export default async function AppLayout({
         <Link href="/einstellungen/steuerschluessel">Steuerschlüssel</Link>
         <Link href="/einstellungen/kostenstellen">Kostenstellen</Link>
         <Link href="/einstellungen/formate">Formate & Bögen</Link>
+        <Link href="/einstellungen/maschinen">Maschinen</Link>
         <Link href="/einstellungen/vernutzung">Vernutzung</Link>
         <Link href="/einstellungen/frachtpreise">Frachtpreise</Link>
         <Link href="/einstellungen/versandartikel">Versandartikel</Link>
