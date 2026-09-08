@@ -350,6 +350,11 @@ async function main() {
       );
       break;
     }
+    case "maschinen:zuordnen": {
+      const { autoAssignDruckMaschinen } = await import("./maschine");
+      console.log(JSON.stringify(await autoAssignDruckMaschinen(), null, 1));
+      break;
+    }
     case "preise:import": {
       const { importPreise } = await import("./importPreise");
       console.log(JSON.stringify(await importPreise(), null, 1));
@@ -391,6 +396,8 @@ async function main() {
         await resolveOpri({}); // neueste Aufträge auflösen
         const { jobsSync } = await import("./jobsSync");
         console.log("jobs:sync →", JSON.stringify(await jobsSync()));
+        const { autoAssignDruckMaschinen } = await import("./maschine");
+        console.log("maschinen:zuordnen →", JSON.stringify(await autoAssignDruckMaschinen()));
       }
       break;
     }

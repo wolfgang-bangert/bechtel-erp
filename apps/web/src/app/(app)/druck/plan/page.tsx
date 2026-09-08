@@ -10,7 +10,9 @@ export default async function PlanPage() {
   const [{ data: maschinen }, { data: batches }] = await Promise.all([
     supabase
       .from("maschine")
-      .select("id, name, typ, farbe, kapazitaet_bogen_h")
+      .select(
+        "id, name, typ, farbe, kapazitaet_bogen_h, druckverfahren, max_farben, geladenes_papier, geladenes_format",
+      )
       .eq("aktiv", true)
       .order("sortierung")
       .order("name"),

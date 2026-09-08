@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { autoAssignDruckMaschinen } from "@/lib/druck/maschine";
 
 /** Phase-Spalte → kanonischer batch.status. */
 const PHASE_STATUS: Record<string, string> = {
@@ -54,6 +55,24 @@ export async function movePlanBatch(args: MoveArgs): Promise<{ ok: boolean; erro
   revalidatePath("/druck/plan");
   revalidatePath("/druck");
   return { ok: true };
+}
+
+/** Alle offenen Druck-Batches automatisch der passenden Maschine zuordnen. */
+export async function autoAssignAction(): Promise<{ ok: boolean; error?: string; note?: string }> {
+  const supabase = await createClient();
+  try {
+    const r = await autoAssignDruckMaschinen(supabase);
+    revalidatePath("/druck/plan");
+    revalidatePath("/druck");
+    return {
+      ok: true,
+      note:
+        `${r.zugeordnet} zugeordnet · ${r.unverändert} unverändert` +
+        (r.ohne_maschine.length ? ` · ${r.ohne_maschine.length} ohne Maschine` : ""),
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /** Geschätzte Rüst-/Laufzeit eines Batches setzen (Minuten, für die Lane-Auslastung). */

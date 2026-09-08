@@ -7,7 +7,10 @@ export default async function MaschinenPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("maschine")
-    .select("id, name, typ, flux_printer_name, farbe, kapazitaet_bogen_h, sortierung, aktiv")
+    .select(
+      "id, name, typ, flux_printer_name, farbe, kapazitaet_bogen_h, sortierung, aktiv, " +
+        "druckverfahren, max_farben, formate, geladenes_papier, geladenes_format",
+    )
     .order("sortierung")
     .order("name");
 
@@ -15,15 +18,15 @@ export default async function MaschinenPage() {
     <>
       <h1>Maschinen</h1>
       <p className="lead">
-        Stationen für die Maschinenplanung. Jeder Batch wird im{" "}
-        <a href="/druck/plan">Belegungs-Board</a> einer Maschine zugeordnet. Der Typ steuert,
-        welche Batches (Drucken / Cellophanieren / Binden / Konfektion) auf der Maschine landen
-        können.
+        Stationen für die Maschinenplanung, gruppiert nach Typ. Bei Druckmaschinen legen
+        Druckverfahren, max. Farben, Formate und der Rüstzustand (geladenes Papier / Format)
+        fest, welche Druck-Batches automatisch zugeordnet werden – manuell im{" "}
+        <a href="/druck/plan">Belegungs-Board</a> verschieben geht weiterhin.
       </p>
 
       {error && <div className="banner-err">Fehler beim Laden: {error.message}</div>}
 
-      <MaschinenTable rows={(data ?? []) as Maschine[]} />
+      <MaschinenTable rows={(data ?? []) as unknown as Maschine[]} />
     </>
   );
 }

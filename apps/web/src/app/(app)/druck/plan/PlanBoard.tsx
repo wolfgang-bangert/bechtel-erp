@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { movePlanBatch, setBatchDauer } from "./actions";
+import { autoAssignAction, movePlanBatch, setBatchDauer } from "./actions";
 
 export type Maschine = {
   id: string;
@@ -11,6 +11,10 @@ export type Maschine = {
   typ: string;
   farbe: string | null;
   kapazitaet_bogen_h: number | null;
+  druckverfahren: string | null;
+  max_farben: number | null;
+  geladenes_papier: string | null;
+  geladenes_format: string | null;
 };
 export type PlanJob = {
   netto_bogen: number | null;
@@ -81,11 +85,25 @@ export function PlanBoard({
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropCell, setDropCell] = useState<string>(""); // `${laneKey}|${phase}`
   const [err, setErr] = useState<string>("");
+  const [note, setNote] = useState<string>("");
   const [pending, start] = useTransition();
 
-  const lanes = useMemo(() => {
+  const lanes = useMemo<Maschine[]>(() => {
     const ms = maschinen.filter((m) => m.typ === typ);
-    return [...ms, { id: "", name: "Ohne Maschine", typ, farbe: null, kapazitaet_bogen_h: null }];
+    return [
+      ...ms,
+      {
+        id: "",
+        name: "Ohne Maschine",
+        typ,
+        farbe: null,
+        kapazitaet_bogen_h: null,
+        druckverfahren: null,
+        max_farben: null,
+        geladenes_papier: null,
+        geladenes_format: null,
+      },
+    ];
   }, [maschinen, typ]);
 
   const shown = useMemo(() => batches.filter((b) => b.typ === typ), [batches, typ]);
@@ -191,7 +209,25 @@ export function PlanBoard({
             </button>
           );
         })}
+        {typ === "druck" && (
+          <button
+            className="ghost"
+            style={{ padding: "6px 12px" }}
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                const r = await autoAssignAction();
+                setErr(r.ok ? "" : (r.error ?? "Fehler"));
+                setNote(r.ok ? (r.note ?? "") : "");
+                router.refresh();
+              })
+            }
+          >
+            ⚙ Maschinen automatisch zuordnen
+          </button>
+        )}
         {pending && <span className="count">speichert …</span>}
+        {note && <span className="msg-ok">{note}</span>}
         {err && <span className="msg-err">{err}</span>}
       </div>
 
@@ -220,6 +256,18 @@ export function PlanBoard({
                   style={{ borderLeftColor: lane.farbe ?? "var(--border)" }}
                 >
                   <strong>{lane.name}</strong>
+                  {lane.id && (
+                    <div className="count" style={{ marginTop: 2 }}>
+                      {[
+                        lane.druckverfahren,
+                        lane.max_farben ? `${lane.max_farben}-farbig` : null,
+                        lane.geladenes_papier ? `Papier: ${lane.geladenes_papier}` : null,
+                        lane.geladenes_format,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "keine Rüstung hinterlegt"}
+                    </div>
+                  )}
                   <div className="count" style={{ marginTop: 4 }}>
                     {load.anz} Batches
                     {load.min > 0 && ` · ~${Math.round(load.min / 60)} h`}

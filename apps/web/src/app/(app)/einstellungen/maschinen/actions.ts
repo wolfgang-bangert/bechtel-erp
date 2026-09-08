@@ -19,10 +19,24 @@ export async function saveMaschine(_prev: RowState, fd: FormData): Promise<RowSt
   const sortierung = sortRaw ? Number(sortRaw) : 100;
   const aktiv = fd.get("aktiv") != null;
 
+  const druckverfahren = String(fd.get("druckverfahren") ?? "").trim() || null;
+  const farbenRaw = String(fd.get("max_farben") ?? "").trim();
+  const max_farben = farbenRaw ? Number(farbenRaw) : null;
+  const formate = String(fd.get("formate") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const geladenes_papier = String(fd.get("geladenes_papier") ?? "").trim() || null;
+  const geladenes_format = String(fd.get("geladenes_format") ?? "").trim() || null;
+
   if (!name) return { error: "Name ist Pflicht." };
   if (!TYPEN.includes(typ)) return { error: "Typ ungültig." };
   if (kapazitaet_bogen_h != null && !Number.isFinite(kapazitaet_bogen_h))
     return { error: "Kapazität muss eine Zahl sein." };
+  if (druckverfahren && !["digital", "offset"].includes(druckverfahren))
+    return { error: "Druckverfahren ungültig." };
+  if (max_farben != null && !Number.isFinite(max_farben))
+    return { error: "Farben muss eine Zahl sein." };
 
   const supabase = await createClient();
   const payload = {
@@ -33,6 +47,11 @@ export async function saveMaschine(_prev: RowState, fd: FormData): Promise<RowSt
     kapazitaet_bogen_h,
     sortierung,
     aktiv,
+    druckverfahren,
+    max_farben,
+    formate,
+    geladenes_papier,
+    geladenes_format,
   };
   const { error } = id
     ? await supabase.from("maschine").update(payload).eq("id", id)
