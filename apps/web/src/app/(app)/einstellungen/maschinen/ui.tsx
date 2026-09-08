@@ -48,7 +48,7 @@ function MaschineForm({ row, printers }: { row?: Maschine; printers: string[] })
   const [state, action, pending] = useActionState(saveMaschine, empty);
   const neu = !row;
   const printerVal = row?.flux_printer_name ?? "";
-  const printerList = printerVal && !printers.includes(printerVal) ? [printerVal, ...printers] : printers;
+  const printerListId = `flux-printers-${row?.id ?? "neu"}`;
   const geladenText = (row?.geladen ?? [])
     .map((g) => `${g.papier ?? ""}${g.format ? ` | ${g.format}` : ""}`)
     .join("\n");
@@ -110,14 +110,20 @@ function MaschineForm({ row, printers }: { row?: Maschine; printers: string[] })
           />
         </Field>
         <Field label="flux-Drucker">
-          <select name="flux_printer_name" defaultValue={printerVal}>
-            <option value="">–</option>
-            {printerList.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
+          <input
+            name="flux_printer_name"
+            defaultValue={printerVal}
+            list={printers.length ? printerListId : undefined}
+            placeholder="Name aus flux /printers"
+            autoComplete="off"
+          />
+          {printers.length > 0 && (
+            <datalist id={printerListId}>
+              {printers.map((p) => (
+                <option key={p} value={p} />
+              ))}
+            </datalist>
+          )}
         </Field>
         <Field label="Bogen / h">
           <input
