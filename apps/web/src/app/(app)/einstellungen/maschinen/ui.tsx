@@ -15,8 +15,7 @@ export type Maschine = {
   druckverfahren: string | null;
   max_farben: number | null;
   formate: string[] | null;
-  geladenes_papier: string | null;
-  geladenes_format: string | null;
+  geladen: { papier: string | null; format: string | null }[] | null;
 };
 
 const empty: RowState = {};
@@ -28,18 +27,32 @@ const TYP_LABEL: Record<string, string> = {
   sonstige: "Sonstige",
 };
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 12 }}>
+    <label
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 3,
+        fontSize: 12,
+        gridColumn: wide ? "1 / -1" : undefined,
+      }}
+    >
       <span style={{ color: "var(--muted)" }}>{label}</span>
       {children}
     </label>
   );
 }
 
-function MaschineForm({ row }: { row?: Maschine }) {
+function MaschineForm({ row, printers }: { row?: Maschine; printers: string[] }) {
   const [state, action, pending] = useActionState(saveMaschine, empty);
   const neu = !row;
+  const printerVal = row?.flux_printer_name ?? "";
+  const printerList = printerVal && !printers.includes(printerVal) ? [printerVal, ...printers] : printers;
+  const geladenText = (row?.geladen ?? [])
+    .map((g) => `${g.papier ?? ""}${g.format ? ` | ${g.format}` : ""}`)
+    .join("\n");
+
   return (
     <form
       action={action}
@@ -89,33 +102,22 @@ function MaschineForm({ row }: { row?: Maschine }) {
             placeholder="4"
           />
         </Field>
-        <Field label="Formate (Komma)">
+        <Field label="Formate – Kapazität (Komma)">
           <input
             name="formate"
             defaultValue={(row?.formate ?? []).join(", ")}
             placeholder="SRA3, SRA3+"
           />
         </Field>
-        <Field label="geladenes Papier">
-          <input
-            name="geladenes_papier"
-            defaultValue={row?.geladenes_papier ?? ""}
-            placeholder="z. B. 170g BD glänzend"
-          />
-        </Field>
-        <Field label="geladenes Format">
-          <input
-            name="geladenes_format"
-            defaultValue={row?.geladenes_format ?? ""}
-            placeholder="SRA3"
-          />
-        </Field>
         <Field label="flux-Drucker">
-          <input
-            name="flux_printer_name"
-            defaultValue={row?.flux_printer_name ?? ""}
-            placeholder="Name aus flux /printers"
-          />
+          <select name="flux_printer_name" defaultValue={printerVal}>
+            <option value="">–</option>
+            {printerList.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="Bogen / h">
           <input
@@ -135,6 +137,15 @@ function MaschineForm({ row }: { row?: Maschine }) {
         <Field label="Reihenfolge">
           <input name="sortierung" type="number" defaultValue={row?.sortierung ?? 100} />
         </Field>
+        <Field label="geladene Materialien – Rüstzustand, je Zeile: Papier | Format (max. 9)" wide>
+          <textarea
+            name="geladen"
+            defaultValue={geladenText}
+            rows={4}
+            placeholder={"170g BD glänzend | SRA3\n300g BD matt | SRA3+"}
+            style={{ fontFamily: "inherit", resize: "vertical" }}
+          />
+        </Field>
       </div>
       <div className="toolbar" style={{ gap: 10, marginTop: 10, alignItems: "center" }}>
         <label className="chk">
@@ -150,21 +161,34 @@ function MaschineForm({ row }: { row?: Maschine }) {
   );
 }
 
-export function MaschinenTable({ rows }: { rows: Maschine[] }) {
+export function MaschinenTable({
+  rows,
+  printers,
+  catalogError,
+}: {
+  rows: Maschine[];
+  printers: string[];
+  catalogError?: string;
+}) {
   const gruppen = Array.from(new Set(rows.map((r) => r.typ)));
   return (
     <div>
+      <p className="count" style={{ marginTop: -4 }}>
+        {catalogError
+          ? `flux-Drucker konnten nicht geladen werden: ${catalogError}`
+          : `${printers.length} flux-Drucker aus der API`}
+      </p>
       {gruppen.map((g) => (
         <section key={g} style={{ marginTop: 18 }}>
           <h2 style={{ marginBottom: 8 }}>{TYP_LABEL[g] ?? g}</h2>
           {rows.filter((r) => r.typ === g).map((r) => (
-            <MaschineForm key={r.id} row={r} />
+            <MaschineForm key={r.id} row={r} printers={printers} />
           ))}
         </section>
       ))}
       <section style={{ marginTop: 22 }}>
         <h2 style={{ marginBottom: 8 }}>Neue Maschine</h2>
-        <MaschineForm />
+        <MaschineForm printers={printers} />
       </section>
     </div>
   );

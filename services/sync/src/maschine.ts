@@ -4,6 +4,7 @@
  */
 import { supabase as sb } from "./supabase";
 
+export type GeladenEintrag = { papier: string | null; format: string | null };
 export type MaschineSpec = {
   id: string;
   name: string;
@@ -11,8 +12,7 @@ export type MaschineSpec = {
   druckverfahren: string | null;
   max_farben: number | null;
   formate: string[] | null;
-  geladenes_papier: string | null;
-  geladenes_format: string | null;
+  geladen: GeladenEintrag[] | null;
   sortierung: number;
 };
 
@@ -45,8 +45,9 @@ export function waehleMaschine(
 
   const score = (m: MaschineSpec) => {
     let s = 0;
-    if (paper && norm(m.geladenes_papier) === paper) s += 100;
-    if (sheet && norm(m.geladenes_format) === sheet) s += 10;
+    const gel = Array.isArray(m.geladen) ? m.geladen : [];
+    if (paper && gel.some((g) => norm(g.papier) === paper)) s += 100;
+    if (sheet && gel.some((g) => norm(g.format) === sheet)) s += 10;
     s -= m.max_farben ?? 9;
     s -= m.sortierung / 1000;
     return s;
@@ -64,9 +65,7 @@ export type ZuordnungResult = {
 export async function autoAssignDruckMaschinen(): Promise<ZuordnungResult> {
   const { data: maschinen } = await sb
     .from("maschine")
-    .select(
-      "id, name, typ, druckverfahren, max_farben, formate, geladenes_papier, geladenes_format, sortierung",
-    )
+    .select("id, name, typ, druckverfahren, max_farben, formate, geladen, sortierung")
     .eq("aktiv", true)
     .eq("typ", "druck");
   const specs = (maschinen ?? []) as MaschineSpec[];

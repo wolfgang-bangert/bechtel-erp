@@ -26,8 +26,15 @@ export async function saveMaschine(_prev: RowState, fd: FormData): Promise<RowSt
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  const geladenes_papier = String(fd.get("geladenes_papier") ?? "").trim() || null;
-  const geladenes_format = String(fd.get("geladenes_format") ?? "").trim() || null;
+  // Rüstzustand: je Zeile „Papier | Format" (max. 9 Magazine).
+  const geladen = String(fd.get("geladen") ?? "")
+    .split("\n")
+    .map((line) => {
+      const [papier, format] = line.split("|").map((s) => s.trim());
+      return { papier: papier || null, format: format || null };
+    })
+    .filter((g) => g.papier)
+    .slice(0, 9);
 
   if (!name) return { error: "Name ist Pflicht." };
   if (!TYPEN.includes(typ)) return { error: "Typ ungültig." };
@@ -50,8 +57,7 @@ export async function saveMaschine(_prev: RowState, fd: FormData): Promise<RowSt
     druckverfahren,
     max_farben,
     formate,
-    geladenes_papier,
-    geladenes_format,
+    geladen,
   };
   const { error } = id
     ? await supabase.from("maschine").update(payload).eq("id", id)

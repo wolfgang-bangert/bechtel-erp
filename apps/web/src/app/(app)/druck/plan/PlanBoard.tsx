@@ -13,8 +13,7 @@ export type Maschine = {
   kapazitaet_bogen_h: number | null;
   druckverfahren: string | null;
   max_farben: number | null;
-  geladenes_papier: string | null;
-  geladenes_format: string | null;
+  geladen: { papier: string | null; format: string | null }[] | null;
 };
 export type PlanJob = {
   netto_bogen: number | null;
@@ -100,8 +99,7 @@ export function PlanBoard({
         kapazitaet_bogen_h: null,
         druckverfahren: null,
         max_farben: null,
-        geladenes_papier: null,
-        geladenes_format: null,
+        geladen: null,
       },
     ];
   }, [maschinen, typ]);
@@ -261,11 +259,19 @@ export function PlanBoard({
                       {[
                         lane.druckverfahren,
                         lane.max_farben ? `${lane.max_farben}-farbig` : null,
-                        lane.geladenes_papier ? `Papier: ${lane.geladenes_papier}` : null,
-                        lane.geladenes_format,
                       ]
                         .filter(Boolean)
-                        .join(" · ") || "keine Rüstung hinterlegt"}
+                        .join(" · ")}
+                      {lane.geladen && lane.geladen.length > 0 ? (
+                        <div style={{ marginTop: 2 }}>
+                          gerüstet:{" "}
+                          {lane.geladen
+                            .map((g) => [g.papier, g.format].filter(Boolean).join(" "))
+                            .join(" • ")}
+                        </div>
+                      ) : (
+                        lane.druckverfahren && <div style={{ marginTop: 2 }}>nichts gerüstet</div>
+                      )}
                     </div>
                   )}
                   <div className="count" style={{ marginTop: 4 }}>
