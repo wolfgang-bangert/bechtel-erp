@@ -21,10 +21,16 @@
   <key>WorkingDirectory</key>
   <string>/Users/wolfgangbangert/neues ERP</string>
 
-  <!-- alle 30 Minuten -->
-  <key>StartInterval</key>
-  <integer>1800</integer>
+  <!-- täglich um 05:30 Uhr -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>5</integer>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
 
+  <!-- verpasste Läufe (Rechner war aus) beim nächsten Start nachholen -->
   <key>RunAtLoad</key>
   <true/>
 
