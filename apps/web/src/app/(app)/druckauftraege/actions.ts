@@ -93,3 +93,61 @@ export async function druckjobsAction(_prev: State, fd: FormData): Promise<State
     return { error: e instanceof Error ? e.message : String(e) };
   }
 }
+
+/** flux-Felder eines Druck-Jobs pflegen (Produkt / Standbogen / Papiersorte /
+ *  Beidseitig / Farbe). Beidseitig+Farbe landen in flux_services. */
+export async function saveJobFluxAction(_prev: State, fd: FormData): Promise<State> {
+  const orderId = String(fd.get("order_id") ?? "");
+  const jobId = String(fd.get("job_id") ?? "");
+  if (!jobId) return { error: "job_id fehlt" };
+  const supabase = await createClient();
+
+  const { data: cur } = await supabase
+    .from("job")
+    .select("flux_services")
+    .eq("id", jobId)
+    .maybeSingle();
+  const services: Record<string, unknown> = { ...((cur?.flux_services as Record<string, unknown>) ?? {}) };
+  const setSvc = (name: string, key: string) => {
+    const v = str(fd, key);
+    if (v) services[name] = v;
+    else delete services[name];
+  };
+  setSvc("Beidseitig", "beidseitig");
+  setSvc("Farbiger Druck", "farbe");
+
+  const { error } = await supabase
+    .from("job")
+    .update({
+      flux_product: str(fd, "flux_product"),
+      flux_signature: str(fd, "signature"),
+      flux_paper_type: str(fd, "paper_type"),
+      flux_services: services,
+    })
+    .eq("id", jobId);
+  if (error) return { error: error.message };
+  if (orderId) revalidatePath(`/druckauftraege/${orderId}`);
+  return { ok: true, note: "gespeichert" };
+}
+
+/** Den Auftrag direkt an flux übergeben (ein orderItem je Druck-Job). */
+export async function sendeAuftragAnFluxAction(_prev: State, fd: FormData): Promise<State> {
+  const id = String(fd.get("id") ?? "");
+  if (!id) return { error: "id fehlt" };
+  const supabase = await createClient();
+  try {
+    const { sendeAuftragAnFlux } = await import("@/lib/druck/flux");
+    const r = await sendeAuftragAnFlux(supabase, id);
+    revalidatePath(`/druckauftraege/${id}`);
+    revalidatePath("/druck");
+    if (r.error) return { error: `${r.error} — Antwort: ${JSON.stringify(r.response)?.slice(0, 300)}` };
+    return {
+      ok: true,
+      note: r.dryRun
+        ? "Dry-Run: FLUX_API_BASE/KEY nicht gesetzt — Payload nicht gesendet"
+        : `an flux übergeben — orderId ${r.orderId ?? "?"}`,
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}

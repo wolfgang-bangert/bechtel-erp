@@ -154,11 +154,6 @@ export function TemplateForm({
       <div className="count" style={{ marginTop: 4 }}>
         Service-Overrides — leer = flux-Standard des Produkts
       </div>
-      <div className="msg-err" style={{ fontSize: 11, whiteSpace: "pre-wrap" }}>
-        DEBUG selected={selected ? "ja" : "nein"} · services=[
-        {(selected?.services ?? []).map((s) => `${s.name}(${s.options.length})`).join(", ")}] ·
-        svcGroups=[{svcGroups.map((g) => g.name).join(", ")}]
-      </div>
       <div className="row" style={{ border: "none", padding: 0, flexWrap: "wrap", gap: 12 }}>
         <F
           label="Papiersorte"

@@ -7,6 +7,8 @@ import { ResolveButton } from "./ResolveButton";
 import { DruckjobsButton } from "./DruckjobsButton";
 import { PreisPanel } from "./PreisPanel";
 import { DateienPanel } from "./DateienPanel";
+import { FluxSendPanel } from "./FluxSendPanel";
+import { loadCatalogForForm } from "../../einstellungen/flux-templates/loadCatalog";
 
 export const dynamic = "force-dynamic";
 
@@ -161,7 +163,8 @@ export default async function DruckauftragPage({
   const { data: jobsRaw } = await supabase
     .from("job")
     .select(
-      "id, typ, bauteil, papier, farbigkeit, format, druckbogen, nutzen, netto_bogen, auflage, cello, cello_seiten, teilung, durchmesser, schlaufen_gesamt, komponenten, status, batch:batch_id(nummer, typ, status)",
+      "id, typ, bauteil, papier, farbigkeit, format, druckbogen, nutzen, netto_bogen, auflage, cello, cello_seiten, teilung, durchmesser, schlaufen_gesamt, komponenten, status, " +
+        "flux_product, flux_signature, flux_paper_type, flux_services, flux_order_id, pdf_storage_key, batch:batch_id(nummer, typ, status)",
     )
     .eq("portal_order_id", id)
     .order("created_at", { ascending: true });
@@ -183,8 +186,28 @@ export default async function DruckauftragPage({
     schlaufen_gesamt: number | null;
     komponenten: { quelle: string; bezeichnung: string | null; rolle?: string | null; menge?: number | null; einheit?: string | null }[] | null;
     status: string;
+    flux_product: string | null;
+    flux_signature: string | null;
+    flux_paper_type: string | null;
+    flux_services: Record<string, unknown> | null;
+    flux_order_id: string | null;
+    pdf_storage_key: string | null;
     batch: { nummer: string; typ: string; status: string } | null;
   }[];
+
+  const cat = await loadCatalogForForm();
+  const druckJobs = jobs
+    .filter((j) => j.typ === "druck")
+    .map((j) => ({
+      id: j.id,
+      bauteil: j.bauteil,
+      flux_product: j.flux_product,
+      flux_signature: j.flux_signature,
+      flux_paper_type: j.flux_paper_type,
+      flux_services: j.flux_services,
+      pdf: !!j.pdf_storage_key,
+    }));
+  const sentOrderId = jobs.find((j) => j.typ === "druck" && j.flux_order_id)?.flux_order_id ?? null;
 
   return (
     <>
@@ -472,6 +495,21 @@ export default async function DruckauftragPage({
           </table>
         </div>
       )}
+
+      <h2 style={{ marginTop: 18 }}>flux</h2>
+      <p className="lead" style={{ marginTop: 0 }}>
+        Je Druck-Bauteil flux-Produkt und Overrides wählen, dann den Auftrag als flux-Order
+        übergeben (ein orderItem je Bauteil).
+      </p>
+      <FluxSendPanel
+        orderId={data.id}
+        jobs={druckJobs}
+        products={cat.products}
+        signatures={cat.signatures}
+        paperTypes={cat.paperTypes}
+        catalogError={cat.catalogError}
+        sentOrderId={sentOrderId}
+      />
 
       <h2 style={{ marginTop: 18 }}>Dateien</h2>
       <DateienPanel files={fileLinks} />
