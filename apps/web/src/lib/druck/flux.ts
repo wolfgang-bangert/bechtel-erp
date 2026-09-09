@@ -10,8 +10,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { signedGetUrl } from "@/lib/storage";
 
-/** flux lehnt Leer-/Sonderzeichen im Prefix ab (auch den Unterstrich). */
-const fluxClean = (s: string) => (s || "").replace(/[^A-Za-z0-9]/g, "");
+/** Prefix bereinigen: nur Leerzeichen raus (Unterstrich wie im n8n-Payload lassen). */
+const fluxClean = (s: string) => (s || "").replace(/\s+/g, "");
 
 type Job = {
   id: string;
@@ -195,13 +195,18 @@ export async function sendeAuftragAnFlux(
   const deliveryDate = order.deliver_date
     ? new Date(order.deliver_date as string).toISOString().slice(0, 10) + "T00:00:00.000Z"
     : "";
+  const baseSubmitter = (base.submitterAddress as Record<string, unknown>) ?? {};
   const payload = {
     ...base,
-    // prefix = "opri" + volle Auftragsnummer (flux erlaubt keinen Unterstrich)
-    // ⇒ flux hängt seine lfd. Nr an: opri666404365_00001.
-    projectName: `Auftrag ${ref}`,
-    prefix: fluxClean(String(base.prefix ?? "opri") + ref),
+    // wie n8n: prefix = "opri_" + Auftragsnummer + "_", Nummer zusätzlich als
+    // submitterAddress.projectNumber.
+    prefix: fluxClean(`${base.prefix ?? "opri_"}${ref}_`),
     orderNote: `${(base.orderNote as string) ?? ""} · Auftrag ${ref}`.trim(),
+    submitterAddress: {
+      ...baseSubmitter,
+      project: `Onlineprinters ${ref}`,
+      projectNumber: ref,
+    },
     deliveryDate,
     orderDate: "",
     deliveryAddress,
