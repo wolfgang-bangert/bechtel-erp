@@ -10,9 +10,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { signedGetUrl } from "@/lib/storage";
 
-/** flux-prefix bereinigen: nur Buchstaben/Ziffern/Unterstrich (keine Leer-/
- *  Sonderzeichen). Länge ist ok, solange der Prefix nicht rein numerisch ist. */
-const fluxClean = (s: string) => (s || "").replace(/[^A-Za-z0-9_]/g, "");
+/** flux lehnt Leer-/Sonderzeichen im Prefix ab (auch den Unterstrich). */
+const fluxClean = (s: string) => (s || "").replace(/[^A-Za-z0-9]/g, "");
 
 type Job = {
   id: string;
@@ -89,7 +88,7 @@ export async function uebergebeBatchAnFlux(
 
   const payload = {
     ...base,
-    prefix: fluxClean(String(base.prefix ?? "opri_") + batch.nummer),
+    prefix: fluxClean(String(base.prefix ?? "opri") + batch.nummer),
     orderNote: `${(base.orderNote as string) ?? ""} · Batch ${batch.nummer}`.trim(),
     orderItems,
   };
@@ -195,10 +194,10 @@ export async function sendeAuftragAnFlux(
   const nowIso = new Date().toISOString();
   const payload = {
     ...base,
-    // prefix = "opri_" + volle Auftragsnummer → flux hängt _<lfd. Nr> an
-    // ⇒ opri_666404365_00001 (wie der Ninox-Flow).
+    // prefix = "opri" + volle Auftragsnummer (flux erlaubt keinen Unterstrich)
+    // ⇒ flux hängt seine lfd. Nr an: opri666404365_00001.
     projectName: `Auftrag ${ref}`,
-    prefix: fluxClean(String(base.prefix ?? "opri_") + ref),
+    prefix: fluxClean(String(base.prefix ?? "opri") + ref),
     orderNote: `${(base.orderNote as string) ?? ""} · Auftrag ${ref}`.trim(),
     deliveryDate: nowIso,
     orderDate: nowIso,
