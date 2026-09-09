@@ -66,6 +66,21 @@ export function TemplateForm({
   }, [selected]);
   const svcKeys = svcGroups.map((g) => g.name);
 
+  // Papiersorte-Service des Produkts (kurze, produkteigene Liste)
+  const paperSvc = useMemo(() => {
+    const options: string[] = [];
+    let def: string | undefined;
+    for (const sv of selected?.services ?? []) {
+      if (!isPaperSvc(sv.name)) continue;
+      for (const o of sv.options) if (o.name && !options.includes(o.name)) options.push(o.name);
+      const d = sv.options.find((x) => x.id === sv.defaultOptionId);
+      if (d && !def) def = d.name;
+    }
+    return { options, def };
+  }, [selected]);
+
+  const produktFehlt = product.trim().length > 0 && products.length > 0 && !selected;
+
   // tpl.services-Einträge ohne passenden Service-Dropdown → JSON-Fallback
   const svcExtra: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(tpl?.services ?? {})) {
@@ -109,6 +124,17 @@ export function TemplateForm({
         </datalist>
       </F>
 
+      {produktFehlt && (
+        <div className="msg-err" style={{ fontSize: 13 }}>
+          „{product}" ist nicht im flux-Katalog – Service-Auswahl nicht verfügbar. Produktnamen aus der Liste wählen.
+        </div>
+      )}
+      {products.length === 0 && !catalogError && (
+        <div className="count">
+          flux-Katalog leer – Dev-Server nach dem Setzen von FLUX_API_BASE/FLUX_API_KEY neu starten.
+        </div>
+      )}
+
       <F label="Standbogen (optional)" hint="Drucker wird erst beim Batch gewählt">
         <input name="signature" defaultValue={tpl?.signature ?? ""} list="flux-signatures" />
         <datalist id="flux-signatures">
@@ -118,48 +144,67 @@ export function TemplateForm({
         </datalist>
       </F>
 
-      <div className="row" style={{ border: "none", padding: 0 }}>
-        <F label="Papiersorte Override" hint="leer = aus Materialkatalog">
-          <input name="paper_type" defaultValue={tpl?.paper_type ?? ""} list="flux-papers" />
+      <datalist id="flux-papers">
+        {paperTypes.map((p) => (
+          <option key={p} value={p} />
+        ))}
+      </datalist>
+
+      <input type="hidden" name="svc_keys" value={JSON.stringify(svcKeys)} />
+      <div className="count" style={{ marginTop: 4 }}>
+        Service-Overrides — leer = flux-Standard des Produkts
+      </div>
+      <div className="row" style={{ border: "none", padding: 0, flexWrap: "wrap", gap: 12 }}>
+        <F
+          label="Papiersorte"
+          hint={
+            paperSvc.options.length
+              ? paperSvc.def
+                ? `Standard: ${paperSvc.def}`
+                : "aus Produkt-Optionen"
+              : "leer = aus Materialkatalog"
+          }
+        >
+          {paperSvc.options.length ? (
+            <select name="paper_type" defaultValue={tpl?.paper_type ?? ""}>
+              <option value="">(aus Materialkatalog)</option>
+              {paperSvc.options.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+              {tpl?.paper_type && !paperSvc.options.includes(tpl.paper_type) && (
+                <option value={tpl.paper_type}>{tpl.paper_type} (nicht mehr im Produkt)</option>
+              )}
+            </select>
+          ) : (
+            <input name="paper_type" defaultValue={tpl?.paper_type ?? ""} list="flux-papers" />
+          )}
         </F>
-        <F label="Papiersorte Rückseite" hint="leer = aus Materialkatalog">
+
+        <F label="Papiersorte Rückseite" hint="leer = wie Vorderseite">
           <input name="paper_type_back" defaultValue={tpl?.paper_type_back ?? ""} list="flux-papers" />
         </F>
-        <datalist id="flux-papers">
-          {paperTypes.map((p) => (
-            <option key={p} value={p} />
-          ))}
-        </datalist>
-      </div>
 
-      {svcGroups.length > 0 && (
-        <>
-          <input type="hidden" name="svc_keys" value={JSON.stringify(svcKeys)} />
-          <div className="count" style={{ marginTop: 4 }}>
-            Service-Overrides — leer = flux-Standard des Produkts
-          </div>
-          <div className="row" style={{ border: "none", padding: 0, flexWrap: "wrap", gap: 12 }}>
-            {svcGroups.map((g) => {
-              const cur = (tpl?.services?.[g.name] as string) ?? "";
-              return (
-                <F key={`${product}|${g.name}`} label={g.name} hint={g.def ? `Standard: ${g.def}` : undefined}>
-                  <select name={`svc__${g.name}`} defaultValue={cur}>
-                    <option value="">(Standard)</option>
-                    {g.options.map((o) => (
-                      <option key={o} value={o}>
-                        {o}
-                      </option>
-                    ))}
-                    {cur && !g.options.includes(cur) && (
-                      <option value={cur}>{cur} (nicht mehr im Produkt)</option>
-                    )}
-                  </select>
-                </F>
-              );
-            })}
-          </div>
-        </>
-      )}
+        {svcGroups.map((g) => {
+          const cur = (tpl?.services?.[g.name] as string) ?? "";
+          return (
+            <F key={`${product}|${g.name}`} label={g.name} hint={g.def ? `Standard: ${g.def}` : undefined}>
+              <select name={`svc__${g.name}`} defaultValue={cur}>
+                <option value="">(Standard)</option>
+                {g.options.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+                {cur && !g.options.includes(cur) && (
+                  <option value={cur}>{cur} (nicht mehr im Produkt)</option>
+                )}
+              </select>
+            </F>
+          );
+        })}
+      </div>
 
       <details {...(Object.keys(svcExtra).length ? { open: true } : {})}>
         <summary className="count">

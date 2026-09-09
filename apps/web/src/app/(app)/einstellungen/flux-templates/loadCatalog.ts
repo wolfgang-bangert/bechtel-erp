@@ -7,12 +7,13 @@ export async function loadCatalogForForm() {
     id: p.id,
     name: p.name,
     description: p.description,
-    // Papiersorten-Optionslisten weglassen (riesig) – dafür gibt es paperTypes global
+    // Optionslisten je Service mitnehmen; nur echte Riesenlisten kappen
+    // (dann greift für Papier die globale paperTypes-Liste).
     services: p.services.map((sv) => ({
       id: sv.id,
       name: sv.name,
       defaultOptionId: sv.defaultOptionId,
-      options: /papiersorte|papertype/i.test(sv.name) ? [] : sv.options,
+      options: sv.options.length > 80 ? [] : sv.options,
     })),
   }));
   return {
