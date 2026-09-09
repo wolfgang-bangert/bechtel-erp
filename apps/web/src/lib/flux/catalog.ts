@@ -74,11 +74,11 @@ function normServices(raw: unknown): FluxService[] {
     });
 }
 
-export async function fluxCatalog(): Promise<FluxCatalog> {
+export async function fluxCatalog(opts: { fresh?: boolean } = {}): Promise<FluxCatalog> {
   if (!BASE || !KEY) {
     return { ok: false, error: "FLUX_API_BASE/FLUX_API_KEY nicht gesetzt", products: [], paperTypes: [], printers: [], signatures: [] };
   }
-  if (cache && Date.now() - cache.at < TTL_MS) return cache.data;
+  if (!opts.fresh && cache && Date.now() - cache.at < TTL_MS) return cache.data;
 
   try {
     const [prodRaw, paperRaw, printRaw, sigRaw] = await Promise.all([
