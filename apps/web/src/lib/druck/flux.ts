@@ -196,11 +196,13 @@ export async function sendeAuftragAnFlux(
     ? new Date(order.deliver_date as string).toISOString().slice(0, 10) + "T00:00:00.000Z"
     : "";
   const baseSubmitter = (base.submitterAddress as Record<string, unknown>) ?? {};
+  // flux (Update) begrenzt prefix hart auf 5 Zeichen, keine Sonderzeichen →
+  // die letzten 5 Ziffern der Auftragsnummer. Volle Nummer in projectNumber /
+  // orderNote / title.
+  const prefix = (ref.replace(/\D/g, "").slice(-5) || fluxClean(String(base.prefix ?? "opri"))).slice(0, 5);
   const payload = {
     ...base,
-    // wie n8n: prefix = "opri_" + Auftragsnummer + "_", Nummer zusätzlich als
-    // submitterAddress.projectNumber.
-    prefix: fluxClean(`${base.prefix ?? "opri_"}${ref}_`),
+    prefix,
     orderNote: `${(base.orderNote as string) ?? ""} · Auftrag ${ref}`.trim(),
     submitterAddress: {
       ...baseSubmitter,
