@@ -128,7 +128,7 @@ export async function sendeAuftragAnFlux(
 ): Promise<FluxHandoff> {
   const { data: order, error: oErr } = await sb
     .from("portal_order")
-    .select("id, external_reference, ship_to")
+    .select("id, external_reference, ship_to, deliver_date")
     .eq("id", portalOrderId)
     .maybeSingle();
   if (oErr) throw new Error(oErr.message);
@@ -191,7 +191,10 @@ export async function sendeAuftragAnFlux(
     project: `Auftrag ${ref}`,
   };
 
-  const nowIso = new Date().toISOString();
+  // deliveryDate = Liefertermin auf Mitternacht-Z (wie n8n), sonst leer
+  const deliveryDate = order.deliver_date
+    ? new Date(order.deliver_date as string).toISOString().slice(0, 10) + "T00:00:00.000Z"
+    : "";
   const payload = {
     ...base,
     // prefix = "opri" + volle Auftragsnummer (flux erlaubt keinen Unterstrich)
@@ -199,8 +202,8 @@ export async function sendeAuftragAnFlux(
     projectName: `Auftrag ${ref}`,
     prefix: fluxClean(String(base.prefix ?? "opri") + ref),
     orderNote: `${(base.orderNote as string) ?? ""} · Auftrag ${ref}`.trim(),
-    deliveryDate: nowIso,
-    orderDate: nowIso,
+    deliveryDate,
+    orderDate: "",
     deliveryAddress,
     orderItems,
   };
