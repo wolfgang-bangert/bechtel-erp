@@ -49,19 +49,36 @@ export function TemplateForm({
   const [product, setProduct] = useState(tpl?.flux_product ?? "");
 
   const selected = useMemo(() => products.find((p) => p.name === product), [products, product]);
-  const svcDefaults = useMemo(() => {
-    const o: Record<string, string> = {};
+
+  // Nicht-Papier-Services des gewählten Produkts, nach Name gruppiert (flux
+  // liefert manche Services mehrfach mit je einer Option → Optionen mergen).
+  const svcGroups = useMemo(() => {
+    const m = new Map<string, { options: string[]; def?: string }>();
     for (const sv of selected?.services ?? []) {
       if (isPaperSvc(sv.name)) continue;
+      const g = m.get(sv.name) ?? { options: [] as string[], def: undefined as string | undefined };
+      for (const o of sv.options) if (o.name && !g.options.includes(o.name)) g.options.push(o.name);
       const def = sv.options.find((x) => x.id === sv.defaultOptionId);
-      if (def) o[sv.name] = def.name;
+      if (def && !g.def) g.def = def.name;
+      m.set(sv.name, g);
     }
-    return o;
+    return [...m.entries()].map(([name, g]) => ({ name, ...g }));
   }, [selected]);
+  const svcKeys = svcGroups.map((g) => g.name);
 
-  const servicesJson = tpl?.services && Object.keys(tpl.services).length
-    ? JSON.stringify(tpl.services, null, 2)
-    : JSON.stringify(svcDefaults, null, 2);
+  // tpl.services-Einträge ohne passenden Service-Dropdown → JSON-Fallback
+  const svcExtra: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(tpl?.services ?? {})) {
+    if (!svcKeys.includes(k)) svcExtra[k] = v;
+  }
+  const servicesJsonDefault =
+    svcGroups.length > 0
+      ? Object.keys(svcExtra).length
+        ? JSON.stringify(svcExtra, null, 2)
+        : ""
+      : tpl?.services && Object.keys(tpl.services).length
+        ? JSON.stringify(tpl.services, null, 2)
+        : "";
 
   return (
     <form action={action} className="rows" style={{ maxWidth: 640 }}>
@@ -115,31 +132,47 @@ export function TemplateForm({
         </datalist>
       </div>
 
-      <F
-        label="Services (JSON: Service-Name → Options-Name)"
-        hint={
-          selected?.services?.length
-            ? `verfügbar: ${selected.services.filter((sv) => !isPaperSvc(sv.name)).map((sv) => sv.name).join(", ")}`
-            : undefined
-        }
-      >
-        <textarea name="services" rows={5} defaultValue={servicesJson} style={{ font: "12px ui-monospace, monospace" }} />
-      </F>
+      {svcGroups.length > 0 && (
+        <>
+          <input type="hidden" name="svc_keys" value={JSON.stringify(svcKeys)} />
+          <div className="count" style={{ marginTop: 4 }}>
+            Service-Overrides — leer = flux-Standard des Produkts
+          </div>
+          <div className="row" style={{ border: "none", padding: 0, flexWrap: "wrap", gap: 12 }}>
+            {svcGroups.map((g) => {
+              const cur = (tpl?.services?.[g.name] as string) ?? "";
+              return (
+                <F key={`${product}|${g.name}`} label={g.name} hint={g.def ? `Standard: ${g.def}` : undefined}>
+                  <select name={`svc__${g.name}`} defaultValue={cur}>
+                    <option value="">(Standard)</option>
+                    {g.options.map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                    {cur && !g.options.includes(cur) && (
+                      <option value={cur}>{cur} (nicht mehr im Produkt)</option>
+                    )}
+                  </select>
+                </F>
+              );
+            })}
+          </div>
+        </>
+      )}
 
-      {selected?.services?.filter((sv) => !isPaperSvc(sv.name)).length ? (
-        <details>
-          <summary className="count">Options-Werte je Service</summary>
-          <ul className="count" style={{ margin: "6px 0 0", paddingLeft: 18 }}>
-            {selected.services
-              .filter((sv) => !isPaperSvc(sv.name))
-              .map((sv) => (
-                <li key={sv.id}>
-                  <strong>{sv.name}</strong>: {sv.options.map((o) => o.name).join(" · ") || "—"}
-                </li>
-              ))}
-          </ul>
-        </details>
-      ) : null}
+      <details {...(Object.keys(svcExtra).length ? { open: true } : {})}>
+        <summary className="count">
+          {svcGroups.length ? "Weitere Services als JSON" : "Services als JSON"}
+        </summary>
+        <textarea
+          name="services_json"
+          rows={4}
+          defaultValue={servicesJsonDefault}
+          placeholder='{ "Service-Name": "Options-Name" }'
+          style={{ font: "12px ui-monospace, monospace", marginTop: 6, width: "100%" }}
+        />
+      </details>
 
       <details>
         <summary className="count">Extra-Felder (JSON, optional)</summary>

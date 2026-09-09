@@ -28,8 +28,22 @@ export async function saveTemplate(_p: State, fd: FormData): Promise<State> {
   const flux_product = s(fd, "flux_product");
   if (!name || !flux_product) return { error: "Name und flux-Produkt sind Pflicht." };
 
-  const svc = json(fd, "services");
-  if ("error" in svc) return { error: svc.error };
+  // Services: Dropdown-Werte (svc__<Name>) über den JSON-Fallback legen.
+  const svcJson = json(fd, "services_json");
+  if ("error" in svcJson) return { error: svcJson.error };
+  const services: Record<string, unknown> = { ...svcJson.value };
+  let svcKeys: string[] = [];
+  try {
+    svcKeys = JSON.parse(String(fd.get("svc_keys") ?? "[]"));
+  } catch {
+    svcKeys = [];
+  }
+  for (const k of svcKeys) {
+    const v = String(fd.get(`svc__${k}`) ?? "").trim();
+    if (v) services[k] = v;
+    else delete services[k];
+  }
+
   const extra = json(fd, "extra");
   if ("error" in extra) return { error: extra.error };
 
@@ -40,7 +54,7 @@ export async function saveTemplate(_p: State, fd: FormData): Promise<State> {
     signature: s(fd, "signature"),
     paper_type: s(fd, "paper_type"),
     paper_type_back: s(fd, "paper_type_back"),
-    services: svc.value,
+    services,
     extra: extra.value,
     is_active: fd.get("is_active") != null,
     notiz: s(fd, "notiz"),
