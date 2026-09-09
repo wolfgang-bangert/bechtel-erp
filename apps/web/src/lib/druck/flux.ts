@@ -10,8 +10,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { signedGetUrl } from "@/lib/storage";
 
-/** flux-prefix: nur Buchstaben/Ziffern, max. 5 Zeichen. */
-const fluxPrefix = (s: string) => (s || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 5) || "OPRI";
+/** flux-prefix: nur Buchstaben/Ziffern, max. 5 Zeichen (die letzten 5, damit
+ *  onlineprinters-Nummern sich unterscheiden). */
+const fluxPrefix = (s: string) => (s || "").replace(/[^A-Za-z0-9]/g, "").slice(-5) || "OPRI";
 
 type Job = {
   id: string;
