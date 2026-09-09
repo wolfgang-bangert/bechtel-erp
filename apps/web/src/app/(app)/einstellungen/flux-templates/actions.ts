@@ -37,7 +37,6 @@ export async function saveTemplate(_p: State, fd: FormData): Promise<State> {
     name,
     flux_product,
     flux_product_id: s(fd, "flux_product_id"),
-    printer_name: s(fd, "printer_name"),
     signature: s(fd, "signature"),
     paper_type: s(fd, "paper_type"),
     paper_type_back: s(fd, "paper_type_back"),

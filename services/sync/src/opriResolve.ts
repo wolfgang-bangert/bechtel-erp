@@ -137,7 +137,6 @@ type FluxTpl = {
   id: string;
   name: string;
   flux_product: string;
-  printer_name: string | null;
   signature: string | null;
   paper_type: string | null;
   paper_type_back: string | null;
@@ -181,7 +180,7 @@ async function loadRefData() {
       supabase.from("druckbogen").select("id, code, is_default"),
       supabase
         .from("flux_template")
-        .select("id, name, flux_product, printer_name, signature, paper_type, paper_type_back, services, extra"),
+        .select("id, name, flux_product, signature, paper_type, paper_type_back, services, extra"),
     ]);
   const skuByNorm = new Map<string, SkuRow>();
   for (const s of skus) {
@@ -499,7 +498,7 @@ function resolveOne(
       flux_product: tpl?.flux_product ?? null,
       flux_paper_type,
       flux_paper_type_back: tpl?.paper_type_back ?? null,
-      flux_printer: tpl?.printer_name ?? null,
+      flux_printer: null, // Drucker wird erst beim Batch (zugeordnete Maschine) gesetzt
       flux_signature: tpl?.signature ?? null,
       flux_services: (tpl?.services as Record<string, unknown> | null) ?? {},
       ...(n2 ? { ungeloest: n2 } : {}),

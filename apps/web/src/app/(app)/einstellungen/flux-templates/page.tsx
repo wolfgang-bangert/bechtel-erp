@@ -9,7 +9,7 @@ export default async function FluxTemplatesPage() {
   const [{ data, error }, cat] = await Promise.all([
     supabase
       .from("flux_template")
-      .select("id, name, flux_product, printer_name, paper_type, is_active")
+      .select("id, name, flux_product, signature, paper_type, is_active")
       .order("name"),
     fluxCatalog(),
   ]);
@@ -17,7 +17,7 @@ export default async function FluxTemplatesPage() {
     id: string;
     name: string;
     flux_product: string;
-    printer_name: string | null;
+    signature: string | null;
     paper_type: string | null;
     is_active: boolean;
   }[];
@@ -26,9 +26,10 @@ export default async function FluxTemplatesPage() {
     <>
       <h1>flux-Templates</h1>
       <p className="lead">
-        Ein Template = flux-Produkt + Services (+ optional Drucker, Standbogen). Das Papier
+        Ein Template = flux-Produkt + Services (+ optional Standbogen). Das Papier
         kommt aus dem Materialkatalog (<Link href="/einstellungen/materialkatalog">flux-Papiersorte</Link>),
-        Override nur wenn nötig. Zuordnung an Materialregel / Stammartikel / Produktgruppe.
+        Override nur wenn nötig. Den Drucker wählst du erst beim Batch. Zuordnung an
+        Materialregel / Stammartikel / Produktgruppe.
       </p>
 
       <div className="toolbar">
@@ -51,7 +52,7 @@ export default async function FluxTemplatesPage() {
             <tr>
               <th>Name</th>
               <th>flux-Produkt</th>
-              <th>Drucker</th>
+              <th>Standbogen</th>
               <th>Papier-Override</th>
             </tr>
           </thead>
@@ -62,7 +63,7 @@ export default async function FluxTemplatesPage() {
                   <Link href={`/einstellungen/flux-templates/${r.id}`}>{r.name}</Link>
                 </td>
                 <td className="count">{r.flux_product}</td>
-                <td className="count">{r.printer_name ?? "—"}</td>
+                <td className="count">{r.signature ?? "—"}</td>
                 <td className="count">{r.paper_type ?? "aus Material"}</td>
               </tr>
             ))}

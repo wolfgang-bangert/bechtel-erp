@@ -10,7 +10,6 @@ export type Tpl = {
   name: string;
   flux_product: string;
   flux_product_id: string | null;
-  printer_name: string | null;
   signature: string | null;
   paper_type: string | null;
   paper_type_back: string | null;
@@ -36,14 +35,12 @@ export function TemplateForm({
   tpl,
   products,
   paperTypes,
-  printers,
   signatures,
   catalogError,
 }: {
   tpl?: Tpl;
   products: Product[];
   paperTypes: string[];
-  printers: string[];
   signatures: string[];
   catalogError?: string;
 }) {
@@ -95,24 +92,14 @@ export function TemplateForm({
         </datalist>
       </F>
 
-      <div className="row" style={{ border: "none", padding: 0 }}>
-        <F label="Drucker (optional)">
-          <input name="printer_name" defaultValue={tpl?.printer_name ?? ""} list="flux-printers" placeholder="Standard" />
-          <datalist id="flux-printers">
-            {printers.map((p) => (
-              <option key={p} value={p} />
-            ))}
-          </datalist>
-        </F>
-        <F label="Standbogen (optional)">
-          <input name="signature" defaultValue={tpl?.signature ?? ""} list="flux-signatures" />
-          <datalist id="flux-signatures">
-            {signatures.map((sg) => (
-              <option key={sg} value={sg} />
-            ))}
-          </datalist>
-        </F>
-      </div>
+      <F label="Standbogen (optional)" hint="Drucker wird erst beim Batch gewählt">
+        <input name="signature" defaultValue={tpl?.signature ?? ""} list="flux-signatures" />
+        <datalist id="flux-signatures">
+          {signatures.map((sg) => (
+            <option key={sg} value={sg} />
+          ))}
+        </datalist>
+      </F>
 
       <div className="row" style={{ border: "none", padding: 0 }}>
         <F label="Papiersorte Override" hint="leer = aus Materialkatalog">
