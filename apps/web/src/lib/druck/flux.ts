@@ -10,6 +10,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { signedGetUrl } from "@/lib/storage";
 
+/** flux akzeptiert als prefix nur Buchstaben/Ziffern (keine Leer-/Sonderzeichen). */
+const fluxPrefix = (s: string) => (s || "").replace(/[^A-Za-z0-9]/g, "");
+
 type Job = {
   id: string;
   bauteil: string;
@@ -85,7 +88,7 @@ export async function uebergebeBatchAnFlux(
 
   const payload = {
     ...base,
-    prefix: `${batch.nummer}_`,
+    prefix: fluxPrefix(batch.nummer),
     orderNote: `${(base.orderNote as string) ?? ""} · Batch ${batch.nummer}`.trim(),
     orderItems,
   };
@@ -175,7 +178,7 @@ export async function sendeAuftragAnFlux(
 
   const payload = {
     ...base,
-    prefix: `${ref}_`,
+    prefix: fluxPrefix(ref),
     orderNote: `${(base.orderNote as string) ?? ""} · Auftrag ${ref}`.trim(),
     orderItems,
   };
