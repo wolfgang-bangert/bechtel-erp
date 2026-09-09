@@ -10,9 +10,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { signedGetUrl } from "@/lib/storage";
 
-/** flux-prefix: nur Buchstaben/Ziffern, max. 5 Zeichen (die letzten 5, damit
- *  onlineprinters-Nummern sich unterscheiden). */
-const fluxPrefix = (s: string) => (s || "").replace(/[^A-Za-z0-9]/g, "").slice(-5) || "OPRI";
+/** flux-prefix: fester Kurz-Tag, nur Buchstaben/Ziffern, max. 5 Zeichen.
+ *  flux baut die Auftragsnummer als <prefix>_<bestnummer>_<lfd. Nr>. */
+const fluxPrefix = (s: string) => (s || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 5) || "opri";
 
 type Job = {
   id: string;
@@ -89,7 +89,7 @@ export async function uebergebeBatchAnFlux(
 
   const payload = {
     ...base,
-    prefix: fluxPrefix(String(base.prefix ?? "OPRI")),
+    prefix: fluxPrefix(String(base.prefix ?? "opri")),
     orderNote: `${(base.orderNote as string) ?? ""} · Batch ${batch.nummer}`.trim(),
     orderItems,
   };
@@ -193,9 +193,9 @@ export async function sendeAuftragAnFlux(
 
   const payload = {
     ...base,
-    // Auftragsnummer: voll über bestnummer, gekürzt (≤5) über prefix.
+    // flux-Auftragsnummer = <prefix>_<bestnummer>_<lfd. Nr von flux>
     bestnummer: ref,
-    prefix: fluxPrefix(ref),
+    prefix: fluxPrefix(String(base.prefix ?? "opri")),
     orderNote: `${(base.orderNote as string) ?? ""} · Auftrag ${ref}`.trim(),
     deliveryAddress,
     orderItems,
