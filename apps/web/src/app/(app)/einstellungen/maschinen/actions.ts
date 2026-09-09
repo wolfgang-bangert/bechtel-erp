@@ -71,3 +71,62 @@ export async function saveMaschine(_prev: RowState, fd: FormData): Promise<RowSt
   revalidatePath("/druck/plan");
   return { ok: true };
 }
+
+/** Fähigkeits-Werte einer Maschine speichern (Upsert bzw. Löschen bei leer). */
+export async function setMaschineFaehigkeiten(_prev: RowState, fd: FormData): Promise<RowState> {
+  const maschineId = String(fd.get("maschine_id") ?? "");
+  if (!maschineId) return { error: "maschine_id fehlt" };
+
+  let keys: { key: string; art: string }[] = [];
+  try {
+    keys = JSON.parse(String(fd.get("keys") ?? "[]"));
+  } catch {
+    return { error: "keys ungültig" };
+  }
+
+  const supabase = await createClient();
+  const upserts: { maschine_id: string; faehigkeit_key: string; wert: unknown }[] = [];
+  const deletes: string[] = [];
+
+  for (const { key, art } of keys) {
+    const feld = `f_${key}`;
+    if (art === "flag") {
+      upserts.push({ maschine_id: maschineId, faehigkeit_key: key, wert: fd.get(feld) != null });
+    } else if (art === "max" || art === "min") {
+      const raw = String(fd.get(feld) ?? "").trim();
+      if (raw === "" || !Number.isFinite(Number(raw))) deletes.push(key);
+      else upserts.push({ maschine_id: maschineId, faehigkeit_key: key, wert: Number(raw) });
+    } else if (art === "liste") {
+      const vals = fd
+        .getAll(feld)
+        .flatMap((v) => String(v).split(","))
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (!vals.length) deletes.push(key);
+      else upserts.push({ maschine_id: maschineId, faehigkeit_key: key, wert: vals });
+    } else {
+      const raw = String(fd.get(feld) ?? "").trim();
+      if (!raw) deletes.push(key);
+      else upserts.push({ maschine_id: maschineId, faehigkeit_key: key, wert: raw });
+    }
+  }
+
+  if (deletes.length) {
+    const { error } = await supabase
+      .from("maschine_faehigkeit")
+      .delete()
+      .eq("maschine_id", maschineId)
+      .in("faehigkeit_key", deletes);
+    if (error) return { error: error.message };
+  }
+  if (upserts.length) {
+    const { error } = await supabase
+      .from("maschine_faehigkeit")
+      .upsert(upserts, { onConflict: "maschine_id,faehigkeit_key" });
+    if (error) return { error: error.message };
+  }
+
+  revalidatePath("/einstellungen/maschinen");
+  revalidatePath("/druck/plan");
+  return { ok: true };
+}

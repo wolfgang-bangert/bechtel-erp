@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { saveMaschine, type RowState } from "./actions";
+import { FaehigkeitenEditor, type Faehigkeit } from "./FaehigkeitenEditor";
 
 export type Maschine = {
   id: string;
@@ -44,7 +45,15 @@ function Field({ label, children, wide }: { label: string; children: React.React
   );
 }
 
-function MaschineForm({ row, printers }: { row?: Maschine; printers: string[] }) {
+function MaschineForm({
+  row,
+  printers,
+  flush,
+}: {
+  row?: Maschine;
+  printers: string[];
+  flush?: boolean;
+}) {
   const [state, action, pending] = useActionState(saveMaschine, empty);
   const neu = !row;
   const printerVal = row?.flux_printer_name ?? "";
@@ -58,10 +67,10 @@ function MaschineForm({ row, printers }: { row?: Maschine; printers: string[] })
       action={action}
       style={{
         border: "1px solid var(--border)",
-        borderRadius: "var(--radius)",
+        borderRadius: flush ? "var(--radius) var(--radius) 0 0" : "var(--radius)",
         borderLeft: `4px solid ${row?.farbe ?? "var(--accent)"}`,
         padding: 12,
-        marginBottom: 10,
+        marginBottom: flush ? 0 : 10,
         background: neu ? "var(--bg)" : "var(--panel)",
       }}
     >
@@ -171,10 +180,14 @@ export function MaschinenTable({
   rows,
   printers,
   catalogError,
+  faehigkeiten,
+  werte,
 }: {
   rows: Maschine[];
   printers: string[];
   catalogError?: string;
+  faehigkeiten: Faehigkeit[];
+  werte: Record<string, Record<string, unknown>>;
 }) {
   const gruppen = Array.from(new Set(rows.map((r) => r.typ)));
   return (
@@ -188,12 +201,23 @@ export function MaschinenTable({
         <section key={g} style={{ marginTop: 18 }}>
           <h2 style={{ marginBottom: 8 }}>{TYP_LABEL[g] ?? g}</h2>
           {rows.filter((r) => r.typ === g).map((r) => (
-            <MaschineForm key={r.id} row={r} printers={printers} />
+            <div key={r.id}>
+              <MaschineForm row={r} printers={printers} flush />
+              <FaehigkeitenEditor
+                maschineId={r.id}
+                typ={r.typ}
+                katalog={faehigkeiten}
+                werte={werte[r.id] ?? {}}
+              />
+            </div>
           ))}
         </section>
       ))}
       <section style={{ marginTop: 22 }}>
         <h2 style={{ marginBottom: 8 }}>Neue Maschine</h2>
+        <p className="count" style={{ marginTop: -4, marginBottom: 8 }}>
+          Erst anlegen – Fähigkeiten erscheinen danach je Maschine.
+        </p>
         <MaschineForm printers={printers} />
       </section>
     </div>
