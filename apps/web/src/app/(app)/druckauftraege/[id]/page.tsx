@@ -169,7 +169,7 @@ export default async function DruckauftragPage({
     .from("job")
     .select(
       "id, typ, bauteil, papier, farbigkeit, format, druckbogen, nutzen, netto_bogen, auflage, cello, cello_seiten, teilung, durchmesser, schlaufen_gesamt, komponenten, status, " +
-        "flux_product, flux_signature, flux_paper_type, flux_services, flux_order_id, pdf_storage_key, batch:batch_id(nummer, typ, status)",
+        "flux_product, flux_signature, flux_printer, flux_paper_type, flux_services, flux_order_id, pdf_storage_key, batch:batch_id(nummer, typ, status)",
     )
     .eq("portal_order_id", id)
     .order("created_at", { ascending: true });
@@ -193,6 +193,7 @@ export default async function DruckauftragPage({
     status: string;
     flux_product: string | null;
     flux_signature: string | null;
+    flux_printer: string | null;
     flux_paper_type: string | null;
     flux_services: Record<string, unknown> | null;
     flux_order_id: string | null;
@@ -209,6 +210,7 @@ export default async function DruckauftragPage({
       flux_product: j.flux_product,
       flux_signature: j.flux_signature,
       flux_paper_type: j.flux_paper_type,
+      flux_printer: j.flux_printer,
       flux_services: j.flux_services,
       pdf: !!j.pdf_storage_key,
     }));
@@ -512,6 +514,7 @@ export default async function DruckauftragPage({
         products={cat.products}
         signatures={cat.signatures}
         paperTypes={cat.paperTypes}
+        printers={cat.printers}
         catalogError={cat.catalogError}
         sentOrderId={data.flux_order_id ?? sentOrderId}
         lastSentAt={data.flux_sent_at}

@@ -16,6 +16,7 @@ export type FluxJob = {
   flux_product: string | null;
   flux_signature: string | null;
   flux_paper_type: string | null;
+  flux_printer: string | null;
   flux_services: Record<string, unknown> | null;
   pdf: boolean;
 };
@@ -32,14 +33,10 @@ function JobRow({
   orderId,
   job,
   products,
-  signatures,
-  paperTypes,
 }: {
   orderId: string;
   job: FluxJob;
   products: ProductLite[];
-  signatures: string[];
-  paperTypes: string[];
 }) {
   const [state, action, pending] = useActionState(saveJobFluxAction, empty);
   const [product, setProduct] = useState(job.flux_product ?? "");
@@ -86,6 +83,10 @@ function JobRow({
 
         <F label="Standbogen" hint="optional">
           <input name="signature" defaultValue={job.flux_signature ?? ""} list="flux-signatures" />
+        </F>
+
+        <F label="Drucker" hint="optional">
+          <input name="printer" defaultValue={job.flux_printer ?? ""} list="flux-printers" />
         </F>
 
         <F
@@ -181,6 +182,7 @@ export function FluxSendPanel({
   products,
   signatures,
   paperTypes,
+  printers,
   catalogError,
   sentOrderId,
   lastSentAt,
@@ -192,6 +194,7 @@ export function FluxSendPanel({
   products: ProductLite[];
   signatures: string[];
   paperTypes: string[];
+  printers: string[];
   catalogError?: string;
   sentOrderId?: string | null;
   lastSentAt?: string | null;
@@ -220,6 +223,11 @@ export function FluxSendPanel({
           <option key={s} value={s} />
         ))}
       </datalist>
+      <datalist id="flux-printers">
+        {printers.map((p) => (
+          <option key={p} value={p} />
+        ))}
+      </datalist>
       <datalist id="flux-papers">
         {paperTypes.map((p) => (
           <option key={p} value={p} />
@@ -227,14 +235,7 @@ export function FluxSendPanel({
       </datalist>
 
       {jobs.map((j) => (
-        <JobRow
-          key={j.id}
-          orderId={orderId}
-          job={j}
-          products={products}
-          signatures={signatures}
-          paperTypes={paperTypes}
-        />
+        <JobRow key={j.id} orderId={orderId} job={j} products={products} />
       ))}
 
       <form action={action} className="toolbar" style={{ gap: 10, marginTop: 6 }}>

@@ -121,6 +121,7 @@ export async function saveJobFluxAction(_prev: State, fd: FormData): Promise<Sta
     .update({
       flux_product: str(fd, "flux_product"),
       flux_signature: str(fd, "signature"),
+      flux_printer: str(fd, "printer"),
       flux_paper_type: str(fd, "paper_type"),
       flux_services: services,
     })

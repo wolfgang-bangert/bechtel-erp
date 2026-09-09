@@ -128,12 +128,13 @@ export async function sendeAuftragAnFlux(
 ): Promise<FluxHandoff> {
   const { data: order, error: oErr } = await sb
     .from("portal_order")
-    .select("id, external_reference")
+    .select("id, external_reference, ship_to")
     .eq("id", portalOrderId)
     .maybeSingle();
   if (oErr) throw new Error(oErr.message);
   if (!order) throw new Error("Auftrag nicht gefunden");
   const ref = (order.external_reference as string) ?? "";
+  const ship = (order.ship_to as Record<string, string | null> | null) ?? {};
 
   const { data: jobsRaw, error: jErr } = await sb
     .from("job")
@@ -169,17 +170,31 @@ export async function sendeAuftragAnFlux(
         type: "print",
         copies: (Number(j.auflage) || 0) + (Number(j.zuschuss) || 0),
         services,
-        ...(j.flux_signature ? { signature: j.flux_signature } : {}),
-        ...(j.flux_printer ? { printerName: j.flux_printer } : {}),
+        signature: j.flux_signature ?? "",
+        printerName: j.flux_printer ?? "",
         pageSources: url ? [{ url, originalFileName: `${ref}_${j.bauteil}.pdf` }] : [],
       };
     }),
   );
 
+  const baseDelivery = (base.deliveryAddress as Record<string, unknown>) ?? {};
+  const deliveryAddress = {
+    ...baseDelivery,
+    name: ship.name || ship.company || "",
+    organisation: ship.company || "",
+    street: [ship.street, ship.addition1, ship.addition2].filter(Boolean).join(", "),
+    postalCode: ship.zip || "",
+    city: ship.city || "",
+    state: ship.country || "",
+    tel1: ship.phone || "",
+    email: ship.email || null,
+  };
+
   const payload = {
     ...base,
     prefix: fluxPrefix(ref),
     orderNote: `${(base.orderNote as string) ?? ""} · Auftrag ${ref}`.trim(),
+    deliveryAddress,
     orderItems,
   };
 
