@@ -118,6 +118,46 @@ function portalState(o: OpOrder): string | null {
   return s(o.state);
 }
 
+/** Aufträge, die bei onlineprinters nicht mehr weiterwandern. */
+const TERMINAL_STATES = ["FINISHED"];
+
+/** Portal-Order-Zeile aus einem API-Auftrag bauen (Pull + Status-Refresh teilen sie). */
+function buildRow(portalId: string, o: OpOrder) {
+  return {
+    portal_id: portalId,
+    external_id: o.id,
+    external_reference: s(o.reference),
+    reference_type: s(o.referenceType),
+    portal_state: portalState(o),
+    description: s(o.description),
+    quantity: num(o.quantity),
+    deliver_date: ts(o.deliverDate),
+    currency: s(o.currency)?.slice(0, 3) ?? null,
+    total_net: num(o.totalNet),
+    total_gross: num(o.totalGross),
+    ship_to: addr(o.deliveries?.[0]?.deliverAddress),
+    sender: addr(o.deliveries?.[0]?.senderAddress),
+    raw: o as unknown as Record<string, unknown>,
+  };
+}
+
+/** Positionen eines Auftrags ersetzen. */
+async function replaceItems(orderId: string, o: OpOrder) {
+  await supabase.from("portal_order_item").delete().eq("portal_order_id", orderId);
+  const items = (o.items ?? []).map((it) => ({
+    portal_order_id: orderId,
+    position: s(it.positionNumber),
+    sku: s(it.number),
+    quantity: num(it.quantity),
+    description: s(it.description),
+    raw: it as unknown as Record<string, unknown>,
+  }));
+  if (items.length) {
+    const { error } = await supabase.from("portal_order_item").insert(items);
+    if (error) throw new Error(`items: ${error.message}`);
+  }
+}
+
 // ---------------------------------------------------------------- Pull
 export async function pullOnlineprinters(opts: Options = {}) {
   const { dryRun = false, limit, withFiles = true } = opts;
@@ -149,22 +189,7 @@ export async function pullOnlineprinters(opts: Options = {}) {
 
   for (const o of orders) {
     try {
-      const row = {
-        portal_id: portal.id,
-        external_id: o.id,
-        external_reference: s(o.reference),
-        reference_type: s(o.referenceType),
-        portal_state: portalState(o),
-        description: s(o.description),
-        quantity: num(o.quantity),
-        deliver_date: ts(o.deliverDate),
-        currency: s(o.currency)?.slice(0, 3) ?? null,
-        total_net: num(o.totalNet),
-        total_gross: num(o.totalGross),
-        ship_to: addr(o.deliveries?.[0]?.deliverAddress),
-        sender: addr(o.deliveries?.[0]?.senderAddress),
-        raw: o as unknown as Record<string, unknown>,
-      };
+      const row = buildRow(portal.id, o);
 
       if (dryRun) {
         created++; // im dry-run nur zählen
@@ -195,20 +220,7 @@ export async function pullOnlineprinters(opts: Options = {}) {
         created++;
       }
 
-      // Positionen: einfach ersetzen
-      await supabase.from("portal_order_item").delete().eq("portal_order_id", orderId);
-      const items = (o.items ?? []).map((it) => ({
-        portal_order_id: orderId,
-        position: s(it.positionNumber),
-        sku: s(it.number),
-        quantity: num(it.quantity),
-        description: s(it.description),
-        raw: it as unknown as Record<string, unknown>,
-      }));
-      if (items.length) {
-        const { error } = await supabase.from("portal_order_item").insert(items);
-        if (error) throw new Error(`items: ${error.message}`);
-      }
+      await replaceItems(orderId, o);
 
       if (withFiles) {
         filesFetched += await syncFiles(orderId, o, s3prefix);
@@ -225,6 +237,79 @@ export async function pullOnlineprinters(opts: Options = {}) {
     neu: created,
     aktualisiert: updated,
     dateien: filesFetched,
+    fehler: errors,
+  };
+}
+
+// ---------------------------------------------------------------- Status-Refresh
+/**
+ * Status der noch nicht abgeschlossenen Aufträge bei onlineprinters nachziehen.
+ * onlineprinters schickt keine Webhooks und der NEW-Poll sieht Statuswechsel
+ * nicht – daher hier jeder offene Auftrag einzeln über /api/customer-orders/{id}.
+ */
+export async function refreshOpenOnlineprinters(
+  opts: { withFiles?: boolean; limit?: number } = {},
+) {
+  const { withFiles = true, limit } = opts;
+
+  const { data: portal, error: pErr } = await supabase
+    .from("portal")
+    .select("id, config")
+    .eq("code", "onlineprinters")
+    .maybeSingle();
+  if (pErr || !portal) throw new Error(`portal 'onlineprinters' fehlt — ${pErr?.message ?? ""}`);
+  const cfg = (portal.config ?? {}) as { s3_prefix?: string };
+  const s3prefix = (cfg.s3_prefix ?? "portal/onlineprinters").replace(/\/+$/, "");
+
+  const { data: open, error: oErr } = await supabase
+    .from("portal_order")
+    .select("id, external_id, external_reference, portal_state")
+    .eq("portal_id", portal.id)
+    .not("portal_state", "in", `(${TERMINAL_STATES.join(",")})`);
+  if (oErr) throw new Error(oErr.message);
+  let liste = open ?? [];
+  if (limit && limit > 0) liste = liste.slice(0, limit);
+
+  let geprueft = 0;
+  let geaendert = 0;
+  let dateien = 0;
+  const wurdeFinished: string[] = [];
+  const nachStatus: Record<string, number> = {};
+  const errors: { reference: string; error: string }[] = [];
+
+  for (const po of liste) {
+    const ref = (po.external_reference as string) ?? (po.external_id as string);
+    try {
+      const res = await opGet(apiUrl(`/api/customer-orders/${po.external_id}`));
+      const o = (await res.json()) as OpOrder;
+      o.id = (o.id as string) || (po.external_id as string); // Detail-Endpunkt liefert evtl. kein id
+      const neuerStatus = portalState(o);
+
+      const { error } = await supabase
+        .from("portal_order")
+        .update(buildRow(portal.id, o))
+        .eq("id", po.id);
+      if (error) throw new Error(error.message);
+      await replaceItems(po.id as string, o);
+      if (withFiles) dateien += await syncFiles(po.id as string, o, s3prefix);
+
+      geprueft++;
+      nachStatus[neuerStatus ?? "?"] = (nachStatus[neuerStatus ?? "?"] ?? 0) + 1;
+      if (neuerStatus !== po.portal_state) {
+        geaendert++;
+        if (neuerStatus && TERMINAL_STATES.includes(neuerStatus)) wurdeFinished.push(ref);
+      }
+    } catch (err) {
+      errors.push({ reference: ref, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  return {
+    geprueft,
+    geaendert,
+    wurde_finished: wurdeFinished,
+    nach_status: nachStatus,
+    dateien,
     fehler: errors,
   };
 }

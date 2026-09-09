@@ -391,6 +391,13 @@ async function main() {
           1,
         ),
       );
+      if (!dryRun) {
+        const { refreshOpenOnlineprinters } = await import("./portalOnlineprinters");
+        console.log(
+          "portal:refresh →",
+          JSON.stringify(await refreshOpenOnlineprinters({ withFiles: withFiles })),
+        );
+      }
       if (!dryRun && !flags.has("--no-jobs")) {
         const { resolveOpri } = await import("./opriResolve");
         await resolveOpri({}); // neueste Aufträge auflösen
@@ -399,6 +406,21 @@ async function main() {
         const { autoAssignDruckMaschinen } = await import("./maschine");
         console.log("maschinen:zuordnen →", JSON.stringify(await autoAssignDruckMaschinen()));
       }
+      break;
+    }
+    case "portal:refresh": {
+      const limArg = process.argv.find((a) => a.startsWith("--limit="))?.split("=")[1];
+      const { refreshOpenOnlineprinters } = await import("./portalOnlineprinters");
+      console.log(
+        JSON.stringify(
+          await refreshOpenOnlineprinters({
+            withFiles: !flags.has("--no-files"),
+            limit: limArg ? Number(limArg) : undefined,
+          }),
+          null,
+          1,
+        ),
+      );
       break;
     }
     case "portal:import-file": {
