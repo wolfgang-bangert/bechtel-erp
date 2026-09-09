@@ -381,3 +381,28 @@ table.data td.wrap {
   padding: 1px 4px;
   margin-top: 4px;
 }
+
+/* ---- Thumbnail-Hover-Zoom (Druckaufträge-Liste) ----------------------- */
+.thumb-zoom {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+.thumb-zoom > .zoom {
+  display: none;
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 60;
+  width: 360px;
+  max-width: 55vw;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.32);
+  background: var(--panel);
+}
+.thumb-zoom:hover > .zoom {
+  display: block;
+}

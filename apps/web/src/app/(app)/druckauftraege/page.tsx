@@ -189,12 +189,16 @@ export default async function DruckauftraegePage({
                   <tr key={r.id}>
                     <td>
                       {r.thumb ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={r.thumb}
-                          alt=""
-                          style={{ width: 48, height: 62, objectFit: "cover", borderRadius: 3, border: "1px solid var(--border)" }}
-                        />
+                        <span className="thumb-zoom">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={r.thumb}
+                            alt=""
+                            style={{ width: 48, height: 62, objectFit: "cover", borderRadius: 3, border: "1px solid var(--border)" }}
+                          />
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={r.thumb} alt="" className="zoom" />
+                        </span>
                       ) : (
                         <div
                           style={{ width: 48, height: 62, borderRadius: 3, border: "1px dashed var(--border)", background: "var(--tag-bg)" }}
