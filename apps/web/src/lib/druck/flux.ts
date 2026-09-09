@@ -10,9 +10,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { signedGetUrl } from "@/lib/storage";
 
-/** flux-prefix: nur Buchstaben/Ziffern, max. 5 Zeichen. flux baut die
- *  Auftragsnummer als <prefix><lfd. Nr>, daher die LETZTEN 5 der Auftragsnr. */
-const fluxPrefix = (s: string) => (s || "").replace(/[^A-Za-z0-9]/g, "").slice(-5) || "opri";
+/** flux-prefix: Buchstaben/Ziffern/Unterstrich, max. 5 Zeichen (kein Leerzeichen). */
+const fluxPrefix = (s: string) => (s || "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 5) || "opri_";
 
 type Job = {
   id: string;
@@ -195,10 +194,10 @@ export async function sendeAuftragAnFlux(
   const nowIso = new Date().toISOString();
   const payload = {
     ...base,
-    // Die volle Auftragsnummer trägt projectName; prefix (≤5) = letzte 5 Stellen,
-    // flux hängt daran seine laufende Nummer → z.B. 04365_00001.
+    // prefix = fester Tag „opri_" (5 Zeichen); flux hängt seine Nummer + lfd. Nr
+    // an → Ziel opri_<nr>_00001. Volle Nummer zusätzlich in projectName.
     projectName: `Auftrag ${ref}`,
-    prefix: fluxPrefix(ref),
+    prefix: fluxPrefix(String(base.prefix ?? "opri_")),
     orderNote: `${(base.orderNote as string) ?? ""} · Auftrag ${ref}`.trim(),
     deliveryDate: nowIso,
     orderDate: nowIso,
