@@ -408,6 +408,11 @@ async function main() {
       }
       break;
     }
+    case "portal:zip-backfill": {
+      const { backfillZipParts } = await import("./portalOnlineprinters");
+      console.log(JSON.stringify(await backfillZipParts(), null, 1));
+      break;
+    }
     case "portal:refresh": {
       const limArg = process.argv.find((a) => a.startsWith("--limit="))?.split("=")[1];
       const { refreshOpenOnlineprinters } = await import("./portalOnlineprinters");

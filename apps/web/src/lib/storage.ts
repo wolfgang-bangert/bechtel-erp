@@ -18,15 +18,28 @@ const client = () =>
     },
   });
 
-/** Kurzlebiger Download-Link (Default 10 min). null bei fehlender Konfiguration. */
+/**
+ * Kurzlebiger GET-Link (Default 10 min). null bei fehlender Konfiguration.
+ * `download` erzwingt den Download mit dem angegebenen Dateinamen statt der
+ * Inline-Anzeige im Browser.
+ */
 export async function signedGetUrl(
   key: string,
   expiresIn = 600,
+  download?: string,
 ): Promise<string | null> {
   try {
     return await getSignedUrl(
       client(),
-      new GetObjectCommand({ Bucket: need("S3_BUCKET"), Key: key }),
+      new GetObjectCommand({
+        Bucket: need("S3_BUCKET"),
+        Key: key,
+        ...(download
+          ? {
+              ResponseContentDisposition: `attachment; filename="${download.replace(/["\\]/g, "_")}"`,
+            }
+          : {}),
+      }),
       { expiresIn },
     );
   } catch {

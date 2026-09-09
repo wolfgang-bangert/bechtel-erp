@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
+import JSZip from "jszip";
 import { env } from "./env";
 import { supabase } from "./supabase";
-import { putObject, objectExists } from "./storage";
+import { putObject, objectExists, getObjectBytes } from "./storage";
 
 // ---------------------------------------------------------------- Typen
 type OpAddress = {
@@ -352,21 +353,23 @@ async function syncFiles(orderId: string, o: OpOrder, s3prefix: string): Promise
     .eq("portal_order_id", orderId);
   const done = new Set((have ?? []).filter((h) => h.fetched_at).map((h) => h.typ));
 
+  const ref = o.reference ?? o.id;
   let n = 0;
   for (const spec of specs) {
     if (done.has(spec.typ)) continue;
-    const ref = o.reference ?? o.id;
     const safeName = (spec.filename ?? spec.typ).replace(/[^\w.\-]+/g, "_");
     const key = `${s3prefix}/${ref}/${spec.typ}-${safeName}`;
 
     let storageKey: string | null = null;
     let isZip = /\.zip$/i.test(spec.filename ?? "");
     let realBytes = spec.bytes;
+    let downloadedBuf: Buffer | null = null;
     try {
       if (!(await objectExists(key))) {
         const r = await fetch(fileUrl(spec.url));
         if (!r.ok) throw new Error(`download ${r.status}`);
         const buf = Buffer.from(await r.arrayBuffer());
+        downloadedBuf = buf;
         realBytes = buf.length;
         // Magic-Bytes: PK = ZIP, %PDF = PDF (onlineprinters liefert manchmal ZIP als *.pdf)
         if (buf.length >= 4) {
@@ -408,6 +411,127 @@ async function syncFiles(orderId: string, o: OpOrder, s3prefix: string): Promise
     if (exRow) await supabase.from("portal_order_file").update(fileRow).eq("id", exRow.id);
     else await supabase.from("portal_order_file").insert(fileRow);
     if (storageKey) n++;
+
+    // Mehrere PDFs → ZIP: gleich aus dem frischen Download entpacken.
+    if (spec.typ === "printData" && isZip && storageKey && downloadedBuf) {
+      n += await extractZipParts(orderId, String(ref), s3prefix, downloadedBuf);
+    }
+  }
+
+  // Nachziehen: früher geholte ZIPs, deren Teile noch fehlen.
+  const { data: pd } = await supabase
+    .from("portal_order_file")
+    .select("storage_key, is_zip")
+    .eq("portal_order_id", orderId)
+    .eq("typ", "printData")
+    .maybeSingle();
+  if (pd?.is_zip && pd.storage_key) {
+    const { count } = await supabase
+      .from("portal_order_file")
+      .select("*", { count: "exact", head: true })
+      .eq("portal_order_id", orderId)
+      .eq("typ", "printDataPart");
+    if (!count) {
+      try {
+        const buf = await getObjectBytes(pd.storage_key);
+        n += await extractZipParts(orderId, String(ref), s3prefix, buf);
+      } catch (err) {
+        void err;
+      }
+    }
+  }
+  return n;
+}
+
+/**
+ * Alle Druckdaten-ZIPs, deren Einzel-PDFs noch fehlen, nachträglich auflösen
+ * (z.B. für Aufträge, die schon FINISHED sind und nicht mehr refresht werden).
+ */
+export async function backfillZipParts() {
+  const { data: portal } = await supabase
+    .from("portal")
+    .select("id, config")
+    .eq("code", "onlineprinters")
+    .maybeSingle();
+  const s3prefix = (
+    ((portal?.config ?? {}) as { s3_prefix?: string }).s3_prefix ?? "portal/onlineprinters"
+  ).replace(/\/+$/, "");
+
+  const { data: zips } = await supabase
+    .from("portal_order_file")
+    .select("portal_order_id, storage_key, portal_order:portal_order_id(external_reference)")
+    .eq("typ", "printData")
+    .eq("is_zip", true)
+    .not("storage_key", "is", null);
+
+  let aufgeloest = 0;
+  let teile = 0;
+  const fehler: string[] = [];
+  for (const z of zips ?? []) {
+    const ref =
+      (z.portal_order as { external_reference?: string } | null)?.external_reference ??
+      (z.portal_order_id as string);
+    const { count } = await supabase
+      .from("portal_order_file")
+      .select("*", { count: "exact", head: true })
+      .eq("portal_order_id", z.portal_order_id)
+      .eq("typ", "printDataPart");
+    if (count) continue;
+    try {
+      const buf = await getObjectBytes(z.storage_key as string);
+      const n = await extractZipParts(z.portal_order_id as string, String(ref), s3prefix, buf);
+      if (n > 0) aufgeloest++;
+      teile += n;
+    } catch (e) {
+      fehler.push(`${ref}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return { zips: (zips ?? []).length, aufgeloest, teile, fehler };
+}
+
+/** PDFs aus einem Druckdaten-ZIP einzeln in S3 + portal_order_file ablegen. */
+async function extractZipParts(
+  orderId: string,
+  ref: string,
+  s3prefix: string,
+  zipBuf: Buffer,
+): Promise<number> {
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(zipBuf);
+  } catch {
+    return 0;
+  }
+  let n = 0;
+  for (const entry of Object.values(zip.files)) {
+    if (entry.dir || !/\.pdf$/i.test(entry.name)) continue;
+    const bytes = await entry.async("nodebuffer");
+    if (!bytes.length) continue;
+    const leaf = entry.name.split("/").pop() ?? entry.name;
+    const safe = leaf.replace(/[^\w.\-]+/g, "_");
+    const key = `${s3prefix}/${ref}/printDataPart-${safe}`;
+    if (!(await objectExists(key))) await putObject(key, bytes, "application/pdf");
+
+    const row = {
+      portal_order_id: orderId,
+      typ: "printDataPart",
+      source_url: null as string | null,
+      storage_key: key,
+      filename: entry.name,
+      bytes: bytes.length,
+      is_zip: false,
+      fetched_at: new Date().toISOString(),
+    };
+    const { data: ex } = await supabase
+      .from("portal_order_file")
+      .select("id")
+      .eq("portal_order_id", orderId)
+      .eq("typ", "printDataPart")
+      .eq("filename", entry.name)
+      .maybeSingle();
+    if (ex) await supabase.from("portal_order_file").update(row).eq("id", ex.id);
+    else await supabase.from("portal_order_file").insert(row);
+    n++;
   }
   return n;
 }

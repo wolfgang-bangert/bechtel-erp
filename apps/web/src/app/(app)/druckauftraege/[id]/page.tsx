@@ -6,10 +6,10 @@ import { fmtDate } from "@/lib/format";
 import { ResolveButton } from "./ResolveButton";
 import { DruckjobsButton } from "./DruckjobsButton";
 import { PreisPanel } from "./PreisPanel";
+import { DateienPanel } from "./DateienPanel";
 
 export const dynamic = "force-dynamic";
 
-const kb = (n: number | null) => (n == null ? "—" : n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`);
 
 function AddrBlock({ a }: { a: Record<string, unknown> | null }) {
   if (!a) return <span className="count">—</span>;
@@ -135,11 +135,27 @@ export default async function DruckauftragPage({
     .slice()
     .sort((a, b) => (a.position ?? "").localeCompare(b.position ?? ""));
 
+  const fileRank: Record<string, number> = {
+    printData: 0,
+    printDataPart: 1,
+    jobSheet: 2,
+    thumbnail: 3,
+  };
   const fileLinks = await Promise.all(
-    (data.files ?? []).map(async (f) => ({
-      ...f,
-      url: f.storage_key ? await signedGetUrl(f.storage_key) : null,
-    })),
+    (data.files ?? [])
+      .slice()
+      .sort(
+        (a, b) =>
+          (fileRank[a.typ] ?? 9) - (fileRank[b.typ] ?? 9) ||
+          (a.filename ?? "").localeCompare(b.filename ?? ""),
+      )
+      .map(async (f) => ({
+        ...f,
+        viewUrl: f.storage_key ? await signedGetUrl(f.storage_key, 1800) : null,
+        downloadUrl: f.storage_key
+          ? await signedGetUrl(f.storage_key, 1800, f.filename ?? `${f.typ}.pdf`)
+          : null,
+      })),
   );
 
   const { data: jobsRaw } = await supabase
@@ -458,46 +474,7 @@ export default async function DruckauftragPage({
       )}
 
       <h2 style={{ marginTop: 18 }}>Dateien</h2>
-      <div className="table-scroll">
-        <table className="data">
-          <thead>
-            <tr>
-              <th>Typ</th>
-              <th>Datei</th>
-              <th style={{ textAlign: "right" }}>Größe</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {fileLinks.map((f) => (
-              <tr key={f.id}>
-                <td>
-                  {f.typ}
-                  {f.is_zip ? <span className="tag" style={{ marginLeft: 4 }}>ZIP</span> : null}
-                </td>
-                <td className="wrap">{f.filename ?? "—"}</td>
-                <td style={{ textAlign: "right" }}>{kb(f.bytes)}</td>
-                <td className="count">{f.fetched_at ? "geholt" : "nicht geholt"}</td>
-                <td>
-                  {f.url ? (
-                    <a className="ghost" href={f.url} target="_blank" rel="noreferrer" style={{ padding: "5px 10px" }}>
-                      öffnen
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-              </tr>
-            ))}
-            {!fileLinks.length && (
-              <tr>
-                <td colSpan={5} style={{ color: "var(--muted)" }}>Keine Dateien.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DateienPanel files={fileLinks} />
 
       <h2>Rohdaten (Portal)</h2>
       <details>
