@@ -150,6 +150,31 @@ function JobRow({
   );
 }
 
+function Json({ label, value }: { label: string; value: unknown }) {
+  if (value == null) return null;
+  return (
+    <details style={{ marginTop: 6 }}>
+      <summary className="count">{label}</summary>
+      <pre
+        style={{
+          font: "11px ui-monospace, monospace",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+          background: "var(--bg)",
+          border: "1px solid var(--border)",
+          borderRadius: 6,
+          padding: 8,
+          marginTop: 6,
+          maxHeight: 320,
+          overflow: "auto",
+        }}
+      >
+        {JSON.stringify(value, null, 2)}
+      </pre>
+    </details>
+  );
+}
+
 export function FluxSendPanel({
   orderId,
   jobs,
@@ -158,6 +183,9 @@ export function FluxSendPanel({
   paperTypes,
   catalogError,
   sentOrderId,
+  lastSentAt,
+  lastPayload,
+  lastResponse,
 }: {
   orderId: string;
   jobs: FluxJob[];
@@ -166,6 +194,9 @@ export function FluxSendPanel({
   paperTypes: string[];
   catalogError?: string;
   sentOrderId?: string | null;
+  lastSentAt?: string | null;
+  lastPayload?: unknown;
+  lastResponse?: unknown;
 }) {
   const [state, action, pending] = useActionState(sendeAuftragAnFluxAction, empty);
 
@@ -215,6 +246,16 @@ export function FluxSendPanel({
         {state.ok && <span className="msg-ok">✓ {state.note}</span>}
         {state.error && <span className="msg-err">{state.error}</span>}
       </form>
+
+      {(lastPayload != null || lastResponse != null) && (
+        <div style={{ marginTop: 8 }}>
+          <div className="count">
+            letzte Übergabe{lastSentAt ? ` · ${new Date(lastSentAt).toLocaleString("de-DE")}` : ""}
+          </div>
+          <Json label="→ gesendetes Payload" value={lastPayload} />
+          <Json label="← Antwort von flux" value={lastResponse} />
+        </div>
+      )}
     </>
   );
 }

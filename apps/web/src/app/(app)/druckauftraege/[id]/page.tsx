@@ -92,6 +92,10 @@ type Detail = {
   berechnet: boolean;
   ist_rekla: boolean;
   rekla_vermerk: string | null;
+  flux_order_id: string | null;
+  flux_sent_at: string | null;
+  flux_payload: unknown;
+  flux_response: unknown;
   abrechnung: { id: string; jahr: number; kw: number; status: string } | null;
   portal: { code?: string; name?: string } | null;
   items: { position: string | null; sku: string | null; quantity: number | null; description: string | null }[];
@@ -121,6 +125,7 @@ export default async function DruckauftragPage({
       "id, external_id, external_reference, reference_type, portal_state, description, quantity, " +
         "deliver_date, currency, total_net, total_gross, ship_to, sender, received_at, raw, resolve_result, resolved_at, " +
         "versand_datum, preis_netto, preis_quelle, berechnet, ist_rekla, rekla_vermerk, " +
+        "flux_order_id, flux_sent_at, flux_payload, flux_response, " +
         "abrechnung:abrechnung_id(id, jahr, kw, status), " +
         "portal:portal_id(code, name), " +
         "items:portal_order_item(position, sku, quantity, description), " +
@@ -508,7 +513,10 @@ export default async function DruckauftragPage({
         signatures={cat.signatures}
         paperTypes={cat.paperTypes}
         catalogError={cat.catalogError}
-        sentOrderId={sentOrderId}
+        sentOrderId={data.flux_order_id ?? sentOrderId}
+        lastSentAt={data.flux_sent_at}
+        lastPayload={data.flux_payload}
+        lastResponse={data.flux_response}
       />
 
       <h2 style={{ marginTop: 18 }}>Dateien</h2>

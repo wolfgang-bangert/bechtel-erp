@@ -138,13 +138,23 @@ export async function sendeAuftragAnFluxAction(_prev: State, fd: FormData): Prom
   try {
     const { sendeAuftragAnFlux } = await import("@/lib/druck/flux");
     const r = await sendeAuftragAnFlux(supabase, id);
+    // Payload + Antwort immer festhalten (auch bei Fehler / Dry-Run)
+    await supabase
+      .from("portal_order")
+      .update({
+        flux_payload: (r.payload ?? null) as never,
+        flux_response: (r.response ?? null) as never,
+        flux_order_id: r.orderId ?? null,
+        flux_sent_at: new Date().toISOString(),
+      })
+      .eq("id", id);
     revalidatePath(`/druckauftraege/${id}`);
     revalidatePath("/druck");
-    if (r.error) return { error: `${r.error} — Antwort: ${JSON.stringify(r.response)?.slice(0, 300)}` };
+    if (r.error) return { error: r.error };
     return {
       ok: true,
       note: r.dryRun
-        ? "Dry-Run: FLUX_API_BASE/KEY nicht gesetzt — Payload nicht gesendet"
+        ? "Dry-Run: FLUX_API_BASE/KEY nicht gesetzt — Payload gespeichert, nicht gesendet"
         : `an flux übergeben — orderId ${r.orderId ?? "?"}`,
     };
   } catch (e) {
