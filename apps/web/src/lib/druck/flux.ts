@@ -194,7 +194,17 @@ export async function sendeAuftragAnFlux(
   });
   const response = await res.json().catch(() => null);
   if (!res.ok) return { dryRun: false, payload, response, error: `flux ${res.status}` };
-  const r = (response ?? {}) as { orderId?: string; orderItemIds?: string[] };
+  const r = (response ?? {}) as {
+    orderId?: string;
+    orderItemIds?: string[];
+    isSubmissionValid?: boolean;
+    message?: string;
+    details?: string[];
+  };
+  if (r.isSubmissionValid === false || !r.orderId) {
+    const msg = [r.message, ...(r.details ?? [])].filter(Boolean).join(" — ");
+    return { dryRun: false, payload, response, error: msg || "flux hat keine orderId geliefert" };
+  }
 
   // Ergebnis an den Jobs vermerken
   const ids = jobs.map((j) => j.id);
