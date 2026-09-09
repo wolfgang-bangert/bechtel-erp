@@ -194,6 +194,12 @@ export async function sendeAuftragAnFlux(
     ...base,
     prefix: fluxPrefix(String(base.prefix ?? "OPRI")),
     orderNote: `${(base.orderNote as string) ?? ""} · Auftrag ${ref}`.trim(),
+    // onlineprinters-Auftragsnummer in mehrere Kandidatenfelder – welches flux
+    // als „Auftragsnummer/Kommission" anzeigt, klären wir am ersten Auftrag.
+    commission: ref,
+    customerOrderNumber: ref,
+    externalOrderNumber: ref,
+    submitterAddress: { ...(base.submitterAddress as Record<string, unknown> ?? {}), custom1: ref },
     deliveryAddress,
     orderItems,
   };
