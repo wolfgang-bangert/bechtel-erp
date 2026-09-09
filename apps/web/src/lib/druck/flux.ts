@@ -167,6 +167,7 @@ export async function sendeAuftragAnFlux(
       return {
         note: j.bauteil,
         title: `${ref} · ${j.bauteil}`,
+        bestnummer: ref,
         product: j.flux_product ?? "",
         type: "print",
         copies: (Number(j.auflage) || 0) + (Number(j.zuschuss) || 0),
