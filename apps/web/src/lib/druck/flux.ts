@@ -10,8 +10,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { signedGetUrl } from "@/lib/storage";
 
-/** flux-prefix: Buchstaben/Ziffern/Unterstrich, max. 5 Zeichen (kein Leerzeichen). */
-const fluxPrefix = (s: string) => (s || "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 5) || "opri_";
+/** flux-prefix bereinigen: nur Buchstaben/Ziffern/Unterstrich (keine Leer-/
+ *  Sonderzeichen). Länge ist ok, solange der Prefix nicht rein numerisch ist. */
+const fluxClean = (s: string) => (s || "").replace(/[^A-Za-z0-9_]/g, "");
 
 type Job = {
   id: string;
@@ -88,7 +89,7 @@ export async function uebergebeBatchAnFlux(
 
   const payload = {
     ...base,
-    prefix: fluxPrefix(String(base.prefix ?? "opri")),
+    prefix: fluxClean(String(base.prefix ?? "opri_") + batch.nummer),
     orderNote: `${(base.orderNote as string) ?? ""} · Batch ${batch.nummer}`.trim(),
     orderItems,
   };
@@ -194,10 +195,10 @@ export async function sendeAuftragAnFlux(
   const nowIso = new Date().toISOString();
   const payload = {
     ...base,
-    // prefix = fester Tag „opri_" (5 Zeichen); flux hängt seine Nummer + lfd. Nr
-    // an → Ziel opri_<nr>_00001. Volle Nummer zusätzlich in projectName.
+    // prefix = "opri_" + volle Auftragsnummer → flux hängt _<lfd. Nr> an
+    // ⇒ opri_666404365_00001 (wie der Ninox-Flow).
     projectName: `Auftrag ${ref}`,
-    prefix: fluxPrefix(String(base.prefix ?? "opri_")),
+    prefix: fluxClean(String(base.prefix ?? "opri_") + ref),
     orderNote: `${(base.orderNote as string) ?? ""} · Auftrag ${ref}`.trim(),
     deliveryDate: nowIso,
     orderDate: nowIso,
