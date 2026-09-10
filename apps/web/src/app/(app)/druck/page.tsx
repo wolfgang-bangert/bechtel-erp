@@ -126,6 +126,134 @@ function critWert(b: Batch, dim: string, cfg: Record<string, string[]>): string 
   return (idx >= 0 ? werte[idx] ?? "" : "").trim() || "—";
 }
 
+// ---- grafische Kriterien-Chips ------------------------------------------
+const SPIRAL_HEX: Record<string, string> = {
+  "weiß": "#ffffff",
+  weiss: "#ffffff",
+  silber: "#c7ccd1",
+  silver: "#c7ccd1",
+  schwarz: "#1b1b1e",
+  black: "#1b1b1e",
+  gold: "#d4af37",
+  blau: "#2f6feb",
+  rot: "#c0392b",
+  gruen: "#2e9e5b",
+  "grün": "#2e9e5b",
+};
+const chip: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  padding: "3px 9px",
+  borderRadius: 999,
+  border: "1px solid var(--border)",
+  background: "var(--panel)",
+  fontSize: 12,
+  lineHeight: 1.2,
+  whiteSpace: "nowrap",
+};
+
+function KriteriumChip({ label, wert }: { label: string; wert: string }) {
+  if (label === "Farbe Spirale") {
+    const hex = SPIRAL_HEX[wert.toLowerCase()] ?? "var(--muted)";
+    return (
+      <span style={chip}>
+        <span
+          style={{
+            width: 13,
+            height: 13,
+            borderRadius: "50%",
+            background: hex,
+            border: "1px solid var(--border)",
+            flex: "none",
+          }}
+        />
+        {wert}
+      </span>
+    );
+  }
+  if (label === "Durchmesser") {
+    const mm =
+      parseFloat((wert.match(/([\d.,]+)\s*mm/) || [])[1]?.replace(",", ".") || "") || 6;
+    const r = Math.max(4, Math.min(12, mm * 0.62));
+    return (
+      <span style={chip} title={wert}>
+        <svg width={26} height={26} style={{ flex: "none" }} aria-hidden>
+          <circle
+            cx={13}
+            cy={13}
+            r={r}
+            fill="none"
+            stroke="var(--text)"
+            strokeWidth={2}
+          />
+        </svg>
+        {wert.replace(/\s*\(.*\)\s*/, "")}
+      </span>
+    );
+  }
+  if (label === "Anzahl Loops") {
+    return (
+      <span style={chip} title="Loops pro Exemplar">
+        <svg width={22} height={14} style={{ flex: "none" }} aria-hidden>
+          <path
+            d="M2 7c2-6 6-6 8 0s6 6 8 0"
+            fill="none"
+            stroke="var(--muted)"
+            strokeWidth={1.6}
+          />
+        </svg>
+        <strong>{wert}</strong> Loops
+      </span>
+    );
+  }
+  if (label === "Aufhänger") {
+    return (
+      <span style={{ ...chip, color: "var(--accent)", borderColor: "var(--accent)" }}>
+        <svg width={12} height={14} style={{ flex: "none" }} aria-hidden>
+          <path
+            d="M6 13V6M6 6c0-3-4-3-4-1M6 2a1 1 0 100-.01"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.6}
+          />
+        </svg>
+        Aufhänger
+      </span>
+    );
+  }
+  if (label === "Teilung") {
+    return (
+      <span style={chip}>
+        <span className="count">Teilung</span> {wert}
+      </span>
+    );
+  }
+  return (
+    <span style={chip}>
+      <span className="count">{label}</span> {wert}
+    </span>
+  );
+}
+
+function KriterienChips({
+  typ,
+  schluessel,
+  cfg,
+}: {
+  typ: string;
+  schluessel: string;
+  cfg: Record<string, string[]>;
+}) {
+  return (
+    <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6, verticalAlign: "middle" }}>
+      {schluesselTeile(typ, schluessel, cfg).map((t) => (
+        <KriteriumChip key={t.label} label={t.label} wert={t.wert} />
+      ))}
+    </span>
+  );
+}
+
 const BUCKETS: { label: string; states: string[] }[] = [
   { label: "Sammeln", states: ["offen", "bereit"] },
   { label: "In Arbeit", states: ["an_flux", "im_druck", "gedruckt", "cellophaniert"] },
@@ -154,9 +282,6 @@ function BatchCard({
   const bogen = sum(jobs, (j) => j.netto_bogen ?? 0);
   const expl = sum(jobs, (j) => (j.auflage || 0) + (j.zuschuss || 0));
   const schlaufen = sum(jobs, (j) => j.schlaufen_gesamt ?? 0);
-  const kriterien = schluesselTeile(b.typ, b.schluessel, cfg)
-    .map((t) => `${t.label}: ${t.wert.replace(/\s*\([^)]*\)\s*$/, "")}`)
-    .join("  ·  ");
   const lts = jobs.map((j) => j.order?.deliver_date).filter(Boolean).sort() as string[];
   const ltText = lts.length
     ? lts[0] === lts[lts.length - 1]
@@ -176,22 +301,17 @@ function BatchCard({
     >
       <div
         className="toolbar"
-        style={{ justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}
+        style={{ justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}
       >
-        <div style={{ minWidth: 0 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", minWidth: 0 }}>
           <strong>{b.nummer}</strong>
-          <span style={{ marginLeft: 10 }}>{kriterien}</span>
+          <KriterienChips typ={b.typ} schluessel={b.schluessel} cfg={cfg} />
           {ltText && (
-            <span
-              className="tag"
-              style={{ marginLeft: 10, background: "var(--tag-bg)", color: "var(--accent)" }}
-            >
-              Liefertermin {ltText}
+            <span style={{ ...chip, color: "var(--accent)", borderColor: "var(--accent)" }}>
+              📅 {ltText}
             </span>
           )}
-          <span className="tag" style={{ marginLeft: 10, background: "var(--tag-bg)" }}>
-            {b.status}
-          </span>
+          <span style={{ ...chip, background: "var(--tag-bg)" }}>{b.status}</span>
         </div>
         <div className="count" style={{ whiteSpace: "nowrap" }}>
           {jobs.length} Jobs
