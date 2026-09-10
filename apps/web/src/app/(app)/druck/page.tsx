@@ -283,11 +283,7 @@ function BatchCard({
   const expl = sum(jobs, (j) => (j.auflage || 0) + (j.zuschuss || 0));
   const schlaufen = sum(jobs, (j) => j.schlaufen_gesamt ?? 0);
   const lts = jobs.map((j) => j.order?.deliver_date).filter(Boolean).sort() as string[];
-  const ltText = lts.length
-    ? lts[0] === lts[lts.length - 1]
-      ? fmtDate(lts[0])
-      : `${fmtDate(lts[0])} – ${fmtDate(lts[lts.length - 1])}`
-    : null;
+  const ltText = lts.length ? fmtDate(lts[0]) : null;
 
   return (
     <div
