@@ -27,6 +27,7 @@ type Job = {
     external_reference: string | null;
     blockstaerke_mm: string | null;
     gruppe: string | null;
+    prodformat: string | null;
   } | null;
 };
 type Batch = {
@@ -97,7 +98,9 @@ const DIM_LABEL: Record<string, string> = {
 /** Wert eines Batches für eine Sortier-/Gruppier-Dimension. */
 function critWert(b: Batch, dim: string, cfg: Record<string, string[]>): string {
   if (dim === "format") {
-    const fs = [...new Set((b.job ?? []).map((j) => j.format).filter(Boolean))];
+    const fs = [
+      ...new Set((b.job ?? []).map((j) => j.order?.prodformat ?? j.format).filter(Boolean)),
+    ];
     return fs.join(" / ") || "—";
   }
   const felder = cfg[b.typ] ?? [];
@@ -195,7 +198,9 @@ function BatchCard({
                   </span>
                   {"  ·  "}
                   {j.bauteil}
-                  {j.format ? `  ·  ${j.format}` : ""}
+                  {(j.order?.prodformat ?? j.format)
+                    ? `  ·  ${j.order?.prodformat ?? j.format}`
+                    : ""}
                   {stk ? `  ·  ${stk}` : ""}
                   {"  ·  "}
                   {((j.auflage || 0) + (j.zuschuss || 0)).toLocaleString("de-DE")} Expl.
@@ -290,7 +295,7 @@ export default async function DruckDashboard({
     .select(
       "id, nummer, typ, schluessel, druckverfahren, cello, cello_seiten, papier, druckbogen, status, created_at, an_flux_at, flux_order_id, " +
         "job(id, typ, bauteil, format, papier, cello, netto_bogen, druckbogen, nutzen, auflage, zuschuss, teilung, durchmesser, schlaufen_gesamt, komponenten, status, portal_order_id, " +
-        "order:portal_order_id(external_reference, blockstaerke_mm:resolve_result->>blockstaerke_mm, gruppe:resolve_result->>gruppe))",
+        "order:portal_order_id(external_reference, blockstaerke_mm:resolve_result->>blockstaerke_mm, gruppe:resolve_result->>gruppe, prodformat:resolve_result->attribute->>format))",
     )
     .neq("status", "storniert")
     .order("created_at", { ascending: true });
