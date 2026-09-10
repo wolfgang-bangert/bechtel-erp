@@ -7,8 +7,10 @@ import { supabase } from "./supabase";
 import { getObjectBytes } from "./storage";
 import { analysePdfMeta } from "./pdfMeta";
 
-export async function analysePdfMissing(opts: { limit?: number; force?: boolean } = {}) {
-  const { limit, force = false } = opts;
+export async function analysePdfMissing(
+  opts: { limit?: number; force?: boolean; all?: boolean } = {},
+) {
+  const { limit, force = false, all = false } = opts;
 
   const { data: orders } = await supabase
     .from("portal_order")
@@ -17,14 +19,16 @@ export async function analysePdfMissing(opts: { limit?: number; force?: boolean 
     );
 
   const kandidaten = (orders ?? []).filter((o) => {
+    const pd = (
+      o.files as { typ: string; storage_key: string | null; is_zip: boolean }[] | null
+    )?.find((f) => f.typ === "printData" && f.storage_key && !f.is_zip);
+    if (!pd) return false;
+    if (all) return true; // jedes analysierbare PDF neu vermessen (TrimBox-Backfill)
     const a = ((o.resolve_result as { attribute?: Record<string, unknown> } | null)?.attribute ??
       {}) as Record<string, unknown>;
     if (a.ausrichtung) return false;
     if (!force && o.pdf_meta) return false;
-    const pd = (
-      o.files as { typ: string; storage_key: string | null; is_zip: boolean }[] | null
-    )?.find((f) => f.typ === "printData" && f.storage_key && !f.is_zip);
-    return !!pd;
+    return true;
   });
   const liste = limit && limit > 0 ? kandidaten.slice(0, limit) : kandidaten;
 

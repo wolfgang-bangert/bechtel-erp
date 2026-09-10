@@ -130,6 +130,14 @@ export type MaterialZeile = {
   ungeloest?: string;
 };
 
+/** Abweichung Auftragsangabe ↔ Druckdaten (PDF), zur Prüfung im Batch. */
+export type Abweichung = {
+  feld: "format" | "seiten" | "ausrichtung";
+  auftrag: string;
+  pdf: string;
+  text: string;
+};
+
 export type ResolveResult = {
   reference: string | null;
   stammartikel_id: string | null;
@@ -142,6 +150,7 @@ export type ResolveResult = {
   materialliste: MaterialZeile[];
   ungeloest: string[];
   hinweise: string[];
+  abweichungen: Abweichung[];
 };
 
 type SkuRow = {
@@ -244,7 +253,14 @@ export type OrderInput = {
   external_reference: string | null;
   description: string | null;
   quantity: number | null;
-  pdf_meta?: { ausrichtung?: string } | null;
+  pdf_meta?: {
+    ausrichtung?: string;
+    breite_mm?: number;
+    hoehe_mm?: number;
+    endformat_breite_mm?: number | null;
+    endformat_hoehe_mm?: number | null;
+    seiten?: number;
+  } | null;
   items: { sku: string | null; description: string | null }[];
 } & Partial<GruppenMaps>;
 
@@ -362,6 +378,30 @@ function findFmt(ref: RefData, fmtStr: string | null): FormatRow | null {
     ref.formate.find(
       (x) => fmtKey(x.code) === k || fmtKey(x.name) === k || fmtKey(x.name).includes(k),
     ) ?? null
+  );
+}
+
+/** Format-Row → kanonischer String im Stil von decodeFormat (A4, DL, A5-Quadrat, „8,5 × 5,5 cm"). */
+const formatCanon = (r: FormatRow): string =>
+  r.code.endsWith("_quadrat")
+    ? r.code.replace("_quadrat", "-Quadrat")
+    : r.code.endsWith("_halb")
+      ? r.code.replace("_halb", " halb")
+      : /^A[2-6]$/.test(r.code) || r.code === "DL"
+        ? r.code
+        : r.name;
+
+/** Endformat-Maße (mm, beide Achsen ±2 mm, Ausrichtung egal) gegen die format-Tabelle. */
+function matchFormatByDims(ref: RefData, w: number | null, h: number | null): FormatRow | null {
+  if (!w || !h) return null;
+  const T = 2;
+  return (
+    ref.formate.find((f) => {
+      if (f.breite_mm == null || f.hoehe_mm == null) return false;
+      const a = Math.abs(f.breite_mm - w) <= T && Math.abs(f.hoehe_mm - h) <= T;
+      const b = Math.abs(f.breite_mm - h) <= T && Math.abs(f.hoehe_mm - w) <= T;
+      return a || b;
+    }) ?? null
   );
 }
 
@@ -492,18 +532,70 @@ export function resolveOne(ref: RefData, order: OrderInput): ResolveResult {
   const bl = desc.match(/(\d+)\s*(?:sheets|Blatt)/i);
   if (!attr.blatt && bl) attr.blatt = Number(bl[1]);
   if (!attr.oberflaeche && /coated|gestrichen/i.test(desc)) attr.oberflaeche = "glänzend";
-  if (!attr.format) attr.format = decodeFormat(desc);
   const seitenM = desc.match(/(\d+)\s*(?:pages|Seiten|seitig)/i);
   if (!attr.seiten && seitenM) attr.seiten = Number(seitenM[1]);
   if (!attr.blatt && attr.seiten) attr.blatt = Math.round(Number(attr.seiten) / 2);
 
-  // Ausrichtung fehlt in den Portal-Attributen? → aus der PDF-Analyse
-  if (!attr.ausrichtung) {
-    const pm = order.pdf_meta;
-    if (pm?.ausrichtung) {
-      attr.ausrichtung = pm.ausrichtung;
+  // ------ Format + Prüfung gegen die Druckdaten -------------------------
+  const abweichungen: Abweichung[] = [];
+  // was der Auftrag sagt (SKU-Attribut bzw. Freitext)
+  const auftragFormat = (attr.format as string | null) || decodeFormat(desc);
+
+  // Endformat aus der PDF-Analyse (TrimBox, sonst MediaBox) gegen die format-
+  // Tabelle: die physische Datei ist maßgeblich (erkennt z. B. A5-Quadrat, das
+  // im Freitext nur „A5" heißt).
+  const pm = order.pdf_meta;
+  const efW = pm?.endformat_breite_mm ?? pm?.breite_mm ?? null;
+  const efH = pm?.endformat_hoehe_mm ?? pm?.hoehe_mm ?? null;
+  const pdfFmt = matchFormatByDims(ref, efW ?? null, efH ?? null);
+  const pdfFormat = pdfFmt ? formatCanon(pdfFmt) : null;
+
+  attr.format = pdfFormat ?? auftragFormat;
+  if (pdfFormat) {
+    attr.format_quelle = "pdf";
+    if (
+      pdfFmt!.breite_mm != null &&
+      pdfFmt!.hoehe_mm != null &&
+      Math.abs(pdfFmt!.breite_mm - pdfFmt!.hoehe_mm) >= 1 &&
+      efW != null &&
+      efH != null &&
+      !attr.ausrichtung
+    ) {
+      attr.ausrichtung = efW > efH ? "Querformat" : "Hochformat";
       attr.ausrichtung_quelle = "pdf";
     }
+  }
+
+  // Ausrichtung fehlt weiterhin? → aus der PDF-Analyse (MediaBox-Ausrichtung)
+  if (!attr.ausrichtung && pm?.ausrichtung) {
+    attr.ausrichtung = pm.ausrichtung;
+    attr.ausrichtung_quelle = "pdf";
+  }
+
+  // Abweichung Format: Auftrag ≠ PDF-Endformat
+  if (pdfFormat && auftragFormat && fmtKey(pdfFormat) !== fmtKey(auftragFormat)) {
+    const masse = efW != null && efH != null ? ` (${efW}×${efH} mm)` : "";
+    abweichungen.push({
+      feld: "format",
+      auftrag: auftragFormat,
+      pdf: `${pdfFormat}${masse}`,
+      text: `Format: Auftrag „${auftragFormat}", Druckdaten „${pdfFormat}"${masse}`,
+    });
+  }
+  // Abweichung Seitenzahl: Auftrag ≠ PDF (grob, > 4 Seiten Differenz)
+  const sollSeiten = nnum(attr.seiten);
+  if (
+    sollSeiten != null &&
+    pm?.seiten != null &&
+    pm.seiten > 0 &&
+    Math.abs(pm.seiten - sollSeiten) > 4
+  ) {
+    abweichungen.push({
+      feld: "seiten",
+      auftrag: String(sollSeiten),
+      pdf: String(pm.seiten),
+      text: `Seiten: Auftrag ${sollSeiten}, Druckdaten ${pm.seiten}`,
+    });
   }
 
   // flux_template: Stammartikel überschreibt Gruppe
@@ -768,6 +860,7 @@ export function resolveOne(ref: RefData, order: OrderInput): ResolveResult {
     materialliste: zeilen.filter((z) => !(z.rolle && suppressed.has(z.rolle))),
     ungeloest,
     hinweise,
+    abweichungen,
   };
 }
 

@@ -363,6 +363,7 @@ async function main() {
           await analysePdfMissing({
             limit: limArg ? Number(limArg) : undefined,
             force: flags.has("--force"),
+            all: flags.has("--all"),
           }),
           null,
           1,
