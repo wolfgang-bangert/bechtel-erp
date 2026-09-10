@@ -191,7 +191,7 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
     const papier = z.material_kurz || z.material;
     // Druck-Batch nach Bindelänge · Spiralfarbe · Durchmesser (aus der Wire-O-Zeile)
     const druckSchluessel = mkSchluessel(batchKeys, "druck", {
-      bindelaenge: wireOzeile?.schlaufen_gesamt,
+      bindelaenge: wireOzeile?.schlaufen, // Loops pro Exemplar
       spiralfarbe,
       durchmesser: wireOzeile?.durchmesser,
       teilung: wireOzeile?.teilung,
@@ -277,7 +277,13 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
   // 3) Binden
   if (wireOzeile) {
     const z = wireOzeile;
-    const schluessel = mkSchluessel(batchKeys, "binden", { bindeseite: z.bindeseite, schlaufen: z.schlaufen_gesamt ?? z.schlaufen, spiralfarbe, teilung: z.teilung, durchmesser: z.durchmesser });
+    const schluessel = mkSchluessel(batchKeys, "binden", {
+      bindeseite: z.bindeseite,
+      schlaufen: z.schlaufen, // Loops pro Exemplar
+      spiralfarbe,
+      teilung: z.teilung,
+      durchmesser: z.durchmesser,
+    });
     const batch = await getBatch("binden", schluessel, {});
     const komponenten: Record<string, unknown>[] = [
       ...druckJobs.map((d) => ({

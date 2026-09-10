@@ -111,7 +111,9 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
               <span style={{ color: "var(--muted)" }}>{t.label}:</span> {t.wert}
             </Badge>
           ))}
-          <span className="tag">{b.status}</span>
+          <span className="tag" style={{ marginLeft: 8, background: "var(--tag-bg)" }}>
+            Status: {b.status}
+          </span>
         </div>
         <div className="count">
           {jobs.length} Jobs

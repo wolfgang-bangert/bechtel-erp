@@ -190,7 +190,7 @@ export async function erzeugeJobs(
     const papier = z.material_kurz || z.material;
     // Druck-Batch nach Bindelänge · Spiralfarbe · Durchmesser (aus der Wire-O-Zeile)
     const druckSchluessel = mkSchluessel(batchKeys, "druck", {
-      bindelaenge: wireOzeile?.schlaufen_gesamt,
+      bindelaenge: wireOzeile?.schlaufen, // Loops pro Exemplar
       spiralfarbe,
       durchmesser: wireOzeile?.durchmesser,
       teilung: wireOzeile?.teilung,
@@ -292,7 +292,7 @@ export async function erzeugeJobs(
     const z = wireOzeile;
     const schluessel = mkSchluessel(batchKeys, "binden", {
       bindeseite: z.bindeseite,
-      schlaufen: z.schlaufen_gesamt ?? z.schlaufen,
+      schlaufen: z.schlaufen, // Loops pro Exemplar
       spiralfarbe,
       teilung: z.teilung,
       durchmesser: z.durchmesser,
