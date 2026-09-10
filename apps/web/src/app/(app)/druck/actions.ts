@@ -6,6 +6,37 @@ import { uebergebeBatchAnFlux } from "@/lib/druck/flux";
 
 export type State = { ok?: boolean; error?: string; note?: string };
 
+/** Einen Auftrag einzeln aus der Liste an flux übergeben (ein orderItem je Druck-Job). */
+export async function auftragAnFluxAction(_prev: State, fd: FormData): Promise<State> {
+  const id = String(fd.get("id") ?? "");
+  if (!id) return { error: "id fehlt" };
+  const supabase = await createClient();
+  try {
+    const { sendeAuftragAnFlux } = await import("@/lib/druck/flux");
+    const r = await sendeAuftragAnFlux(supabase, id);
+    await supabase
+      .from("portal_order")
+      .update({
+        flux_payload: (r.payload ?? null) as never,
+        flux_response: (r.response ?? null) as never,
+        flux_order_id: r.orderId ?? null,
+        flux_sent_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    revalidatePath("/druck");
+    revalidatePath(`/druckauftraege/${id}`);
+    if (r.error) return { error: r.error };
+    return {
+      ok: true,
+      note: r.dryRun
+        ? "Dry-Run: FLUX_API_BASE/KEY nicht gesetzt — Payload gespeichert, nicht gesendet"
+        : `an flux übergeben — orderId ${r.orderId ?? "?"}`,
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 const JOB_STATUS: Record<string, string> = {
   gedruckt: "gedruckt",
   cellophaniert: "cellophaniert",

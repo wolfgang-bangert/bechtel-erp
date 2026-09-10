@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fmtDate } from "@/lib/format";
 import { BatchActions } from "./BatchActions";
 import { SortControls } from "./SortControls";
+import { FluxOrderButton } from "./FluxOrderButton";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,9 @@ type Job = {
     ausrichtung: string | null;
     ausrichtung_quelle: string | null;
     deliver_date: string | null;
+    flux_order_id: string | null;
+    flux_status: string | null;
+    flux_sent_at: string | null;
   } | null;
 };
 
@@ -275,10 +279,12 @@ function BatchCard({
   b,
   cfg,
   gruppeKuerzel,
+  fluxUrlTpl,
 }: {
   b: Batch;
   cfg: Record<string, string[]>;
   gruppeKuerzel: Record<string, string>;
+  fluxUrlTpl: string | null;
 }) {
   const jobs = b.job ?? [];
   const bogen = sum(jobs, (j) => j.netto_bogen ?? 0);
@@ -354,6 +360,14 @@ function BatchCard({
                   {((j.auflage || 0) + (j.zuschuss || 0)).toLocaleString("de-DE")} Expl.
                   {"  ·  "}
                   <span className="count">{j.status}</span>
+                  {j.order?.flux_status && (
+                    <>
+                      {"  ·  "}
+                      <span style={{ ...chip, background: "var(--tag-bg)", padding: "1px 7px" }}>
+                        flux: {j.order.flux_status}
+                      </span>
+                    </>
+                  )}
                 </summary>
                 <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.7 }}>
                   {[
@@ -397,6 +411,18 @@ function BatchCard({
                       </a>
                     </div>
                   )}
+                  {b.typ === "druck" && j.portal_order_id && (
+                    <FluxOrderButton
+                      portalOrderId={j.portal_order_id}
+                      fluxOrderId={j.order?.flux_order_id ?? null}
+                      fluxStatus={j.order?.flux_status ?? null}
+                      fluxUrl={
+                        fluxUrlTpl && j.order?.flux_order_id
+                          ? fluxUrlTpl.replace("{orderId}", j.order.flux_order_id)
+                          : null
+                      }
+                    />
+                  )}
                 </div>
               </details>
             );
@@ -431,6 +457,12 @@ export default async function DruckDashboard({
     .eq("key", "batch_gruppierung")
     .maybeSingle();
   const cfg = (cfgRow?.value as Record<string, string[]>) ?? {};
+  const { data: fluxUrlRow } = await supabase
+    .from("setting")
+    .select("value")
+    .eq("key", "flux_order_url_tpl")
+    .maybeSingle();
+  const fluxUrlTpl = (fluxUrlRow?.value as string | null) ?? null;
   const { data: grpRows } = await supabase
     .from("opri_produkt_gruppe")
     .select("kuerzel, titel_kuerzel");
@@ -443,7 +475,7 @@ export default async function DruckDashboard({
     .select(
       "id, nummer, typ, schluessel, druckverfahren, cello, cello_seiten, papier, druckbogen, status, created_at, an_flux_at, flux_order_id, " +
         "job(id, typ, bauteil, format, papier, cello, netto_bogen, druckbogen, nutzen, auflage, zuschuss, teilung, durchmesser, schlaufen_gesamt, komponenten, status, portal_order_id, " +
-        "order:portal_order_id(external_reference, deliver_date, blockstaerke_mm:resolve_result->>blockstaerke_mm, gruppe:resolve_result->>gruppe, prodformat:resolve_result->attribute->>format, ausrichtung:resolve_result->attribute->>ausrichtung, ausrichtung_quelle:resolve_result->attribute->>ausrichtung_quelle))",
+        "order:portal_order_id(external_reference, deliver_date, flux_order_id, flux_status, flux_sent_at, blockstaerke_mm:resolve_result->>blockstaerke_mm, gruppe:resolve_result->>gruppe, prodformat:resolve_result->attribute->>format, ausrichtung:resolve_result->attribute->>ausrichtung, ausrichtung_quelle:resolve_result->attribute->>ausrichtung_quelle))",
     )
     .neq("status", "storniert")
     .order("created_at", { ascending: true });
@@ -547,14 +579,14 @@ export default async function DruckDashboard({
                         </summary>
                         <div style={{ marginTop: 4 }}>
                           {gb.map((b) => (
-                            <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} />
+                            <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
                           ))}
                         </div>
                       </details>
                     ) : (
                       <div key={gk || "_"}>
                         {gb.map((b) => (
-                          <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} />
+                          <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
                         ))}
                       </div>
                     ),
