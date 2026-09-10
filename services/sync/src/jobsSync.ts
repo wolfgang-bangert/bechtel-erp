@@ -7,7 +7,7 @@
  * Läuft am Ende von portal:pull / portal:import-xano und als Befehl `jobs:sync`.
  */
 import { supabase } from "./supabase";
-import { erzeugeJobs } from "./erzeugeJobs";
+import { erzeugeJobs } from "@werk/shared/druck";
 
 const TERMINAL = ["FINISHED"];
 const OFFEN = ["offen", "in_batch", "an_flux", "im_druck"];
@@ -79,7 +79,7 @@ export async function jobsSync(opts: { generate?: boolean } = {}) {
       if (!rr?.stammartikel_id) continue;
       if (mitOffenenJobs.has(o.id as string)) continue;
       try {
-        const r = await erzeugeJobs(o.id as string);
+        const r = await erzeugeJobs(supabase, o.id as string);
         auftraegeMitJobs++;
         jobsNeu += r.jobs;
       } catch (e) {
