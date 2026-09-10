@@ -33,8 +33,6 @@ type Job = {
   } | null;
 };
 
-const ohneKlammer = (s: string | null | undefined) =>
-  (s ?? "").replace(/\s*\([^)]*\)\s*$/, "").trim();
 /** frühester Liefertermin eines Batches (über seine Jobs). */
 function fruehesterLiefer(b: Batch): string | null {
   const ds = (b.job ?? []).map((j) => j.order?.deliver_date).filter(Boolean) as string[];
@@ -109,9 +107,7 @@ const DIM_LABEL: Record<string, string> = {
 function critWert(b: Batch, dim: string, cfg: Record<string, string[]>): string {
   if (dim === "format") {
     const fs = [
-      ...new Set(
-        (b.job ?? []).map((j) => ohneKlammer(j.order?.prodformat ?? j.format)).filter(Boolean),
-      ),
+      ...new Set((b.job ?? []).map((j) => j.order?.prodformat ?? j.format).filter(Boolean)),
     ];
     return fs.join(" / ") || "—";
   }
@@ -210,8 +206,8 @@ function BatchCard({
                   </span>
                   {"  ·  "}
                   {j.bauteil}
-                  {ohneKlammer(j.order?.prodformat ?? j.format)
-                    ? `  ·  ${ohneKlammer(j.order?.prodformat ?? j.format)}`
+                  {(j.order?.prodformat ?? j.format)
+                    ? `  ·  ${j.order?.prodformat ?? j.format}`
                     : ""}
                   {stk ? `  ·  ${stk}` : ""}
                   {j.order?.deliver_date ? `  ·  LT ${fmtDate(j.order.deliver_date)}` : ""}
@@ -389,18 +385,24 @@ export default async function DruckDashboard({
                           style={{
                             fontWeight: 600,
                             fontSize: 13,
-                            margin: "8px 0 4px",
-                            padding: "3px 8px",
+                            margin: "10px 0 4px",
+                            padding: "4px 10px",
                             background: "var(--tag-bg)",
                             borderRadius: 6,
-                            display: "inline-block",
+                            display: "inline-flex",
+                            gap: 10,
+                            alignItems: "baseline",
                           }}
                         >
-                          {DIM_LABEL[group] ?? group}: {gk}{" "}
-                          <span className="count">
-                            · {gb.length}
-                            {fruehesterLiefer(gb[0]) ? ` · ab ${fmtDate(fruehesterLiefer(gb[0]))}` : ""}
+                          <span>
+                            {DIM_LABEL[group] ?? group}: {gk}{" "}
+                            <span className="count">· {gb.length}</span>
                           </span>
+                          {fruehesterLiefer(gb[0]) && (
+                            <span style={{ color: "var(--accent)" }}>
+                              Liefertermin ab {fmtDate(fruehesterLiefer(gb[0]))}
+                            </span>
+                          )}
                         </div>
                       )}
                       {gb.map((b) => (
