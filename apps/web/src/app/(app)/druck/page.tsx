@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { BatchActions } from "./BatchActions";
+import { SortControls } from "./SortControls";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,33 @@ function schluesselTeile(typ: string, schluessel: string, cfg: Record<string, st
   return felder
     .map((f, i) => ({ label: FELD_LABEL[f] ?? f, wert: (werte[i] ?? "").trim() }))
     .filter((x) => x.wert);
+}
+
+// logische Sortier-/Gruppier-Dimension → mögliche Config-Feldnamen
+const DIM_FELDER: Record<string, string[]> = {
+  loops: ["bindelaenge", "schlaufen"],
+  spiralfarbe: ["spiralfarbe"],
+  durchmesser: ["durchmesser"],
+  teilung: ["teilung"],
+};
+const DIM_LABEL: Record<string, string> = {
+  loops: "Anzahl Loops",
+  spiralfarbe: "Farbe Spirale",
+  durchmesser: "Durchmesser",
+  teilung: "Teilung",
+  format: "Format",
+};
+
+/** Wert eines Batches für eine Sortier-/Gruppier-Dimension. */
+function critWert(b: Batch, dim: string, cfg: Record<string, string[]>): string {
+  if (dim === "format") {
+    const fs = [...new Set((b.job ?? []).map((j) => j.format).filter(Boolean))];
+    return fs.join(" / ") || "—";
+  }
+  const felder = cfg[b.typ] ?? [];
+  const werte = (b.schluessel ?? "").split(" | ");
+  const idx = felder.findIndex((f) => (DIM_FELDER[dim] ?? [dim]).includes(f));
+  return (idx >= 0 ? werte[idx] ?? "" : "").trim() || "—";
 }
 
 const BUCKETS: { label: string; states: string[] }[] = [
@@ -226,10 +254,10 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
 export default async function DruckDashboard({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string }>;
+  searchParams: Promise<{ sort?: string; group?: string; dir?: string }>;
 }) {
-  const { sort } = await searchParams;
-  const desc = sort === "desc";
+  const { sort = "", group = "", dir = "asc" } = await searchParams;
+  const desc = dir === "desc";
   const supabase = await createClient();
   const { data: cfgRow } = await supabase
     .from("setting")
@@ -253,21 +281,6 @@ export default async function DruckDashboard({
       <div className="toolbar" style={{ justifyContent: "space-between" }}>
         <h1 style={{ margin: 0 }}>Druck-Dashboard</h1>
         <div className="toolbar" style={{ gap: 8, alignItems: "center" }}>
-          <span className="count">Kriterien</span>
-          <Link
-            href="/druck?sort=asc"
-            className={desc ? "ghost" : undefined}
-            style={{ padding: "5px 9px" }}
-          >
-            ▲
-          </Link>
-          <Link
-            href="/druck?sort=desc"
-            className={desc ? undefined : "ghost"}
-            style={{ padding: "5px 9px" }}
-          >
-            ▼
-          </Link>
           <Link href="/druck/plan" className="ghost" style={{ padding: "7px 12px" }}>
             Belegungs-Board →
           </Link>
@@ -275,6 +288,9 @@ export default async function DruckDashboard({
             Druckaufträge →
           </Link>
         </div>
+      </div>
+      <div style={{ margin: "6px 0 10px" }}>
+        <SortControls />
       </div>
       <p className="lead">
         Batches sammeln Arbeitsvorgänge auftragsübergreifend. Druck-Batches sind nach
@@ -296,22 +312,55 @@ export default async function DruckDashboard({
             </h2>
             <p className="lead" style={{ marginTop: 0 }}>{hint}</p>
             {BUCKETS.map((bucket) => {
+              const sortWert = (b: Batch) =>
+                sort ? critWert(b, sort, cfg) : b.schluessel ?? "";
               const bl = list
                 .filter((b) => bucket.states.includes(b.status))
                 .sort((a, b) => {
-                  const c = (a.schluessel ?? "").localeCompare(b.schluessel ?? "", "de", {
-                    numeric: true,
-                  });
+                  const c = sortWert(a).localeCompare(sortWert(b), "de", { numeric: true });
                   return desc ? -c : c;
                 });
               if (!bl.length) return null;
+
+              // Nach Einzelkriterium gruppieren?
+              const gruppen: [string, Batch[]][] = group
+                ? Object.entries(
+                    bl.reduce<Record<string, Batch[]>>((acc, b) => {
+                      const k = critWert(b, group, cfg);
+                      (acc[k] ??= []).push(b);
+                      return acc;
+                    }, {}),
+                  ).sort((x, y) =>
+                    x[0].localeCompare(y[0], "de", { numeric: true }) * (desc ? -1 : 1),
+                  )
+                : [["", bl]];
+
               return (
                 <div key={bucket.label} style={{ marginTop: 10 }}>
                   <h3 style={{ margin: "0 0 6px", fontSize: 13, color: "var(--muted)" }}>
                     {bucket.label} · {bl.length}
                   </h3>
-                  {bl.map((b) => (
-                    <BatchCard key={b.id} b={b} cfg={cfg} />
+                  {gruppen.map(([gk, gb]) => (
+                    <div key={gk || "_"} style={{ marginBottom: group ? 14 : 0 }}>
+                      {group && (
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            fontSize: 13,
+                            margin: "8px 0 4px",
+                            padding: "3px 8px",
+                            background: "var(--tag-bg)",
+                            borderRadius: 6,
+                            display: "inline-block",
+                          }}
+                        >
+                          {DIM_LABEL[group] ?? group}: {gk} <span className="count">· {gb.length}</span>
+                        </div>
+                      )}
+                      {gb.map((b) => (
+                        <BatchCard key={b.id} b={b} cfg={cfg} />
+                      ))}
+                    </div>
                   ))}
                 </div>
               );
