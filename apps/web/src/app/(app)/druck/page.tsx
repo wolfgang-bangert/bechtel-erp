@@ -38,10 +38,8 @@ type Batch = {
 };
 
 const TYPEN: { typ: string; label: string; hint: string }[] = [
-  { typ: "druck", label: "Drucken", hint: "Schlüssel: Verfahren · Cello · Papier · Druckbogen — geht an flux" },
-  { typ: "cello", label: "Cellophanieren", hint: "Schlüssel: matt/glanz · Papier — nach dem Umschlag-Druck" },
-  { typ: "binden", label: "Binden (Wire-O)", hint: "Schlüssel: Teilung · Durchmesser — Kalenderaufhänger wird hier mit montiert" },
-  { typ: "konfektion", label: "Konfektion", hint: "Multiloft: Cover + Inlay + Cover stapeln, Nutzen schneiden" },
+  { typ: "cello", label: "Cellophanieren", hint: "nach dem Umschlag-Druck" },
+  { typ: "binden", label: "Binden (Wire-O)", hint: "Schlüssel: Bindeseite · Schlaufen · Spiralfarbe · Teilung · Durchmesser" },
 ];
 
 const BUCKETS: { label: string; states: string[] }[] = [
@@ -195,8 +193,8 @@ export default async function DruckDashboard() {
         </div>
       </div>
       <p className="lead">
-        Batches sammeln Arbeitsvorgänge auftragsübergreifend. „an flux übergeben" gilt nur für
-        Druck-Batches; Cellophanieren und Binden laufen werk-intern.
+        Cello- und Binde-Batches sammeln die Nachbearbeitung auftragsübergreifend. Der Druck
+        selbst läuft je Auftrag über flux (im Druckauftrag), nicht mehr über Batches.
       </p>
 
       {batches.length === 0 && (

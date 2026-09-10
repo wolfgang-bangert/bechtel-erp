@@ -186,14 +186,7 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
   const celloDruckJobIds: string[] = [];
   for (const z of druckzeilen) {
     const papier = z.material_kurz || z.material;
-    const schluessel = mkSchluessel(batchKeys, "druck", { verfahren, cello: z.cello ?? "keine", papier, druckbogen: z.druckbogen, farbigkeit, format: z.format });
-    const batch = await getBatch("druck", schluessel, {
-      druckverfahren: verfahren,
-      cello: z.cello ?? "keine",
-      cello_seiten: z.cello_seiten ?? 1,
-      papier,
-      druckbogen: z.druckbogen ?? null,
-    });
+    // Druck-Jobs bekommen keinen Batch mehr (nur Cello/Binden werden gebatcht).
     const services: Record<string, unknown> = { ...(z.flux_services ?? {}) };
     if (z.flux_paper_type) services["Papiersorte"] = z.flux_paper_type;
     if (z.flux_paper_type_back) services["Papiersorte Rückseite"] = z.flux_paper_type_back;
@@ -202,7 +195,7 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
       .from("job")
       .insert({
         portal_order_id: portalOrderId,
-        batch_id: batch.id,
+        batch_id: null,
         typ: "druck",
         bauteil,
         quelle_regel: z.regel,
@@ -221,14 +214,13 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
         flux_signature: z.flux_signature ?? null,
         flux_printer: z.flux_printer ?? null,
         pdf_storage_key: printKey,
-        status: "in_batch",
+        status: "offen",
       })
       .select("id")
       .single();
     if (jErr) throw new Error(`Druckjob: ${jErr.message}`);
     druckJobs.push({ id: j.id as string, bauteil, netto_bogen: z.netto_bogen ?? null, druckbogen: z.druckbogen ?? null });
     if ((z.cello ?? "keine") !== "keine") celloDruckJobIds.push(j.id as string);
-    bump(batch.nummer);
   }
   const druckJobIds = druckJobs.map((d) => d.id);
 
