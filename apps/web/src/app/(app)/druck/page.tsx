@@ -8,6 +8,7 @@ type Job = {
   id: string;
   typ: string;
   bauteil: string;
+  format: string | null;
   netto_bogen: number | null;
   druckbogen: string | null;
   nutzen: number | null;
@@ -18,7 +19,7 @@ type Job = {
   schlaufen_gesamt: number | null;
   komponenten: { bezeichnung: string | null; menge?: number | null; einheit?: string | null }[] | null;
   status: string;
-  order: { external_reference: string | null } | null;
+  order: { external_reference: string | null; blockstaerke_mm: string | null } | null;
 };
 type Batch = {
   id: string;
@@ -124,12 +125,18 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
         </div>
       </div>
 
-      <div className="table-scroll">
+      <details>
+        <summary className="count" style={{ cursor: "pointer", padding: "2px 0" }}>
+          {jobs.length} {jobs.length === 1 ? "Job" : "Jobs"} anzeigen
+        </summary>
+      <div className="table-scroll" style={{ marginTop: 6 }}>
         <table className="data">
           <thead>
             <tr>
               <th>Auftrag</th>
               <th>Bauteil</th>
+              <th>Format</th>
+              <th style={{ textAlign: "right" }}>Prod.-Stärke</th>
               <th style={{ textAlign: "right" }}>{b.typ === "druck" ? "Bogen" : b.typ === "binden" ? "Schlaufen" : "Menge"}</th>
               <th style={{ textAlign: "right" }}>Expl.</th>
               <th>Status</th>
@@ -163,6 +170,12 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
                     </div>
                   )}
                 </td>
+                <td>{j.format ?? "—"}</td>
+                <td style={{ textAlign: "right" }}>
+                  {j.order?.blockstaerke_mm
+                    ? `${Number(j.order.blockstaerke_mm).toLocaleString("de-DE")} mm`
+                    : "—"}
+                </td>
                 <td style={{ textAlign: "right" }}>
                   {j.typ === "druck"
                     ? `${j.netto_bogen ?? "—"}${j.druckbogen ? ` ${j.druckbogen}` : ""}${j.nutzen ? ` (${j.nutzen}-up)` : ""}`
@@ -178,12 +191,13 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
             ))}
             {!jobs.length && (
               <tr>
-                <td colSpan={5} className="count">Keine Jobs.</td>
+                <td colSpan={7} className="count">Keine Jobs.</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      </details>
 
       <BatchActions id={b.id} typ={b.typ} status={b.status} cello={b.cello} />
     </div>
@@ -202,7 +216,8 @@ export default async function DruckDashboard() {
     .from("batch")
     .select(
       "id, nummer, typ, schluessel, druckverfahren, cello, cello_seiten, papier, druckbogen, status, created_at, an_flux_at, flux_order_id, " +
-        "job(id, typ, bauteil, netto_bogen, druckbogen, nutzen, auflage, zuschuss, teilung, durchmesser, schlaufen_gesamt, komponenten, status, order:portal_order_id(external_reference))",
+        "job(id, typ, bauteil, format, netto_bogen, druckbogen, nutzen, auflage, zuschuss, teilung, durchmesser, schlaufen_gesamt, komponenten, status, " +
+        "order:portal_order_id(external_reference, blockstaerke_mm:resolve_result->>blockstaerke_mm))",
     )
     .neq("status", "storniert")
     .order("created_at", { ascending: true });
