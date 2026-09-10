@@ -38,10 +38,34 @@ type Batch = {
 };
 
 const TYPEN: { typ: string; label: string; hint: string }[] = [
-  { typ: "druck", label: "Drucken", hint: "Schlüssel: Bindelänge · Spiralfarbe · Durchmesser" },
+  { typ: "druck", label: "Drucken", hint: "Schlüssel: Anzahl Loops · Farbe Spirale · Durchmesser" },
   { typ: "cello", label: "Cellophanieren", hint: "nach dem Umschlag-Druck" },
-  { typ: "binden", label: "Binden (Wire-O)", hint: "Schlüssel: Schlaufen · Spiralfarbe · Teilung · Durchmesser" },
+  { typ: "binden", label: "Binden (Wire-O)", hint: "Schlüssel: Anzahl Loops · Farbe Spirale · Teilung · Durchmesser" },
 ];
+
+// Feld-Schlüssel → Klartext-Label für die Batch-Beschriftung
+const FELD_LABEL: Record<string, string> = {
+  bindelaenge: "Anzahl Loops",
+  schlaufen: "Anzahl Loops",
+  durchmesser: "Durchmesser",
+  spiralfarbe: "Farbe Spirale",
+  teilung: "Teilung",
+  bauteil: "Bauteil",
+  cello: "Cello",
+  papier: "Papier",
+  druckbogen: "Bogen",
+  verfahren: "Verfahren",
+  format: "Format",
+};
+
+/** Batch-Schlüssel + Config → [{label, wert}] ohne Leerwerte. */
+function schluesselTeile(typ: string, schluessel: string, cfg: Record<string, string[]>) {
+  const felder = cfg[typ] ?? [];
+  const werte = (schluessel ?? "").split(" | ");
+  return felder
+    .map((f, i) => ({ label: FELD_LABEL[f] ?? f, wert: (werte[i] ?? "").trim() }))
+    .filter((x) => x.wert);
+}
 
 const BUCKETS: { label: string; states: string[] }[] = [
   { label: "Sammeln", states: ["offen", "bereit"] },
@@ -62,12 +86,12 @@ function Badge({ children }: { children: React.ReactNode }) {
 
 const sum = (js: Job[], f: (j: Job) => number) => js.reduce((a, j) => a + f(j), 0);
 
-function BatchCard({ b }: { b: Batch }) {
+function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
   const jobs = b.job ?? [];
   const bogen = sum(jobs, (j) => j.netto_bogen ?? 0);
   const expl = sum(jobs, (j) => (j.auflage || 0) + (j.zuschuss || 0));
   const schlaufen = sum(jobs, (j) => j.schlaufen_gesamt ?? 0);
-  const wire = jobs.find((j) => j.durchmesser || j.teilung);
+  const teile = schluesselTeile(b.typ, b.schluessel, cfg);
 
   return (
     <div
@@ -82,15 +106,11 @@ function BatchCard({ b }: { b: Batch }) {
       <div className="toolbar" style={{ justifyContent: "space-between", marginBottom: 6 }}>
         <div>
           <strong>{b.nummer}</strong>{" "}
-          {b.typ === "cello" && b.schluessel && (
-            <Badge>{b.schluessel.split(" | ")[0]}</Badge>
-          )}
-          {b.cello !== "keine" && <Badge>Cello {b.cello}, {b.cello_seiten}-seitig</Badge>}
-          {b.papier && <Badge>{b.papier}</Badge>}
-          {b.druckbogen && <Badge>{b.druckbogen}</Badge>}
-          {b.druckverfahren && <Badge>{b.druckverfahren}</Badge>}
-          {wire?.teilung && <Badge>{wire.teilung}</Badge>}
-          {wire?.durchmesser && <Badge>{wire.durchmesser}</Badge>}
+          {teile.map((t) => (
+            <Badge key={t.label}>
+              <span style={{ color: "var(--muted)" }}>{t.label}:</span> {t.wert}
+            </Badge>
+          ))}
           <span className="tag">{b.status}</span>
         </div>
         <div className="count">
@@ -170,6 +190,12 @@ function BatchCard({ b }: { b: Batch }) {
 
 export default async function DruckDashboard() {
   const supabase = await createClient();
+  const { data: cfgRow } = await supabase
+    .from("setting")
+    .select("value")
+    .eq("key", "batch_gruppierung")
+    .maybeSingle();
+  const cfg = (cfgRow?.value as Record<string, string[]>) ?? {};
   const { data: raw } = await supabase
     .from("batch")
     .select(
@@ -195,7 +221,7 @@ export default async function DruckDashboard() {
       </div>
       <p className="lead">
         Batches sammeln Arbeitsvorgänge auftragsübergreifend. Druck-Batches sind nach
-        Bindelänge · Spiralfarbe · Durchmesser gruppiert (aus der Wire-O-Zeile); der
+        Anzahl Loops · Farbe Spirale · Durchmesser gruppiert (aus der Wire-O-Zeile); der
         flux-Versand läuft je Auftrag im Druckauftrag.
       </p>
 
@@ -221,7 +247,7 @@ export default async function DruckDashboard() {
                     {bucket.label} · {bl.length}
                   </h3>
                   {bl.map((b) => (
-                    <BatchCard key={b.id} b={b} />
+                    <BatchCard key={b.id} b={b} cfg={cfg} />
                   ))}
                 </div>
               );

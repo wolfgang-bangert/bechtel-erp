@@ -66,6 +66,29 @@ function alterTage(iso: string): string {
 }
 const sum = (js: PlanJob[], f: (j: PlanJob) => number) => js.reduce((a, j) => a + f(j), 0);
 
+const FELD_LABEL: Record<string, string> = {
+  bindelaenge: "Anzahl Loops",
+  schlaufen: "Anzahl Loops",
+  durchmesser: "Durchmesser",
+  spiralfarbe: "Farbe Spirale",
+  teilung: "Teilung",
+  bauteil: "Bauteil",
+  cello: "Cello",
+  papier: "Papier",
+  druckbogen: "Bogen",
+  verfahren: "Verfahren",
+  format: "Format",
+};
+function schluesselText(typ: string, schluessel: string | null, cfg: Record<string, string[]>) {
+  const felder = cfg[typ] ?? [];
+  const werte = (schluessel ?? "").split(" | ");
+  return felder
+    .map((f, i) => ({ l: FELD_LABEL[f] ?? f, w: (werte[i] ?? "").trim() }))
+    .filter((x) => x.w)
+    .map((x) => `${x.l}: ${x.w}`)
+    .join(" · ");
+}
+
 function laneKey(maschineId: string | null) {
   return maschineId ?? "";
 }
@@ -73,9 +96,11 @@ function laneKey(maschineId: string | null) {
 export function PlanBoard({
   maschinen,
   batches: initial,
+  cfg,
 }: {
   maschinen: Maschine[];
   batches: PlanBatch[];
+  cfg: Record<string, string[]>;
 }) {
   const router = useRouter();
   const [batches, setBatches] = useState<PlanBatch[]>(initial);
@@ -332,15 +357,8 @@ export function PlanBoard({
                               <span className="count">{b.job.length} Jobs</span>
                             </div>
                             <div className="pc-meta">
-                              {[
-                                b.schluessel?.split(" | ")[0],
-                                b.cello !== "keine" && `Cello ${b.cello}`,
-                                b.papier,
-                                b.druckbogen,
-                                b.druckverfahren,
-                              ]
-                                .filter(Boolean)
-                                .join(" · ")}
+                              {schluesselText(b.typ, b.schluessel, cfg) ||
+                                (b.cello !== "keine" ? `Cello ${b.cello}` : "")}
                             </div>
                             <div className="pc-meta">
                               {b.typ === "druck" && bogen > 0 && `${bogen.toLocaleString("de-DE")} Bogen · `}

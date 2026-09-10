@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function PlanPage() {
   const supabase = await createClient();
 
-  const [{ data: maschinen }, { data: batches }] = await Promise.all([
+  const [{ data: maschinen }, { data: batches }, { data: cfgRow }] = await Promise.all([
     supabase
       .from("maschine")
       .select("id, name, typ, farbe, kapazitaet_bogen_h, druckverfahren, max_farben, geladen")
@@ -24,7 +24,9 @@ export default async function PlanPage() {
       .neq("status", "storniert")
       .order("plan_reihenfolge", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true }),
+    supabase.from("setting").select("value").eq("key", "batch_gruppierung").maybeSingle(),
   ]);
+  const cfg = (cfgRow?.value as Record<string, string[]>) ?? {};
 
   return (
     <>
@@ -49,6 +51,7 @@ export default async function PlanPage() {
       <PlanBoard
         maschinen={(maschinen ?? []) as Maschine[]}
         batches={(batches ?? []) as unknown as PlanBatch[]}
+        cfg={cfg}
       />
     </>
   );
