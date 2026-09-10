@@ -118,7 +118,15 @@ function alterTage(iso: string): string {
 
 const sum = (js: Job[], f: (j: Job) => number) => js.reduce((a, j) => a + f(j), 0);
 
-function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
+function BatchCard({
+  b,
+  cfg,
+  gruppeKuerzel,
+}: {
+  b: Batch;
+  cfg: Record<string, string[]>;
+  gruppeKuerzel: Record<string, string>;
+}) {
   const jobs = b.job ?? [];
   const bogen = sum(jobs, (j) => j.netto_bogen ?? 0);
   const expl = sum(jobs, (j) => (j.auflage || 0) + (j.zuschuss || 0));
@@ -179,7 +187,9 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
                 <summary style={{ cursor: "pointer", listStyle: "none" }}>
                   <span style={{ fontWeight: 600 }}>{j.order?.external_reference ?? "—"}</span>
                   {"  ·  "}
-                  <span className="count">{j.order?.gruppe ?? "—"}</span>
+                  <span className="count">
+                    {(j.order?.gruppe && (gruppeKuerzel[j.order.gruppe] ?? j.order.gruppe)) ?? "—"}
+                  </span>
                   {"  ·  "}
                   {j.bauteil}
                   {j.format ? `  ·  ${j.format}` : ""}
@@ -265,6 +275,13 @@ export default async function DruckDashboard({
     .eq("key", "batch_gruppierung")
     .maybeSingle();
   const cfg = (cfgRow?.value as Record<string, string[]>) ?? {};
+  const { data: grpRows } = await supabase
+    .from("opri_produkt_gruppe")
+    .select("kuerzel, titel_kuerzel");
+  const gruppeKuerzel: Record<string, string> = {};
+  for (const g of grpRows ?? []) {
+    if (g.titel_kuerzel) gruppeKuerzel[g.kuerzel as string] = g.titel_kuerzel as string;
+  }
   const { data: raw } = await supabase
     .from("batch")
     .select(
@@ -358,7 +375,7 @@ export default async function DruckDashboard({
                         </div>
                       )}
                       {gb.map((b) => (
-                        <BatchCard key={b.id} b={b} cfg={cfg} />
+                        <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} />
                       ))}
                     </div>
                   ))}
