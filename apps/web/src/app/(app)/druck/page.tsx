@@ -38,8 +38,9 @@ type Batch = {
 };
 
 const TYPEN: { typ: string; label: string; hint: string }[] = [
+  { typ: "druck", label: "Drucken", hint: "Schlüssel: Bindelänge · Spiralfarbe · Durchmesser" },
   { typ: "cello", label: "Cellophanieren", hint: "nach dem Umschlag-Druck" },
-  { typ: "binden", label: "Binden (Wire-O)", hint: "Schlüssel: Bindeseite · Schlaufen · Spiralfarbe · Teilung · Durchmesser" },
+  { typ: "binden", label: "Binden (Wire-O)", hint: "Schlüssel: Schlaufen · Spiralfarbe · Teilung · Durchmesser" },
 ];
 
 const BUCKETS: { label: string; states: string[] }[] = [
@@ -193,8 +194,9 @@ export default async function DruckDashboard() {
         </div>
       </div>
       <p className="lead">
-        Cello- und Binde-Batches sammeln die Nachbearbeitung auftragsübergreifend. Der Druck
-        selbst läuft je Auftrag über flux (im Druckauftrag), nicht mehr über Batches.
+        Batches sammeln Arbeitsvorgänge auftragsübergreifend. Druck-Batches sind nach
+        Bindelänge · Spiralfarbe · Durchmesser gruppiert (aus der Wire-O-Zeile); der
+        flux-Versand läuft je Auftrag im Druckauftrag.
       </p>
 
       {batches.length === 0 && (

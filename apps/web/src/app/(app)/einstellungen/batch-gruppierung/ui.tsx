@@ -6,6 +6,16 @@ import { saveBatchGruppierung, rebatchOffene, type State } from "./actions";
 const empty: State = {};
 
 const FELDER: Record<string, [string, string][]> = {
+  druck: [
+    ["bindelaenge", "Bindelänge (Schlaufen)"],
+    ["spiralfarbe", "Spiralfarbe"],
+    ["durchmesser", "Durchmesser"],
+    ["teilung", "Teilung"],
+    ["verfahren", "Druckverfahren"],
+    ["papier", "Papier"],
+    ["druckbogen", "Druckbogen"],
+    ["format", "Format"],
+  ],
   cello: [
     ["bauteil", "Bauteil-Art"],
     ["cello", "Cello (matt/glanz)"],
@@ -24,6 +34,7 @@ const FELDER: Record<string, [string, string][]> = {
   ],
 };
 const TYP_LABEL: Record<string, string> = {
+  druck: "Drucken",
   cello: "Cellophanieren",
   binden: "Binden",
   konfektion: "Konfektion",

@@ -188,7 +188,19 @@ export async function erzeugeJobs(
   const celloDruckJobIds: string[] = [];
   for (const z of druckzeilen) {
     const papier = z.material_kurz || z.material;
-    // Druck-Jobs bekommen keinen Batch mehr (nur Cello/Binden werden gebatcht).
+    // Druck-Batch nach Bindelänge · Spiralfarbe · Durchmesser (aus der Wire-O-Zeile)
+    const druckSchluessel = mkSchluessel(batchKeys, "druck", {
+      bindelaenge: wireOzeile?.schlaufen_gesamt,
+      spiralfarbe,
+      durchmesser: wireOzeile?.durchmesser,
+      teilung: wireOzeile?.teilung,
+      verfahren,
+      papier,
+      druckbogen: z.druckbogen,
+      format: z.format,
+    });
+    const druckBatch = await getBatch("druck", druckSchluessel, {});
+
     const services: Record<string, unknown> = { ...(z.flux_services ?? {}) };
     if (z.flux_paper_type) services["Papiersorte"] = z.flux_paper_type;
     if (z.flux_paper_type_back) services["Papiersorte Rückseite"] = z.flux_paper_type_back;
@@ -197,7 +209,7 @@ export async function erzeugeJobs(
       .from("job")
       .insert({
         portal_order_id: portalOrderId,
-        batch_id: null,
+        batch_id: druckBatch.id,
         typ: "druck",
         bauteil: z.verwendung || z.rolle || z.regel,
         quelle_regel: z.regel,
@@ -216,13 +228,14 @@ export async function erzeugeJobs(
         flux_signature: z.flux_signature ?? null,
         flux_printer: z.flux_printer ?? null,
         pdf_storage_key: printKey,
-        status: "offen",
+        status: "in_batch",
       })
       .select("id")
       .single();
     if (jErr) throw new Error(`Druckjob: ${jErr.message}`);
     druckJobs.push({ id: j.id as string, bauteil: z.verwendung || z.rolle || z.regel, netto_bogen: z.netto_bogen ?? null, druckbogen: z.druckbogen ?? null });
     if ((z.cello ?? "keine") !== "keine") celloDruckJobIds.push(j.id as string);
+    bump(druckBatch.nummer);
   }
   const druckJobIds = druckJobs.map((d) => d.id);
 
@@ -337,15 +350,6 @@ export async function erzeugeJobs(
     if (jErr) throw new Error(`Binde-Job: ${jErr.message}`);
     bindeJobIds.push(j.id as string);
     bump(batch.nummer);
-
-    // Druck-Jobs dieses Auftrags in denselben Binde-Batch → nach Bindeart gruppiert
-    if (druckJobIds.length) {
-      await sb
-        .from("job")
-        .update({ batch_id: batch.id, status: "in_batch" })
-        .in("id", druckJobIds);
-      for (const _ of druckJobIds) bump(batch.nummer);
-    }
   }
 
   // ---- 4) Konfektion (Multiloft: Cover + Inlay + Cover stapeln, Nutzen schneiden)

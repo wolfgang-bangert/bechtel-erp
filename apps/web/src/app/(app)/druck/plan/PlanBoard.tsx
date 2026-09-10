@@ -41,6 +41,7 @@ export type PlanBatch = {
 };
 
 const TYPEN: { typ: string; label: string }[] = [
+  { typ: "druck", label: "Drucken" },
   { typ: "cello", label: "Cellophanieren" },
   { typ: "binden", label: "Binden" },
 ];

@@ -6,7 +6,7 @@ import { erzeugeJobs } from "@/lib/druck/materialize";
 
 export type State = { ok?: boolean; error?: string; note?: string };
 
-const TYPEN = ["cello", "binden", "konfektion"];
+const TYPEN = ["druck", "cello", "binden", "konfektion"];
 
 export async function saveBatchGruppierung(_p: State, fd: FormData): Promise<State> {
   const cfg: Record<string, string[]> = {};
