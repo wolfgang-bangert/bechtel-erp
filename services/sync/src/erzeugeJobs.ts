@@ -68,8 +68,11 @@ function istDruckzeile(z: Zeile): boolean {
   if (NICHT_BEDRUCKT.test(`${z.material ?? ""} ${z.material_kurz ?? ""} ${z.rolle ?? ""}`)) return false;
   return true;
 }
-const istWireOzeile = (z: Zeile) => z.teilung != null || IST_WIREO.test(z.rolle ?? "");
 const istAufhaengerZeile = (z: Zeile) => IST_AUFHAENGER.test(`${z.rolle ?? ""} ${z.verwendung ?? ""}`);
+// Kalenderaufhänger-Zeilen tragen oft "Wire-O" im Rollennamen – die zählen NICHT
+// als Binde-Zeile (sie werden beim Binden mit montiert).
+const istWireOzeile = (z: Zeile) =>
+  !istAufhaengerZeile(z) && (z.teilung != null || IST_WIREO.test(z.rolle ?? ""));
 
 export type MaterializeResult = {
   jobs: number;
