@@ -8,7 +8,7 @@ export default async function OpriProduktePage() {
   const [{ data: gruppen, error: e1 }, { data: stamm, error: e2 }, { data: templates }] = await Promise.all([
     supabase
       .from("opri_produkt_gruppe")
-      .select("id, kuerzel, name, flux_template, flux_template_id, druckverfahren")
+      .select("id, kuerzel, name, titel_kuerzel, flux_template, flux_template_id, druckverfahren")
       .order("kuerzel"),
     supabase
       .from("opri_stammartikel")

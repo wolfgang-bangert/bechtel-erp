@@ -10,6 +10,7 @@ export type Gruppe = {
   id: string;
   kuerzel: string;
   name: string;
+  titel_kuerzel: string | null;
   flux_template: string | null;
   flux_template_id: string | null;
   druckverfahren: string | null;
@@ -51,6 +52,13 @@ function GruppeRow({ g, templates }: { g: Gruppe; templates: TplOpt[] }) {
       <input type="hidden" name="id" value={g.id} />
       <span className="w-code" style={{ fontWeight: 600 }}>{g.kuerzel}</span>
       <span className="w-name" style={{ fontWeight: 600 }}>{g.name}</span>
+      <input
+        name="titel_kuerzel"
+        defaultValue={g.titel_kuerzel ?? ""}
+        placeholder="Titel-Kürzel"
+        title="Abkürzung für den flux-Titel (z.B. WK)"
+        style={{ width: 90 }}
+      />
       <TemplateSelect value={g.flux_template_id} templates={templates} />
       <input
         name="flux_template"

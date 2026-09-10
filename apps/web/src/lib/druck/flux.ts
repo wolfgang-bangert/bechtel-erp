@@ -128,13 +128,26 @@ export async function sendeAuftragAnFlux(
 ): Promise<FluxHandoff> {
   const { data: order, error: oErr } = await sb
     .from("portal_order")
-    .select("id, external_reference, ship_to, deliver_date")
+    .select("id, external_reference, ship_to, deliver_date, resolve_result")
     .eq("id", portalOrderId)
     .maybeSingle();
   if (oErr) throw new Error(oErr.message);
   if (!order) throw new Error("Auftrag nicht gefunden");
   const ref = (order.external_reference as string) ?? "";
   const ship = (order.ship_to as Record<string, string | null> | null) ?? {};
+
+  // Titel-Kürzel der Produktgruppe (z.B. "WK") für den flux-Titel
+  const gruppeKuerzel = (order.resolve_result as { gruppe?: string } | null)?.gruppe ?? null;
+  let titelKuerzel: string | null = null;
+  if (gruppeKuerzel) {
+    const { data: g } = await sb
+      .from("opri_produkt_gruppe")
+      .select("titel_kuerzel")
+      .eq("kuerzel", gruppeKuerzel)
+      .maybeSingle();
+    titelKuerzel = (g?.titel_kuerzel as string | null) ?? null;
+  }
+  const titelTeile = (bauteil: string) => [ref, titelKuerzel, bauteil].filter(Boolean).join(" · ");
 
   const { data: jobsRaw, error: jErr } = await sb
     .from("job")
@@ -165,7 +178,7 @@ export async function sendeAuftragAnFlux(
       if (j.flux_paper_type) services["Papiersorte"] = j.flux_paper_type;
       return {
         note: j.bauteil,
-        title: `${ref} · ${j.bauteil}`,
+        title: titelTeile(j.bauteil),
         product: j.flux_product ?? "",
         type: "print",
         copies: (Number(j.auflage) || 0) + (Number(j.zuschuss) || 0),

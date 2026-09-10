@@ -17,6 +17,7 @@ export async function saveGruppe(_p: RowState, fd: FormData): Promise<RowState> 
   const { error } = await supabase
     .from("opri_produkt_gruppe")
     .update({
+      titel_kuerzel: s(fd.get("titel_kuerzel")),
       flux_template: s(fd.get("flux_template")),
       flux_template_id: s(fd.get("flux_template_id")),
       druckverfahren: s(fd.get("druckverfahren")),
