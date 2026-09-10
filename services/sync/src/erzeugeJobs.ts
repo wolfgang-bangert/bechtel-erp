@@ -308,6 +308,12 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
     });
     if (jErr) throw new Error(`Binde-Job: ${jErr.message}`);
     bump(batch.nummer);
+
+    // Druck-Jobs dieses Auftrags in denselben Binde-Batch → nach Bindeart gruppiert
+    if (druckJobIds.length) {
+      await sb.from("job").update({ batch_id: batch.id, status: "in_batch" }).in("id", druckJobIds);
+      for (const _ of druckJobIds) bump(batch.nummer);
+    }
   }
 
   // 4) Konfektion (Multiloft)

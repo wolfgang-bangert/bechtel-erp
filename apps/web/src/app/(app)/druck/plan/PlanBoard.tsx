@@ -102,7 +102,10 @@ export function PlanBoard({
     ];
   }, [maschinen, typ]);
 
-  const shown = useMemo(() => batches.filter((b) => b.typ === typ), [batches, typ]);
+  const shown = useMemo(
+    () => batches.filter((b) => b.typ === typ && (b.job?.length ?? 0) > 0),
+    [batches, typ],
+  );
 
   function cellBatches(maschineId: string, phase: PhaseKey): PlanBatch[] {
     return shown

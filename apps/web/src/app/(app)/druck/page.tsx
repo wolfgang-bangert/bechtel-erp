@@ -202,7 +202,7 @@ export default async function DruckDashboard() {
       )}
 
       {TYPEN.map(({ typ, label, hint }) => {
-        const list = batches.filter((b) => b.typ === typ);
+        const list = batches.filter((b) => b.typ === typ && (b.job?.length ?? 0) > 0);
         if (!list.length) return null;
         return (
           <section key={typ} style={{ marginTop: 26 }}>
