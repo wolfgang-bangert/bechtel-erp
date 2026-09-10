@@ -48,6 +48,19 @@ const IST_AUFHAENGER = /aufh[äa]nger/i;
 const IST_INLAY = /inlay/i;
 const norm = (v: unknown) => (v == null ? "" : String(v).trim());
 
+// SPIEGEL von apps/web/src/lib/druck/materialize.ts
+const BATCH_KEYS_DEFAULT: Record<string, string[]> = {
+  druck: ["verfahren", "cello", "papier", "druckbogen"],
+  cello: ["bauteil", "cello", "papier"],
+  binden: ["bindeseite", "schlaufen", "spiralfarbe", "teilung", "durchmesser"],
+  konfektion: ["format", "druckbogen"],
+};
+const mkSchluessel = (
+  cfg: Record<string, string[]>,
+  typ: string,
+  ctx: Record<string, unknown>,
+) => (cfg[typ] ?? BATCH_KEYS_DEFAULT[typ] ?? []).map((k) => norm(ctx[k])).join(" | ");
+
 function istDruckzeile(z: Zeile): boolean {
   if (z.bedruckt === false) return false;
   if (z.einheit !== "bogen" && z.einheit !== "blatt") return false;
@@ -103,7 +116,15 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
   const auflage = Number(order.quantity) || 0;
   const verfahren = rr.druckverfahren ?? null;
   const farbigkeit = (rr.attribute?.farbigkeit as string | undefined) ?? null;
+  const spiralfarbe = (rr.attribute?.spiralfarbe as string | undefined) ?? null;
   const uebersprungen: string[] = [];
+
+  const { data: bgRow } = await sb
+    .from("setting")
+    .select("value")
+    .eq("key", "batch_gruppierung")
+    .maybeSingle();
+  const batchKeys = (bgRow?.value as Record<string, string[]>) ?? BATCH_KEYS_DEFAULT;
 
   const zeilen = rr.materialliste ?? [];
   const druckzeilen = zeilen.filter((z) => {
@@ -165,7 +186,7 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
   const celloDruckJobIds: string[] = [];
   for (const z of druckzeilen) {
     const papier = z.material_kurz || z.material;
-    const schluessel = [norm(verfahren), z.cello ?? "keine", norm(papier), norm(z.druckbogen)].join(" | ");
+    const schluessel = mkSchluessel(batchKeys, "druck", { verfahren, cello: z.cello ?? "keine", papier, druckbogen: z.druckbogen, farbigkeit, format: z.format });
     const batch = await getBatch("druck", schluessel, {
       druckverfahren: verfahren,
       cello: z.cello ?? "keine",
@@ -219,7 +240,7 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
     const papier = cz.material_kurz || cz.material;
     const bauteilArt = cz.verwendung || cz.rolle || "Bauteil";
     const seitenTxt = cz.cello_seiten === 2 ? "2-seitig" : "einseitig";
-    const schluessel = [bauteilArt, cello, norm(papier)].join(" | ");
+    const schluessel = mkSchluessel(batchKeys, "cello", { bauteil: bauteilArt, cello, papier });
     const batch = await getBatch("cello", schluessel, { cello, cello_seiten: cz.cello_seiten ?? 1, papier });
     const { data: j, error: jErr } = await sb
       .from("job")
@@ -249,7 +270,7 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
   // 3) Binden
   if (wireOzeile) {
     const z = wireOzeile;
-    const schluessel = [norm(z.teilung), norm(z.durchmesser)].join(" | ");
+    const schluessel = mkSchluessel(batchKeys, "binden", { bindeseite: z.bindeseite, schlaufen: z.schlaufen_gesamt ?? z.schlaufen, spiralfarbe, teilung: z.teilung, durchmesser: z.durchmesser });
     const batch = await getBatch("binden", schluessel, {});
     const komponenten: Record<string, unknown>[] = [
       ...druckJobs.map((d) => ({
@@ -302,7 +323,7 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
   if (inlayZeile) {
     const dbogen = inlayZeile.druckbogen ?? druckJobs[0]?.druckbogen ?? null;
     const fmt = inlayZeile.format ?? (rr.attribute?.format as string | undefined) ?? null;
-    const schluessel = [norm(fmt), norm(dbogen)].join(" | ");
+    const schluessel = mkSchluessel(batchKeys, "konfektion", { format: fmt, druckbogen: dbogen });
     const batch = await getBatch("konfektion", schluessel, { papier: fmt, druckbogen: dbogen });
     const matZeilen = zeilen.filter(
       (z) =>

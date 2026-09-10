@@ -25,6 +25,19 @@ const IST_INLAY = /inlay/i;
 
 const norm = (v: unknown) => (v == null ? "" : String(v).trim());
 
+// Batch-Schlüssel je Typ – Default, überschreibbar via setting 'batch_gruppierung'.
+const BATCH_KEYS_DEFAULT: Record<string, string[]> = {
+  druck: ["verfahren", "cello", "papier", "druckbogen"],
+  cello: ["bauteil", "cello", "papier"],
+  binden: ["bindeseite", "schlaufen", "spiralfarbe", "teilung", "durchmesser"],
+  konfektion: ["format", "druckbogen"],
+};
+const mkSchluessel = (
+  cfg: Record<string, string[]>,
+  typ: string,
+  ctx: Record<string, unknown>,
+) => (cfg[typ] ?? BATCH_KEYS_DEFAULT[typ] ?? []).map((k) => norm(ctx[k])).join(" | ");
+
 function istDruckzeile(z: Zeile): boolean {
   if (z.bedruckt === false) return false;
   if (z.einheit !== "bogen" && z.einheit !== "blatt") return false;
@@ -57,6 +70,14 @@ export async function erzeugeJobs(
 
   const rr = order.resolve_result as ResolveResult | null;
   if (!rr) throw new Error("Auftrag ist noch nicht aufgelöst");
+
+  const { data: bgRow } = await sb
+    .from("setting")
+    .select("value")
+    .eq("key", "batch_gruppierung")
+    .maybeSingle();
+  const batchKeys = (bgRow?.value as Record<string, string[]>) ?? BATCH_KEYS_DEFAULT;
+  const spiralfarbe = (rr.attribute?.spiralfarbe as string | undefined) ?? null;
 
   const printKey =
     (order.files as { typ: string; storage_key: string | null }[] | null)?.find(
@@ -164,7 +185,14 @@ export async function erzeugeJobs(
   const celloDruckJobIds: string[] = [];
   for (const z of druckzeilen) {
     const papier = z.material_kurz || z.material;
-    const schluessel = [norm(verfahren), z.cello ?? "keine", norm(papier), norm(z.druckbogen)].join(" | ");
+    const schluessel = mkSchluessel(batchKeys, "druck", {
+      verfahren,
+      cello: z.cello ?? "keine",
+      papier,
+      druckbogen: z.druckbogen,
+      farbigkeit,
+      format: z.format,
+    });
     const batch = await getBatch("druck", schluessel, {
       druckverfahren: verfahren,
       cello: z.cello ?? "keine",
@@ -221,7 +249,7 @@ export async function erzeugeJobs(
     const papier = cz.material_kurz || cz.material;
     const bauteilArt = cz.verwendung || cz.rolle || "Bauteil";
     const seitenTxt = cz.cello_seiten === 2 ? "2-seitig" : "einseitig";
-    const schluessel = [bauteilArt, cello, norm(papier)].join(" | ");
+    const schluessel = mkSchluessel(batchKeys, "cello", { bauteil: bauteilArt, cello, papier });
     const batch = await getBatch("cello", schluessel, {
       cello,
       cello_seiten: cz.cello_seiten ?? 1,
@@ -262,7 +290,13 @@ export async function erzeugeJobs(
   const bindeJobIds: string[] = [];
   if (wireOzeile) {
     const z = wireOzeile;
-    const schluessel = [norm(z.teilung), norm(z.durchmesser)].join(" | ");
+    const schluessel = mkSchluessel(batchKeys, "binden", {
+      bindeseite: z.bindeseite,
+      schlaufen: z.schlaufen_gesamt ?? z.schlaufen,
+      spiralfarbe,
+      teilung: z.teilung,
+      durchmesser: z.durchmesser,
+    });
     const batch = await getBatch("binden", schluessel, {});
 
     const komponenten: Record<string, unknown>[] = [
@@ -306,6 +340,7 @@ export async function erzeugeJobs(
         schlaufen: z.schlaufen ?? null,
         schlaufen_gesamt: z.schlaufen_gesamt ?? null,
         bindeseite: z.bindeseite ?? null,
+        spiralfarbe,
         abhaengig_von: [...druckJobIds, ...celloJobIds],
         komponenten,
         status: "in_batch",
@@ -324,7 +359,7 @@ export async function erzeugeJobs(
   if (inlayZeile) {
     const dbogen = inlayZeile.druckbogen ?? druckJobs[0]?.druckbogen ?? null;
     const fmt = inlayZeile.format ?? (rr.attribute?.format as string | undefined) ?? null;
-    const schluessel = [norm(fmt), norm(dbogen)].join(" | ");
+    const schluessel = mkSchluessel(batchKeys, "konfektion", { format: fmt, druckbogen: dbogen });
     const batch = await getBatch("konfektion", schluessel, { papier: fmt, druckbogen: dbogen });
 
     // alle nicht bedruckten Bogen-Zeilen (Inlay, Blanko-Rückblatt) als Material
