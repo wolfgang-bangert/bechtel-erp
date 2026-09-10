@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { fmtDate } from "@/lib/format";
 import { BatchActions } from "./BatchActions";
 import { SortControls } from "./SortControls";
 
@@ -28,8 +29,17 @@ type Job = {
     blockstaerke_mm: string | null;
     gruppe: string | null;
     prodformat: string | null;
+    deliver_date: string | null;
   } | null;
 };
+
+const ohneKlammer = (s: string | null | undefined) =>
+  (s ?? "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+/** frühester Liefertermin eines Batches (über seine Jobs). */
+function fruehesterLiefer(b: Batch): string | null {
+  const ds = (b.job ?? []).map((j) => j.order?.deliver_date).filter(Boolean) as string[];
+  return ds.length ? ds.reduce((a, c) => (c < a ? c : a)) : null;
+}
 type Batch = {
   id: string;
   nummer: string;
@@ -99,7 +109,9 @@ const DIM_LABEL: Record<string, string> = {
 function critWert(b: Batch, dim: string, cfg: Record<string, string[]>): string {
   if (dim === "format") {
     const fs = [
-      ...new Set((b.job ?? []).map((j) => j.order?.prodformat ?? j.format).filter(Boolean)),
+      ...new Set(
+        (b.job ?? []).map((j) => ohneKlammer(j.order?.prodformat ?? j.format)).filter(Boolean),
+      ),
     ];
     return fs.join(" / ") || "—";
   }
@@ -198,10 +210,11 @@ function BatchCard({
                   </span>
                   {"  ·  "}
                   {j.bauteil}
-                  {(j.order?.prodformat ?? j.format)
-                    ? `  ·  ${j.order?.prodformat ?? j.format}`
+                  {ohneKlammer(j.order?.prodformat ?? j.format)
+                    ? `  ·  ${ohneKlammer(j.order?.prodformat ?? j.format)}`
                     : ""}
                   {stk ? `  ·  ${stk}` : ""}
+                  {j.order?.deliver_date ? `  ·  LT ${fmtDate(j.order.deliver_date)}` : ""}
                   {"  ·  "}
                   {((j.auflage || 0) + (j.zuschuss || 0)).toLocaleString("de-DE")} Expl.
                   {"  ·  "}
@@ -295,7 +308,7 @@ export default async function DruckDashboard({
     .select(
       "id, nummer, typ, schluessel, druckverfahren, cello, cello_seiten, papier, druckbogen, status, created_at, an_flux_at, flux_order_id, " +
         "job(id, typ, bauteil, format, papier, cello, netto_bogen, druckbogen, nutzen, auflage, zuschuss, teilung, durchmesser, schlaufen_gesamt, komponenten, status, portal_order_id, " +
-        "order:portal_order_id(external_reference, blockstaerke_mm:resolve_result->>blockstaerke_mm, gruppe:resolve_result->>gruppe, prodformat:resolve_result->attribute->>format))",
+        "order:portal_order_id(external_reference, deliver_date, blockstaerke_mm:resolve_result->>blockstaerke_mm, gruppe:resolve_result->>gruppe, prodformat:resolve_result->attribute->>format))",
     )
     .neq("status", "storniert")
     .order("created_at", { ascending: true });
@@ -337,13 +350,15 @@ export default async function DruckDashboard({
             </h2>
             <p className="lead" style={{ marginTop: 0 }}>{hint}</p>
             {BUCKETS.map((bucket) => {
-              const sortWert = (b: Batch) =>
-                sort ? critWert(b, sort, cfg) : b.schluessel ?? "";
+              const ltKey = (b: Batch) => fruehesterLiefer(b) ?? "9999-99-99";
+              const sortWert = (b: Batch) => (sort ? critWert(b, sort, cfg) : b.schluessel ?? "");
+              // innerhalb einer Gruppe: ältester Liefertermin oben
+              const byLiefer = (a: Batch, b: Batch) => ltKey(a).localeCompare(ltKey(b));
               const bl = list
                 .filter((b) => bucket.states.includes(b.status))
                 .sort((a, b) => {
                   const c = sortWert(a).localeCompare(sortWert(b), "de", { numeric: true });
-                  return desc ? -c : c;
+                  return (desc ? -c : c) || byLiefer(a, b);
                 });
               if (!bl.length) return null;
 
@@ -355,9 +370,11 @@ export default async function DruckDashboard({
                       (acc[k] ??= []).push(b);
                       return acc;
                     }, {}),
-                  ).sort((x, y) =>
-                    x[0].localeCompare(y[0], "de", { numeric: true }) * (desc ? -1 : 1),
                   )
+                    .map(([k, arr]) => [k, [...arr].sort(byLiefer)] as [string, Batch[]])
+                    .sort((x, y) =>
+                      x[0].localeCompare(y[0], "de", { numeric: true }) * (desc ? -1 : 1),
+                    )
                 : [["", bl]];
 
               return (
@@ -379,7 +396,11 @@ export default async function DruckDashboard({
                             display: "inline-block",
                           }}
                         >
-                          {DIM_LABEL[group] ?? group}: {gk} <span className="count">· {gb.length}</span>
+                          {DIM_LABEL[group] ?? group}: {gk}{" "}
+                          <span className="count">
+                            · {gb.length}
+                            {fruehesterLiefer(gb[0]) ? ` · ab ${fmtDate(fruehesterLiefer(gb[0]))}` : ""}
+                          </span>
                         </div>
                       )}
                       {gb.map((b) => (
