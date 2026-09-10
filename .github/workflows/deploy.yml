@@ -1,0 +1,49 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @werk/db
+
+      - name: Supabase-Migrationen nach werk-prod
+        working-directory: packages/db
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          pnpm exec supabase link --project-ref "${{ secrets.SUPABASE_PROD_REF }}" \
+            --password "${{ secrets.SUPABASE_PROD_DB_PASSWORD }}"
+          pnpm exec supabase db push --password "${{ secrets.SUPABASE_PROD_DB_PASSWORD }}"
+
+  deploy:
+    needs: migrate
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH -> VM: pull + rebuild
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script_stop: true
+          script: |
+            cd /opt/werk
+            git fetch --prune origin
+            git reset --hard origin/main
+            docker compose up -d --build
+            docker image prune -f

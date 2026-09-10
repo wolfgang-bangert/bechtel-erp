@@ -1,0 +1,23 @@
+# Reverse Proxy + automatisches TLS (Let's Encrypt) für werk.
+# Domain kommt aus der Umgebung (WERK_DOMAIN), Default werk.bechtel-druck.de.
+
+{$WERK_DOMAIN} {
+	encode zstd gzip
+
+	# Sicherheits-Header (offenes Internet, später Kunden/Lieferanten)
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Next.js
+	reverse_proxy web:3000
+
+	log {
+		output stdout
+		format console
+	}
+}

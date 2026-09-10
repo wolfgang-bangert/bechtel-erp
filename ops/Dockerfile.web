@@ -1,0 +1,45 @@
+# syntax=docker/dockerfile:1
+# ---------------------------------------------------------------------------
+# apps/web (Next.js 15, standalone) als schlankes Runtime-Image.
+# Build-Kontext = Repo-Wurzel:  docker build -f ops/Dockerfile.web .
+# ---------------------------------------------------------------------------
+FROM node:22-alpine AS base
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
+RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
+WORKDIR /app
+
+# ---- Abhängigkeiten (Cache-freundlich: nur Manifeste) ---------------------
+FROM base AS deps
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps/web/package.json            apps/web/package.json
+COPY packages/db/package.json         packages/db/package.json
+COPY packages/shared/package.json     packages/shared/package.json
+COPY services/sync/package.json       services/sync/package.json
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile
+
+# ---- Build --------------------------------------------------------------------
+FROM base AS build
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+# NEXT_PUBLIC_* werden zur Build-Zeit eingebacken -> als Build-Args reinreichen
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+RUN pnpm --filter web build
+
+# ---- Runner ----------------------------------------------------------------
+FROM node:22-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
+RUN addgroup -g 1001 nodejs && adduser -u 1001 -G nodejs -S nextjs
+
+# Standalone-Server + Assets (Tracing-Root = Repo-Wurzel -> apps/web/… Struktur)
+COPY --from=build --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
+COPY --from=build --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
+
+USER nextjs
+EXPOSE 3000
+CMD ["node", "apps/web/server.js"]

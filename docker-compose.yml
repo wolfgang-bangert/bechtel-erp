@@ -1,0 +1,63 @@
+# ---------------------------------------------------------------------------
+# werk – Produktions-Stack für die Hetzner-VM.
+#
+#   caddy  – TLS-Terminierung + Reverse Proxy (werk.bechtel-druck.de)
+#   web    – Next.js (apps/web), nur intern auf :3000
+#   sync   – services/sync als Cron-Container (supercronic), ersetzt launchd
+#
+# Aufruf auf der VM (Repo unter /opt/werk):
+#   cd /opt/werk && docker compose up -d --build
+#
+# Secrets/Config: eine Datei /opt/werk/.env (chmod 600, NICHT im Repo).
+# compose liest sie automatisch für ${...} und reicht sie via env_file rein.
+# ---------------------------------------------------------------------------
+name: werk
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ops/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      WERK_DOMAIN: ${WERK_DOMAIN:-werk.bechtel-druck.de}
+    depends_on:
+      - web
+
+  web:
+    build:
+      context: .
+      dockerfile: ops/Dockerfile.web
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TZ: Europe/Berlin
+    expose:
+      - "3000"
+
+  sync:
+    build:
+      context: .
+      dockerfile: ops/Dockerfile.sync
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TZ: Europe/Berlin
+    volumes:
+      - ./imports:/app/imports
+      - ./logs:/app/logs
+      - ./reports:/app/reports
+
+volumes:
+  caddy_data:
+  caddy_config:

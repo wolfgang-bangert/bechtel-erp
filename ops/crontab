@@ -1,0 +1,15 @@
+# supercronic-Crontab für den sync-Container (Zeitzone via TZ im compose).
+# Format: m h dom mon dow  command
+# Ersetzt die bisherigen launchd-Agents vom Mac.
+
+# Druckaufträge aus den Kundenportalen holen + auflösen + bejobben (war 05:30)
+30 5 * * *   cd /app/services/sync && pnpm portal:pull --portal=onlineprinters
+
+# Keyline-Abgleich Aufträge + Rechnungen (war alle 30 min)
+*/30 * * * *  cd /app/services/sync && pnpm keyline:orders && pnpm keyline:invoices
+
+# Eingangsrechnungen aus dem Postfach + KI-Vorerfassung (war stündlich)
+15 * * * *   cd /app/services/sync && pnpm mail:fetch --since=7 && pnpm incoming:extract --limit=100
+
+# Bankumsätze abrufen (FinTS) – einmal morgens
+0 6 * * *    cd /app/services/sync && pnpm fints:pull

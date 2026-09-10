@@ -7,7 +7,7 @@ Mitarbeiter-App und Kundenportal — auf einer PostgreSQL-Datenbank (Supabase).
 
 | Pfad | Inhalt |
 |---|---|
-| `docs/` | [Architektur](docs/architektur.md) · [Datenmodell](docs/datenmodell.md) · [Setup](docs/setup.md) · [Änderungsliste](docs/aenderungsliste.md) |
+| `docs/` | [Architektur](docs/architektur.md) · [Datenmodell](docs/datenmodell.md) · [Setup](docs/setup.md) · [Infrastruktur](docs/infrastruktur.md) · [Änderungsliste](docs/aenderungsliste.md) |
 | `packages/db` | Supabase-Schema als SQL-Migrationen, Seed, generierte Typen |
 | `packages/shared` | Geteilte TypeScript-Typen und Logik (Steuer, Preise) |
 | `apps/web` | Next.js — Admin-ERP + Kundenportal *(folgt)* |
