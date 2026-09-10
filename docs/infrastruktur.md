@@ -96,6 +96,10 @@ es fehlt nur die Authentifizierung auf dem Rechner. Einmalig:
 Nach dem Push laufen die Workflows `.github/workflows/ci.yml` (bei PRs/Branches)
 und `.github/workflows/deploy.yml` (bei `main`).
 
+> **`deploy.yml` ist bis zur fertigen Infra deaktiviert** – beide Jobs haben
+> `if: vars.DEPLOY_ENABLED == 'true'`. Wenn VM + Secrets stehen: *Settings →
+> Secrets and variables → Actions → Variables* → `DEPLOY_ENABLED` = `true`.
+
 ---
 
 ## Teil B — Supabase `werk-prod`

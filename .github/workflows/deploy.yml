@@ -11,6 +11,9 @@ concurrency:
 
 jobs:
   migrate:
+    # Erst aktiv, wenn die Infra steht: Repo-Variable DEPLOY_ENABLED=true setzen
+    # (GitHub → Settings → Secrets and variables → Actions → Variables).
+    if: vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +35,7 @@ jobs:
 
   deploy:
     needs: migrate
+    if: vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: SSH -> VM: pull + rebuild
