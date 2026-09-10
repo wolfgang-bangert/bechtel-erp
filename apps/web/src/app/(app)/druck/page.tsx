@@ -155,6 +155,12 @@ function BatchCard({
   const kriterien = schluesselTeile(b.typ, b.schluessel, cfg)
     .map((t) => `${t.label}: ${t.wert.replace(/\s*\([^)]*\)\s*$/, "")}`)
     .join("  ·  ");
+  const lts = jobs.map((j) => j.order?.deliver_date).filter(Boolean).sort() as string[];
+  const ltText = lts.length
+    ? lts[0] === lts[lts.length - 1]
+      ? fmtDate(lts[0])
+      : `${fmtDate(lts[0])} – ${fmtDate(lts[lts.length - 1])}`
+    : null;
 
   return (
     <div
@@ -173,6 +179,14 @@ function BatchCard({
         <div style={{ minWidth: 0 }}>
           <strong>{b.nummer}</strong>
           <span style={{ marginLeft: 10 }}>{kriterien}</span>
+          {ltText && (
+            <span
+              className="tag"
+              style={{ marginLeft: 10, background: "var(--tag-bg)", color: "var(--accent)" }}
+            >
+              Liefertermin {ltText}
+            </span>
+          )}
           <span className="tag" style={{ marginLeft: 10, background: "var(--tag-bg)" }}>
             {b.status}
           </span>
