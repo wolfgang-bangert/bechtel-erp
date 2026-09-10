@@ -399,11 +399,12 @@ export default async function DruckDashboard({
                   <h3 style={{ margin: "0 0 6px", fontSize: 13, color: "var(--muted)" }}>
                     {bucket.label} · {bl.length}
                   </h3>
-                  {gruppen.map(([gk, gb]) => (
-                    <div key={gk || "_"} style={{ marginBottom: group ? 14 : 0 }}>
-                      {group && (
-                        <div
+                  {gruppen.map(([gk, gb]) =>
+                    group ? (
+                      <details key={gk || "_"} open style={{ marginBottom: 14 }}>
+                        <summary
                           style={{
+                            cursor: "pointer",
                             fontWeight: 600,
                             fontSize: 13,
                             margin: "10px 0 4px",
@@ -424,13 +425,21 @@ export default async function DruckDashboard({
                               Liefertermin ab {fmtDate(fruehesterLiefer(gb[0]))}
                             </span>
                           )}
+                        </summary>
+                        <div style={{ marginTop: 4 }}>
+                          {gb.map((b) => (
+                            <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} />
+                          ))}
                         </div>
-                      )}
-                      {gb.map((b) => (
-                        <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} />
-                      ))}
-                    </div>
-                  ))}
+                      </details>
+                    ) : (
+                      <div key={gk || "_"}>
+                        {gb.map((b) => (
+                          <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} />
+                        ))}
+                      </div>
+                    ),
+                  )}
                 </div>
               );
             })}
