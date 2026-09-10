@@ -81,10 +81,6 @@ function alterTage(iso: string): string {
   return `${Math.floor(d)} Tage`;
 }
 
-function Badge({ children }: { children: React.ReactNode }) {
-  return <span className="tag" style={{ marginRight: 4 }}>{children}</span>;
-}
-
 const sum = (js: Job[], f: (j: Job) => number) => js.reduce((a, j) => a + f(j), 0);
 
 function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
@@ -92,7 +88,9 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
   const bogen = sum(jobs, (j) => j.netto_bogen ?? 0);
   const expl = sum(jobs, (j) => (j.auflage || 0) + (j.zuschuss || 0));
   const schlaufen = sum(jobs, (j) => j.schlaufen_gesamt ?? 0);
-  const teile = schluesselTeile(b.typ, b.schluessel, cfg);
+  const kriterien = schluesselTeile(b.typ, b.schluessel, cfg)
+    .map((t) => `${t.label}: ${t.wert.replace(/\s*\([^)]*\)\s*$/, "")}`)
+    .join("  ·  ");
 
   return (
     <div
@@ -100,23 +98,22 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
       style={{
         border: "1px solid var(--border)",
         borderRadius: "var(--radius)",
-        padding: 14,
-        marginBottom: 12,
+        padding: "10px 14px",
+        marginBottom: 10,
       }}
     >
-      <div className="toolbar" style={{ justifyContent: "space-between", marginBottom: 6 }}>
-        <div>
-          <strong>{b.nummer}</strong>{" "}
-          {teile.map((t) => (
-            <Badge key={t.label}>
-              <span style={{ color: "var(--muted)" }}>{t.label}:</span> {t.wert}
-            </Badge>
-          ))}
-          <span className="tag" style={{ marginLeft: 8, background: "var(--tag-bg)" }}>
-            Status: {b.status}
+      <div
+        className="toolbar"
+        style={{ justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <strong>{b.nummer}</strong>
+          <span style={{ marginLeft: 10 }}>{kriterien}</span>
+          <span className="tag" style={{ marginLeft: 10, background: "var(--tag-bg)" }}>
+            {b.status}
           </span>
         </div>
-        <div className="count">
+        <div className="count" style={{ whiteSpace: "nowrap" }}>
           {jobs.length} Jobs
           {b.typ === "druck" && ` · ${bogen.toLocaleString("de-DE")} Bogen`}
           {b.typ === "binden" && ` · ${schlaufen.toLocaleString("de-DE")} Schlaufen`}
@@ -125,7 +122,7 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
         </div>
       </div>
 
-      <details>
+      <details style={{ marginTop: 6 }}>
         <summary className="count" style={{ cursor: "pointer", padding: "2px 0" }}>
           {jobs.length} {jobs.length === 1 ? "Job" : "Jobs"} anzeigen
         </summary>
@@ -199,7 +196,14 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
       </div>
       </details>
 
-      <BatchActions id={b.id} typ={b.typ} status={b.status} cello={b.cello} />
+      <details style={{ marginTop: 4 }}>
+        <summary className="count" style={{ cursor: "pointer", padding: "2px 0" }}>
+          Aktionen
+        </summary>
+        <div style={{ marginTop: 4 }}>
+          <BatchActions id={b.id} typ={b.typ} status={b.status} cello={b.cello} />
+        </div>
+      </details>
     </div>
   );
 }
