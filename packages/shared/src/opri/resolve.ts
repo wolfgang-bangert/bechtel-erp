@@ -211,6 +211,12 @@ type VernutzungRow = {
   ist_standard: boolean;
 };
 type BogenRow = { id: string; code: string; is_default: boolean };
+type StandbogenRow = {
+  format: string;
+  ausrichtung: "Hochformat" | "Querformat" | null;
+  flux_signature: string;
+  sortierung: number;
+};
 type WireRow = {
   blockstaerke_min: number;
   blockstaerke_max: number;
@@ -253,7 +259,8 @@ async function pagedAll<T>(sb: SupabaseClient, table: string, sel: string): Prom
 }
 
 export async function loadResolveRefData(sb: SupabaseClient) {
-  const [skus, regeln, material, rollen, wire, formate, vern, boegen, fluxTpls] = await Promise.all([
+  const [skus, regeln, material, rollen, wire, formate, vern, boegen, fluxTpls, standboegen] =
+    await Promise.all([
     pagedAll<SkuRow>(
       sb,
       "opri_sku",
@@ -286,6 +293,11 @@ export async function loadResolveRefData(sb: SupabaseClient) {
       .from("flux_template")
       .select("id, name, flux_product, signature, paper_type, paper_type_back, services, extra")
       .then((r) => (r.data ?? []) as FluxTpl[]),
+    sb
+      .from("standbogen")
+      .select("format, ausrichtung, flux_signature, sortierung")
+      .eq("aktiv", true)
+      .then((r) => (r.data ?? []) as StandbogenRow[]),
   ]);
 
   const skuByNorm = new Map<string, SkuRow>();
@@ -306,6 +318,7 @@ export async function loadResolveRefData(sb: SupabaseClient) {
     vern,
     boegen,
     tplById: new Map<string, FluxTpl>(fluxTpls.map((t) => [t.id, t])),
+    standboegen,
   };
 }
 
@@ -366,6 +379,26 @@ function nutzenFor(
     nutzen: chosen.nutzen || 1,
     bogen: ref.boegen.find((b) => b.id === chosen.druckbogen_id)?.code ?? null,
   };
+}
+
+/** Standbogen (flux-Signature) über Format + Ausrichtung. Zeile mit passender
+ *  Ausrichtung schlägt die „gilt für beide"-Zeile (ausrichtung = null). */
+function matchStandbogen(
+  ref: RefData,
+  format: string | null,
+  ausrichtung: string | null,
+): string | null {
+  if (!format) return null;
+  const k = fmtKey(format);
+  const cand = ref.standboegen
+    .filter((s) => fmtKey(s.format) === k)
+    .sort((a, b) => a.sortierung - b.sortierung);
+  if (!cand.length) return null;
+  return (
+    cand.find((s) => s.ausrichtung && s.ausrichtung === ausrichtung)?.flux_signature ??
+    cand.find((s) => !s.ausrichtung)?.flux_signature ??
+    null
+  );
 }
 
 function wireOFromBlock(ref: RefData, blockMm: number, teilung = "3:1"): WireRow | null {
@@ -535,6 +568,12 @@ export function resolveOne(ref: RefData, order: OrderInput): ResolveResult {
   const grpTplId = grp?.flux_template_id ?? null;
   const stTplId = stammartikelId ? order.stammTplId?.get(stammartikelId) ?? null : null;
 
+  const standbogenSig = matchStandbogen(
+    ref,
+    (attr.format as string | null) ?? null,
+    (attr.ausrichtung as string | null) ?? null,
+  );
+
   const build = (r: Regel, mat: Material | null, note?: string): MaterialZeile => {
     const m = mengeFormel(r.mengen_formel, mVars);
     const tplId = r.flux_template_id ?? stTplId ?? grpTplId;
@@ -582,7 +621,8 @@ export function resolveOne(ref: RefData, order: OrderInput): ResolveResult {
       flux_paper_type,
       flux_paper_type_back: tpl?.paper_type_back ?? null,
       flux_printer: null, // Drucker wird erst beim Batch (zugeordnete Maschine) gesetzt
-      flux_signature: tpl?.signature ?? null,
+      // Standbogen: Format+Ausrichtung-Tabelle vor Template-Signature
+      flux_signature: standbogenSig ?? tpl?.signature ?? null,
       flux_services: (tpl?.services as Record<string, unknown> | null) ?? {},
       ...(n2 ? { ungeloest: n2 } : {}),
     };
