@@ -9,6 +9,8 @@ type Job = {
   typ: string;
   bauteil: string;
   format: string | null;
+  papier: string | null;
+  cello: string | null;
   netto_bogen: number | null;
   druckbogen: string | null;
   nutzen: number | null;
@@ -19,6 +21,7 @@ type Job = {
   schlaufen_gesamt: number | null;
   komponenten: { bezeichnung: string | null; menge?: number | null; einheit?: string | null }[] | null;
   status: string;
+  portal_order_id: string | null;
   order: {
     external_reference: string | null;
     blockstaerke_mm: string | null;
@@ -130,35 +133,48 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
         <summary className="count" style={{ cursor: "pointer", padding: "2px 0" }}>
           {jobs.length} {jobs.length === 1 ? "Job" : "Jobs"} anzeigen
         </summary>
-      <div className="table-scroll" style={{ marginTop: 6 }}>
-        <table className="data">
-          <thead>
-            <tr>
-              <th>Auftrag</th>
-              <th>Gruppe</th>
-              <th>Bauteil</th>
-              <th>Format</th>
-              <th style={{ textAlign: "right" }}>Prod.-Stärke</th>
-              <th style={{ textAlign: "right" }}>{b.typ === "druck" ? "Bogen" : b.typ === "binden" ? "Schlaufen" : "Menge"}</th>
-              <th style={{ textAlign: "right" }}>Expl.</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {jobs.map((j) => (
-              <tr key={j.id}>
-                <td>
-                  {j.order?.external_reference ? (
-                    <Link href={`/druckauftraege?ref=${j.order.external_reference}`}>
-                      {j.order.external_reference}
-                    </Link>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td className="count">{j.order?.gruppe ?? "—"}</td>
-                <td>
+        <div style={{ marginTop: 6 }}>
+          {jobs.map((j) => {
+            const stk = j.order?.blockstaerke_mm
+              ? `${Number(j.order.blockstaerke_mm).toLocaleString("de-DE")} mm`
+              : null;
+            return (
+              <details
+                key={j.id}
+                style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: 6,
+                  padding: "6px 10px",
+                  marginBottom: 4,
+                }}
+              >
+                <summary style={{ cursor: "pointer", listStyle: "none" }}>
+                  <span style={{ fontWeight: 600 }}>{j.order?.external_reference ?? "—"}</span>
+                  {"  ·  "}
+                  <span className="count">{j.order?.gruppe ?? "—"}</span>
+                  {"  ·  "}
                   {j.bauteil}
+                  {j.format ? `  ·  ${j.format}` : ""}
+                  {stk ? `  ·  ${stk}` : ""}
+                  {"  ·  "}
+                  {((j.auflage || 0) + (j.zuschuss || 0)).toLocaleString("de-DE")} Expl.
+                  {"  ·  "}
+                  <span className="count">{j.status}</span>
+                </summary>
+                <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.7 }}>
+                  {[
+                    j.papier && `Papier: ${j.papier}`,
+                    j.druckbogen && `Druckbogen: ${j.druckbogen}`,
+                    j.nutzen && `Nutzen: ${j.nutzen}`,
+                    j.netto_bogen != null && `Netto-Bogen: ${j.netto_bogen.toLocaleString("de-DE")}`,
+                    j.cello && j.cello !== "keine" && `Cello: ${j.cello}`,
+                    j.teilung && `Teilung: ${j.teilung}`,
+                    j.durchmesser && `Durchmesser: ${j.durchmesser}`,
+                    j.schlaufen_gesamt != null &&
+                      `Schlaufen gesamt: ${j.schlaufen_gesamt.toLocaleString("de-DE")}`,
+                  ]
+                    .filter(Boolean)
+                    .join("  ·  ") || "—"}
                   {j.komponenten && j.komponenten.length > 0 && (
                     <div className="count" style={{ marginTop: 3 }}>
                       führt zusammen:{" "}
@@ -166,40 +182,33 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
                         .map(
                           (k) =>
                             `${k.bezeichnung ?? "?"}${
-                              k.menge != null ? ` (${k.menge.toLocaleString("de-DE")}${k.einheit ? " " + k.einheit : ""})` : ""
+                              k.menge != null
+                                ? ` (${k.menge.toLocaleString("de-DE")}${k.einheit ? " " + k.einheit : ""})`
+                                : ""
                             }`,
                         )
                         .join("  +  ")}
                     </div>
                   )}
-                </td>
-                <td>{j.format ?? "—"}</td>
-                <td style={{ textAlign: "right" }}>
-                  {j.order?.blockstaerke_mm
-                    ? `${Number(j.order.blockstaerke_mm).toLocaleString("de-DE")} mm`
-                    : "—"}
-                </td>
-                <td style={{ textAlign: "right" }}>
-                  {j.typ === "druck"
-                    ? `${j.netto_bogen ?? "—"}${j.druckbogen ? ` ${j.druckbogen}` : ""}${j.nutzen ? ` (${j.nutzen}-up)` : ""}`
-                    : j.typ === "binden"
-                      ? (j.schlaufen_gesamt?.toLocaleString("de-DE") ?? "—")
-                      : "—"}
-                </td>
-                <td style={{ textAlign: "right" }}>
-                  {((j.auflage || 0) + (j.zuschuss || 0)).toLocaleString("de-DE")}
-                </td>
-                <td className="count">{j.status}</td>
-              </tr>
-            ))}
-            {!jobs.length && (
-              <tr>
-                <td colSpan={8} className="count">Keine Jobs.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                  {j.portal_order_id && (
+                    <div style={{ marginTop: 6 }}>
+                      <a
+                        href={`/druckauftraege/${j.portal_order_id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="ghost"
+                        style={{ padding: "4px 10px" }}
+                      >
+                        Zum Auftrag →
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </details>
+            );
+          })}
+          {!jobs.length && <div className="count">Keine Jobs.</div>}
+        </div>
       </details>
 
       <details style={{ marginTop: 4 }}>
@@ -232,7 +241,7 @@ export default async function DruckDashboard({
     .from("batch")
     .select(
       "id, nummer, typ, schluessel, druckverfahren, cello, cello_seiten, papier, druckbogen, status, created_at, an_flux_at, flux_order_id, " +
-        "job(id, typ, bauteil, format, netto_bogen, druckbogen, nutzen, auflage, zuschuss, teilung, durchmesser, schlaufen_gesamt, komponenten, status, " +
+        "job(id, typ, bauteil, format, papier, cello, netto_bogen, druckbogen, nutzen, auflage, zuschuss, teilung, durchmesser, schlaufen_gesamt, komponenten, status, portal_order_id, " +
         "order:portal_order_id(external_reference, blockstaerke_mm:resolve_result->>blockstaerke_mm, gruppe:resolve_result->>gruppe))",
     )
     .neq("status", "storniert")
