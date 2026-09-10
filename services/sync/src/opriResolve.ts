@@ -299,6 +299,7 @@ function resolveOne(
     external_reference: string | null;
     description: string | null;
     quantity: number | null;
+    pdf_meta?: { ausrichtung?: string } | null;
     items: { sku: string | null; description: string | null }[];
     gruppen?: Map<
       string,
@@ -345,6 +346,14 @@ function resolveOne(
   const seitenM = desc.match(/(\d+)\s*(?:pages|Seiten|seitig)/i);
   if (!attr.seiten && seitenM) attr.seiten = Number(seitenM[1]);
   if (!attr.blatt && attr.seiten) attr.blatt = Math.round(Number(attr.seiten) / 2);
+
+  if (!attr.ausrichtung) {
+    const pm = (order as { pdf_meta?: { ausrichtung?: string } | null }).pdf_meta;
+    if (pm?.ausrichtung) {
+      attr.ausrichtung = pm.ausrichtung;
+      attr.ausrichtung_quelle = "pdf";
+    }
+  }
 
   // flux_template: Stammartikel überschreibt Gruppe
   const grp = gruppeKuerzel ? order.gruppen?.get(gruppeKuerzel) : undefined;
@@ -641,7 +650,9 @@ export async function resolveOpri(opts: Options = {}) {
 
   let q = supabase
     .from("portal_order")
-    .select("id, external_reference, description, quantity, items:portal_order_item(sku, description)");
+    .select(
+      "id, external_reference, description, quantity, pdf_meta, items:portal_order_item(sku, description)",
+    );
   if (ref) q = q.eq("external_reference", ref);
   else if (!all) q = q.order("received_at", { ascending: false }).limit(20);
   const { data: orders, error } = await q;
@@ -674,6 +685,7 @@ export async function resolveOpri(opts: Options = {}) {
       external_reference: o.external_reference,
       description: o.description,
       quantity: o.quantity,
+      pdf_meta: (o as { pdf_meta?: { ausrichtung?: string } | null }).pdf_meta ?? null,
       items: (o.items ?? []) as { sku: string | null; description: string | null }[],
       gruppen,
       stammFlux,

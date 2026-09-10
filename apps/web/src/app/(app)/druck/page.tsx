@@ -30,15 +30,17 @@ type Job = {
     gruppe: string | null;
     prodformat: string | null;
     ausrichtung: string | null;
+    ausrichtung_quelle: string | null;
     deliver_date: string | null;
   } | null;
 };
 
-/** "A5 (Querformat)" aus Format + Ausrichtung. */
-const prodFmt = (j: Job) =>
-  [j.order?.prodformat ?? j.format, j.order?.ausrichtung && `(${j.order.ausrichtung})`]
-    .filter(Boolean)
-    .join(" ");
+/** "A5 (Querformat)" aus Format + Ausrichtung; "(QP)" = aus PDF ermittelt. */
+const prodFmt = (j: Job) => {
+  const a = j.order?.ausrichtung;
+  const marker = j.order?.ausrichtung_quelle === "pdf" ? " QP" : "";
+  return [j.order?.prodformat ?? j.format, a && `(${a}${marker})`].filter(Boolean).join(" ");
+};
 
 /** frühester Liefertermin eines Batches (über seine Jobs). */
 function fruehesterLiefer(b: Batch): string | null {
@@ -323,7 +325,7 @@ export default async function DruckDashboard({
     .select(
       "id, nummer, typ, schluessel, druckverfahren, cello, cello_seiten, papier, druckbogen, status, created_at, an_flux_at, flux_order_id, " +
         "job(id, typ, bauteil, format, papier, cello, netto_bogen, druckbogen, nutzen, auflage, zuschuss, teilung, durchmesser, schlaufen_gesamt, komponenten, status, portal_order_id, " +
-        "order:portal_order_id(external_reference, deliver_date, blockstaerke_mm:resolve_result->>blockstaerke_mm, gruppe:resolve_result->>gruppe, prodformat:resolve_result->attribute->>format, ausrichtung:resolve_result->attribute->>ausrichtung))",
+        "order:portal_order_id(external_reference, deliver_date, blockstaerke_mm:resolve_result->>blockstaerke_mm, gruppe:resolve_result->>gruppe, prodformat:resolve_result->attribute->>format, ausrichtung:resolve_result->attribute->>ausrichtung, ausrichtung_quelle:resolve_result->attribute->>ausrichtung_quelle))",
     )
     .neq("status", "storniert")
     .order("created_at", { ascending: true });

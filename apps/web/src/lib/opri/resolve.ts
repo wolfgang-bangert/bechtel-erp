@@ -246,7 +246,9 @@ export async function resolvePortalOrder(
 ): Promise<ResolveResult> {
   const { data: order, error } = await sb
     .from("portal_order")
-    .select("id, external_reference, description, quantity, items:portal_order_item(sku, description)")
+    .select(
+      "id, external_reference, description, quantity, pdf_meta, items:portal_order_item(sku, description)",
+    )
     .eq("id", portalOrderId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -385,6 +387,15 @@ export async function resolvePortalOrder(
   const seitenM = desc.match(/(\d+)\s*(?:pages|Seiten|seitig)/i);
   if (!attr.seiten && seitenM) attr.seiten = Number(seitenM[1]);
   if (!attr.blatt && attr.seiten) attr.blatt = Math.round(Number(attr.seiten) / 2);
+
+  // Ausrichtung fehlt in den Portal-Attributen? → aus der PDF-Analyse
+  if (!attr.ausrichtung) {
+    const pm = (order as { pdf_meta?: { ausrichtung?: string } | null }).pdf_meta;
+    if (pm?.ausrichtung) {
+      attr.ausrichtung = pm.ausrichtung;
+      attr.ausrichtung_quelle = "pdf";
+    }
+  }
 
   const grp0 = gruppeKuerzel ? gruppen.get(gruppeKuerzel) : undefined;
   const fluxTemplate =

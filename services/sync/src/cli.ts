@@ -355,6 +355,21 @@ async function main() {
       console.log(JSON.stringify(await autoAssignDruckMaschinen(), null, 1));
       break;
     }
+    case "pdf:analyse": {
+      const limArg = process.argv.find((a) => a.startsWith("--limit="))?.split("=")[1];
+      const { analysePdfMissing } = await import("./pdfAnalyse");
+      console.log(
+        JSON.stringify(
+          await analysePdfMissing({
+            limit: limArg ? Number(limArg) : undefined,
+            force: flags.has("--force"),
+          }),
+          null,
+          1,
+        ),
+      );
+      break;
+    }
     case "preise:import": {
       const { importPreise } = await import("./importPreise");
       console.log(JSON.stringify(await importPreise(), null, 1));
@@ -399,6 +414,8 @@ async function main() {
         );
       }
       if (!dryRun && !flags.has("--no-jobs")) {
+        const { analysePdfMissing } = await import("./pdfAnalyse");
+        console.log("pdf:analyse →", JSON.stringify(await analysePdfMissing()));
         const { resolveOpri } = await import("./opriResolve");
         await resolveOpri({}); // neueste Aufträge auflösen
         const { jobsSync } = await import("./jobsSync");
