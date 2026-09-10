@@ -59,6 +59,7 @@ const FELD_LABEL: Record<string, string> = {
   durchmesser: "Durchmesser",
   spiralfarbe: "Farbe Spirale",
   teilung: "Teilung",
+  aufhaenger: "Aufhänger",
   bauteil: "Bauteil",
   cello: "Cello",
   papier: "Papier",
@@ -82,12 +83,14 @@ const DIM_FELDER: Record<string, string[]> = {
   spiralfarbe: ["spiralfarbe"],
   durchmesser: ["durchmesser"],
   teilung: ["teilung"],
+  aufhaenger: ["aufhaenger"],
 };
 const DIM_LABEL: Record<string, string> = {
   loops: "Anzahl Loops",
   spiralfarbe: "Farbe Spirale",
   durchmesser: "Durchmesser",
   teilung: "Teilung",
+  aufhaenger: "Aufhänger",
   format: "Format",
 };
 

@@ -25,6 +25,7 @@ const FELDER: Record<string, [string, string][]> = {
     ["bindeseite", "Bindeseite"],
     ["schlaufen", "Schlaufen (Bindelänge)"],
     ["spiralfarbe", "Spiralfarbe"],
+    ["aufhaenger", "Kalenderaufhänger (mit/ohne)"],
     ["teilung", "Teilung"],
     ["durchmesser", "Durchmesser"],
   ],

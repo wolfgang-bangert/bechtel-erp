@@ -29,7 +29,7 @@ const norm = (v: unknown) => (v == null ? "" : String(v).trim());
 const BATCH_KEYS_DEFAULT: Record<string, string[]> = {
   druck: ["verfahren", "cello", "papier", "druckbogen"],
   cello: ["bauteil", "cello", "papier"],
-  binden: ["bindeseite", "schlaufen", "spiralfarbe", "teilung", "durchmesser"],
+  binden: ["bindeseite", "schlaufen", "spiralfarbe", "aufhaenger", "teilung", "durchmesser"],
   konfektion: ["format", "druckbogen"],
 };
 const mkSchluessel = (
@@ -123,6 +123,8 @@ export async function erzeugeJobs(
   });
   const celloZeilen = zeilen.filter((z) => (z.cello ?? "keine") !== "keine");
   const wireOzeile = zeilen.find(istWireOzeile) ?? null;
+  const aufhaenger =
+    !!rr.attribute?.kalenderaufhaenger || zeilen.some(istAufhaengerZeile) ? "mit" : "";
   // Kalenderaufhänger: kein eigener Vorgang – wird beim Binden mit montiert
   // (läuft als Komponente in den Binde-Job).
 
@@ -294,6 +296,7 @@ export async function erzeugeJobs(
       bindeseite: z.bindeseite,
       schlaufen: z.schlaufen, // Loops pro Exemplar
       spiralfarbe,
+      aufhaenger,
       teilung: z.teilung,
       durchmesser: z.durchmesser,
     });

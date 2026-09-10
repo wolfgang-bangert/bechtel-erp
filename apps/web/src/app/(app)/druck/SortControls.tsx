@@ -7,6 +7,7 @@ const DIMS: [string, string][] = [
   ["spiralfarbe", "Farbe Spirale"],
   ["durchmesser", "Durchmesser"],
   ["teilung", "Teilung"],
+  ["aufhaenger", "Aufhänger"],
   ["format", "Format"],
 ];
 
