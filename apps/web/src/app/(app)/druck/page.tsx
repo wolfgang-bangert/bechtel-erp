@@ -104,6 +104,7 @@ const DIM_FELDER: Record<string, string[]> = {
   aufhaenger: ["aufhaenger"],
 };
 const DIM_LABEL: Record<string, string> = {
+  liefertermin: "Liefertermin",
   loops: "Anzahl Loops",
   spiralfarbe: "Farbe Spirale",
   durchmesser: "Durchmesser",
@@ -114,6 +115,7 @@ const DIM_LABEL: Record<string, string> = {
 
 /** Wert eines Batches für eine Sortier-/Gruppier-Dimension. */
 function critWert(b: Batch, dim: string, cfg: Record<string, string[]>): string {
+  if (dim === "liefertermin") return fruehesterLiefer(b) ?? "9999-99-99";
   if (dim === "format") {
     const fs = [
       ...new Set((b.job ?? []).map((j) => prodFmt(j)).filter(Boolean)),
@@ -533,7 +535,8 @@ export default async function DruckDashboard({
                           }}
                         >
                           <span>
-                            {DIM_LABEL[group] ?? group}: {gk}{" "}
+                            {DIM_LABEL[group] ?? group}:{" "}
+                            {group === "liefertermin" ? fmtDate(gk) : gk}{" "}
                             <span className="count">· {gb.length}</span>
                           </span>
                           {fruehesterLiefer(gb[0]) && (

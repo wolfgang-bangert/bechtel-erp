@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 
 const DIMS: [string, string][] = [
+  ["liefertermin", "Liefertermin"],
   ["loops", "Anzahl Loops"],
   ["spiralfarbe", "Farbe Spirale"],
   ["durchmesser", "Durchmesser"],
