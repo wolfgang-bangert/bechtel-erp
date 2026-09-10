@@ -213,8 +213,10 @@ type VernutzungRow = {
 type BogenRow = { id: string; code: string; is_default: boolean };
 type StandbogenRow = {
   format: string;
-  ausrichtung: "Hochformat" | "Querformat" | null;
+  ausrichtung: "Hochformat" | "Querformat" | null; // angelieferte PDF-Ausrichtung
   flux_signature: string;
+  druckbogen: string | null;
+  nutzen: number | null;
   sortierung: number;
 };
 type WireRow = {
@@ -295,7 +297,7 @@ export async function loadResolveRefData(sb: SupabaseClient) {
       .then((r) => (r.data ?? []) as FluxTpl[]),
     sb
       .from("standbogen")
-      .select("format, ausrichtung, flux_signature, sortierung")
+      .select("format, ausrichtung, flux_signature, druckbogen, nutzen, sortierung")
       .eq("aktiv", true)
       .then((r) => (r.data ?? []) as StandbogenRow[]),
   ]);
@@ -381,13 +383,14 @@ function nutzenFor(
   };
 }
 
-/** Standbogen (flux-Signature) über Format + Ausrichtung. Zeile mit passender
- *  Ausrichtung schlägt die „gilt für beide"-Zeile (ausrichtung = null). */
+/** Standbogen über Format + angelieferte PDF-Ausrichtung. Die 90°-Drehung
+ *  steckt im Standbogen selbst (je Ausrichtung eine eigene Zeile), daher schlägt
+ *  eine Zeile mit passender Ausrichtung die „gilt für beide"-Zeile (null). */
 function matchStandbogen(
   ref: RefData,
   format: string | null,
   ausrichtung: string | null,
-): string | null {
+): StandbogenRow | null {
   if (!format) return null;
   const k = fmtKey(format);
   const cand = ref.standboegen
@@ -395,8 +398,8 @@ function matchStandbogen(
     .sort((a, b) => a.sortierung - b.sortierung);
   if (!cand.length) return null;
   return (
-    cand.find((s) => s.ausrichtung && s.ausrichtung === ausrichtung)?.flux_signature ??
-    cand.find((s) => !s.ausrichtung)?.flux_signature ??
+    cand.find((s) => s.ausrichtung && s.ausrichtung === ausrichtung) ??
+    cand.find((s) => !s.ausrichtung) ??
     null
   );
 }
@@ -568,11 +571,11 @@ export function resolveOne(ref: RefData, order: OrderInput): ResolveResult {
   const grpTplId = grp?.flux_template_id ?? null;
   const stTplId = stammartikelId ? order.stammTplId?.get(stammartikelId) ?? null : null;
 
-  const standbogenSig = matchStandbogen(
-    ref,
-    (attr.format as string | null) ?? null,
-    (attr.ausrichtung as string | null) ?? null,
-  );
+  // Standbogen-Match: angelieferte PDF-Ausrichtung zuerst (die Drehung steckt im
+  // Standbogen), sonst die Produkt-Ausrichtung.
+  const pdfAusr =
+    order.pdf_meta?.ausrichtung ?? (attr.ausrichtung as string | undefined) ?? null;
+  const standbogen = matchStandbogen(ref, (attr.format as string | null) ?? null, pdfAusr);
 
   const build = (r: Regel, mat: Material | null, note?: string): MaterialZeile => {
     const m = mengeFormel(r.mengen_formel, mVars);
@@ -584,13 +587,21 @@ export function resolveOne(ref: RefData, order: OrderInput): ResolveResult {
     let druckbogen: string | null = null;
     let n2 = note;
     if (r.einheit === "bogen" || r.einheit === "blatt") {
-      const v = nutzenFor(ref, r.vernutzung_format || (attr.format as string | null));
-      if (v) {
-        nutzen = v.nutzen;
-        druckbogen = v.bogen;
-        netto_bogen = Math.ceil(m / Math.max(1, v.nutzen));
-      } else if (!n2) {
-        n2 = `keine Vernutzung für Format '${r.vernutzung_format || attr.format || "?"}'`;
+      // Standbogen gewinnt für Nutzen/Druckbogen – aber nur wenn die Regel kein
+      // eigenes vernutzung_format erzwingt und der Standbogen den Nutzen kennt.
+      if (!r.vernutzung_format && standbogen?.nutzen) {
+        nutzen = standbogen.nutzen;
+        druckbogen = standbogen.druckbogen ?? null;
+        netto_bogen = Math.ceil(m / Math.max(1, standbogen.nutzen));
+      } else {
+        const v = nutzenFor(ref, r.vernutzung_format || (attr.format as string | null));
+        if (v) {
+          nutzen = v.nutzen;
+          druckbogen = v.bogen;
+          netto_bogen = Math.ceil(m / Math.max(1, v.nutzen));
+        } else if (!n2) {
+          n2 = `keine Vernutzung für Format '${r.vernutzung_format || attr.format || "?"}'`;
+        }
       }
     }
     return {
@@ -621,8 +632,8 @@ export function resolveOne(ref: RefData, order: OrderInput): ResolveResult {
       flux_paper_type,
       flux_paper_type_back: tpl?.paper_type_back ?? null,
       flux_printer: null, // Drucker wird erst beim Batch (zugeordnete Maschine) gesetzt
-      // Standbogen: Format+Ausrichtung-Tabelle vor Template-Signature
-      flux_signature: standbogenSig ?? tpl?.signature ?? null,
+      // Standbogen: Format + PDF-Ausrichtung vor Template-Signature
+      flux_signature: standbogen?.flux_signature ?? tpl?.signature ?? null,
       flux_services: (tpl?.services as Record<string, unknown> | null) ?? {},
       ...(n2 ? { ungeloest: n2 } : {}),
     };

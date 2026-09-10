@@ -9,6 +9,8 @@ export type Standbogen = {
   format: string;
   ausrichtung: "Hochformat" | "Querformat" | null;
   flux_signature: string;
+  druckbogen: string | null;
+  nutzen: number | null;
   notiz: string | null;
   aktiv: boolean;
   sortierung: number;
@@ -20,10 +22,12 @@ function Fields({
   row,
   formate,
   signaturen,
+  boegen,
 }: {
   row?: Standbogen;
   formate: string[];
   signaturen: string[];
+  boegen: string[];
 }) {
   return (
     <>
@@ -31,7 +35,7 @@ function Fields({
         name="bezeichnung"
         defaultValue={row?.bezeichnung ?? ""}
         placeholder="Bezeichnung (optional)"
-        style={{ minWidth: 150 }}
+        style={{ minWidth: 130 }}
       />
       <input
         name="format"
@@ -39,12 +43,12 @@ function Fields({
         placeholder="Format"
         list="sb-formate"
         required
-        style={{ width: 130 }}
+        style={{ width: 110 }}
       />
-      <select name="ausrichtung" defaultValue={row?.ausrichtung ?? ""}>
+      <select name="ausrichtung" defaultValue={row?.ausrichtung ?? ""} title="wie das PDF angeliefert wird">
         <option value="">– beide –</option>
-        <option value="Hochformat">Hochformat</option>
-        <option value="Querformat">Querformat</option>
+        <option value="Hochformat">PDF Hochformat</option>
+        <option value="Querformat">PDF Querformat</option>
       </select>
       <input
         name="flux_signature"
@@ -52,9 +56,25 @@ function Fields({
         placeholder="flux-Signature"
         list="sb-signaturen"
         required
-        style={{ minWidth: 200 }}
+        style={{ minWidth: 180 }}
       />
-      <input name="notiz" defaultValue={row?.notiz ?? ""} placeholder="Notiz" style={{ minWidth: 140 }} />
+      <input
+        name="druckbogen"
+        defaultValue={row?.druckbogen ?? ""}
+        placeholder="Druckbogen"
+        list="sb-boegen"
+        style={{ width: 100 }}
+      />
+      <input
+        name="nutzen"
+        type="number"
+        min={1}
+        defaultValue={row?.nutzen ?? ""}
+        placeholder="Nutzen"
+        style={{ width: 72 }}
+        title="Stück pro Bogen (Anordnung); leer → Fallback Vernutzung"
+      />
+      <input name="notiz" defaultValue={row?.notiz ?? ""} placeholder="Notiz" style={{ minWidth: 110 }} />
       <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
         <input type="checkbox" name="aktiv" defaultChecked={row ? row.aktiv : true} /> aktiv
       </label>
@@ -62,7 +82,7 @@ function Fields({
         name="sortierung"
         type="number"
         defaultValue={row?.sortierung ?? 100}
-        style={{ width: 64 }}
+        style={{ width: 60 }}
       />
       {formate.length > 0 && (
         <datalist id="sb-formate">
@@ -78,6 +98,13 @@ function Fields({
           ))}
         </datalist>
       )}
+      {boegen.length > 0 && (
+        <datalist id="sb-boegen">
+          {boegen.map((b) => (
+            <option key={b} value={b} />
+          ))}
+        </datalist>
+      )}
     </>
   );
 }
@@ -86,17 +113,19 @@ function Row({
   row,
   formate,
   signaturen,
+  boegen,
 }: {
   row: Standbogen;
   formate: string[];
   signaturen: string[];
+  boegen: string[];
 }) {
   const [state, action, pending] = useActionState(saveStandbogen, empty);
   const [delState, delAction, delPending] = useActionState(deleteStandbogen, empty);
   return (
     <form className="row" action={action} style={{ flexWrap: "wrap", gap: 8 }}>
       <input type="hidden" name="id" value={row.id} />
-      <Fields row={row} formate={formate} signaturen={signaturen} />
+      <Fields row={row} formate={formate} signaturen={signaturen} boegen={boegen} />
       <button type="submit" disabled={pending}>
         {pending ? "…" : "Speichern"}
       </button>
@@ -117,11 +146,19 @@ function Row({
   );
 }
 
-function NewRow({ formate, signaturen }: { formate: string[]; signaturen: string[] }) {
+function NewRow({
+  formate,
+  signaturen,
+  boegen,
+}: {
+  formate: string[];
+  signaturen: string[];
+  boegen: string[];
+}) {
   const [state, action, pending] = useActionState(saveStandbogen, empty);
   return (
     <form className="row new" action={action} style={{ flexWrap: "wrap", gap: 8 }}>
-      <Fields formate={formate} signaturen={signaturen} />
+      <Fields formate={formate} signaturen={signaturen} boegen={boegen} />
       <button type="submit" disabled={pending}>
         {pending ? "…" : "Hinzufügen"}
       </button>
@@ -135,26 +172,30 @@ export function StandbogenTable({
   rows,
   formate,
   signaturen,
+  boegen,
 }: {
   rows: Standbogen[];
   formate: string[];
   signaturen: string[];
+  boegen: string[];
 }) {
   return (
     <div className="rows">
       <div className="row head" style={{ gap: 8, flexWrap: "wrap" }}>
-        <span style={{ minWidth: 150 }}>Bezeichnung</span>
-        <span style={{ width: 130 }}>Format</span>
-        <span>Ausrichtung</span>
-        <span style={{ minWidth: 200 }}>flux-Signature</span>
-        <span style={{ minWidth: 140 }}>Notiz</span>
+        <span style={{ minWidth: 130 }}>Bezeichnung</span>
+        <span style={{ width: 110 }}>Format</span>
+        <span>PDF-Ausrichtung</span>
+        <span style={{ minWidth: 180 }}>flux-Signature</span>
+        <span style={{ width: 100 }}>Druckbogen</span>
+        <span style={{ width: 72 }}>Nutzen</span>
+        <span style={{ minWidth: 110 }}>Notiz</span>
         <span>aktiv</span>
-        <span style={{ width: 64 }}>Sort.</span>
+        <span style={{ width: 60 }}>Sort.</span>
       </div>
       {rows.map((r) => (
-        <Row key={r.id} row={r} formate={formate} signaturen={signaturen} />
+        <Row key={r.id} row={r} formate={formate} signaturen={signaturen} boegen={boegen} />
       ))}
-      <NewRow formate={formate} signaturen={signaturen} />
+      <NewRow formate={formate} signaturen={signaturen} boegen={boegen} />
     </div>
   );
 }

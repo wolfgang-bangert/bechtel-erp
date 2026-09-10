@@ -13,6 +13,9 @@ export async function saveStandbogen(_prev: RowState, fd: FormData): Promise<Row
   const format = String(fd.get("format") ?? "").trim();
   const ausrichtung = String(fd.get("ausrichtung") ?? "").trim();
   const flux_signature = String(fd.get("flux_signature") ?? "").trim();
+  const druckbogen = String(fd.get("druckbogen") ?? "").trim() || null;
+  const nutzenRaw = String(fd.get("nutzen") ?? "").trim();
+  const nutzen = nutzenRaw ? Number(nutzenRaw) : null;
   const notiz = String(fd.get("notiz") ?? "").trim() || null;
   const aktiv = fd.get("aktiv") != null;
   const sortRaw = String(fd.get("sortierung") ?? "").trim();
@@ -21,12 +24,16 @@ export async function saveStandbogen(_prev: RowState, fd: FormData): Promise<Row
   if (!format) return { error: "Format ist Pflicht." };
   if (!flux_signature) return { error: "flux-Signature ist Pflicht." };
   if (!AUSRICHTUNG.includes(ausrichtung)) return { error: "Ausrichtung ungültig." };
+  if (nutzen != null && (!Number.isInteger(nutzen) || nutzen < 1))
+    return { error: "Nutzen muss eine ganze Zahl ≥ 1 sein." };
 
   const payload = {
     bezeichnung: bezeichnung || `${format}${ausrichtung ? ` ${ausrichtung}` : ""}`,
     format,
     ausrichtung: ausrichtung || null,
     flux_signature,
+    druckbogen,
+    nutzen,
     notiz,
     aktiv,
     sortierung,
