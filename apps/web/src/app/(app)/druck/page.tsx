@@ -19,7 +19,11 @@ type Job = {
   schlaufen_gesamt: number | null;
   komponenten: { bezeichnung: string | null; menge?: number | null; einheit?: string | null }[] | null;
   status: string;
-  order: { external_reference: string | null; blockstaerke_mm: string | null } | null;
+  order: {
+    external_reference: string | null;
+    blockstaerke_mm: string | null;
+    gruppe: string | null;
+  } | null;
 };
 type Batch = {
   id: string;
@@ -131,6 +135,7 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
           <thead>
             <tr>
               <th>Auftrag</th>
+              <th>Gruppe</th>
               <th>Bauteil</th>
               <th>Format</th>
               <th style={{ textAlign: "right" }}>Prod.-Stärke</th>
@@ -151,6 +156,7 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
                     "—"
                   )}
                 </td>
+                <td className="count">{j.order?.gruppe ?? "—"}</td>
                 <td>
                   {j.bauteil}
                   {j.komponenten && j.komponenten.length > 0 && (
@@ -188,7 +194,7 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
             ))}
             {!jobs.length && (
               <tr>
-                <td colSpan={7} className="count">Keine Jobs.</td>
+                <td colSpan={8} className="count">Keine Jobs.</td>
               </tr>
             )}
           </tbody>
@@ -208,7 +214,13 @@ function BatchCard({ b, cfg }: { b: Batch; cfg: Record<string, string[]> }) {
   );
 }
 
-export default async function DruckDashboard() {
+export default async function DruckDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string }>;
+}) {
+  const { sort } = await searchParams;
+  const desc = sort === "desc";
   const supabase = await createClient();
   const { data: cfgRow } = await supabase
     .from("setting")
@@ -221,7 +233,7 @@ export default async function DruckDashboard() {
     .select(
       "id, nummer, typ, schluessel, druckverfahren, cello, cello_seiten, papier, druckbogen, status, created_at, an_flux_at, flux_order_id, " +
         "job(id, typ, bauteil, format, netto_bogen, druckbogen, nutzen, auflage, zuschuss, teilung, durchmesser, schlaufen_gesamt, komponenten, status, " +
-        "order:portal_order_id(external_reference, blockstaerke_mm:resolve_result->>blockstaerke_mm))",
+        "order:portal_order_id(external_reference, blockstaerke_mm:resolve_result->>blockstaerke_mm, gruppe:resolve_result->>gruppe))",
     )
     .neq("status", "storniert")
     .order("created_at", { ascending: true });
@@ -231,7 +243,22 @@ export default async function DruckDashboard() {
     <>
       <div className="toolbar" style={{ justifyContent: "space-between" }}>
         <h1 style={{ margin: 0 }}>Druck-Dashboard</h1>
-        <div className="toolbar" style={{ gap: 8 }}>
+        <div className="toolbar" style={{ gap: 8, alignItems: "center" }}>
+          <span className="count">Kriterien</span>
+          <Link
+            href="/druck?sort=asc"
+            className={desc ? "ghost" : undefined}
+            style={{ padding: "5px 9px" }}
+          >
+            ▲
+          </Link>
+          <Link
+            href="/druck?sort=desc"
+            className={desc ? undefined : "ghost"}
+            style={{ padding: "5px 9px" }}
+          >
+            ▼
+          </Link>
           <Link href="/druck/plan" className="ghost" style={{ padding: "7px 12px" }}>
             Belegungs-Board →
           </Link>
@@ -260,7 +287,14 @@ export default async function DruckDashboard() {
             </h2>
             <p className="lead" style={{ marginTop: 0 }}>{hint}</p>
             {BUCKETS.map((bucket) => {
-              const bl = list.filter((b) => bucket.states.includes(b.status));
+              const bl = list
+                .filter((b) => bucket.states.includes(b.status))
+                .sort((a, b) => {
+                  const c = (a.schluessel ?? "").localeCompare(b.schluessel ?? "", "de", {
+                    numeric: true,
+                  });
+                  return desc ? -c : c;
+                });
               if (!bl.length) return null;
               return (
                 <div key={bucket.label} style={{ marginTop: 10 }}>
