@@ -10,22 +10,28 @@ const isoTag = (d: Date | string) =>
 
 const WOTAG = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
+type Row = {
+  received_at: string;
+  portal_state: string | null;
+  pc1: string | null; // raw.createdAt        (API-Pull)
+  pc2: string | null; // raw.api_createdAt_raw (Xano-Import)
+};
+
+/** Zeitpunkt, zu dem onlineprinters den Auftrag bereitgestellt hat. */
+const eingangTag = (r: Row) => isoTag(r.pc1 ?? r.pc2 ?? r.received_at);
+
 export default async function StartPage() {
   const supabase = await createClient();
 
-  const seit = new Date(Date.now() - (TAGE + 1) * 86400000).toISOString();
   const { data, error } = await supabase
     .from("portal_order")
-    .select("received_at, portal_state")
-    .gte("received_at", seit)
-    .order("received_at", { ascending: false });
+    .select("received_at, portal_state, pc1:raw->>createdAt, pc2:raw->>api_createdAt_raw");
 
-  const rows = (data ?? []) as { received_at: string; portal_state: string | null }[];
+  const rows = (data ?? []) as Row[];
 
-  // je Kalendertag zählen
   const proTag = new Map<string, { anzahl: number; finished: number }>();
   for (const r of rows) {
-    const k = isoTag(r.received_at);
+    const k = eingangTag(r);
     const e = proTag.get(k) ?? { anzahl: 0, finished: 0 };
     e.anzahl++;
     if (r.portal_state === "FINISHED") e.finished++;
@@ -34,19 +40,17 @@ export default async function StartPage() {
 
   // lückenlose Tagesreihe, neueste zuerst
   const heute = new Date();
-  const tage: { key: string; label: string; wotag: string; anzahl: number; finished: number }[] = [];
-  for (let i = 0; i < TAGE; i++) {
-    const d = new Date(heute.getTime() - i * 86400000);
-    const key = isoTag(d);
+  const tage = Array.from({ length: TAGE }, (_, i) => {
+    const key = isoTag(new Date(heute.getTime() - i * 86400000));
     const e = proTag.get(key) ?? { anzahl: 0, finished: 0 };
-    tage.push({
+    return {
       key,
       label: new Date(key).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }),
       wotag: WOTAG[new Date(key).getDay()],
       anzahl: e.anzahl,
       finished: e.finished,
-    });
-  }
+    };
+  });
 
   const max = Math.max(1, ...tage.map((t) => t.anzahl));
   const summe7 = tage.slice(0, 7).reduce((a, t) => a + t.anzahl, 0);
@@ -56,7 +60,7 @@ export default async function StartPage() {
     <>
       <h1 style={{ marginBottom: 4 }}>Start</h1>
       <p className="lead" style={{ marginTop: 0 }}>
-        Eingegangene Portal-Aufträge je Tag (letzte {TAGE} Tage).{" "}
+        Bei onlineprinters bereitgestellte Aufträge je Tag (letzte {TAGE} Tage).{" "}
         <strong>{summe7}</strong> in den letzten 7 Tagen · <strong>{summe30}</strong> in {TAGE} Tagen.
       </p>
 
