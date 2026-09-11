@@ -568,19 +568,24 @@ export function resolveOne(ref: RefData, order: OrderInput): ResolveResult {
       text: `Format: Auftrag „${auftragFormat}", Druckdaten „${pdfFormat}"${masse}`,
     });
   }
-  // Abweichung Seitenzahl: Auftrag ≠ PDF (grob, > 4 Seiten Differenz)
+  // Abweichung Seitenzahl: Auftrag (Blatt) ≠ PDF-Druckseiten. Bei Schön+Widerdruck
+  // (Farbigkeit "X/Y" mit Y≠0, z.B. 4/4) liefert das PDF 2 Druckseiten je Blatt –
+  // nur "4/0" (einseitig) hat 1:1 Blatt:Seite.
   const sollSeiten = nnum(attr.seiten);
+  const farbigkeitM = /^\s*\d+\s*\/\s*(\d+)\s*$/.exec(String(attr.farbigkeit ?? ""));
+  const seitenProBlatt = farbigkeitM ? (farbigkeitM[1] === "0" ? 1 : 2) : 1;
+  const sollDruckseiten = sollSeiten != null ? sollSeiten * seitenProBlatt : null;
   if (
-    sollSeiten != null &&
+    sollDruckseiten != null &&
     pm?.seiten != null &&
     pm.seiten > 0 &&
-    Math.abs(pm.seiten - sollSeiten) > 4
+    Math.abs(pm.seiten - sollDruckseiten) > 4
   ) {
     abweichungen.push({
       feld: "seiten",
-      auftrag: String(sollSeiten),
+      auftrag: String(sollDruckseiten),
       pdf: String(pm.seiten),
-      text: `Seiten: Auftrag ${sollSeiten}, Druckdaten ${pm.seiten}`,
+      text: `Seiten: Auftrag ${sollSeiten} Blatt${seitenProBlatt > 1 ? ` × 2 (${attr.farbigkeit})` : ""} = ${sollDruckseiten} Druckseiten erwartet, PDF hat ${pm.seiten}`,
     });
   }
 
