@@ -25,7 +25,7 @@ const nnum = (v: unknown) => {
 export function decodeFormat(text: string): string | null {
   const cm = text.match(/(\d+[.,]?\d*)\s*[x×]\s*(\d+[.,]?\d*)\s*cm/i);
   if (cm) return `${cm[1].replace(".", ",")} × ${cm[2].replace(".", ",")} cm`;
-  const halb = text.match(/\b(A[2-6])[\s-]*halb\b/i);
+  const halb = text.match(/\b(A[2-6])[\s-]*(?:halb|half)\b/i);
   if (halb) return `${halb[1].toUpperCase()} halb`;
   const quad = text.match(/\b(A[2-6])[\s-]*Quadrat\b/i);
   if (quad) return `${quad[1].toUpperCase()}-Quadrat`;
