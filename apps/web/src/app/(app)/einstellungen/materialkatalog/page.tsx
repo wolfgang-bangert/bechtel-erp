@@ -60,7 +60,7 @@ export default async function MaterialkatalogPage() {
   const dickeFehlt = rows.filter((r) => r.dicke_mm == null).length;
 
   return (
-    <>
+    <div className="content-wide">
       <div className="toolbar" style={{ justifyContent: "space-between" }}>
         <h1 style={{ margin: 0 }}>Materialkatalog</h1>
         <FluxRefreshButton />
@@ -127,6 +127,6 @@ export default async function MaterialkatalogPage() {
           </tbody>
         </table>
       </div>
-    </>
+    </div>
   );
 }
