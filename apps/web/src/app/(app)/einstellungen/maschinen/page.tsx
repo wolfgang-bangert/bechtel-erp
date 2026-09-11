@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fluxCatalog } from "@/lib/flux/catalog";
 import { MaschinenTable, type Maschine } from "./ui";
 import type { Faehigkeit } from "./FaehigkeitenEditor";
+import { FluxRefreshButton } from "@/lib/flux/FluxRefreshButton";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,10 @@ export default async function MaschinenPage() {
 
   return (
     <>
-      <h1>Maschinen</h1>
+      <div className="toolbar" style={{ justifyContent: "space-between" }}>
+        <h1 style={{ margin: 0 }}>Maschinen</h1>
+        <FluxRefreshButton />
+      </div>
       <p className="lead">
         Stationen für die Maschinenplanung, gruppiert nach Typ. Der Rüstzustand (geladene
         Materialien – bis zu 9 Magazine je Digitaldrucker) steht direkt am Formular; was die

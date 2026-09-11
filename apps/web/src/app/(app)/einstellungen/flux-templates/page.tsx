@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fluxCatalog } from "@/lib/flux/catalog";
+import { FluxRefreshButton } from "@/lib/flux/FluxRefreshButton";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,10 @@ export default async function FluxTemplatesPage() {
 
   return (
     <>
-      <h1>flux-Templates</h1>
+      <div className="toolbar" style={{ justifyContent: "space-between" }}>
+        <h1 style={{ margin: 0 }}>flux-Templates</h1>
+        <FluxRefreshButton />
+      </div>
       <p className="lead">
         Ein Template = flux-Produkt + Services (+ optional Standbogen). Das Papier
         kommt aus dem Materialkatalog (<Link href="/einstellungen/materialkatalog">flux-Papiersorte</Link>),

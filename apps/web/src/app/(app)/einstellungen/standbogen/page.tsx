@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { fluxCatalog } from "@/lib/flux/catalog";
+import { FluxRefreshButton } from "@/lib/flux/FluxRefreshButton";
 import { StandbogenTable, type Standbogen } from "./ui";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,10 @@ export default async function StandbogenPage() {
 
   return (
     <>
-      <h1>Standbögen</h1>
+      <div className="toolbar" style={{ justifyContent: "space-between" }}>
+        <h1 style={{ margin: 0 }}>Standbögen</h1>
+        <FluxRefreshButton />
+      </div>
       <p className="lead">
         Der Standbogen ist das komplette Ausschießen (Bogenformat, Seitengröße, Anordnung, Marken,
         Reihenfolge) — <strong>inkl. der 90°-Drehung</strong>: je nachdem, ob das PDF hoch- oder

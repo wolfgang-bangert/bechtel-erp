@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { fluxCatalog } from "@/lib/flux/catalog";
+import { FluxRefreshButton } from "@/lib/flux/FluxRefreshButton";
 import { PaperRow } from "./PaperRow";
 import { NewMaterialForm } from "./NewMaterialForm";
 
@@ -60,7 +61,10 @@ export default async function MaterialkatalogPage() {
 
   return (
     <>
-      <h1>Materialkatalog</h1>
+      <div className="toolbar" style={{ justifyContent: "space-between" }}>
+        <h1 style={{ margin: 0 }}>Materialkatalog</h1>
+        <FluxRefreshButton />
+      </div>
       <p className="lead">
         <strong>Dicke (mm)</strong>: Basis der Blockstärkenberechnung (Wire-O) — fehlt sie bei
         einem blockrelevanten Papier, wird die Blockstärke zu niedrig.{" "}
