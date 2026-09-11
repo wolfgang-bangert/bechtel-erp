@@ -53,7 +53,7 @@ export function FluxProductFields({
       {catalogError && (
         <div className="banner-err">flux-Katalog nicht erreichbar ({catalogError}) — Produktname als Freitext.</div>
       )}
-      <label className="field">
+      <label className="field" style={{ minWidth: 320 }}>
         <span>flux-Produkt</span>
         <input
           name="flux_product"
@@ -61,6 +61,7 @@ export function FluxProductFields({
           value={product}
           onChange={(e) => setProduct(e.target.value)}
           placeholder="Opri_A5_2-2_4/4"
+          style={{ width: "100%", minWidth: 320 }}
         />
         {selected?.description && <small className="count">{selected.description}</small>}
       </label>
