@@ -185,6 +185,7 @@ export function FluxSendPanel({
   printers,
   catalogError,
   sentOrderId,
+  fluxUrl,
   lastSentAt,
   lastPayload,
   lastResponse,
@@ -197,6 +198,7 @@ export function FluxSendPanel({
   printers: string[];
   catalogError?: string;
   sentOrderId?: string | null;
+  fluxUrl?: string | null;
   lastSentAt?: string | null;
   lastPayload?: unknown;
   lastResponse?: unknown;
@@ -243,7 +245,15 @@ export function FluxSendPanel({
         <button type="submit" disabled={pending} style={{ padding: "7px 14px" }}>
           {pending ? "…" : sentOrderId ? "erneut an flux senden" : "Auftrag an flux senden"}
         </button>
-        {sentOrderId && <span className="count">gesendet · flux {sentOrderId}</span>}
+        {sentOrderId && (
+          fluxUrl ? (
+            <a href={fluxUrl} target="_blank" rel="noreferrer" className="ghost" style={{ padding: "5px 10px" }}>
+              flux {sentOrderId} öffnen →
+            </a>
+          ) : (
+            <span className="count">gesendet · flux {sentOrderId}</span>
+          )
+        )}
         {state.ok && <span className="msg-ok">✓ {state.note}</span>}
         {state.error && <span className="msg-err">{state.error}</span>}
       </form>

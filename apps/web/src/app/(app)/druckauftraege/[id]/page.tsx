@@ -201,6 +201,12 @@ export default async function DruckauftragPage({
   }[];
 
   const cat = await loadCatalogForForm();
+  const { data: fluxUrlRow } = await supabase
+    .from("setting")
+    .select("value")
+    .eq("key", "flux_order_url_tpl")
+    .maybeSingle();
+  const fluxUrlTpl = (fluxUrlRow?.value as string | null) ?? null;
   const druckJobs = jobs
     .filter((j) => j.typ === "druck")
     .map((j) => ({
@@ -514,6 +520,11 @@ export default async function DruckauftragPage({
         printers={cat.printers}
         catalogError={cat.catalogError}
         sentOrderId={data.flux_order_id ?? sentOrderId}
+        fluxUrl={
+          fluxUrlTpl && (data.flux_order_id ?? sentOrderId)
+            ? fluxUrlTpl.replace("{orderId}", (data.flux_order_id ?? sentOrderId) as string)
+            : null
+        }
         lastSentAt={data.flux_sent_at}
         lastPayload={data.flux_payload}
         lastResponse={data.flux_response}
