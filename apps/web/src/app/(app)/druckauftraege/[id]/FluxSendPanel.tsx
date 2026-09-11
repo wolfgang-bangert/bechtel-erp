@@ -18,6 +18,7 @@ export type FluxJob = {
   flux_paper_type: string | null;
   flux_printer: string | null;
   flux_services: Record<string, unknown> | null;
+  flux_order_item_id: string | null;
   pdf: boolean;
 };
 
@@ -33,12 +34,18 @@ function JobRow({
   orderId,
   job,
   products,
+  fluxUrlTpl,
 }: {
   orderId: string;
   job: FluxJob;
   products: ProductLite[];
+  fluxUrlTpl?: string | null;
 }) {
   const [state, action, pending] = useActionState(saveJobFluxAction, empty);
+  const fluxUrl =
+    fluxUrlTpl && job.flux_order_item_id
+      ? fluxUrlTpl.replace("{orderItemId}", job.flux_order_item_id)
+      : null;
   const [product, setProduct] = useState(job.flux_product ?? "");
   const selected = useMemo(() => products.find((p) => p.name === product), [products, product]);
 
@@ -66,7 +73,14 @@ function JobRow({
       <input type="hidden" name="job_id" value={job.id} />
 
       <div className="toolbar" style={{ justifyContent: "space-between" }}>
-        <strong>{job.bauteil}</strong>
+        <span className="toolbar" style={{ gap: 8 }}>
+          <strong>{job.bauteil}</strong>
+          {fluxUrl && (
+            <a href={fluxUrl} target="_blank" rel="noreferrer" className="ghost" style={{ padding: "3px 9px", fontSize: 12 }}>
+              flux öffnen →
+            </a>
+          )}
+        </span>
         {!job.pdf && <span className="msg-err">keine Druckdatei</span>}
       </div>
 
@@ -185,7 +199,7 @@ export function FluxSendPanel({
   printers,
   catalogError,
   sentOrderId,
-  fluxUrl,
+  fluxUrlTpl,
   lastSentAt,
   lastPayload,
   lastResponse,
@@ -198,7 +212,7 @@ export function FluxSendPanel({
   printers: string[];
   catalogError?: string;
   sentOrderId?: string | null;
-  fluxUrl?: string | null;
+  fluxUrlTpl?: string | null;
   lastSentAt?: string | null;
   lastPayload?: unknown;
   lastResponse?: unknown;
@@ -237,7 +251,7 @@ export function FluxSendPanel({
       </datalist>
 
       {jobs.map((j) => (
-        <JobRow key={j.id} orderId={orderId} job={j} products={products} />
+        <JobRow key={j.id} orderId={orderId} job={j} products={products} fluxUrlTpl={fluxUrlTpl} />
       ))}
 
       <form action={action} className="toolbar" style={{ gap: 10, marginTop: 6 }}>
@@ -245,15 +259,7 @@ export function FluxSendPanel({
         <button type="submit" disabled={pending} style={{ padding: "7px 14px" }}>
           {pending ? "…" : sentOrderId ? "erneut an flux senden" : "Auftrag an flux senden"}
         </button>
-        {sentOrderId && (
-          fluxUrl ? (
-            <a href={fluxUrl} target="_blank" rel="noreferrer" className="ghost" style={{ padding: "5px 10px" }}>
-              flux {sentOrderId} öffnen →
-            </a>
-          ) : (
-            <span className="count">gesendet · flux {sentOrderId}</span>
-          )
-        )}
+        {sentOrderId && <span className="count">gesendet · flux {sentOrderId} (Links „flux öffnen" je Bauteil oben)</span>}
         {state.ok && <span className="msg-ok">✓ {state.note}</span>}
         {state.error && <span className="msg-err">{state.error}</span>}
       </form>

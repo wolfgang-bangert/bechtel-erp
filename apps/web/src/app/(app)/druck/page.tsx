@@ -25,6 +25,7 @@ type Job = {
   komponenten: { bezeichnung: string | null; menge?: number | null; einheit?: string | null }[] | null;
   status: string;
   portal_order_id: string | null;
+  flux_order_item_id: string | null;
   order: {
     external_reference: string | null;
     blockstaerke_mm: string | null;
@@ -451,8 +452,8 @@ function BatchCard({
                       fluxOrderId={j.order?.flux_order_id ?? null}
                       fluxStatus={j.order?.flux_status ?? null}
                       fluxUrl={
-                        fluxUrlTpl && j.order?.flux_order_id
-                          ? fluxUrlTpl.replace("{orderId}", j.order.flux_order_id)
+                        fluxUrlTpl && j.flux_order_item_id
+                          ? fluxUrlTpl.replace("{orderItemId}", j.flux_order_item_id)
                           : null
                       }
                     />
@@ -508,7 +509,7 @@ export default async function DruckDashboard({
     .from("batch")
     .select(
       "id, nummer, typ, schluessel, druckverfahren, cello, cello_seiten, papier, druckbogen, status, created_at, an_flux_at, flux_order_id, " +
-        "job(id, typ, bauteil, format, papier, cello, netto_bogen, druckbogen, nutzen, auflage, zuschuss, teilung, durchmesser, schlaufen_gesamt, komponenten, status, portal_order_id, " +
+        "job(id, typ, bauteil, format, papier, cello, netto_bogen, druckbogen, nutzen, auflage, zuschuss, teilung, durchmesser, schlaufen_gesamt, komponenten, status, portal_order_id, flux_order_item_id, " +
         "order:portal_order_id(external_reference, deliver_date, flux_order_id, flux_status, flux_sent_at, abweichungen:resolve_result->abweichungen, blockstaerke_mm:resolve_result->>blockstaerke_mm, gruppe:resolve_result->>gruppe, prodformat:resolve_result->attribute->>format, ausrichtung:resolve_result->attribute->>ausrichtung, ausrichtung_quelle:resolve_result->attribute->>ausrichtung_quelle))",
     )
     .neq("status", "storniert")
