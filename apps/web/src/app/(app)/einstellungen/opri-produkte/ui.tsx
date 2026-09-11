@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { saveGruppe, saveStamm, type RowState } from "./actions";
 import { FluxProductFields, type FluxProductOpt } from "@/lib/flux/FluxProductFields";
 
@@ -73,42 +73,56 @@ function StammRow({
   s,
   inheritedProduct,
   products,
+  catalogError,
 }: {
   s: Stamm;
   inheritedProduct: string | null;
   products: FluxProductOpt[];
+  catalogError?: string;
 }) {
   const [state, action, pending] = useActionState(saveStamm, empty);
   const hasOverride = !!s.flux_product || !!(s.flux_services && Object.keys(s.flux_services).length);
+  // Picker erst bei Bedarf mounten – bei bis zu 2000 Stammartikeln sonst zu schwer.
+  const [expanded, setExpanded] = useState(hasOverride);
+
   return (
-    <form className="row" action={action}>
+    <form className="row" action={action} style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
       <input type="hidden" name="id" value={s.id} />
-      <span className="w-code" style={{ color: "var(--muted)" }}>{s.sku}</span>
-      <span className="w-name">{s.name}</span>
-      <input
-        name="flux_product"
-        list="flux-products-catalog"
-        defaultValue={s.flux_product ?? ""}
-        placeholder={inheritedProduct ? `erbt: ${inheritedProduct}` : "eigenes flux-Produkt"}
-        style={{ width: 180 }}
-      />
-      <details style={{ flex: "none" }} open={hasOverride && Object.keys(s.flux_services ?? {}).length > 0}>
-        <summary className="count" style={{ cursor: "pointer" }}>Services</summary>
-        <textarea
-          name="flux_services_json"
-          defaultValue={
-            s.flux_services && Object.keys(s.flux_services).length
-              ? JSON.stringify(s.flux_services, null, 2)
-              : ""
-          }
-          placeholder='{ "Beidseitig": "Ja" }'
-          rows={3}
-          style={{ font: "12px ui-monospace, monospace", width: 220 }}
-        />
-      </details>
-      <button type="submit" disabled={pending}>{pending ? "…" : "Speichern"}</button>
-      {state.ok && <span className="msg-ok">✓</span>}
-      {state.error && <span className="msg-err">{state.error}</span>}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <span className="w-code" style={{ color: "var(--muted)" }}>{s.sku}</span>
+        <span className="w-name">{s.name}</span>
+        <button
+          type="button"
+          className="ghost"
+          onClick={() => setExpanded((v) => !v)}
+          style={{ padding: "3px 8px", fontSize: 12 }}
+        >
+          {expanded
+            ? "flux ausblenden"
+            : s.flux_product
+              ? `flux: ${s.flux_product} ✎`
+              : inheritedProduct
+                ? `erbt: ${inheritedProduct} ✎`
+                : "flux anpassen"}
+        </button>
+        {expanded && (
+          <>
+            <button type="submit" disabled={pending}>{pending ? "…" : "Speichern"}</button>
+            {state.ok && <span className="msg-ok">✓</span>}
+            {state.error && <span className="msg-err">{state.error}</span>}
+          </>
+        )}
+      </div>
+      {expanded && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, paddingLeft: 4 }}>
+          <FluxProductFields
+            products={products}
+            defaultProduct={s.flux_product}
+            defaultServices={s.flux_services}
+            catalogError={catalogError}
+          />
+        </div>
+      )}
     </form>
   );
 }
@@ -132,7 +146,13 @@ export function OpriProdukte({
           <div key={g.id} style={{ marginBottom: 14 }}>
             <GruppeRow g={g} products={products} catalogError={catalogError} />
             {kids.map((s) => (
-              <StammRow key={s.id} s={s} inheritedProduct={g.flux_product} products={products} />
+              <StammRow
+                key={s.id}
+                s={s}
+                inheritedProduct={g.flux_product}
+                products={products}
+                catalogError={catalogError}
+              />
             ))}
           </div>
         );
