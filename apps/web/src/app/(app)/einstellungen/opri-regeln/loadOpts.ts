@@ -1,14 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
+import { fluxCatalog } from "@/lib/flux/catalog";
 
 export async function loadRegelOpts() {
   const supabase = await createClient();
-  const [{ data: gruppen }, { data: stamm }, { data: material }, { data: rollen }, { data: fluxTpls }] =
+  const [{ data: gruppen }, { data: stamm }, { data: material }, { data: rollen }, cat] =
     await Promise.all([
       supabase.from("opri_produkt_gruppe").select("id, kuerzel, name").order("kuerzel"),
       supabase.from("opri_stammartikel").select("id, sku, name").order("sku").limit(2000),
       supabase.from("material").select("id, name, name_kurz").eq("is_active", true).order("name"),
       supabase.from("material_rolle").select("name").order("sort"),
-      supabase.from("flux_template").select("id, name, flux_product").eq("is_active", true).order("name"),
+      fluxCatalog(),
     ]);
   return {
     gruppen: (gruppen ?? []).map((g) => ({ id: g.id as string, label: `${g.kuerzel} — ${g.name}` })),
@@ -18,9 +19,7 @@ export async function loadRegelOpts() {
       label: (m.name_kurz as string) || (m.name as string),
     })),
     rollen: (rollen ?? []).map((r) => r.name as string),
-    fluxTemplates: (fluxTpls ?? []).map((t) => ({
-      id: t.id as string,
-      label: `${t.name} (${t.flux_product})`,
-    })),
+    fluxProducts: cat.ok ? cat.products : [],
+    fluxCatalogError: cat.ok ? undefined : cat.error,
   };
 }

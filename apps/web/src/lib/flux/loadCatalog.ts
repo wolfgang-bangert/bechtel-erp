@@ -1,8 +1,8 @@
 import { fluxCatalog } from "@/lib/flux/catalog";
 
-/** flux-Katalog auf das reduzieren, was das Formular als Client-Payload braucht. */
+/** flux-Katalog auf das reduzieren, was Formulare als Client-Payload brauchen. */
 export async function loadCatalogForForm() {
-  // Template-Editor ist selten aufgerufen → immer frisch, kein 5-Min-Cache.
+  // immer frisch, kein 5-Min-Cache im Editor/Panel
   const c = await fluxCatalog({ fresh: true });
   const products = c.products.map((p) => ({
     id: p.id,

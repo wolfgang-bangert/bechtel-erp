@@ -7,7 +7,8 @@ export type State = { ok?: boolean; error?: string };
 
 // Seiten, die den flux-Katalog anzeigen (Produkte/Papiersorten/Drucker/Standbögen).
 const SEITEN = [
-  "/einstellungen/flux-templates",
+  "/einstellungen/opri-produkte",
+  "/einstellungen/opri-regeln",
   "/einstellungen/maschinen",
   "/einstellungen/materialkatalog",
   "/einstellungen/standbogen",

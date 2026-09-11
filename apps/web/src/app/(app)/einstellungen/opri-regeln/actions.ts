@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { parseFluxServices } from "@/lib/flux/parseServices";
 
 export type State = { ok?: boolean; error?: string };
 
@@ -49,7 +50,8 @@ export async function saveRegel(_p: State, fd: FormData): Promise<State> {
     mengen_formel: s(fd, "mengen_formel") ?? "auflage",
     einheit: s(fd, "einheit") ?? "stück",
     vernutzung_format: s(fd, "vernutzung_format"),
-    flux_template_id: s(fd, "flux_template_id"),
+    flux_product: s(fd, "flux_product"),
+    flux_services: parseFluxServices(fd),
     grammatur: s(fd, "grammatur"),
     format: s(fd, "format"),
     produktionshinweis: s(fd, "produktionshinweis"),

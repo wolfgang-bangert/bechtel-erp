@@ -88,27 +88,6 @@ export async function erzeugeJobs(
       (f) => f.typ === "printData" && f.storage_key,
     )?.storage_key ?? null;
 
-  // flux_product-Fallback (Stammartikel → Gruppe → flux_template), nur wenn die
-  // Zeile selbst kein Template aufgelöst hat.
-  let fluxProductFallback: string | null = null;
-  if (rr.stammartikel_id) {
-    const { data: st } = await sb
-      .from("opri_stammartikel")
-      .select("flux_product")
-      .eq("id", rr.stammartikel_id)
-      .maybeSingle();
-    fluxProductFallback = (st?.flux_product as string | null) ?? null;
-  }
-  if (!fluxProductFallback && rr.gruppe) {
-    const { data: g } = await sb
-      .from("opri_produkt_gruppe")
-      .select("flux_product")
-      .eq("kuerzel", rr.gruppe)
-      .maybeSingle();
-    fluxProductFallback = (g?.flux_product as string | null) ?? null;
-  }
-  fluxProductFallback = fluxProductFallback ?? rr.flux_template ?? null;
-
   const auflage = Number(order.quantity) || 0;
   const verfahren = rr.druckverfahren ?? null;
   const farbigkeit = (rr.attribute?.farbigkeit as string | undefined) ?? null;
@@ -226,7 +205,7 @@ export async function erzeugeJobs(
         auflage,
         cello: z.cello ?? "keine",
         cello_seiten: z.cello_seiten ?? 1,
-        flux_product: z.flux_product ?? fluxProductFallback,
+        flux_product: z.flux_product ?? null,
         flux_services: services,
         flux_paper_type: z.flux_paper_type ?? null,
         flux_signature: z.flux_signature ?? null,

@@ -8,7 +8,7 @@ import { DruckjobsButton } from "./DruckjobsButton";
 import { PreisPanel } from "./PreisPanel";
 import { DateienPanel } from "./DateienPanel";
 import { FluxSendPanel } from "./FluxSendPanel";
-import { loadCatalogForForm } from "../../einstellungen/flux-templates/loadCatalog";
+import { loadCatalogForForm } from "@/lib/flux/loadCatalog";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +40,6 @@ type ResolveResult = {
   attribute: Record<string, unknown>;
   optionen: { typ: string | null; wert: string | null; sku: string }[];
   blockstaerke_mm: number;
-  flux_template: string | null;
   materialliste: {
     regel: string;
     rolle: string | null;
@@ -349,8 +348,6 @@ export default async function DruckauftragPage({
                 </dd>
                 <dt>Blockstärke</dt>
                 <dd>{r.blockstaerke_mm ? `${r.blockstaerke_mm} mm` : "—"}</dd>
-                <dt>flux_template</dt>
-                <dd>{r.flux_template ?? <span className="msg-err">nicht gesetzt (Regel fehlt)</span>}</dd>
               </dl>
 
               <h3 style={{ margin: "14px 0 6px", fontSize: 14 }}>Materialliste</h3>

@@ -146,7 +146,6 @@ export type ResolveResult = {
   attribute: Record<string, unknown>;
   optionen: { typ: string | null; wert: string | null; sku: string }[];
   blockstaerke_mm: number;
-  flux_template: string | null;
   materialliste: MaterialZeile[];
   ungeloest: string[];
   hinweise: string[];
@@ -186,7 +185,8 @@ type Regel = {
   einheit: string;
   vernutzung_format: string | null;
   traegt_cello: boolean;
-  flux_template_id: string | null;
+  flux_product: string | null;
+  flux_services: Record<string, unknown> | null;
 };
 type Material = {
   id: string;
@@ -195,16 +195,6 @@ type Material = {
   rolle_id: string | null;
   attribute: Record<string, unknown>;
   flux_paper_type: string | null;
-};
-type FluxTpl = {
-  id: string;
-  name: string;
-  flux_product: string;
-  signature: string | null;
-  paper_type: string | null;
-  paper_type_back: string | null;
-  services: Record<string, unknown> | null;
-  extra: Record<string, unknown> | null;
 };
 type FormatRow = {
   id: string;
@@ -236,16 +226,14 @@ type WireRow = {
   durchmesser_mm: number | null;
 };
 
-export type GruppeInfo = {
+export type FluxDirekt = { flux_product: string | null; flux_services: Record<string, unknown> };
+export type GruppeInfo = FluxDirekt & {
   id: string;
-  flux_template: string | null;
-  flux_template_id: string | null;
   druckverfahren: string | null;
 };
 export type GruppenMaps = {
   gruppen: Map<string, GruppeInfo>;
-  stammFlux: Map<string, string | null>;
-  stammTplId: Map<string, string | null>;
+  stammFlux: Map<string, FluxDirekt>;
 };
 
 export type OrderInput = {
@@ -277,7 +265,7 @@ async function pagedAll<T>(sb: SupabaseClient, table: string, sel: string): Prom
 }
 
 export async function loadResolveRefData(sb: SupabaseClient) {
-  const [skus, regeln, material, rollen, wire, formate, vern, boegen, fluxTpls, standboegen] =
+  const [skus, regeln, material, rollen, wire, formate, vern, boegen, standboegen] =
     await Promise.all([
     pagedAll<SkuRow>(
       sb,
@@ -308,10 +296,6 @@ export async function loadResolveRefData(sb: SupabaseClient) {
       .select("id, code, is_default")
       .then((r) => (r.data ?? []) as BogenRow[]),
     sb
-      .from("flux_template")
-      .select("id, name, flux_product, signature, paper_type, paper_type_back, services, extra")
-      .then((r) => (r.data ?? []) as FluxTpl[]),
-    sb
       .from("standbogen")
       .select("format, ausrichtung, flux_signature, druckbogen, nutzen, sortierung")
       .eq("aktiv", true)
@@ -335,7 +319,6 @@ export async function loadResolveRefData(sb: SupabaseClient) {
     formate,
     vern,
     boegen,
-    tplById: new Map<string, FluxTpl>(fluxTpls.map((t) => [t.id, t])),
     standboegen,
   };
 }
@@ -344,27 +327,30 @@ export type RefData = Awaited<ReturnType<typeof loadResolveRefData>>;
 
 export async function loadGruppenMaps(sb: SupabaseClient): Promise<GruppenMaps> {
   const [{ data: grp }, { data: st }] = await Promise.all([
-    sb.from("opri_produkt_gruppe").select("id, kuerzel, flux_template, flux_template_id, druckverfahren"),
-    sb.from("opri_stammartikel").select("id, flux_template, flux_template_id"),
+    sb.from("opri_produkt_gruppe").select("id, kuerzel, flux_product, flux_services, druckverfahren"),
+    sb.from("opri_stammartikel").select("id, flux_product, flux_services"),
   ]);
   const gruppen = new Map<string, GruppeInfo>(
     (grp ?? []).map((g) => [
       g.kuerzel as string,
       {
         id: g.id as string,
-        flux_template: (g.flux_template as string | null) ?? null,
-        flux_template_id: (g as { flux_template_id?: string | null }).flux_template_id ?? null,
+        flux_product: (g.flux_product as string | null) ?? null,
+        flux_services: (g.flux_services as Record<string, unknown> | null) ?? {},
         druckverfahren: (g as { druckverfahren?: string | null }).druckverfahren ?? null,
       },
     ]),
   );
-  const stammFlux = new Map<string, string | null>(
-    (st ?? []).map((s) => [s.id as string, (s.flux_template as string | null) ?? null]),
+  const stammFlux = new Map<string, FluxDirekt>(
+    (st ?? []).map((s) => [
+      s.id as string,
+      {
+        flux_product: (s.flux_product as string | null) ?? null,
+        flux_services: (s.flux_services as Record<string, unknown> | null) ?? {},
+      },
+    ]),
   );
-  const stammTplId = new Map<string, string | null>(
-    (st ?? []).map((s) => [s.id as string, (s as { flux_template_id?: string | null }).flux_template_id ?? null]),
-  );
-  return { gruppen, stammFlux, stammTplId };
+  return { gruppen, stammFlux };
 }
 
 // --------------------------------------------------------------- Hilfen
@@ -598,11 +584,8 @@ export function resolveOne(ref: RefData, order: OrderInput): ResolveResult {
     });
   }
 
-  // flux_template: Stammartikel überschreibt Gruppe
   const grp = gruppeKuerzel ? order.gruppen?.get(gruppeKuerzel) : undefined;
-  const fluxStamm = stammartikelId ? order.stammFlux?.get(stammartikelId) ?? null : null;
-  const fluxTemplate = fluxStamm ?? grp?.flux_template ?? null;
-  if (!fluxTemplate) hinweise.push("kein flux_template (Regel fehlt)");
+  const stammDirekt = stammartikelId ? order.stammFlux?.get(stammartikelId) : undefined;
 
   const bedingungOk = (r: Regel): boolean => {
     const b = r.bedingung;
@@ -660,8 +643,6 @@ export function resolveOne(ref: RefData, order: OrderInput): ResolveResult {
   };
 
   const mVars = { auflage, blatt: nnum(attr.blatt) ?? 0, seiten: nnum(attr.seiten) ?? 0 };
-  const grpTplId = grp?.flux_template_id ?? null;
-  const stTplId = stammartikelId ? order.stammTplId?.get(stammartikelId) ?? null : null;
 
   // Standbogen-Match: angelieferte PDF-Ausrichtung zuerst (die Drehung steckt im
   // Standbogen), sonst die Produkt-Ausrichtung.
@@ -671,9 +652,19 @@ export function resolveOne(ref: RefData, order: OrderInput): ResolveResult {
 
   const build = (r: Regel, mat: Material | null, note?: string): MaterialZeile => {
     const m = mengeFormel(r.mengen_formel, mVars);
-    const tplId = r.flux_template_id ?? stTplId ?? grpTplId;
-    const tpl = tplId ? ref.tplById.get(tplId) ?? null : null;
-    const flux_paper_type = tpl?.paper_type ?? mat?.flux_paper_type ?? null;
+    // flux-Produkt + Service-Overrides: Regel (Bauteil) > Stammartikel > Gruppe.
+    // Services mergen (spezifischer schlägt allgemeiner je Schlüssel), Produkt
+    // ist ein einzelner Wert, der erste gesetzte gewinnt.
+    const flux_product = r.flux_product ?? stammDirekt?.flux_product ?? grp?.flux_product ?? null;
+    const flux_services_merged: Record<string, unknown> = {
+      ...(grp?.flux_services ?? {}),
+      ...(stammDirekt?.flux_services ?? {}),
+      ...(r.flux_services ?? {}),
+    };
+    const flux_paper_type =
+      (flux_services_merged["Papiersorte"] as string | undefined) ?? mat?.flux_paper_type ?? null;
+    const flux_paper_type_back =
+      (flux_services_merged["Papiersorte Rückseite"] as string | undefined) ?? null;
     let nutzen: number | null = null;
     let netto_bogen: number | null = null;
     let druckbogen: string | null = null;
@@ -720,13 +711,12 @@ export function resolveOne(ref: RefData, order: OrderInput): ResolveResult {
       bedruckt: r.bedruckt,
       cello: r.traegt_cello ? ((attr.cello as "matt" | "glanz" | undefined) ?? "matt") : "keine",
       cello_seiten: r.traegt_cello ? (nnum(attr.cello_seiten) ?? 1) : 1,
-      flux_product: tpl?.flux_product ?? null,
+      flux_product,
       flux_paper_type,
-      flux_paper_type_back: tpl?.paper_type_back ?? null,
+      flux_paper_type_back,
       flux_printer: null, // Drucker wird erst beim Batch (zugeordnete Maschine) gesetzt
-      // Standbogen: Format + PDF-Ausrichtung vor Template-Signature
-      flux_signature: standbogen?.flux_signature ?? tpl?.signature ?? null,
-      flux_services: (tpl?.services as Record<string, unknown> | null) ?? {},
+      flux_signature: standbogen?.flux_signature ?? null,
+      flux_services: flux_services_merged,
       ...(n2 ? { ungeloest: n2 } : {}),
     };
   };
@@ -856,7 +846,6 @@ export function resolveOne(ref: RefData, order: OrderInput): ResolveResult {
     attribute: attr,
     optionen,
     blockstaerke_mm: block,
-    flux_template: fluxTemplate,
     materialliste: zeilen.filter((z) => !(z.rolle && suppressed.has(z.rolle))),
     ungeloest,
     hinweise,

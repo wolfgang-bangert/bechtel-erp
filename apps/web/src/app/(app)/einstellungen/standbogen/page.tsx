@@ -42,8 +42,8 @@ export default async function StandbogenPage() {
         querformatig angeliefert wird, ein eigener Standbogen. Der Resolver matcht{" "}
         <strong>Format + angelieferte PDF-Ausrichtung</strong> (<code>pdf_meta.ausrichtung</code>) und
         setzt <code>flux_signature</code>, <code>druckbogen</code> und <code>nutzen</code> auf den
-        Druckzeilen. Vorrang: Standbogen → <code>vernutzung</code> / <code>flux_template.signature</code>{" "}
-        (Fallback) → manueller Override beim Auftrag. Ausrichtung leer = gilt für beide.
+        Druckzeilen. Vorrang: Standbogen → <code>vernutzung</code> (Fallback für Nutzen/Bogen) →
+        manueller Override beim Auftrag. Ausrichtung leer = gilt für beide.
       </p>
 
       {error && <div className="banner-err">Fehler beim Laden: {error.message}</div>}
