@@ -216,6 +216,11 @@ async function main() {
       );
       break;
     }
+    case "requests:process": {
+      const { processSyncRequests } = await import("./syncRequests");
+      console.log(JSON.stringify(await processSyncRequests(), null, 1));
+      break;
+    }
     case "datev:extf": {
       const arg = (n: string) => {
         const p = process.argv.find((a) => a.startsWith(n + "="));
