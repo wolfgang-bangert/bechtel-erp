@@ -4,10 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { fmtDate } from "@/lib/format";
 import { ResolveButton } from "./ResolveButton";
-import { DruckjobsButton } from "./DruckjobsButton";
 import { PreisPanel } from "./PreisPanel";
 import { DateienPanel } from "./DateienPanel";
-import { FluxSendPanel } from "./FluxSendPanel";
+import { ArbeitsvorgaengePanel } from "./ArbeitsvorgaengePanel";
 import { TauschUmschlagInhaltButton } from "./TauschUmschlagInhaltButton";
 import { loadCatalogForForm } from "@/lib/flux/loadCatalog";
 import { brauchtUmschlagInhaltTrennung } from "@werk/shared/druck/pdfSplit";
@@ -211,19 +210,7 @@ export default async function DruckauftragPage({
     .eq("key", "flux_order_url_tpl")
     .maybeSingle();
   const fluxUrlTpl = (fluxUrlRow?.value as string | null) ?? null;
-  const druckJobs = jobs
-    .filter((j) => j.typ === "druck")
-    .map((j) => ({
-      id: j.id,
-      bauteil: j.bauteil,
-      flux_product: j.flux_product,
-      flux_signature: j.flux_signature,
-      flux_paper_type: j.flux_paper_type,
-      flux_printer: j.flux_printer,
-      flux_services: j.flux_services,
-      flux_order_item_id: j.flux_order_item_id,
-      pdf: !!j.pdf_storage_key,
-    }));
+  const arbeitsvorgaenge = jobs.map((j) => ({ ...j, pdf: !!j.pdf_storage_key }));
   const sentOrderId = jobs.find((j) => j.typ === "druck" && j.flux_order_id)?.flux_order_id ?? null;
 
   return (
@@ -446,87 +433,9 @@ export default async function DruckauftragPage({
         })()
       )}
 
-      <div className="toolbar" style={{ justifyContent: "space-between", marginTop: 18 }}>
-        <h2 style={{ margin: 0 }}>
-          Arbeitsvorgänge {jobs.length > 0 && <span className="tag">{jobs.length}</span>}
-        </h2>
-        <DruckjobsButton id={data.id} />
-      </div>
-      {jobs.length === 0 ? (
-        <p className="lead">
-          Noch keine Jobs. „Jobs erzeugen" legt Druck-, Cello-, Binde- und Aufhänger-Vorgänge
-          an und sortiert sie in Batches.
-        </p>
-      ) : (
-        <div className="table-scroll">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Typ</th>
-                <th>Bauteil</th>
-                <th>Papier / Farbe</th>
-                <th style={{ textAlign: "right" }}>Menge</th>
-                <th>Cello / Wire-O</th>
-                <th>Batch</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((j) => (
-                <tr key={j.id}>
-                  <td><span className="tag">{j.typ}</span></td>
-                  <td>
-                    {j.bauteil}
-                    {j.komponenten && j.komponenten.length > 0 && (
-                      <div className="count" style={{ marginTop: 3 }}>
-                        führt zusammen:{" "}
-                        {j.komponenten
-                          .map(
-                            (k) =>
-                              `${k.bezeichnung ?? "?"}${
-                                k.menge != null ? ` (${k.menge.toLocaleString("de-DE")}${k.einheit ? " " + k.einheit : ""})` : ""
-                              }`,
-                          )
-                          .join("  +  ")}
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    {j.papier ?? "—"}
-                    {j.farbigkeit ? ` · ${j.farbigkeit}` : ""}
-                    {j.format ? ` · ${j.format}` : ""}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {j.typ === "druck"
-                      ? `${j.netto_bogen ?? "—"}${j.druckbogen ? ` ${j.druckbogen}` : ""}${j.nutzen ? ` (${j.nutzen}-up)` : ""}`
-                      : j.typ === "binden"
-                        ? `${j.schlaufen_gesamt?.toLocaleString("de-DE") ?? "—"} Schlaufen`
-                        : `${j.auflage.toLocaleString("de-DE")} Expl.`}
-                  </td>
-                  <td>
-                    {j.cello !== "keine"
-                      ? `Cello ${j.cello}, ${j.cello_seiten}-seitig`
-                      : j.durchmesser || j.teilung
-                        ? [j.teilung, j.durchmesser].filter(Boolean).join(" · ")
-                        : "—"}
-                  </td>
-                  <td>{j.batch ? <Link href="/druck">{j.batch.nummer}</Link> : "—"}</td>
-                  <td className="count">{j.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <h2 style={{ marginTop: 18 }}>flux</h2>
-      <p className="lead" style={{ marginTop: 0 }}>
-        Je Druck-Bauteil flux-Produkt und Overrides wählen, dann den Auftrag als flux-Order
-        übergeben (ein orderItem je Bauteil).
-      </p>
-      <FluxSendPanel
+      <ArbeitsvorgaengePanel
         orderId={data.id}
-        jobs={druckJobs}
+        jobs={arbeitsvorgaenge}
         products={cat.products}
         signatures={cat.signatures}
         paperTypes={cat.paperTypes}
