@@ -87,10 +87,13 @@ export async function erzeugeJobs(
   const printKey = files.find((f) => f.typ === "printData" && f.storage_key)?.storage_key ?? null;
   // Umschlag/Inhalt aus einer gemeinsamen PDF getrennt (pdfSplitStep)? Je
   // Bauteil die passende Teil-PDF nehmen, sonst die volle Datei wie bisher.
+  // Zuordnung über den storage_key-Suffix (stabil), nicht über den
+  // Anzeige-Dateinamen (der trägt die Auftragsnummer und ist frei änderbar).
   const pdfKeyFor = (rolle: string | null): string | null => {
-    const filename = rolle === "Deckblatt" ? "Umschlag.pdf" : "Inhalt.pdf";
+    const teil = rolle === "Deckblatt" ? "Umschlag" : "Inhalt";
     return (
-      files.find((f) => f.typ === "printDataPart" && f.filename === filename)?.storage_key ?? printKey
+      files.find((f) => f.typ === "printDataPart" && f.storage_key?.endsWith(`printDataPart-${teil}.pdf`))
+        ?.storage_key ?? printKey
     );
   };
 

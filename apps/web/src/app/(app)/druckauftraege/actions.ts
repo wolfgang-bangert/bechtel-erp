@@ -179,7 +179,7 @@ export async function tauschUmschlagInhaltAction(_prev: State, fd: FormData): Pr
   const { data: order, error: oErr } = await supabase
     .from("portal_order")
     .select(
-      "id, pdf_seiten_tausch, files:portal_order_file(id, typ, storage_key, filename)",
+      "id, external_reference, pdf_seiten_tausch, files:portal_order_file(id, typ, storage_key, filename)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -195,25 +195,29 @@ export async function tauschUmschlagInhaltAction(_prev: State, fd: FormData): Pr
     const bytes = await getObjectBytes(quelle.storage_key);
     const { umschlag, inhalt } = await splitUmschlagInhalt(bytes, neuTausch);
     const s3prefix = quelle.storage_key.replace(/\/[^/]+$/, "");
+    const ref = order.external_reference;
 
-    for (const [filename, data] of [
-      ["Umschlag.pdf", umschlag],
-      ["Inhalt.pdf", inhalt],
-    ] as const) {
-      const key = `${s3prefix}/printDataPart-${filename}`;
+    // storage_key trägt den stabilen Teil-Namen (Umschlag/Inhalt), die
+    // Anzeige-Datei bekommt die Auftragsnummer, wie im Dateien-Panel gewünscht.
+    const teile = [
+      { teil: "Umschlag", anzeige: `${ref}_Vorderblatt.pdf`, data: umschlag },
+      { teil: "Inhalt", anzeige: `${ref}_Inhalt.pdf`, data: inhalt },
+    ] as const;
+    for (const { teil, anzeige, data } of teile) {
+      const key = `${s3prefix}/printDataPart-${teil}.pdf`;
       await putObject(key, Buffer.from(data), "application/pdf");
-      const bestehend = files.find((f) => f.typ === "printDataPart" && f.filename === filename);
+      const bestehend = files.find((f) => f.typ === "printDataPart" && f.storage_key === key);
       if (bestehend) {
         await supabase
           .from("portal_order_file")
-          .update({ storage_key: key, bytes: data.byteLength, fetched_at: new Date().toISOString() })
+          .update({ filename: anzeige, bytes: data.byteLength, fetched_at: new Date().toISOString() })
           .eq("id", bestehend.id);
       } else {
         await supabase.from("portal_order_file").insert({
           portal_order_id: id,
           typ: "printDataPart",
           storage_key: key,
-          filename,
+          filename: anzeige,
           bytes: data.byteLength,
           fetched_at: new Date().toISOString(),
         });

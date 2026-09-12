@@ -54,24 +54,27 @@ export async function splitPdfMissing(opts: { limit?: number; force?: boolean } 
       const ref = o.external_reference;
       const s3prefix = (quelle.storage_key as string).replace(/\/[^/]+$/, "");
 
-      for (const [filename, data] of [
-        ["Umschlag.pdf", umschlag],
-        ["Inhalt.pdf", inhalt],
-      ] as const) {
-        const key = `${s3prefix}/printDataPart-${filename}`;
+      // storage_key trägt den stabilen Teil-Namen (Umschlag/Inhalt), die
+      // Anzeige-Datei bekommt die Auftragsnummer, wie im Dateien-Panel gewünscht.
+      const teile = [
+        { teil: "Umschlag", anzeige: `${ref}_Vorderblatt.pdf`, data: umschlag },
+        { teil: "Inhalt", anzeige: `${ref}_Inhalt.pdf`, data: inhalt },
+      ] as const;
+      for (const { teil, anzeige, data } of teile) {
+        const key = `${s3prefix}/printDataPart-${teil}.pdf`;
         await putObject(key, Buffer.from(data), "application/pdf");
-        const bestehend = files.find((f) => f.typ === "printDataPart" && f.filename === filename);
+        const bestehend = files.find((f) => f.typ === "printDataPart" && f.storage_key === key);
         if (bestehend) {
           await supabase
             .from("portal_order_file")
-            .update({ storage_key: key, bytes: data.byteLength, fetched_at: new Date().toISOString() })
+            .update({ filename: anzeige, bytes: data.byteLength, fetched_at: new Date().toISOString() })
             .eq("id", bestehend.id);
         } else {
           await supabase.from("portal_order_file").insert({
             portal_order_id: o.id,
             typ: "printDataPart",
             storage_key: key,
-            filename,
+            filename: anzeige,
             bytes: data.byteLength,
             fetched_at: new Date().toISOString(),
           });
