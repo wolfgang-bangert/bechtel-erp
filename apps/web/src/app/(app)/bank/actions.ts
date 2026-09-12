@@ -103,6 +103,32 @@ export async function matchTransaction(
   return { ok: true };
 }
 
+export type SyncState = { ok?: boolean; error?: string; note?: string };
+
+/**
+ * Stößt einen FinTS-Bankabruf an. Läuft nicht sofort - die Web-App hat kein
+ * FinTS/Python, das braucht der sync-Container. Legt nur eine Zeile in
+ * sync_request an, ein Cron-Job dort (alle 2 min) holt sie ab.
+ */
+export async function requestBankSync(_prev: SyncState, _formData: FormData): Promise<SyncState> {
+  const supabase = await createClient();
+
+  const { data: offen } = await supabase
+    .from("sync_request")
+    .select("id")
+    .eq("job", "fints:pull")
+    .in("status", ["pending", "running"])
+    .limit(1)
+    .maybeSingle();
+  if (offen) return { error: "Es läuft schon eine Aktualisierung - bitte kurz warten." };
+
+  const { error } = await supabase.from("sync_request").insert({ job: "fints:pull", params: {} });
+  if (error) return { error: error.message };
+
+  revalidatePath("/bank");
+  return { ok: true, note: "Angefordert - wird in wenigen Minuten verarbeitet." };
+}
+
 export async function unmatchTransaction(formData: FormData): Promise<void> {
   const matchId = String(formData.get("match_id") ?? "");
   const txId = String(formData.get("tx_id") ?? "");

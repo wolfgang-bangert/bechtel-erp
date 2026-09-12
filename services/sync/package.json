@@ -36,6 +36,7 @@
     "bank:match": "tsx src/cli.ts bank:match",
     "fints:setup": "tsx src/cli.ts fints:setup",
     "fints:pull": "tsx src/cli.ts fints:pull",
+    "requests:process": "tsx src/cli.ts requests:process",
     "fracht:import": "tsx src/cli.ts fracht:import",
     "packmittel:import": "tsx src/cli.ts packmittel:import",
     "opri:import-sku": "tsx src/cli.ts opri:import-sku",

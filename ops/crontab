@@ -13,3 +13,6 @@
 
 # Bankumsätze abrufen (FinTS) – einmal morgens
 0 6 * * *    cd /app/services/sync && pnpm fints:pull
+
+# Manuelle Anstöße aus der Web-App abarbeiten (z. B. "Banken aktualisieren"-Button)
+*/2 * * * *  cd /app/services/sync && pnpm requests:process

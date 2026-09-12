@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
 import { MatchForm, InvoiceDatalist, type Candidate } from "./ui";
 import { unmatchTransaction } from "./actions";
+import { BankSyncButton } from "./BankSyncButton";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,14 @@ export default async function BankPage({
     .order("label");
   const accountsWithBalance = (accounts ?? []).filter((a) => a.balance != null);
   const totalBalance = accountsWithBalance.reduce((s, a) => s + Number(a.balance), 0);
+
+  const { data: lastSync } = await supabase
+    .from("sync_request")
+    .select("status, requested_at, finished_at, error")
+    .eq("job", "fints:pull")
+    .order("requested_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   type TxRow = {
     id: string;
@@ -144,7 +153,10 @@ export default async function BankPage({
 
   return (
     <>
-      <h1>Bank</h1>
+      <div className="toolbar" style={{ justifyContent: "space-between" }}>
+        <h1 style={{ margin: 0 }}>Bank</h1>
+        <BankSyncButton last={lastSync ?? null} />
+      </div>
       <p className="lead">
         Importierte Kontoumsätze. <strong>Gutschriften</strong> → Ausgangsrechnung,
         <strong> Abgänge</strong> → Eingangsrechnung. Der Rest folgt automatisch
