@@ -14,7 +14,7 @@ Batches → flux/AccurioPro Flux). Ein PostgreSQL (Supabase).
 |---|---|
 | `apps/web` | Next.js 15 (App Router) + `@supabase/ssr` — Admin-ERP, später Portale |
 | `packages/db` | Supabase-Schema als SQL-Migrationen |
-| `packages/shared` | geteilte TS-Typen/Logik |
+| `packages/shared` | geteilte TS-Typen/Logik: `@werk/shared` (Steuer, opri-Auflösung, Job-Erzeugung) |
 | `services/sync` | `tsx`-CLI: Portale, Keyline, Ninox, Banken (FinTS), BuchhaltungsButler, DATEV |
 
 Node 22, pnpm 9.12 (`packageManager` im root). `pnpm install` im Repo-Root.
@@ -29,14 +29,18 @@ CI (`.github/workflows/ci.yml`) macht dasselbe bei jedem PR.
 
 ## Fallen (unbedingt beachten)
 
-### Zwei gespiegelte Resolver — IMMER BEIDE ändern
-`apps/web/src/lib/opri/resolve.ts` (`resolvePortalOrder`) **und**
-`services/sync/src/opriResolve.ts` (`resolveOpri`/`resolveOne`). Gleiche Logik,
-zwei Kopien. Eine allein zu ändern führt zu Abweichungen zwischen UI und Cron.
-
-### Zwei gespiegelte Job-Generatoren — IMMER BEIDE ändern
-`apps/web/src/lib/druck/materialize.ts` (`erzeugeJobs`) **und**
-`services/sync/src/erzeugeJobs.ts` (`erzeugeJobs`).
+### Auflösung + Job-Erzeugung: eine Quelle in `packages/shared`
+- Resolver: `packages/shared/src/opri/resolve.ts` — `resolveOne` (rein),
+  `loadResolveRefData` / `loadGruppenMaps` (laden mit `SupabaseClient`),
+  `resolvePortalOrder(sb, id)`. Web importiert über `@/lib/opri/resolve`
+  (Re-Export), Worker über `services/sync/src/opriResolve.ts` (`resolveOpri`
+  = Batch-Lauf + Rückschreiben).
+- Job-Erzeugung: `packages/shared/src/druck/jobs.ts` — `erzeugeJobs(sb, id)`.
+  Web über `@/lib/druck/materialize` (Re-Export), Worker in `jobsSync.ts`.
+- Die alten gespiegelten Kopien (`services/sync/src/erzeugeJobs.ts`, doppelte
+  Logik in `opriResolve.ts`) sind entfernt. **Logik nur noch in `packages/shared`
+  ändern.** `@werk/shared` ist ein Workspace-Paket mit rohem TS; Web braucht
+  dafür `transpilePackages: ["@werk/shared"]` (steht in `next.config.ts`).
 
 ### Datenbank
 - Migrationen: `packages/db/supabase/migrations/<UTC-Zeitstempel>_name.sql`,

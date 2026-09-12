@@ -4,11 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { fmtDate } from "@/lib/format";
 import { ResolveButton } from "./ResolveButton";
-import { DruckjobsButton } from "./DruckjobsButton";
 import { PreisPanel } from "./PreisPanel";
 import { DateienPanel } from "./DateienPanel";
-import { FluxSendPanel } from "./FluxSendPanel";
-import { loadCatalogForForm } from "../../einstellungen/flux-templates/loadCatalog";
+import { ArbeitsvorgaengePanel } from "./ArbeitsvorgaengePanel";
+import { TauschUmschlagInhaltButton } from "./TauschUmschlagInhaltButton";
+import { loadCatalogForForm } from "@/lib/flux/loadCatalog";
+import { brauchtUmschlagInhaltTrennung } from "@werk/shared/druck/pdfSplit";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,6 @@ type ResolveResult = {
   attribute: Record<string, unknown>;
   optionen: { typ: string | null; wert: string | null; sku: string }[];
   blockstaerke_mm: number;
-  flux_template: string | null;
   materialliste: {
     regel: string;
     rolle: string | null;
@@ -96,6 +96,7 @@ type Detail = {
   flux_sent_at: string | null;
   flux_payload: unknown;
   flux_response: unknown;
+  pdf_seiten_tausch: boolean;
   abrechnung: { id: string; jahr: number; kw: number; status: string } | null;
   portal: { code?: string; name?: string } | null;
   items: { position: string | null; sku: string | null; quantity: number | null; description: string | null }[];
@@ -125,7 +126,7 @@ export default async function DruckauftragPage({
       "id, external_id, external_reference, reference_type, portal_state, description, quantity, " +
         "deliver_date, currency, total_net, total_gross, ship_to, sender, received_at, raw, resolve_result, resolved_at, " +
         "versand_datum, preis_netto, preis_quelle, berechnet, ist_rekla, rekla_vermerk, " +
-        "flux_order_id, flux_sent_at, flux_payload, flux_response, " +
+        "flux_order_id, flux_sent_at, flux_payload, flux_response, pdf_seiten_tausch, " +
         "abrechnung:abrechnung_id(id, jahr, kw, status), " +
         "portal:portal_id(code, name), " +
         "items:portal_order_item(position, sku, quantity, description), " +
@@ -169,7 +170,7 @@ export default async function DruckauftragPage({
     .from("job")
     .select(
       "id, typ, bauteil, papier, farbigkeit, format, druckbogen, nutzen, netto_bogen, auflage, cello, cello_seiten, teilung, durchmesser, schlaufen_gesamt, komponenten, status, " +
-        "flux_product, flux_signature, flux_printer, flux_paper_type, flux_services, flux_order_id, pdf_storage_key, batch:batch_id(nummer, typ, status)",
+        "flux_product, flux_signature, flux_printer, flux_paper_type, flux_services, flux_order_id, flux_order_item_id, pdf_storage_key, batch:batch_id(nummer, typ, status)",
     )
     .eq("portal_order_id", id)
     .order("created_at", { ascending: true });
@@ -197,23 +198,58 @@ export default async function DruckauftragPage({
     flux_paper_type: string | null;
     flux_services: Record<string, unknown> | null;
     flux_order_id: string | null;
+    flux_order_item_id: string | null;
     pdf_storage_key: string | null;
     batch: { nummer: string; typ: string; status: string } | null;
   }[];
 
   const cat = await loadCatalogForForm();
-  const druckJobs = jobs
-    .filter((j) => j.typ === "druck")
-    .map((j) => ({
-      id: j.id,
-      bauteil: j.bauteil,
-      flux_product: j.flux_product,
-      flux_signature: j.flux_signature,
-      flux_paper_type: j.flux_paper_type,
-      flux_printer: j.flux_printer,
-      flux_services: j.flux_services,
-      pdf: !!j.pdf_storage_key,
-    }));
+  const { data: fluxUrlRow } = await supabase
+    .from("setting")
+    .select("value")
+    .eq("key", "flux_order_url_tpl")
+    .maybeSingle();
+  const fluxUrlTpl = (fluxUrlRow?.value as string | null) ?? null;
+
+  // Dateien je Arbeitsvorgang (mehrere möglich: Auto-Zuordnung + manuelle
+  // Uploads) - gehen als pageSources mit an flux.
+  const jobIds = jobs.map((j) => j.id);
+  const { data: dateienRaw } = jobIds.length
+    ? await supabase
+        .from("job_datei")
+        .select("id, job_id, storage_key, filename, bytes, herkunft, created_at")
+        .in("job_id", jobIds)
+        .order("created_at", { ascending: true })
+    : { data: [] };
+  const dateienJeJob = new Map<
+    string,
+    { id: string; filename: string | null; bytes: number | null; herkunft: string; viewUrl: string | null; downloadUrl: string | null }[]
+  >();
+  for (const d of (dateienRaw ?? []) as {
+    id: string;
+    job_id: string;
+    storage_key: string;
+    filename: string | null;
+    bytes: number | null;
+    herkunft: string;
+  }[]) {
+    const liste = dateienJeJob.get(d.job_id) ?? [];
+    liste.push({
+      id: d.id,
+      filename: d.filename,
+      bytes: d.bytes,
+      herkunft: d.herkunft,
+      viewUrl: await signedGetUrl(d.storage_key, 1800),
+      downloadUrl: await signedGetUrl(d.storage_key, 1800, d.filename ?? undefined),
+    });
+    dateienJeJob.set(d.job_id, liste);
+  }
+
+  const arbeitsvorgaenge = jobs.map((j) => ({
+    ...j,
+    pdf: !!j.pdf_storage_key,
+    dateien: dateienJeJob.get(j.id) ?? [],
+  }));
   const sentOrderId = jobs.find((j) => j.typ === "druck" && j.flux_order_id)?.flux_order_id ?? null;
 
   return (
@@ -349,8 +385,6 @@ export default async function DruckauftragPage({
                 </dd>
                 <dt>Blockstärke</dt>
                 <dd>{r.blockstaerke_mm ? `${r.blockstaerke_mm} mm` : "—"}</dd>
-                <dt>flux_template</dt>
-                <dd>{r.flux_template ?? <span className="msg-err">nicht gesetzt (Regel fehlt)</span>}</dd>
               </dl>
 
               <h3 style={{ margin: "14px 0 6px", fontSize: 14 }}>Materialliste</h3>
@@ -417,6 +451,14 @@ export default async function DruckauftragPage({
                 <p className="lead">Keine Materialregel hat gegriffen.</p>
               )}
 
+              {brauchtUmschlagInhaltTrennung(r.materialliste ?? []) && (
+                <div className="lead" style={{ marginTop: 8 }}>
+                  Umschlag + Inhalt kommen aus einer PDF (Standard: Seite 1 = Umschlag, Seite 2 =
+                  Inhalt). Falls es bei diesem Auftrag andersrum ist:{" "}
+                  <TauschUmschlagInhaltButton id={data.id} getauscht={data.pdf_seiten_tausch} />
+                </div>
+              )}
+
               {(r.ungeloest?.length || r.hinweise?.length) && (
                 <p className="lead" style={{ marginTop: 8 }}>
                   {r.ungeloest?.length ? (
@@ -430,93 +472,16 @@ export default async function DruckauftragPage({
         })()
       )}
 
-      <div className="toolbar" style={{ justifyContent: "space-between", marginTop: 18 }}>
-        <h2 style={{ margin: 0 }}>
-          Arbeitsvorgänge {jobs.length > 0 && <span className="tag">{jobs.length}</span>}
-        </h2>
-        <DruckjobsButton id={data.id} />
-      </div>
-      {jobs.length === 0 ? (
-        <p className="lead">
-          Noch keine Jobs. „Jobs erzeugen" legt Druck-, Cello-, Binde- und Aufhänger-Vorgänge
-          an und sortiert sie in Batches.
-        </p>
-      ) : (
-        <div className="table-scroll">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Typ</th>
-                <th>Bauteil</th>
-                <th>Papier / Farbe</th>
-                <th style={{ textAlign: "right" }}>Menge</th>
-                <th>Cello / Wire-O</th>
-                <th>Batch</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((j) => (
-                <tr key={j.id}>
-                  <td><span className="tag">{j.typ}</span></td>
-                  <td>
-                    {j.bauteil}
-                    {j.komponenten && j.komponenten.length > 0 && (
-                      <div className="count" style={{ marginTop: 3 }}>
-                        führt zusammen:{" "}
-                        {j.komponenten
-                          .map(
-                            (k) =>
-                              `${k.bezeichnung ?? "?"}${
-                                k.menge != null ? ` (${k.menge.toLocaleString("de-DE")}${k.einheit ? " " + k.einheit : ""})` : ""
-                              }`,
-                          )
-                          .join("  +  ")}
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    {j.papier ?? "—"}
-                    {j.farbigkeit ? ` · ${j.farbigkeit}` : ""}
-                    {j.format ? ` · ${j.format}` : ""}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {j.typ === "druck"
-                      ? `${j.netto_bogen ?? "—"}${j.druckbogen ? ` ${j.druckbogen}` : ""}${j.nutzen ? ` (${j.nutzen}-up)` : ""}`
-                      : j.typ === "binden"
-                        ? `${j.schlaufen_gesamt?.toLocaleString("de-DE") ?? "—"} Schlaufen`
-                        : `${j.auflage.toLocaleString("de-DE")} Expl.`}
-                  </td>
-                  <td>
-                    {j.cello !== "keine"
-                      ? `Cello ${j.cello}, ${j.cello_seiten}-seitig`
-                      : j.durchmesser || j.teilung
-                        ? [j.teilung, j.durchmesser].filter(Boolean).join(" · ")
-                        : "—"}
-                  </td>
-                  <td>{j.batch ? <Link href="/druck">{j.batch.nummer}</Link> : "—"}</td>
-                  <td className="count">{j.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <h2 style={{ marginTop: 18 }}>flux</h2>
-      <p className="lead" style={{ marginTop: 0 }}>
-        Je Druck-Bauteil flux-Produkt und Overrides wählen, dann den Auftrag als flux-Order
-        übergeben (ein orderItem je Bauteil).
-      </p>
-      <FluxSendPanel
+      <ArbeitsvorgaengePanel
         orderId={data.id}
-        jobs={druckJobs}
+        jobs={arbeitsvorgaenge}
         products={cat.products}
         signatures={cat.signatures}
         paperTypes={cat.paperTypes}
         printers={cat.printers}
         catalogError={cat.catalogError}
         sentOrderId={data.flux_order_id ?? sentOrderId}
+        fluxUrlTpl={fluxUrlTpl}
         lastSentAt={data.flux_sent_at}
         lastPayload={data.flux_payload}
         lastResponse={data.flux_response}

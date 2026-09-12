@@ -1,61 +1,39 @@
 /**
- * Arbeitsvorgänge (job) + Batches aus der Auflösung eines Auftrags erzeugen.
- * SPIEGEL von apps/web/src/lib/druck/materialize.ts – bei Änderungen BEIDE anpassen.
- * (Kandidat für ein gemeinsames Package, sobald es sich einschwingt.)
+ * Erzeugt aus der Auflösung eines Auftrags (portal_order.resolve_result) die
+ * Arbeitsvorgänge (job) und ordnet sie Batches zu. Eine Quelle für Web
+ * (`erzeugeJobs` via apps/web/src/lib/druck/materialize.ts) und Worker
+ * (services/sync/src/jobsSync.ts).
+ *
+ *   druck      – jede bedruckte Bogen/Blatt-Zeile (außer Graukarton/Graupappe)
+ *   cello      – wenn eine Zeile cello ≠ keine trägt (nach dem Umschlag-Druck)
+ *   binden     – wenn eine Wire-O-Zeile da ist (nach allen Druck-/Cello-Jobs)
+ *   konfektion – Multiloft (Inlay-Zeile): Cover + Inlay + Cover stapeln
+ *
+ * Batch-Schlüssel je Typ: Default hier, überschreibbar via setting
+ * 'batch_gruppierung'. abhaengig_von hält die Reihenfolge fürs Planungsboard.
  */
-import { supabase as sb } from "./supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ResolveResult } from "../opri/resolve.js";
 
-type Zeile = {
-  regel: string;
-  rolle: string | null;
-  verwendung: string | null;
-  material: string | null;
-  material_kurz: string | null;
-  format: string | null;
-  menge: number;
-  einheit: string;
-  nutzen: number | null;
-  netto_bogen: number | null;
-  druckbogen: string | null;
-  teilung: string | null;
-  durchmesser: string | null;
-  schlaufen: number | null;
-  schlaufen_gesamt: number | null;
-  bindeseite: string | null;
-  bedruckt: boolean | null;
-  cello: "keine" | "matt" | "glanz";
-  cello_seiten: number;
-  flux_product: string | null;
-  flux_paper_type: string | null;
-  flux_paper_type_back: string | null;
-  flux_printer: string | null;
-  flux_signature: string | null;
-  flux_services: Record<string, unknown>;
-};
-type ResolveResult = {
-  stammartikel_id: string | null;
-  gruppe: string | null;
-  druckverfahren: string | null;
-  attribute: Record<string, unknown>;
-  flux_template: string | null;
-  materialliste: Zeile[];
-};
+type Zeile = ResolveResult["materialliste"][number];
 type Typ = "druck" | "cello" | "binden" | "aufhaenger" | "konfektion";
 
 const NICHT_BEDRUCKT = /graukarton|graupappe|graukart/i;
 const IST_WIREO = /drahtbinder|wire-?o/i;
 const IST_AUFHAENGER = /aufh[äa]nger/i;
 const IST_INLAY = /inlay/i;
+
 const norm = (v: unknown) => (v == null ? "" : String(v).trim());
 
-// SPIEGEL von apps/web/src/lib/druck/materialize.ts
-const BATCH_KEYS_DEFAULT: Record<string, string[]> = {
+/** Batch-Schlüssel je Typ – Default, überschreibbar via setting 'batch_gruppierung'. */
+export const BATCH_KEYS_DEFAULT: Record<string, string[]> = {
   druck: ["verfahren", "cello", "papier", "druckbogen"],
   cello: ["bauteil", "cello", "papier"],
   binden: ["bindeseite", "schlaufen", "spiralfarbe", "aufhaenger", "teilung", "durchmesser"],
   konfektion: ["format", "druckbogen"],
 };
-const mkSchluessel = (
+
+export const mkSchluessel = (
   cfg: Record<string, string[]>,
   typ: string,
   ctx: Record<string, unknown>,
@@ -78,49 +56,24 @@ export type MaterializeResult = {
   jobs: number;
   nach_typ: Record<string, number>;
   batches_neu: number;
+  batches: { nummer: string; typ: string; schluessel: string; jobs: number }[];
   uebersprungen: string[];
 };
 
-export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeResult> {
+export async function erzeugeJobs(
+  sb: SupabaseClient,
+  portalOrderId: string,
+): Promise<MaterializeResult> {
   const { data: order, error } = await sb
     .from("portal_order")
-    .select("id, external_reference, quantity, resolve_result, files:portal_order_file(typ, storage_key)")
+    .select("id, external_reference, quantity, resolve_result, files:portal_order_file(typ, storage_key, filename)")
     .eq("id", portalOrderId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!order) throw new Error("Auftrag nicht gefunden");
+
   const rr = order.resolve_result as ResolveResult | null;
   if (!rr) throw new Error("Auftrag ist noch nicht aufgelöst");
-
-  const printKey =
-    (order.files as { typ: string; storage_key: string | null }[] | null)?.find(
-      (f) => f.typ === "printData" && f.storage_key,
-    )?.storage_key ?? null;
-
-  let fluxProductFallback: string | null = null;
-  if (rr.stammartikel_id) {
-    const { data: st } = await sb
-      .from("opri_stammartikel")
-      .select("flux_product")
-      .eq("id", rr.stammartikel_id)
-      .maybeSingle();
-    fluxProductFallback = (st?.flux_product as string | null) ?? null;
-  }
-  if (!fluxProductFallback && rr.gruppe) {
-    const { data: g } = await sb
-      .from("opri_produkt_gruppe")
-      .select("flux_product")
-      .eq("kuerzel", rr.gruppe)
-      .maybeSingle();
-    fluxProductFallback = (g?.flux_product as string | null) ?? null;
-  }
-  fluxProductFallback = fluxProductFallback ?? rr.flux_template ?? null;
-
-  const auflage = Number(order.quantity) || 0;
-  const verfahren = rr.druckverfahren ?? null;
-  const farbigkeit = (rr.attribute?.farbigkeit as string | undefined) ?? null;
-  const spiralfarbe = (rr.attribute?.spiralfarbe as string | undefined) ?? null;
-  const uebersprungen: string[] = [];
 
   const { data: bgRow } = await sb
     .from("setting")
@@ -128,6 +81,48 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
     .eq("key", "batch_gruppierung")
     .maybeSingle();
   const batchKeys = (bgRow?.value as Record<string, string[]>) ?? BATCH_KEYS_DEFAULT;
+  const spiralfarbe = (rr.attribute?.spiralfarbe as string | undefined) ?? null;
+
+  const files = (order.files as { typ: string; storage_key: string | null; filename: string | null }[] | null) ?? [];
+  const printFile = files.find((f) => f.typ === "printData" && f.storage_key) ?? null;
+  // Umschlag/Inhalt aus einer gemeinsamen PDF getrennt (pdfSplitStep)? Je
+  // Bauteil die passende Teil-PDF nehmen, sonst die volle Datei wie bisher.
+  // Zuordnung über den storage_key-Suffix (stabil), nicht über den
+  // Anzeige-Dateinamen (der trägt die Auftragsnummer und ist frei änderbar).
+  const pdfFuer = (rolle: string | null): { storage_key: string; filename: string | null } | null => {
+    const teil = rolle === "Deckblatt" ? "Umschlag" : "Inhalt";
+    const teilDatei = files.find(
+      (f) => f.typ === "printDataPart" && f.storage_key?.endsWith(`printDataPart-${teil}.pdf`),
+    );
+    const treffer = teilDatei ?? printFile;
+    return treffer?.storage_key ? { storage_key: treffer.storage_key, filename: treffer.filename } : null;
+  };
+
+  // Manuell hochgeladene/ergänzte Job-Dateien überstehen ein "Jobs neu
+  // erzeugen" (das die offenen Jobs löscht + neu anlegt) - über den
+  // Bauteil-Namen den alten Jobs zuordnen.
+  const { data: alteJobs } = await sb
+    .from("job")
+    .select("bauteil, dateien:job_datei(storage_key, filename, bytes, herkunft)")
+    .eq("portal_order_id", portalOrderId)
+    .eq("typ", "druck")
+    .in("status", ["offen", "in_batch"]);
+  const uploadsJeBauteil = new Map<
+    string,
+    { storage_key: string; filename: string | null; bytes: number | null }[]
+  >();
+  for (const j of (alteJobs ?? []) as {
+    bauteil: string;
+    dateien: { storage_key: string; filename: string | null; bytes: number | null; herkunft: string }[] | null;
+  }[]) {
+    const uploads = (j.dateien ?? []).filter((d) => d.herkunft === "upload");
+    if (uploads.length) uploadsJeBauteil.set(j.bauteil, uploads);
+  }
+
+  const auflage = Number(order.quantity) || 0;
+  const verfahren = rr.druckverfahren ?? null;
+  const farbigkeit = (rr.attribute?.farbigkeit as string | undefined) ?? null;
+  const uebersprungen: string[] = [];
 
   const zeilen = rr.materialliste ?? [];
   const druckzeilen = zeilen.filter((z) => {
@@ -141,17 +136,30 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
   const wireOzeile = zeilen.find(istWireOzeile) ?? null;
   const aufhaenger =
     !!rr.attribute?.kalenderaufhaenger || zeilen.some(istAufhaengerZeile) ? "mit" : "";
+  // Kalenderaufhänger: kein eigener Vorgang – wird beim Binden mit montiert
+  // (läuft als Komponente in den Binde-Job).
 
-  await sb.from("job").delete().eq("portal_order_id", portalOrderId).in("status", ["offen", "in_batch"]);
+  // vorhandene, noch nicht übergebene Jobs dieses Auftrags ersetzen
+  await sb
+    .from("job")
+    .delete()
+    .eq("portal_order_id", portalOrderId)
+    .in("status", ["offen", "in_batch"]);
 
+  // ---- Batch-Zuordnung -----------------------------------------------------
   const batchCache = new Map<string, { id: string; nummer: string }>();
   let batchesNeu = 0;
-  const perBatch = new Map<string, { typ: string; jobs: number }>();
+  const perBatch = new Map<string, { typ: string; schluessel: string; jobs: number }>();
 
-  async function getBatch(typ: Typ, schluessel: string, meta: Record<string, unknown>) {
+  async function getBatch(
+    typ: Typ,
+    schluessel: string,
+    meta: Record<string, unknown>,
+  ): Promise<{ id: string; nummer: string }> {
     const cacheKey = `${typ}::${schluessel}`;
     const cached = batchCache.get(cacheKey);
     if (cached) return cached;
+
     const { data: offen } = await sb
       .from("batch")
       .select("id, nummer")
@@ -164,9 +172,10 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
     if (offen) {
       const hit = { id: offen.id as string, nummer: offen.nummer as string };
       batchCache.set(cacheKey, hit);
-      perBatch.set(hit.nummer, { typ, jobs: 0 });
+      perBatch.set(hit.nummer, { typ, schluessel, jobs: 0 });
       return hit;
     }
+
     const { data: nummerRow, error: nErr } = await sb.rpc("next_number", { p_key: "batch" });
     if (nErr) throw new Error(`Batch-Nummer: ${nErr.message}`);
     const { data: neu, error: bErr } = await sb
@@ -178,15 +187,16 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
     batchesNeu++;
     const hit = { id: neu.id as string, nummer: neu.nummer as string };
     batchCache.set(cacheKey, hit);
-    perBatch.set(hit.nummer, { typ, jobs: 0 });
+    perBatch.set(hit.nummer, { typ, schluessel, jobs: 0 });
     return hit;
   }
+
   const bump = (nummer: string) => {
     const e = perBatch.get(nummer);
     if (e) e.jobs++;
   };
 
-  // 1) Druck
+  // ---- 1) Druck-Jobs -----------------------------------------------------
   const druckJobs: { id: string; bauteil: string; netto_bogen: number | null; druckbogen: string | null }[] = [];
   const celloDruckJobIds: string[] = [];
   for (const z of druckzeilen) {
@@ -203,9 +213,11 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
       format: z.format,
     });
     const druckBatch = await getBatch("druck", druckSchluessel, {});
+
     const services: Record<string, unknown> = { ...(z.flux_services ?? {}) };
     if (z.flux_paper_type) services["Papiersorte"] = z.flux_paper_type;
     if (z.flux_paper_type_back) services["Papiersorte Rückseite"] = z.flux_paper_type_back;
+
     const bauteil = z.verwendung || z.rolle || z.regel;
     const { data: j, error: jErr } = await sb
       .from("job")
@@ -224,24 +236,50 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
         auflage,
         cello: z.cello ?? "keine",
         cello_seiten: z.cello_seiten ?? 1,
-        flux_product: z.flux_product ?? fluxProductFallback,
+        flux_product: z.flux_product ?? null,
         flux_services: services,
         flux_paper_type: z.flux_paper_type ?? null,
         flux_signature: z.flux_signature ?? null,
         flux_printer: z.flux_printer ?? null,
-        pdf_storage_key: printKey,
+        pdf_storage_key: pdfFuer(z.rolle)?.storage_key ?? null,
         status: "in_batch",
       })
       .select("id")
       .single();
     if (jErr) throw new Error(`Druckjob: ${jErr.message}`);
-    druckJobs.push({ id: j.id as string, bauteil, netto_bogen: z.netto_bogen ?? null, druckbogen: z.druckbogen ?? null });
+    druckJobs.push({
+      id: j.id as string,
+      bauteil,
+      netto_bogen: z.netto_bogen ?? null,
+      druckbogen: z.druckbogen ?? null,
+    });
     if ((z.cello ?? "keine") !== "keine") celloDruckJobIds.push(j.id as string);
     bump(druckBatch.nummer);
+
+    // Job-Dateien: die automatisch zugeordnete Druckdatei + erhaltene Uploads
+    // (über den Bauteil-Namen aus den gelöschten Vorgänger-Jobs übernommen).
+    const autoDatei = pdfFuer(z.rolle);
+    const dateiZeilen: { job_id: string; storage_key: string; filename: string | null; bytes: number | null; herkunft: string }[] = [];
+    if (autoDatei) {
+      dateiZeilen.push({
+        job_id: j.id as string,
+        storage_key: autoDatei.storage_key,
+        filename: autoDatei.filename,
+        bytes: null,
+        herkunft: "auto",
+      });
+    }
+    for (const u of uploadsJeBauteil.get(bauteil) ?? []) {
+      dateiZeilen.push({ job_id: j.id as string, ...u, herkunft: "upload" });
+    }
+    if (dateiZeilen.length) {
+      const { error: dErr } = await sb.from("job_datei").insert(dateiZeilen);
+      if (dErr) throw new Error(`Job-Dateien: ${dErr.message}`);
+    }
   }
   const druckJobIds = druckJobs.map((d) => d.id);
 
-  // 2) Cello
+  // ---- 2) Cello-Job ----------------------------------------------------
   const celloJobIds: string[] = [];
   if (celloZeilen.length) {
     const cz = celloZeilen[0];
@@ -250,7 +288,11 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
     const bauteilArt = cz.verwendung || cz.rolle || "Bauteil";
     const seitenTxt = cz.cello_seiten === 2 ? "2-seitig" : "einseitig";
     const schluessel = mkSchluessel(batchKeys, "cello", { bauteil: bauteilArt, cello, papier });
-    const batch = await getBatch("cello", schluessel, { cello, cello_seiten: cz.cello_seiten ?? 1, papier });
+    const batch = await getBatch("cello", schluessel, {
+      cello,
+      cello_seiten: cz.cello_seiten ?? 1,
+      papier,
+    });
     const { data: j, error: jErr } = await sb
       .from("job")
       .insert({
@@ -264,7 +306,11 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
         cello,
         cello_seiten: cz.cello_seiten ?? 1,
         abhaengig_von: celloDruckJobIds,
-        komponenten: celloDruckJobIds.map((id) => ({ quelle: "druck", ref: id, bezeichnung: bauteilArt })),
+        komponenten: celloDruckJobIds.map((id) => ({
+          quelle: "druck",
+          ref: id,
+          bezeichnung: bauteilArt,
+        })),
         status: "in_batch",
       })
       .select("id")
@@ -276,7 +322,9 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
     uebersprungen.push(`Cello ${rr.attribute?.cello} erkannt, aber keine Regel trägt sie (traegt_cello)`);
   }
 
-  // 3) Binden
+  // ---- 3) Binde-Job --------------------------------------------------
+  // Der Binde-Job führt zusammen: die Druck-Vorgänge + alle nicht-gedruckten
+  // Teile (Aufsteller, Graupappe, Wire-O, …). Das steckt in komponenten[].
   if (wireOzeile) {
     const z = wireOzeile;
     const schluessel = mkSchluessel(batchKeys, "binden", {
@@ -288,6 +336,7 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
       durchmesser: z.durchmesser,
     });
     const batch = await getBatch("binden", schluessel, {});
+
     const komponenten: Record<string, unknown>[] = [
       ...druckJobs.map((d) => ({
         quelle: "druck",
@@ -314,33 +363,42 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
         einheit: z.schlaufen_gesamt ? "Schlaufen" : "Stück",
       },
     ];
-    const { error: jErr } = await sb.from("job").insert({
-      portal_order_id: portalOrderId,
-      batch_id: batch.id,
-      typ: "binden",
-      bauteil: `Wire-O binden${z.durchmesser ? ` ${z.durchmesser}` : ""}`,
-      quelle_regel: z.regel,
-      auflage,
-      teilung: z.teilung ?? null,
-      durchmesser: z.durchmesser ?? null,
-      schlaufen: z.schlaufen ?? null,
-      schlaufen_gesamt: z.schlaufen_gesamt ?? null,
-      bindeseite: z.bindeseite ?? null,
-      abhaengig_von: [...druckJobIds, ...celloJobIds],
-      komponenten,
-      status: "in_batch",
-    });
+
+    const { data: j, error: jErr } = await sb
+      .from("job")
+      .insert({
+        portal_order_id: portalOrderId,
+        batch_id: batch.id,
+        typ: "binden",
+        bauteil: `Wire-O binden${z.durchmesser ? ` ${z.durchmesser}` : ""}`,
+        quelle_regel: z.regel,
+        auflage,
+        teilung: z.teilung ?? null,
+        durchmesser: z.durchmesser ?? null,
+        schlaufen: z.schlaufen ?? null,
+        schlaufen_gesamt: z.schlaufen_gesamt ?? null,
+        bindeseite: z.bindeseite ?? null,
+        spiralfarbe,
+        abhaengig_von: [...druckJobIds, ...celloJobIds],
+        komponenten,
+        status: "in_batch",
+      })
+      .select("id")
+      .single();
     if (jErr) throw new Error(`Binde-Job: ${jErr.message}`);
     bump(batch.nummer);
   }
 
-  // 4) Konfektion (Multiloft)
-  const inlayZeile = zeilen.find((z) => IST_INLAY.test(z.rolle ?? "") || IST_INLAY.test(z.verwendung ?? ""));
+  // ---- 4) Konfektion (Multiloft: Cover + Inlay + Cover stapeln, Nutzen schneiden)
+  const inlayZeile = zeilen.find(
+    (z) => IST_INLAY.test(z.rolle ?? "") || IST_INLAY.test(z.verwendung ?? ""),
+  );
   if (inlayZeile) {
     const dbogen = inlayZeile.druckbogen ?? druckJobs[0]?.druckbogen ?? null;
     const fmt = inlayZeile.format ?? (rr.attribute?.format as string | undefined) ?? null;
     const schluessel = mkSchluessel(batchKeys, "konfektion", { format: fmt, druckbogen: dbogen });
     const batch = await getBatch("konfektion", schluessel, { papier: fmt, druckbogen: dbogen });
+
     const matZeilen = zeilen.filter(
       (z) =>
         z !== inlayZeile &&
@@ -371,6 +429,7 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
         einheit: z.netto_bogen ? `Bogen ${z.druckbogen ?? ""}`.trim() : z.einheit,
       })),
     ];
+
     const { error: jErr } = await sb.from("job").insert({
       portal_order_id: portalOrderId,
       batch_id: batch.id,
@@ -390,11 +449,19 @@ export async function erzeugeJobs(portalOrderId: string): Promise<MaterializeRes
     bump(batch.nummer);
   }
 
+  const alle = [...perBatch.entries()];
   const nachTyp: Record<string, number> = {};
   let jobsGesamt = 0;
-  for (const [, e] of perBatch) {
+  for (const [, e] of alle) {
     nachTyp[e.typ] = (nachTyp[e.typ] ?? 0) + e.jobs;
     jobsGesamt += e.jobs;
   }
-  return { jobs: jobsGesamt, nach_typ: nachTyp, batches_neu: batchesNeu, uebersprungen: [...new Set(uebersprungen)] };
+
+  return {
+    jobs: jobsGesamt,
+    nach_typ: nachTyp,
+    batches_neu: batchesNeu,
+    batches: alle.map(([nummer, e]) => ({ nummer, typ: e.typ, schluessel: e.schluessel, jobs: e.jobs })),
+    uebersprungen: [...new Set(uebersprungen)],
+  };
 }

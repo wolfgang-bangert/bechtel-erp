@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Monorepo-Wurzel für das node_modules-Tracing der Standalone-Sammlung
   outputFileTracingRoot: path.join(process.cwd(), "../.."),
+  // Workspace-Paket mit rohem TS-Quellcode (packages/shared) mitkompilieren
+  transpilePackages: ["@werk/shared"],
   experimental: {
     // Server Actions von diesem Ursprung erlauben (lokale Entwicklung)
   },

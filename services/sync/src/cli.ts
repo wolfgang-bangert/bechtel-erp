@@ -355,6 +355,21 @@ async function main() {
       console.log(JSON.stringify(await autoAssignDruckMaschinen(), null, 1));
       break;
     }
+    case "pdf:split": {
+      const limArg = process.argv.find((a) => a.startsWith("--limit="))?.split("=")[1];
+      const { splitPdfMissing } = await import("./pdfSplitStep");
+      console.log(
+        JSON.stringify(
+          await splitPdfMissing({
+            limit: limArg ? Number(limArg) : undefined,
+            force: flags.has("--force"),
+          }),
+          null,
+          1,
+        ),
+      );
+      break;
+    }
     case "pdf:analyse": {
       const limArg = process.argv.find((a) => a.startsWith("--limit="))?.split("=")[1];
       const { analysePdfMissing } = await import("./pdfAnalyse");
@@ -363,6 +378,7 @@ async function main() {
           await analysePdfMissing({
             limit: limArg ? Number(limArg) : undefined,
             force: flags.has("--force"),
+            all: flags.has("--all"),
           }),
           null,
           1,
@@ -418,6 +434,8 @@ async function main() {
         console.log("pdf:analyse →", JSON.stringify(await analysePdfMissing()));
         const { resolveOpri } = await import("./opriResolve");
         await resolveOpri({}); // neueste Aufträge auflösen
+        const { splitPdfMissing } = await import("./pdfSplitStep");
+        console.log("pdf:split →", JSON.stringify(await splitPdfMissing()));
         const { jobsSync } = await import("./jobsSync");
         console.log("jobs:sync →", JSON.stringify(await jobsSync()));
         const { autoAssignDruckMaschinen } = await import("./maschine");

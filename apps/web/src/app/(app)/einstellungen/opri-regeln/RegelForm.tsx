@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { saveRegel, deleteRegel, type State } from "./actions";
+import { FluxProductFields, type FluxProductOpt } from "@/lib/flux/FluxProductFields";
 
 const empty: State = {};
 
@@ -21,7 +22,8 @@ export type Regel = {
   mengen_formel: string;
   einheit: string;
   vernutzung_format: string | null;
-  flux_template_id: string | null;
+  flux_product: string | null;
+  flux_services: Record<string, unknown> | null;
   grammatur: string | null;
   format: string | null;
   produktionshinweis: string | null;
@@ -47,14 +49,16 @@ export function RegelForm({
   stammartikel,
   material,
   rollen,
-  fluxTemplates,
+  fluxProducts,
+  fluxCatalogError,
 }: {
   regel?: Regel;
   gruppen: Opt[];
   stammartikel: Opt[];
   material: Opt[];
   rollen: string[];
-  fluxTemplates: Opt[];
+  fluxProducts: FluxProductOpt[];
+  fluxCatalogError?: string;
 }) {
   const [state, action, pending] = useActionState(saveRegel, empty);
   const [dState, dAction] = useActionState(deleteRegel, empty);
@@ -185,14 +189,17 @@ export function RegelForm({
         </F>
       </div>
 
-      <F label="flux-Template (für den Druckjob dieses Bauteils)">
-        <select name="flux_template_id" defaultValue={regel?.flux_template_id ?? ""}>
-          <option value="">— (erbt von Stammartikel / Produktgruppe)</option>
-          {fluxTemplates.map((t) => (
-            <option key={t.id} value={t.id}>{t.label}</option>
-          ))}
-        </select>
-      </F>
+      <h2>flux (dieses Bauteil)</h2>
+      <p className="count" style={{ marginTop: -4 }}>
+        Leer = erbt von Stammartikel / Produktgruppe. Nur ausfüllen, wenn dieses Bauteil ein
+        anderes flux-Produkt braucht (z. B. Umschlag vs. Inhalt).
+      </p>
+      <FluxProductFields
+        products={fluxProducts}
+        defaultProduct={regel?.flux_product ?? null}
+        defaultServices={regel?.flux_services ?? null}
+        catalogError={fluxCatalogError}
+      />
       <div className="row" style={{ border: "none", padding: 0 }}>
         <F label="Grammatur">
           <input name="grammatur" defaultValue={regel?.grammatur ?? ""} style={{ width: 90 }} />

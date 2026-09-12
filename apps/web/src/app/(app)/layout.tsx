@@ -14,6 +14,8 @@ export default async function AppLayout({
       <nav className="sidebar">
         <div className="brand">werk</div>
 
+        <Link href="/start">Start</Link>
+
         <div className="nav-group">Stammdaten</div>
         <Link href="/organisationen">Organisationen</Link>
 
@@ -29,7 +31,7 @@ export default async function AppLayout({
         <Link href="/abrechnung">Wochen-Abrechnung</Link>
         <Link href="/einstellungen/opri-produkte">Produkte / Flux</Link>
         <Link href="/einstellungen/opri-regeln">Materialregeln</Link>
-        <Link href="/einstellungen/flux-templates">flux-Templates</Link>
+        <Link href="/einstellungen/standbogen">Standbögen</Link>
         <Link href="/einstellungen/materialkatalog">Materialkatalog</Link>
         <Link href="/einstellungen/preislisten">Preislisten</Link>
 

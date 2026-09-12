@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { parseFluxServices } from "@/lib/flux/parseServices";
 
 export type RowState = { ok?: boolean; error?: string };
 
@@ -18,8 +19,8 @@ export async function saveGruppe(_p: RowState, fd: FormData): Promise<RowState> 
     .from("opri_produkt_gruppe")
     .update({
       titel_kuerzel: s(fd.get("titel_kuerzel")),
-      flux_template: s(fd.get("flux_template")),
-      flux_template_id: s(fd.get("flux_template_id")),
+      flux_product: s(fd.get("flux_product")),
+      flux_services: parseFluxServices(fd),
       druckverfahren: s(fd.get("druckverfahren")),
     })
     .eq("id", id);
@@ -35,8 +36,8 @@ export async function saveStamm(_p: RowState, fd: FormData): Promise<RowState> {
   const { error } = await supabase
     .from("opri_stammartikel")
     .update({
-      flux_template: s(fd.get("flux_template")),
-      flux_template_id: s(fd.get("flux_template_id")),
+      flux_product: s(fd.get("flux_product")),
+      flux_services: parseFluxServices(fd),
     })
     .eq("id", id);
   if (error) return { error: error.message };

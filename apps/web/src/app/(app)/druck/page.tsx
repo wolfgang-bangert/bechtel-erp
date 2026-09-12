@@ -25,6 +25,7 @@ type Job = {
   komponenten: { bezeichnung: string | null; menge?: number | null; einheit?: string | null }[] | null;
   status: string;
   portal_order_id: string | null;
+  flux_order_item_id: string | null;
   order: {
     external_reference: string | null;
     blockstaerke_mm: string | null;
@@ -36,6 +37,7 @@ type Job = {
     flux_order_id: string | null;
     flux_status: string | null;
     flux_sent_at: string | null;
+    abweichungen: { feld: string; text: string }[] | null;
   } | null;
 };
 
@@ -292,6 +294,13 @@ function BatchCard({
   const schlaufen = sum(jobs, (j) => j.schlaufen_gesamt ?? 0);
   const lts = jobs.map((j) => j.order?.deliver_date).filter(Boolean).sort() as string[];
   const ltText = lts.length ? fmtDate(lts[0]) : null;
+  // Abweichungen Auftrag ↔ Druckdaten, je Auftrag einmal gezählt
+  const abwProOrder = new Map<string, { feld: string; text: string }[]>();
+  for (const j of jobs) {
+    if (j.portal_order_id && j.order?.abweichungen?.length)
+      abwProOrder.set(j.portal_order_id, j.order.abweichungen);
+  }
+  const abwGesamt = [...abwProOrder.values()].reduce((a, x) => a + x.length, 0);
 
   return (
     <div
@@ -316,6 +325,14 @@ function BatchCard({
             </span>
           )}
           <span style={{ ...chip, background: "var(--tag-bg)" }}>{b.status}</span>
+          {abwGesamt > 0 && (
+            <span
+              style={{ ...chip, color: "#b45309", borderColor: "#b45309", background: "#fffbeb" }}
+              title="Abweichungen Auftrag ↔ Druckdaten"
+            >
+              ⚠ {abwGesamt} {abwGesamt === 1 ? "Abweichung" : "Abweichungen"}
+            </span>
+          )}
         </div>
         <div className="count" style={{ whiteSpace: "nowrap" }}>
           {jobs.length} Jobs
@@ -368,8 +385,26 @@ function BatchCard({
                       </span>
                     </>
                   )}
+                  {j.order?.abweichungen?.length ? (
+                    <>
+                      {"  "}
+                      <span
+                        style={{ ...chip, padding: "1px 7px", color: "#b45309", borderColor: "#b45309", background: "#fffbeb" }}
+                        title={j.order.abweichungen.map((a) => a.text).join("\n")}
+                      >
+                        ⚠ {j.order.abweichungen.length}
+                      </span>
+                    </>
+                  ) : null}
                 </summary>
                 <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.7 }}>
+                  {j.order?.abweichungen?.length ? (
+                    <div style={{ color: "#b45309", marginBottom: 4 }}>
+                      {j.order.abweichungen.map((a, i) => (
+                        <div key={i}>⚠ {a.text}</div>
+                      ))}
+                    </div>
+                  ) : null}
                   {[
                     j.papier && `Papier: ${j.papier}`,
                     j.druckbogen && `Druckbogen: ${j.druckbogen}`,
@@ -417,8 +452,8 @@ function BatchCard({
                       fluxOrderId={j.order?.flux_order_id ?? null}
                       fluxStatus={j.order?.flux_status ?? null}
                       fluxUrl={
-                        fluxUrlTpl && j.order?.flux_order_id
-                          ? fluxUrlTpl.replace("{orderId}", j.order.flux_order_id)
+                        fluxUrlTpl && j.flux_order_item_id
+                          ? fluxUrlTpl.replace("{orderItemId}", j.flux_order_item_id)
                           : null
                       }
                     />
@@ -474,8 +509,8 @@ export default async function DruckDashboard({
     .from("batch")
     .select(
       "id, nummer, typ, schluessel, druckverfahren, cello, cello_seiten, papier, druckbogen, status, created_at, an_flux_at, flux_order_id, " +
-        "job(id, typ, bauteil, format, papier, cello, netto_bogen, druckbogen, nutzen, auflage, zuschuss, teilung, durchmesser, schlaufen_gesamt, komponenten, status, portal_order_id, " +
-        "order:portal_order_id(external_reference, deliver_date, flux_order_id, flux_status, flux_sent_at, blockstaerke_mm:resolve_result->>blockstaerke_mm, gruppe:resolve_result->>gruppe, prodformat:resolve_result->attribute->>format, ausrichtung:resolve_result->attribute->>ausrichtung, ausrichtung_quelle:resolve_result->attribute->>ausrichtung_quelle))",
+        "job(id, typ, bauteil, format, papier, cello, netto_bogen, druckbogen, nutzen, auflage, zuschuss, teilung, durchmesser, schlaufen_gesamt, komponenten, status, portal_order_id, flux_order_item_id, " +
+        "order:portal_order_id(external_reference, deliver_date, flux_order_id, flux_status, flux_sent_at, abweichungen:resolve_result->abweichungen, blockstaerke_mm:resolve_result->>blockstaerke_mm, gruppe:resolve_result->>gruppe, prodformat:resolve_result->attribute->>format, ausrichtung:resolve_result->attribute->>ausrichtung, ausrichtung_quelle:resolve_result->attribute->>ausrichtung_quelle))",
     )
     .neq("status", "storniert")
     .order("created_at", { ascending: true });

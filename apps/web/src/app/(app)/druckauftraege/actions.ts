@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { resolvePortalOrder } from "@/lib/opri/resolve";
 import { erzeugeJobs } from "@/lib/druck/materialize";
 import { matchOnePreis } from "@/lib/preise/match";
+import { getObjectBytes, putObject } from "@/lib/storage";
+import { splitUmschlagInhalt } from "@werk/shared/druck/pdfSplit";
 
 export type State = { ok?: boolean; error?: string; note?: string };
 
@@ -161,4 +163,141 @@ export async function sendeAuftragAnFluxAction(_prev: State, fd: FormData): Prom
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/**
+ * Umschlag/Inhalt-Zuordnung einer 2-seitigen Druckdaten-PDF tauschen (z. B.
+ * PBS "4-farbig": meistens Seite 1 = Umschlag, Seite 2 = Inhalt - aber nicht
+ * immer). Trennt sofort neu und regeneriert die Jobs, wenn die noch nicht an
+ * flux übergeben sind.
+ */
+export async function tauschUmschlagInhaltAction(_prev: State, fd: FormData): Promise<State> {
+  const id = String(fd.get("id") ?? "");
+  if (!id) return { error: "id fehlt" };
+  const supabase = await createClient();
+
+  const { data: order, error: oErr } = await supabase
+    .from("portal_order")
+    .select(
+      "id, external_reference, pdf_seiten_tausch, files:portal_order_file(id, typ, storage_key, filename)",
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (oErr) return { error: oErr.message };
+  if (!order) return { error: "Auftrag nicht gefunden" };
+
+  const files = (order.files ?? []) as { id: string; typ: string; storage_key: string | null; filename: string | null }[];
+  const quelle = files.find((f) => f.typ === "printData" && f.storage_key);
+  if (!quelle?.storage_key) return { error: "keine Druckdaten-PDF gefunden" };
+
+  const neuTausch = !order.pdf_seiten_tausch;
+  try {
+    const bytes = await getObjectBytes(quelle.storage_key);
+    const { umschlag, inhalt } = await splitUmschlagInhalt(bytes, neuTausch);
+    const s3prefix = quelle.storage_key.replace(/\/[^/]+$/, "");
+    const ref = order.external_reference;
+
+    // storage_key trägt den stabilen Teil-Namen (Umschlag/Inhalt), die
+    // Anzeige-Datei bekommt die Auftragsnummer, wie im Dateien-Panel gewünscht.
+    const teile = [
+      { teil: "Umschlag", anzeige: `${ref}_Vorderblatt.pdf`, data: umschlag },
+      { teil: "Inhalt", anzeige: `${ref}_Inhalt.pdf`, data: inhalt },
+    ] as const;
+    for (const { teil, anzeige, data } of teile) {
+      const key = `${s3prefix}/printDataPart-${teil}.pdf`;
+      await putObject(key, Buffer.from(data), "application/pdf");
+      const bestehend = files.find((f) => f.typ === "printDataPart" && f.storage_key === key);
+      if (bestehend) {
+        await supabase
+          .from("portal_order_file")
+          .update({ filename: anzeige, bytes: data.byteLength, fetched_at: new Date().toISOString() })
+          .eq("id", bestehend.id);
+      } else {
+        await supabase.from("portal_order_file").insert({
+          portal_order_id: id,
+          typ: "printDataPart",
+          storage_key: key,
+          filename: anzeige,
+          bytes: data.byteLength,
+          fetched_at: new Date().toISOString(),
+        });
+      }
+    }
+
+    await supabase.from("portal_order").update({ pdf_seiten_tausch: neuTausch }).eq("id", id);
+
+    // Jobs neu erzeugen, solange noch nichts an flux raus ist - sonst nicht anfassen.
+    const { data: jobs } = await supabase.from("job").select("status").eq("portal_order_id", id);
+    const status = (jobs ?? []).map((j) => j.status as string);
+    const sicher = !status.length || status.every((s) => s === "offen" || s === "in_batch");
+    let hinweis = "";
+    if (sicher) {
+      await erzeugeJobs(supabase, id);
+      hinweis = " · Jobs neu erzeugt";
+    } else {
+      hinweis = " · Jobs sind schon weiter (an flux o.ä.) - bitte manuell prüfen";
+    }
+
+    revalidatePath(`/druckauftraege/${id}`);
+    revalidatePath("/druck");
+    return { ok: true, note: `Seite 1/2 ${neuTausch ? "getauscht" : "zurückgesetzt"}${hinweis}` };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * Datei zu einem Arbeitsvorgang hochladen - Ergänzung (weitere Seite/Anlage)
+ * oder Ersatz (vorher die alte entfernen). Alle Dateien eines Jobs gehen als
+ * pageSources mit an flux.
+ */
+export async function uploadJobDateiAction(_prev: State, fd: FormData): Promise<State> {
+  const jobId = String(fd.get("job_id") ?? "");
+  const orderId = String(fd.get("order_id") ?? "");
+  const file = fd.get("file");
+  if (!jobId || !orderId) return { error: "job_id/order_id fehlt" };
+  if (!(file instanceof File) || file.size === 0) return { error: "keine Datei ausgewählt" };
+  const supabase = await createClient();
+
+  const { data: order } = await supabase
+    .from("portal_order")
+    .select("files:portal_order_file(typ, storage_key)")
+    .eq("id", orderId)
+    .maybeSingle();
+  const files = (order?.files ?? []) as { typ: string; storage_key: string | null }[];
+  const quelle = files.find((f) => f.typ === "printData" && f.storage_key)?.storage_key ?? null;
+  const s3prefix = quelle ? quelle.replace(/\/[^/]+$/, "") : `portal/manuell/${orderId}`;
+  const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+  const key = `${s3prefix}/job-${jobId}-${Date.now()}-${safeName}`;
+
+  try {
+    const bytes = Buffer.from(await file.arrayBuffer());
+    await putObject(key, bytes, file.type || "application/pdf");
+    const { error } = await supabase.from("job_datei").insert({
+      job_id: jobId,
+      storage_key: key,
+      filename: file.name,
+      bytes: bytes.byteLength,
+      herkunft: "upload",
+    });
+    if (error) return { error: error.message };
+    revalidatePath(`/druckauftraege/${orderId}`);
+    return { ok: true, note: `${file.name} hochgeladen` };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** Job-Datei aus der Liste entfernen (z. B. um sie zu ersetzen). Das S3-Objekt
+ *  bleibt erhalten, nur die Zuordnung zum Job fällt weg - sie geht dann nicht
+ *  mehr mit an flux. */
+export async function deleteJobDateiAction(_prev: State, fd: FormData): Promise<State> {
+  const dateiId = String(fd.get("datei_id") ?? "");
+  const orderId = String(fd.get("order_id") ?? "");
+  if (!dateiId) return { error: "datei_id fehlt" };
+  const supabase = await createClient();
+  const { error } = await supabase.from("job_datei").delete().eq("id", dateiId);
+  if (error) return { error: error.message };
+  if (orderId) revalidatePath(`/druckauftraege/${orderId}`);
+  return { ok: true, note: "entfernt" };
 }
