@@ -23,6 +23,9 @@ FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY . .
+# apps/web hat (noch) keinen public/-Ordner im Repo - COPY --from=build weiter
+# unten würde sonst mit "not found" fehlschlagen.
+RUN mkdir -p apps/web/public
 ENV NEXT_TELEMETRY_DISABLED=1
 # NEXT_PUBLIC_* werden zur Build-Zeit eingebacken -> als Build-Args reinreichen
 ARG NEXT_PUBLIC_SUPABASE_URL
