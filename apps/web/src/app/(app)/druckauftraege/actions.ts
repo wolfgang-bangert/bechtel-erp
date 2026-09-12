@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { resolvePortalOrder } from "@/lib/opri/resolve";
 import { erzeugeJobs } from "@/lib/druck/materialize";
 import { matchOnePreis } from "@/lib/preise/match";
+import { getObjectBytes, putObject } from "@/lib/storage";
+import { splitUmschlagInhalt } from "@werk/shared/druck/pdfSplit";
 
 export type State = { ok?: boolean; error?: string; note?: string };
 
@@ -158,6 +160,83 @@ export async function sendeAuftragAnFluxAction(_prev: State, fd: FormData): Prom
         ? "Dry-Run: FLUX_API_BASE/KEY nicht gesetzt — Payload gespeichert, nicht gesendet"
         : `an flux übergeben — orderId ${r.orderId ?? "?"}`,
     };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * Umschlag/Inhalt-Zuordnung einer 2-seitigen Druckdaten-PDF tauschen (z. B.
+ * PBS "4-farbig": meistens Seite 1 = Umschlag, Seite 2 = Inhalt - aber nicht
+ * immer). Trennt sofort neu und regeneriert die Jobs, wenn die noch nicht an
+ * flux übergeben sind.
+ */
+export async function tauschUmschlagInhaltAction(_prev: State, fd: FormData): Promise<State> {
+  const id = String(fd.get("id") ?? "");
+  if (!id) return { error: "id fehlt" };
+  const supabase = await createClient();
+
+  const { data: order, error: oErr } = await supabase
+    .from("portal_order")
+    .select(
+      "id, pdf_seiten_tausch, files:portal_order_file(id, typ, storage_key, filename)",
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (oErr) return { error: oErr.message };
+  if (!order) return { error: "Auftrag nicht gefunden" };
+
+  const files = (order.files ?? []) as { id: string; typ: string; storage_key: string | null; filename: string | null }[];
+  const quelle = files.find((f) => f.typ === "printData" && f.storage_key);
+  if (!quelle?.storage_key) return { error: "keine Druckdaten-PDF gefunden" };
+
+  const neuTausch = !order.pdf_seiten_tausch;
+  try {
+    const bytes = await getObjectBytes(quelle.storage_key);
+    const { umschlag, inhalt } = await splitUmschlagInhalt(bytes, neuTausch);
+    const s3prefix = quelle.storage_key.replace(/\/[^/]+$/, "");
+
+    for (const [filename, data] of [
+      ["Umschlag.pdf", umschlag],
+      ["Inhalt.pdf", inhalt],
+    ] as const) {
+      const key = `${s3prefix}/printDataPart-${filename}`;
+      await putObject(key, Buffer.from(data), "application/pdf");
+      const bestehend = files.find((f) => f.typ === "printDataPart" && f.filename === filename);
+      if (bestehend) {
+        await supabase
+          .from("portal_order_file")
+          .update({ storage_key: key, bytes: data.byteLength, fetched_at: new Date().toISOString() })
+          .eq("id", bestehend.id);
+      } else {
+        await supabase.from("portal_order_file").insert({
+          portal_order_id: id,
+          typ: "printDataPart",
+          storage_key: key,
+          filename,
+          bytes: data.byteLength,
+          fetched_at: new Date().toISOString(),
+        });
+      }
+    }
+
+    await supabase.from("portal_order").update({ pdf_seiten_tausch: neuTausch }).eq("id", id);
+
+    // Jobs neu erzeugen, solange noch nichts an flux raus ist - sonst nicht anfassen.
+    const { data: jobs } = await supabase.from("job").select("status").eq("portal_order_id", id);
+    const status = (jobs ?? []).map((j) => j.status as string);
+    const sicher = !status.length || status.every((s) => s === "offen" || s === "in_batch");
+    let hinweis = "";
+    if (sicher) {
+      await erzeugeJobs(supabase, id);
+      hinweis = " · Jobs neu erzeugt";
+    } else {
+      hinweis = " · Jobs sind schon weiter (an flux o.ä.) - bitte manuell prüfen";
+    }
+
+    revalidatePath(`/druckauftraege/${id}`);
+    revalidatePath("/druck");
+    return { ok: true, note: `Seite 1/2 ${neuTausch ? "getauscht" : "zurückgesetzt"}${hinweis}` };
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }

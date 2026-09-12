@@ -66,7 +66,7 @@ export async function erzeugeJobs(
 ): Promise<MaterializeResult> {
   const { data: order, error } = await sb
     .from("portal_order")
-    .select("id, external_reference, quantity, resolve_result, files:portal_order_file(typ, storage_key)")
+    .select("id, external_reference, quantity, resolve_result, files:portal_order_file(typ, storage_key, filename)")
     .eq("id", portalOrderId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -83,10 +83,16 @@ export async function erzeugeJobs(
   const batchKeys = (bgRow?.value as Record<string, string[]>) ?? BATCH_KEYS_DEFAULT;
   const spiralfarbe = (rr.attribute?.spiralfarbe as string | undefined) ?? null;
 
-  const printKey =
-    (order.files as { typ: string; storage_key: string | null }[] | null)?.find(
-      (f) => f.typ === "printData" && f.storage_key,
-    )?.storage_key ?? null;
+  const files = (order.files as { typ: string; storage_key: string | null; filename: string | null }[] | null) ?? [];
+  const printKey = files.find((f) => f.typ === "printData" && f.storage_key)?.storage_key ?? null;
+  // Umschlag/Inhalt aus einer gemeinsamen PDF getrennt (pdfSplitStep)? Je
+  // Bauteil die passende Teil-PDF nehmen, sonst die volle Datei wie bisher.
+  const pdfKeyFor = (rolle: string | null): string | null => {
+    const filename = rolle === "Deckblatt" ? "Umschlag.pdf" : "Inhalt.pdf";
+    return (
+      files.find((f) => f.typ === "printDataPart" && f.filename === filename)?.storage_key ?? printKey
+    );
+  };
 
   const auflage = Number(order.quantity) || 0;
   const verfahren = rr.druckverfahren ?? null;
@@ -210,7 +216,7 @@ export async function erzeugeJobs(
         flux_paper_type: z.flux_paper_type ?? null,
         flux_signature: z.flux_signature ?? null,
         flux_printer: z.flux_printer ?? null,
-        pdf_storage_key: printKey,
+        pdf_storage_key: pdfKeyFor(z.rolle),
         status: "in_batch",
       })
       .select("id")

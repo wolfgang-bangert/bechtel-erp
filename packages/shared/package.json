@@ -10,9 +10,11 @@
     "./tax": "./src/tax.ts",
     "./database.types": "./src/database.types.ts",
     "./opri": "./src/opri/resolve.ts",
-    "./druck": "./src/druck/jobs.ts"
+    "./druck": "./src/druck/jobs.ts",
+    "./druck/pdfSplit": "./src/druck/pdfSplit.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.47.0"
+    "@supabase/supabase-js": "^2.47.0",
+    "pdf-lib": "^1.17.1"
   }
 }

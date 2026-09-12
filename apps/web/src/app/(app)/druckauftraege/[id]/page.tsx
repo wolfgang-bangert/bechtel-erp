@@ -8,7 +8,9 @@ import { DruckjobsButton } from "./DruckjobsButton";
 import { PreisPanel } from "./PreisPanel";
 import { DateienPanel } from "./DateienPanel";
 import { FluxSendPanel } from "./FluxSendPanel";
+import { TauschUmschlagInhaltButton } from "./TauschUmschlagInhaltButton";
 import { loadCatalogForForm } from "@/lib/flux/loadCatalog";
+import { brauchtUmschlagInhaltTrennung } from "@werk/shared/druck/pdfSplit";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +97,7 @@ type Detail = {
   flux_sent_at: string | null;
   flux_payload: unknown;
   flux_response: unknown;
+  pdf_seiten_tausch: boolean;
   abrechnung: { id: string; jahr: number; kw: number; status: string } | null;
   portal: { code?: string; name?: string } | null;
   items: { position: string | null; sku: string | null; quantity: number | null; description: string | null }[];
@@ -124,7 +127,7 @@ export default async function DruckauftragPage({
       "id, external_id, external_reference, reference_type, portal_state, description, quantity, " +
         "deliver_date, currency, total_net, total_gross, ship_to, sender, received_at, raw, resolve_result, resolved_at, " +
         "versand_datum, preis_netto, preis_quelle, berechnet, ist_rekla, rekla_vermerk, " +
-        "flux_order_id, flux_sent_at, flux_payload, flux_response, " +
+        "flux_order_id, flux_sent_at, flux_payload, flux_response, pdf_seiten_tausch, " +
         "abrechnung:abrechnung_id(id, jahr, kw, status), " +
         "portal:portal_id(code, name), " +
         "items:portal_order_item(position, sku, quantity, description), " +
@@ -420,6 +423,14 @@ export default async function DruckauftragPage({
                 </div>
               ) : (
                 <p className="lead">Keine Materialregel hat gegriffen.</p>
+              )}
+
+              {brauchtUmschlagInhaltTrennung(r.materialliste ?? []) && (
+                <div className="lead" style={{ marginTop: 8 }}>
+                  Umschlag + Inhalt kommen aus einer PDF (Standard: Seite 1 = Umschlag, Seite 2 =
+                  Inhalt). Falls es bei diesem Auftrag andersrum ist:{" "}
+                  <TauschUmschlagInhaltButton id={data.id} getauscht={data.pdf_seiten_tausch} />
+                </div>
               )}
 
               {(r.ungeloest?.length || r.hinweise?.length) && (
