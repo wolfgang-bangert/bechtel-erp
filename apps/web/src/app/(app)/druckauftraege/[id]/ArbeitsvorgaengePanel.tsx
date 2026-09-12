@@ -290,14 +290,18 @@ function JobPopup({
   job,
   products,
   fluxUrlTpl,
+  sentOrderId,
   onClose,
 }: {
   orderId: string;
   job: ArbeitsvorgangJob;
   products: ProductLite[];
   fluxUrlTpl?: string | null;
+  sentOrderId?: string | null;
   onClose: () => void;
 }) {
+  const [sendState, sendAction, sendPending] = useActionState(sendeAuftragAnFluxAction, empty);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -341,6 +345,20 @@ function JobPopup({
         </div>
         <div style={{ padding: 14 }}>
           <FluxFelder orderId={orderId} job={job} products={products} fluxUrlTpl={fluxUrlTpl} />
+
+          <form action={sendAction} className="toolbar" style={{ gap: 10, marginTop: 14, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+            <input type="hidden" name="id" value={orderId} />
+            <button type="submit" disabled={sendPending} style={{ padding: "7px 14px" }}>
+              {sendPending ? "…" : sentOrderId ? "erneut an flux senden" : "Auftrag an flux senden"}
+            </button>
+            <span className="count">
+              {sentOrderId
+                ? `gesendet · flux ${sentOrderId}`
+                : "übergibt alle Druck-Vorgänge dieses Auftrags an flux"}
+            </span>
+            {sendState.ok && <span className="msg-ok">✓ {sendState.note}</span>}
+            {sendState.error && <span className="msg-err">{sendState.error}</span>}
+          </form>
         </div>
       </div>
     </div>
@@ -532,6 +550,7 @@ export function ArbeitsvorgaengePanel({
           job={selected}
           products={products}
           fluxUrlTpl={fluxUrlTpl}
+          sentOrderId={sentOrderId}
           onClose={() => setSelectedId(null)}
         />
       )}
