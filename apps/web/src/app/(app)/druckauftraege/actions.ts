@@ -245,3 +245,59 @@ export async function tauschUmschlagInhaltAction(_prev: State, fd: FormData): Pr
     return { error: e instanceof Error ? e.message : String(e) };
   }
 }
+
+/**
+ * Datei zu einem Arbeitsvorgang hochladen - Ergänzung (weitere Seite/Anlage)
+ * oder Ersatz (vorher die alte entfernen). Alle Dateien eines Jobs gehen als
+ * pageSources mit an flux.
+ */
+export async function uploadJobDateiAction(_prev: State, fd: FormData): Promise<State> {
+  const jobId = String(fd.get("job_id") ?? "");
+  const orderId = String(fd.get("order_id") ?? "");
+  const file = fd.get("file");
+  if (!jobId || !orderId) return { error: "job_id/order_id fehlt" };
+  if (!(file instanceof File) || file.size === 0) return { error: "keine Datei ausgewählt" };
+  const supabase = await createClient();
+
+  const { data: order } = await supabase
+    .from("portal_order")
+    .select("files:portal_order_file(typ, storage_key)")
+    .eq("id", orderId)
+    .maybeSingle();
+  const files = (order?.files ?? []) as { typ: string; storage_key: string | null }[];
+  const quelle = files.find((f) => f.typ === "printData" && f.storage_key)?.storage_key ?? null;
+  const s3prefix = quelle ? quelle.replace(/\/[^/]+$/, "") : `portal/manuell/${orderId}`;
+  const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+  const key = `${s3prefix}/job-${jobId}-${Date.now()}-${safeName}`;
+
+  try {
+    const bytes = Buffer.from(await file.arrayBuffer());
+    await putObject(key, bytes, file.type || "application/pdf");
+    const { error } = await supabase.from("job_datei").insert({
+      job_id: jobId,
+      storage_key: key,
+      filename: file.name,
+      bytes: bytes.byteLength,
+      herkunft: "upload",
+    });
+    if (error) return { error: error.message };
+    revalidatePath(`/druckauftraege/${orderId}`);
+    return { ok: true, note: `${file.name} hochgeladen` };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** Job-Datei aus der Liste entfernen (z. B. um sie zu ersetzen). Das S3-Objekt
+ *  bleibt erhalten, nur die Zuordnung zum Job fällt weg - sie geht dann nicht
+ *  mehr mit an flux. */
+export async function deleteJobDateiAction(_prev: State, fd: FormData): Promise<State> {
+  const dateiId = String(fd.get("datei_id") ?? "");
+  const orderId = String(fd.get("order_id") ?? "");
+  if (!dateiId) return { error: "datei_id fehlt" };
+  const supabase = await createClient();
+  const { error } = await supabase.from("job_datei").delete().eq("id", dateiId);
+  if (error) return { error: error.message };
+  if (orderId) revalidatePath(`/druckauftraege/${orderId}`);
+  return { ok: true, note: "entfernt" };
+}

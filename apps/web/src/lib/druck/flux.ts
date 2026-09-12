@@ -13,6 +13,8 @@ import { signedGetUrl } from "@/lib/storage";
 /** Prefix bereinigen: nur Leerzeichen raus (Unterstrich wie im n8n-Payload lassen). */
 const fluxClean = (s: string) => (s || "").replace(/\s+/g, "");
 
+type JobDatei = { storage_key: string; filename: string | null };
+
 type Job = {
   id: string;
   bauteil: string;
@@ -24,8 +26,26 @@ type Job = {
   flux_signature: string | null;
   flux_printer: string | null;
   pdf_storage_key: string | null;
+  dateien: JobDatei[] | null;
   order: { external_reference: string | null } | null;
 };
+
+/** Alle Dateien eines Jobs als flux-pageSources (mehrere möglich: Auto-
+ *  Zuordnung + manuelle Uploads/Ersatz). Fallback auf pdf_storage_key für
+ *  Jobs ohne job_datei-Zeilen (sollte nach der Migration nicht vorkommen). */
+async function pageSourcesFuer(
+  j: Pick<Job, "dateien" | "pdf_storage_key">,
+  fallbackName: string,
+): Promise<{ url: string; originalFileName: string }[]> {
+  const dateien = j.dateien?.length ? j.dateien : j.pdf_storage_key ? [{ storage_key: j.pdf_storage_key, filename: null }] : [];
+  const quellen = await Promise.all(
+    dateien.map(async (d, i) => ({
+      url: await signedGetUrl(d.storage_key, 3600),
+      originalFileName: d.filename || (i === 0 ? `${fallbackName}.pdf` : `${fallbackName}_${i + 1}.pdf`),
+    })),
+  );
+  return quellen.filter((q): q is { url: string; originalFileName: string } => !!q.url);
+}
 
 export type FluxHandoff = {
   dryRun: boolean;
@@ -52,7 +72,8 @@ export async function uebergebeBatchAnFlux(
   const { data: jobsRaw, error: jErr } = await sb
     .from("job")
     .select(
-      "id, bauteil, papier, auflage, zuschuss, flux_product, flux_services, flux_signature, flux_printer, pdf_storage_key, order:portal_order_id(external_reference)",
+      "id, bauteil, papier, auflage, zuschuss, flux_product, flux_services, flux_signature, flux_printer, pdf_storage_key, " +
+        "dateien:job_datei(storage_key, filename), order:portal_order_id(external_reference)",
     )
     .eq("batch_id", batchId)
     .eq("typ", "druck")
@@ -71,7 +92,7 @@ export async function uebergebeBatchAnFlux(
   const orderItems = await Promise.all(
     jobs.map(async (j) => {
       const ref = j.order?.external_reference ?? "";
-      const url = j.pdf_storage_key ? await signedGetUrl(j.pdf_storage_key, 3600) : null;
+      const pageSources = await pageSourcesFuer(j, `${ref}_${j.bauteil}`);
       return {
         note: j.bauteil,
         title: `${ref} · ${j.bauteil}`,
@@ -81,7 +102,7 @@ export async function uebergebeBatchAnFlux(
         services: j.flux_services ?? {},
         ...(j.flux_signature ? { signature: j.flux_signature } : {}),
         ...(j.flux_printer ? { printerName: j.flux_printer } : {}),
-        pageSources: url ? [{ url, originalFileName: `${ref}_${j.bauteil}.pdf` }] : [],
+        pageSources,
       };
     }),
   );
@@ -152,7 +173,8 @@ export async function sendeAuftragAnFlux(
   const { data: jobsRaw, error: jErr } = await sb
     .from("job")
     .select(
-      "id, bauteil, papier, auflage, zuschuss, flux_product, flux_services, flux_signature, flux_paper_type, flux_printer, pdf_storage_key",
+      "id, bauteil, papier, auflage, zuschuss, flux_product, flux_services, flux_signature, flux_paper_type, flux_printer, pdf_storage_key, " +
+        "dateien:job_datei(storage_key, filename)",
     )
     .eq("portal_order_id", portalOrderId)
     .eq("typ", "druck")
@@ -173,7 +195,7 @@ export async function sendeAuftragAnFlux(
 
   const orderItems = await Promise.all(
     jobs.map(async (j) => {
-      const url = j.pdf_storage_key ? await signedGetUrl(j.pdf_storage_key, 3600) : null;
+      const pageSources = await pageSourcesFuer(j, `${ref}_${j.bauteil}`);
       const services: Record<string, unknown> = { ...(j.flux_services ?? {}) };
       if (j.flux_paper_type) services["Papiersorte"] = j.flux_paper_type;
       return {
@@ -185,7 +207,7 @@ export async function sendeAuftragAnFlux(
         services,
         signature: j.flux_signature ?? "",
         printerName: j.flux_printer ?? "",
-        pageSources: url ? [{ url, originalFileName: `${ref}_${j.bauteil}.pdf` }] : [],
+        pageSources,
       };
     }),
   );

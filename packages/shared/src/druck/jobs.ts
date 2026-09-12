@@ -84,18 +84,40 @@ export async function erzeugeJobs(
   const spiralfarbe = (rr.attribute?.spiralfarbe as string | undefined) ?? null;
 
   const files = (order.files as { typ: string; storage_key: string | null; filename: string | null }[] | null) ?? [];
-  const printKey = files.find((f) => f.typ === "printData" && f.storage_key)?.storage_key ?? null;
+  const printFile = files.find((f) => f.typ === "printData" && f.storage_key) ?? null;
   // Umschlag/Inhalt aus einer gemeinsamen PDF getrennt (pdfSplitStep)? Je
   // Bauteil die passende Teil-PDF nehmen, sonst die volle Datei wie bisher.
   // Zuordnung über den storage_key-Suffix (stabil), nicht über den
   // Anzeige-Dateinamen (der trägt die Auftragsnummer und ist frei änderbar).
-  const pdfKeyFor = (rolle: string | null): string | null => {
+  const pdfFuer = (rolle: string | null): { storage_key: string; filename: string | null } | null => {
     const teil = rolle === "Deckblatt" ? "Umschlag" : "Inhalt";
-    return (
-      files.find((f) => f.typ === "printDataPart" && f.storage_key?.endsWith(`printDataPart-${teil}.pdf`))
-        ?.storage_key ?? printKey
+    const teilDatei = files.find(
+      (f) => f.typ === "printDataPart" && f.storage_key?.endsWith(`printDataPart-${teil}.pdf`),
     );
+    const treffer = teilDatei ?? printFile;
+    return treffer?.storage_key ? { storage_key: treffer.storage_key, filename: treffer.filename } : null;
   };
+
+  // Manuell hochgeladene/ergänzte Job-Dateien überstehen ein "Jobs neu
+  // erzeugen" (das die offenen Jobs löscht + neu anlegt) - über den
+  // Bauteil-Namen den alten Jobs zuordnen.
+  const { data: alteJobs } = await sb
+    .from("job")
+    .select("bauteil, dateien:job_datei(storage_key, filename, bytes, herkunft)")
+    .eq("portal_order_id", portalOrderId)
+    .eq("typ", "druck")
+    .in("status", ["offen", "in_batch"]);
+  const uploadsJeBauteil = new Map<
+    string,
+    { storage_key: string; filename: string | null; bytes: number | null }[]
+  >();
+  for (const j of (alteJobs ?? []) as {
+    bauteil: string;
+    dateien: { storage_key: string; filename: string | null; bytes: number | null; herkunft: string }[] | null;
+  }[]) {
+    const uploads = (j.dateien ?? []).filter((d) => d.herkunft === "upload");
+    if (uploads.length) uploadsJeBauteil.set(j.bauteil, uploads);
+  }
 
   const auflage = Number(order.quantity) || 0;
   const verfahren = rr.druckverfahren ?? null;
@@ -219,7 +241,7 @@ export async function erzeugeJobs(
         flux_paper_type: z.flux_paper_type ?? null,
         flux_signature: z.flux_signature ?? null,
         flux_printer: z.flux_printer ?? null,
-        pdf_storage_key: pdfKeyFor(z.rolle),
+        pdf_storage_key: pdfFuer(z.rolle)?.storage_key ?? null,
         status: "in_batch",
       })
       .select("id")
@@ -233,6 +255,27 @@ export async function erzeugeJobs(
     });
     if ((z.cello ?? "keine") !== "keine") celloDruckJobIds.push(j.id as string);
     bump(druckBatch.nummer);
+
+    // Job-Dateien: die automatisch zugeordnete Druckdatei + erhaltene Uploads
+    // (über den Bauteil-Namen aus den gelöschten Vorgänger-Jobs übernommen).
+    const autoDatei = pdfFuer(z.rolle);
+    const dateiZeilen: { job_id: string; storage_key: string; filename: string | null; bytes: number | null; herkunft: string }[] = [];
+    if (autoDatei) {
+      dateiZeilen.push({
+        job_id: j.id as string,
+        storage_key: autoDatei.storage_key,
+        filename: autoDatei.filename,
+        bytes: null,
+        herkunft: "auto",
+      });
+    }
+    for (const u of uploadsJeBauteil.get(bauteil) ?? []) {
+      dateiZeilen.push({ job_id: j.id as string, ...u, herkunft: "upload" });
+    }
+    if (dateiZeilen.length) {
+      const { error: dErr } = await sb.from("job_datei").insert(dateiZeilen);
+      if (dErr) throw new Error(`Job-Dateien: ${dErr.message}`);
+    }
   }
   const druckJobIds = druckJobs.map((d) => d.id);
 

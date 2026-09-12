@@ -210,7 +210,46 @@ export default async function DruckauftragPage({
     .eq("key", "flux_order_url_tpl")
     .maybeSingle();
   const fluxUrlTpl = (fluxUrlRow?.value as string | null) ?? null;
-  const arbeitsvorgaenge = jobs.map((j) => ({ ...j, pdf: !!j.pdf_storage_key }));
+
+  // Dateien je Arbeitsvorgang (mehrere möglich: Auto-Zuordnung + manuelle
+  // Uploads) - gehen als pageSources mit an flux.
+  const jobIds = jobs.map((j) => j.id);
+  const { data: dateienRaw } = jobIds.length
+    ? await supabase
+        .from("job_datei")
+        .select("id, job_id, storage_key, filename, bytes, herkunft, created_at")
+        .in("job_id", jobIds)
+        .order("created_at", { ascending: true })
+    : { data: [] };
+  const dateienJeJob = new Map<
+    string,
+    { id: string; filename: string | null; bytes: number | null; herkunft: string; viewUrl: string | null; downloadUrl: string | null }[]
+  >();
+  for (const d of (dateienRaw ?? []) as {
+    id: string;
+    job_id: string;
+    storage_key: string;
+    filename: string | null;
+    bytes: number | null;
+    herkunft: string;
+  }[]) {
+    const liste = dateienJeJob.get(d.job_id) ?? [];
+    liste.push({
+      id: d.id,
+      filename: d.filename,
+      bytes: d.bytes,
+      herkunft: d.herkunft,
+      viewUrl: await signedGetUrl(d.storage_key, 1800),
+      downloadUrl: await signedGetUrl(d.storage_key, 1800, d.filename ?? undefined),
+    });
+    dateienJeJob.set(d.job_id, liste);
+  }
+
+  const arbeitsvorgaenge = jobs.map((j) => ({
+    ...j,
+    pdf: !!j.pdf_storage_key,
+    dateien: dateienJeJob.get(j.id) ?? [],
+  }));
   const sentOrderId = jobs.find((j) => j.typ === "druck" && j.flux_order_id)?.flux_order_id ?? null;
 
   return (
