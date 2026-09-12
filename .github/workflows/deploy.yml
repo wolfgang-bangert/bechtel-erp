@@ -38,7 +38,7 @@ jobs:
     if: vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: SSH -> VM: pull + rebuild
+      - name: "SSH -> VM: pull + rebuild"
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
