@@ -5,8 +5,11 @@
 #   web    – Next.js (apps/web), nur intern auf :3000
 #   sync   – services/sync als Cron-Container (supercronic), ersetzt launchd
 #
-# Aufruf auf der VM (Repo unter /opt/werk):
-#   cd /opt/werk && docker compose up -d --build
+# web/sync werden von GitHub Actions gebaut und nach ghcr.io gepusht
+# (.github/workflows/deploy.yml) - die VM lädt nur noch fertige Images:
+#   cd /opt/werk && docker compose pull && docker compose up -d
+# Lokal/manuell geht weiterhin `docker compose up -d --build` (baut aus dem
+# `build:`-Abschnitt und taggt als dasselbe Image).
 #
 # Secrets/Config: eine Datei /opt/werk/.env (chmod 600, NICHT im Repo).
 # compose liest sie automatisch für ${...} und reicht sie via env_file rein.
@@ -30,6 +33,7 @@ services:
       - web
 
   web:
+    image: ghcr.io/wolfgang-bangert/bechtel-erp-web:latest
     build:
       context: .
       dockerfile: ops/Dockerfile.web
@@ -45,6 +49,7 @@ services:
       - "3000"
 
   sync:
+    image: ghcr.io/wolfgang-bangert/bechtel-erp-sync:latest
     build:
       context: .
       dockerfile: ops/Dockerfile.sync

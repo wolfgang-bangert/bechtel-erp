@@ -9,10 +9,57 @@ concurrency:
   group: deploy-prod
   cancel-in-progress: false
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_WEB: ghcr.io/${{ github.repository_owner }}/bechtel-erp-web
+  IMAGE_SYNC: ghcr.io/${{ github.repository_owner }}/bechtel-erp-sync
+
 jobs:
-  migrate:
+  build:
     # Erst aktiv, wenn die Infra steht: Repo-Variable DEPLOY_ENABLED=true setzen
     # (GitHub → Settings → Secrets and variables → Actions → Variables).
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: web-Image bauen + pushen
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ops/Dockerfile.web
+          push: true
+          tags: |
+            ${{ env.IMAGE_WEB }}:latest
+            ${{ env.IMAGE_WEB }}:${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: sync-Image bauen + pushen
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ops/Dockerfile.sync
+          push: true
+          tags: |
+            ${{ env.IMAGE_SYNC }}:latest
+            ${{ env.IMAGE_SYNC }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  migrate:
     if: vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -34,11 +81,11 @@ jobs:
           pnpm exec supabase db push --password "${{ secrets.SUPABASE_PROD_DB_PASSWORD }}"
 
   deploy:
-    needs: migrate
+    needs: [build, migrate]
     if: vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: "SSH -> VM: pull + rebuild"
+      - name: "SSH -> VM: pull fertige Images + Neustart"
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -49,5 +96,6 @@ jobs:
             cd /opt/werk
             git fetch --prune origin
             git reset --hard origin/main
-            docker compose up -d --build
+            docker compose pull
+            docker compose up -d
             docker image prune -f
