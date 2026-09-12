@@ -94,6 +94,16 @@ export function applyOptionAttrs(
     else if (/links|left|BLI/i.test(t) || /BLI/.test(s)) attr.bindeseite = "links";
     else if (/rechts|right|BRE/i.test(t) || /BRE/.test(s)) attr.bindeseite = "rechts";
   }
+
+  // Inhaltsmuster Spiralblöcke (PBS): kariert/liniert/unbedruckt sind vorgedruckt
+  // auf Lager, nur "4-farbig" wird tatsächlich gedruckt. SKU-Form
+  // "Z<Format>50C.<Code>" -> normiert endet sie auf "50C" + Code.
+  if (/inhaltsmuster/.test(t) || /50CC(KA|LI|UB|44)$/.test(s)) {
+    if (/kariert/.test(t) || /50CCKA$/.test(s)) attr.muster = "kariert";
+    else if (/liniert/.test(t) || /50CCLI$/.test(s)) attr.muster = "liniert";
+    else if (/unbedruckt|blank/.test(t) || /50CCUB$/.test(s)) attr.muster = "blanko";
+    else if (/4-?farbig|four colours/.test(t) || /50CC44$/.test(s)) attr.muster = "vierfarbig";
+  }
 }
 
 // --------------------------------------------------------------------- Typen
@@ -745,12 +755,22 @@ export function resolveOne(ref: RefData, order: OrderInput): ResolveResult {
       if (!mat) note = `kein Papier für ${attr.grammatur_g ?? "?"}g / ${attr.oberflaeche ?? "?"}`;
     } else if (r.herkunft === "aus_format") {
       const want = fmtKey(((attr.format as string | null) ?? "").toString());
+      // Zusatzfilter, wenn der Auftrag sie kennt und das Material sie führt
+      // (z.B. PBS-Inhaltsmuster: mehrere Materialien je Format, unterschieden
+      // über Muster kariert/liniert/blanko + Blattzahl 50/100).
+      const wantMuster = attr.muster ? String(attr.muster).toLowerCase() : null;
+      const wantBlatt = nnum(attr.blatt);
       mat =
         (want &&
           ref.material.find((m) => {
             if (r.material_rolle && ref.rolleName.get(m.rolle_id ?? "") !== r.material_rolle) return false;
             const mf = (m.attribute?.Format ?? m.attribute?.format) as string | undefined;
-            return !!mf && fmtKey(mf.toString()) === want;
+            if (!mf || fmtKey(mf.toString()) !== want) return false;
+            const mMuster = m.attribute?.Muster as string | undefined;
+            if (mMuster && wantMuster && mMuster.toLowerCase() !== wantMuster) return false;
+            const mBlatt = nnum(m.attribute?.Blatt);
+            if (mBlatt != null && wantBlatt != null && mBlatt !== wantBlatt) return false;
+            return true;
           })) ||
         null;
       if (!mat) note = `kein ${r.material_rolle ?? "Material"} für Format '${attr.format ?? "?"}'`;
