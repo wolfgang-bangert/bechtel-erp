@@ -11,8 +11,9 @@
 # Eingangsrechnungen aus dem Postfach + KI-Vorerfassung (war stündlich)
 15 * * * *   cd /app/services/sync && pnpm mail:fetch --since=7 && pnpm incoming:extract --limit=100
 
-# Bankumsätze abrufen (FinTS) – einmal morgens
-0 6 * * *    cd /app/services/sync && pnpm fints:pull
-
-# Manuelle Anstöße aus der Web-App abarbeiten (z. B. "Banken aktualisieren"-Button)
+# Bankumsätze abrufen (FinTS): Zeitplan liegt jetzt in n8n (Tag "werk",
+# Workflow "werk – Bank-Sync Zeitplan"), das ruft POST /api/n8n/trigger auf
+# und legt damit eine sync_request-Zeile an. Dieser Cron-Job bleibt der
+# Abarbeiter für JEDE sync_request – egal ob von n8n, dem "Banken
+# aktualisieren"-Button oder künftig anderen Quellen angelegt.
 */2 * * * *  cd /app/services/sync && pnpm requests:process
