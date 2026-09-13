@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
 import { signOut } from "../login/actions";
+import { NotificationBanner } from "./_notifications/NotificationBanner";
 
 export default async function AppLayout({
   children,
@@ -74,7 +75,10 @@ export default async function AppLayout({
         </form>
       </nav>
 
-      <main className="content">{children}</main>
+      <main className="content">
+        <NotificationBanner />
+        {children}
+      </main>
     </div>
   );
 }

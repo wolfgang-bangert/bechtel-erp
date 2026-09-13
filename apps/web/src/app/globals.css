@@ -242,6 +242,22 @@ button.ghost {
   padding: 8px 10px;
   margin: 10px 0;
 }
+.banner-warn {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 10px 0;
+}
+.banner-info {
+  background: var(--tag-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 10px 0;
+}
 .field {
   display: flex;
   flex-direction: column;
