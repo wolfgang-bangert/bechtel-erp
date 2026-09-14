@@ -59,6 +59,7 @@ export default async function BankPage({
     booking_date: string;
     amount: number;
     counterparty_name: string | null;
+    counterparty_iban: string | null;
     purpose: string | null;
     match_status: string;
     bank_account: { label: string; bank_name: string | null; iban: string } | null;
@@ -74,7 +75,7 @@ export default async function BankPage({
   let query = supabase
     .from("bank_transaction")
     .select(
-      "id, booking_date, amount, counterparty_name, purpose, match_status, " +
+      "id, booking_date, amount, counterparty_name, counterparty_iban, purpose, match_status, " +
         "bank_account:bank_account_id(label, bank_name, iban), " +
         "matches:bank_transaction_match(id, amount, auto, " +
         "sales_invoice:sales_invoice(id, invoice_number), " +
@@ -324,6 +325,11 @@ export default async function BankPage({
                   ]}
                 >
                   <div className="rows" style={{ gap: 4 }}>
+                    {tx.counterparty_iban && (
+                      <div className="count" style={{ marginBottom: 4 }}>
+                        IBAN: {tx.counterparty_iban}
+                      </div>
+                    )}
                     {matches.map((m) => {
                       const inc = m.incoming_document;
                       const href = inc

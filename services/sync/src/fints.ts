@@ -111,6 +111,19 @@ type PyTxn = {
   customer_reference: string | null;
 };
 
+// Manche Banken (beobachtet u.a. bei KSK/BW-Bank-Lastschriften/-Gutschriften)
+// liefern die IBAN des Gegenkontos ohne Trennzeichen direkt vor dem Namen im
+// applicant_name-Feld, applicant_iban bleibt dabei leer. Vor der Anzeige/
+// Speicherung rausziehen, statt "DE...Geiger GmbH" stehen zu lassen.
+const LEADING_IBAN_RE = /^([A-Z]{2}[0-9]{2}[A-Z0-9]{11,30})(?=[A-ZÄÖÜ])/;
+function splitLeadingIban(name: string | null): { name: string | null; iban: string | null } {
+  if (!name) return { name, iban: null };
+  const m = name.match(LEADING_IBAN_RE);
+  if (!m) return { name, iban: null };
+  const rest = name.slice(m[1].length).trim();
+  return rest ? { name: rest, iban: m[1] } : { name, iban: null };
+}
+
 function toCamtEntry(iban: string, t: PyTxn): CamtEntry {
   const purpose = (t.purpose ?? "").replace(/\s+/g, " ").trim() || null;
   const amount = Number(t.amount ?? 0);
@@ -129,14 +142,15 @@ function toCamtEntry(iban: string, t: PyTxn): CamtEntry {
         ].join("|"),
       )
       .digest("hex");
+  const cleaned = splitLeadingIban(t.applicant_name ?? null);
   return {
     iban,
     bookingDate: t.booking_date ?? new Date().toISOString().slice(0, 10),
     valueDate: t.value_date ?? null,
     amount,
     currency: t.currency ?? "EUR",
-    counterpartyName: t.applicant_name ?? null,
-    counterpartyIban: t.applicant_iban ?? null,
+    counterpartyName: cleaned.name,
+    counterpartyIban: t.applicant_iban ?? cleaned.iban,
     purpose,
     endToEndId: t.end_to_end_reference ?? null,
     bankRef: t.bank_reference ?? t.customer_reference ?? null,
