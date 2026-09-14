@@ -462,6 +462,51 @@ table.data td.wrap {
   display: block;
 }
 
+/* ---- Startseite: Kacheln (Fälligkeiten / Eingehende Aufträge nebeneinander,
+   jeweils mit knapper Übersicht + ausklappbarem Detail) ---- */
+.kachel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.kachel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+.kachel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.kachel-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.kachel-summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--muted);
+}
+.kachel-summary::-webkit-details-marker {
+  display: none;
+}
+.kachel-body {
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 4px;
+}
+
 /* ---- Dashboard: klickbare Gruppen-Kopfzeilen (Binden-Ansicht) ---- */
 .gruppen-zeile {
   background: var(--row-bg, transparent);
