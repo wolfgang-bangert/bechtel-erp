@@ -10,6 +10,10 @@
   --err: #c02626;
   --tag-bg: #eceef1;
   --radius: 8px;
+  --due-heute: #2f6feb;
+  --due-1: #d97706;
+  --due-2-4: #c2410c;
+  --due-5plus: #c02626;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -24,6 +28,10 @@
     --ok: #4ccf7f;
     --err: #ff6b6b;
     --tag-bg: #2a2b31;
+    --due-heute: #5b8dff;
+    --due-1: #f2a53d;
+    --due-2-4: #ff8a3d;
+    --due-5plus: #ff6b6b;
   }
 }
 
@@ -257,6 +265,33 @@ button.ghost {
   border-radius: 6px;
   padding: 8px 10px;
   margin: 10px 0;
+}
+
+/* ---- Fälligkeits-Ampel (Versand) ---- */
+.due-heute {
+  background: color-mix(in srgb, var(--due-heute) 15%, transparent);
+  border-color: var(--due-heute);
+  color: var(--due-heute);
+}
+.due-1 {
+  background: color-mix(in srgb, var(--due-1) 15%, transparent);
+  border-color: var(--due-1);
+  color: var(--due-1);
+}
+.due-2-4 {
+  background: color-mix(in srgb, var(--due-2-4) 18%, transparent);
+  border-color: var(--due-2-4);
+  color: var(--due-2-4);
+}
+.due-5plus {
+  background: color-mix(in srgb, var(--due-5plus) 20%, transparent);
+  border-color: var(--due-5plus);
+  color: var(--due-5plus);
+}
+.due-zukunft {
+  background: var(--tag-bg);
+  border-color: var(--border);
+  color: var(--muted);
 }
 .field {
   display: flex;
