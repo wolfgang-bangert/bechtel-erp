@@ -554,40 +554,110 @@ function durchmesserAufhKey(b: Batch, cfg: Record<string, string[]>): string {
   return mitAufhaenger ? `${d} + Aufhänger` : d;
 }
 
-function GruppenSummary({
+/** Kleine Überschrift + große fette Zahl/Wert darunter. */
+function LabelWert({ label, wert }: { label: string; wert: React.ReactNode }) {
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", lineHeight: 1.2 }}>
+      <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".03em", color: "var(--muted)" }}>
+        {label}
+      </span>
+      <span style={{ fontSize: 15, fontWeight: 700 }}>{wert}</span>
+    </span>
+  );
+}
+
+/** Eine Gruppen-Kopfzeile: Label/Wert, Liefertermin, Abweichungen - je eine
+ *  kleine Überschrift mit großem, fettem Wert darunter. */
+function GruppenZeile({
   label,
   wert,
-  anzahl,
-  extra,
-  style,
+  batches,
+  indent,
+  as: As = "div",
 }: {
   label: string;
   wert: string;
-  anzahl: number;
-  extra?: React.ReactNode;
-  style?: React.CSSProperties;
+  batches: Batch[];
+  indent: number;
+  as?: "div" | "summary";
 }) {
+  const liefer = fruehesterLiefer(batches[0]);
+  const abw = abweichungenGesamt(batches.flatMap((b) => b.job ?? []));
   return (
-    <summary
+    <As
       style={{
-        cursor: "pointer",
-        fontWeight: 600,
-        fontSize: 13,
-        margin: "8px 0 4px",
-        padding: "4px 10px",
-        background: "var(--tag-bg)",
-        borderRadius: 6,
-        display: "inline-flex",
-        gap: 10,
-        alignItems: "baseline",
-        ...style,
+        display: "flex",
+        gap: 26,
+        alignItems: "flex-end",
+        padding: "6px 10px",
+        marginLeft: indent,
+        borderBottom: "1px solid var(--border)",
+        cursor: As === "summary" ? "pointer" : undefined,
       }}
     >
-      <span>
-        {label}: {wert} <span className="count">· {anzahl}</span>
-      </span>
-      {extra}
-    </summary>
+      <LabelWert label={label} wert={wert} />
+      <LabelWert label="Liefertermin" wert={liefer ? `ab ${fmtDate(liefer)}` : "—"} />
+      <LabelWert
+        label="Abweichungen"
+        wert={abw > 0 ? <span style={{ color: "#b45309" }}>{abw}</span> : "—"}
+      />
+    </As>
+  );
+}
+
+/** Flache Job-Tabelle (über alle Batches einer Endgruppe hinweg). */
+function JobsTabelle({ batches, gruppeKuerzel }: { batches: Batch[]; gruppeKuerzel: Record<string, string> }) {
+  const jobs = batches.flatMap((b) => b.job ?? []);
+  return (
+    <div className="table-scroll">
+      <table className="data">
+        <thead>
+          <tr>
+            <th>Auftrag</th>
+            <th>Liefertermin</th>
+            <th>Produktgruppe</th>
+            <th>Bauteil</th>
+            <th style={{ textAlign: "right" }}>Menge</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {jobs.map((j) => (
+            <tr key={j.id}>
+              <td>
+                {j.portal_order_id ? (
+                  <a href={`/druckauftraege/${j.portal_order_id}`} target="_blank" rel="noreferrer">
+                    {j.order?.external_reference ?? j.portal_order_id.slice(0, 8)}
+                  </a>
+                ) : (
+                  "—"
+                )}
+                {j.order?.abweichungen?.length ? (
+                  <span title={j.order.abweichungen.map((a) => a.text).join("\n")} style={{ color: "#b45309" }}>
+                    {" "}
+                    ⚠
+                  </span>
+                ) : null}
+              </td>
+              <td>{j.order?.deliver_date ? fmtDate(j.order.deliver_date) : "—"}</td>
+              <td className="count">
+                {(j.order?.gruppe && (gruppeKuerzel[j.order.gruppe] ?? j.order.gruppe)) ?? "—"}
+              </td>
+              <td>{j.bauteil}</td>
+              <td style={{ textAlign: "right" }}>{((j.auflage || 0) + (j.zuschuss || 0)).toLocaleString("de-DE")}</td>
+              <td className="count">{j.status}</td>
+            </tr>
+          ))}
+          {!jobs.length && (
+            <tr>
+              <td colSpan={6} style={{ color: "var(--muted)" }}>
+                Keine Jobs.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -597,13 +667,14 @@ function GruppenSummary({
  * eigene Sondergruppe) ist immer die oberste Ebene. Darunter, je Modus:
  *   "loops" → Anzahl Loops → Farbe Spirale (3 Ebenen)
  *   "farbe" → Farbe Spirale (2 Ebenen)
+ * Gruppenköpfe sind schlanke, immer sichtbare Zeilen (Label/Wert, groß+fett);
+ * nur die Jobs-Tabelle ganz unten klappt auf.
  */
 function BindenGruppen({
   batches,
   modus,
   cfg,
   gruppeKuerzel,
-  fluxUrlTpl,
 }: {
   batches: Batch[];
   modus: "loops" | "farbe";
@@ -613,70 +684,39 @@ function BindenGruppen({
 }) {
   return (
     <>
-      {groupSorted(batches, (b) => durchmesserAufhKey(b, cfg)).map(([k1, g1]) => {
-        const abw1 = abweichungenGesamt(g1.flatMap((b) => b.job ?? []));
-        return (
-          <details key={k1 || "_"} open style={{ marginBottom: 14 }}>
-            <GruppenSummary
-              label="Durchmesser"
-              wert={k1}
-              anzahl={g1.length}
-              extra={
-                <>
-                  {fruehesterLiefer(g1[0]) && (
-                    <span style={{ color: "var(--accent)" }}>
-                      Liefertermin ab {fmtDate(fruehesterLiefer(g1[0])!)}
-                    </span>
-                  )}
-                  {abw1 > 0 && (
-                    <span style={{ ...chip, padding: "1px 7px", color: "#b45309", borderColor: "#b45309", background: "#fffbeb" }}>
-                      ⚠ {abw1} {abw1 === 1 ? "Abweichung" : "Abweichungen"}
-                    </span>
-                  )}
-                </>
-              }
-            />
-            <div style={{ marginTop: 4, marginLeft: 14 }}>
-              {modus === "farbe"
-                ? groupSorted(g1, (b) => critWert(b, "spiralfarbe", cfg)).map(([k2, g2]) => (
-                    <details key={k2 || "_"} open style={{ marginBottom: 10 }}>
-                      <GruppenSummary label="Farbe Spirale" wert={k2} anzahl={g2.length} style={{ fontSize: 12 }} />
-                      <div style={{ marginTop: 4 }}>
-                        <BatchTabelle
-                          batches={g2}
-                          cfg={cfg}
-                          gruppeKuerzel={gruppeKuerzel}
-                          fluxUrlTpl={fluxUrlTpl}
-                          ausblenden={["durchmesser", "aufhaenger", "spiralfarbe"]}
-                        />
-                      </div>
-                    </details>
-                  ))
-                : groupSorted(g1, (b) => critWert(b, "loops", cfg)).map(([k2, g2]) => (
-                    <details key={k2 || "_"} open style={{ marginBottom: 10 }}>
-                      <GruppenSummary label="Anzahl Loops" wert={k2} anzahl={g2.length} style={{ fontSize: 12 }} />
-                      <div style={{ marginTop: 4, marginLeft: 14 }}>
-                        {groupSorted(g2, (b) => critWert(b, "spiralfarbe", cfg)).map(([k3, g3]) => (
-                          <details key={k3 || "_"} open style={{ marginBottom: 8 }}>
-                            <GruppenSummary label="Farbe Spirale" wert={k3} anzahl={g3.length} style={{ fontSize: 11 }} />
-                            <div style={{ marginTop: 4 }}>
-                              <BatchTabelle
-                                batches={g3}
-                                cfg={cfg}
-                                gruppeKuerzel={gruppeKuerzel}
-                                fluxUrlTpl={fluxUrlTpl}
-                                ausblenden={["durchmesser", "aufhaenger", "schlaufen", "spiralfarbe"]}
-                              />
-                            </div>
-                          </details>
-                        ))}
-                      </div>
-                    </details>
+      {groupSorted(batches, (b) => durchmesserAufhKey(b, cfg)).map(([k1, g1]) => (
+        <div key={k1 || "_"} style={{ marginBottom: 6 }}>
+          <GruppenZeile label="Durchmesser" wert={k1} batches={g1} indent={0} />
+          {modus === "farbe"
+            ? groupSorted(g1, (b) => critWert(b, "spiralfarbe", cfg)).map(([k2, g2]) => (
+                <div key={k2 || "_"}>
+                  <GruppenZeile label="Farbe Spirale" wert={k2} batches={g2} indent={22} />
+                  <details style={{ marginLeft: 22 }}>
+                    <summary className="count" style={{ cursor: "pointer", padding: "4px 10px" }}>
+                      {g2.reduce((n, b) => n + (b.job?.length ?? 0), 0)} Jobs anzeigen
+                    </summary>
+                    <JobsTabelle batches={g2} gruppeKuerzel={gruppeKuerzel} />
+                  </details>
+                </div>
+              ))
+            : groupSorted(g1, (b) => critWert(b, "loops", cfg)).map(([k2, g2]) => (
+                <div key={k2 || "_"}>
+                  <GruppenZeile label="Anzahl Loops" wert={k2} batches={g2} indent={22} />
+                  {groupSorted(g2, (b) => critWert(b, "spiralfarbe", cfg)).map(([k3, g3]) => (
+                    <div key={k3 || "_"}>
+                      <GruppenZeile label="Farbe Spirale" wert={k3} batches={g3} indent={44} />
+                      <details style={{ marginLeft: 44 }}>
+                        <summary className="count" style={{ cursor: "pointer", padding: "4px 10px" }}>
+                          {g3.reduce((n, b) => n + (b.job?.length ?? 0), 0)} Jobs anzeigen
+                        </summary>
+                        <JobsTabelle batches={g3} gruppeKuerzel={gruppeKuerzel} />
+                      </details>
+                    </div>
                   ))}
-            </div>
-          </details>
-        );
-      })}
+                </div>
+              ))}
+        </div>
+      ))}
     </>
   );
 }
