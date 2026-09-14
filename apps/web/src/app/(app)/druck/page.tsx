@@ -404,7 +404,7 @@ function BatchZeile({
         abwGesamt > 0 ? (
           <span
             key="a"
-            style={{ ...chip, padding: "1px 7px", color: "#b45309", borderColor: "#b45309", background: "#fffbeb" }}
+            style={{ ...chip, padding: "1px 7px", color: "var(--due-1)", borderColor: "var(--due-1)", background: "color-mix(in srgb, var(--due-1) 15%, transparent)" }}
           >
             ⚠ {abwGesamt}
           </span>
@@ -458,7 +458,7 @@ function BatchZeile({
                     <>
                       {"  "}
                       <span
-                        style={{ ...chip, padding: "1px 7px", color: "#b45309", borderColor: "#b45309", background: "#fffbeb" }}
+                        style={{ ...chip, padding: "1px 7px", color: "var(--due-1)", borderColor: "var(--due-1)", background: "color-mix(in srgb, var(--due-1) 15%, transparent)" }}
                         title={j.order.abweichungen.map((a) => a.text).join("\n")}
                       >
                         ⚠ {j.order.abweichungen.length}
@@ -468,7 +468,7 @@ function BatchZeile({
                 </summary>
                 <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.7 }}>
                   {j.order?.abweichungen?.length ? (
-                    <div style={{ color: "#b45309", marginBottom: 4 }}>
+                    <div style={{ color: "var(--due-1)", marginBottom: 4 }}>
                       {j.order.abweichungen.map((a, i) => (
                         <div key={i}>⚠ {a.text}</div>
                       ))}
@@ -589,6 +589,7 @@ function GruppenZeile({
   const jobsCount = batches.reduce((n, b) => n + (b.job?.length ?? 0), 0);
   return (
     <As
+      className={As === "summary" ? "gruppen-zeile" : undefined}
       style={{
         display: "flex",
         gap: 26,
@@ -600,12 +601,17 @@ function GruppenZeile({
         listStyle: As === "summary" ? "none" : undefined,
       }}
     >
+      {As === "summary" && (
+        <span className="gruppen-chevron" aria-hidden style={{ alignSelf: "center" }}>
+          ▸
+        </span>
+      )}
       {zeigeJobs && <LabelWert label="Jobs" wert={jobsCount} />}
       <LabelWert label={label} wert={wert} />
       <LabelWert label="Liefertermin" wert={liefer ? `ab ${fmtDate(liefer)}` : "—"} />
       <LabelWert
         label="Abweichungen"
-        wert={abw > 0 ? <span style={{ color: "#b45309" }}>{abw}</span> : "—"}
+        wert={abw > 0 ? <span style={{ color: "var(--due-1)" }}>{abw}</span> : "—"}
       />
     </As>
   );
@@ -639,7 +645,7 @@ function JobsTabelle({ batches, gruppeKuerzel }: { batches: Batch[]; gruppeKuerz
                   "—"
                 )}
                 {j.order?.abweichungen?.length ? (
-                  <span title={j.order.abweichungen.map((a) => a.text).join("\n")} style={{ color: "#b45309" }}>
+                  <span title={j.order.abweichungen.map((a) => a.text).join("\n")} style={{ color: "var(--due-1)" }}>
                     {" "}
                     ⚠
                   </span>
@@ -991,7 +997,7 @@ export default async function DruckDashboard({
                           )}
                           {gruppenAbw > 0 && (
                             <span
-                              style={{ ...chip, padding: "1px 7px", color: "#b45309", borderColor: "#b45309", background: "#fffbeb" }}
+                              style={{ ...chip, padding: "1px 7px", color: "var(--due-1)", borderColor: "var(--due-1)", background: "color-mix(in srgb, var(--due-1) 15%, transparent)" }}
                               title="Abweichungen Auftrag ↔ Druckdaten in dieser Gruppe"
                             >
                               ⚠ {gruppenAbw} {gruppenAbw === 1 ? "Abweichung" : "Abweichungen"}

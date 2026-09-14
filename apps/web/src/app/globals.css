@@ -461,3 +461,20 @@ table.data td.wrap {
 .thumb-zoom:hover > .zoom {
   display: block;
 }
+
+/* ---- Dashboard: klickbare Gruppen-Kopfzeilen (Binden-Ansicht) ---- */
+.gruppen-zeile {
+  transition: background-color 0.1s;
+}
+.gruppen-zeile:hover {
+  background: var(--tag-bg);
+}
+.gruppen-chevron {
+  display: inline-block;
+  transition: transform 0.15s;
+  color: var(--muted);
+  flex: none;
+}
+details[open] > summary.gruppen-zeile .gruppen-chevron {
+  transform: rotate(90deg);
+}
