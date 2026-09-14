@@ -16,7 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ResolveResult } from "../opri/resolve.js";
 
 type Zeile = ResolveResult["materialliste"][number];
-type Typ = "druck" | "cello" | "binden" | "aufhaenger" | "konfektion";
+type Typ = "druck" | "cello" | "binden" | "aufhaenger" | "konfektion" | "versand";
 
 const NICHT_BEDRUCKT = /graukarton|graupappe|graukart/i;
 const IST_WIREO = /drahtbinder|wire-?o/i;
@@ -412,6 +412,7 @@ export async function erzeugeJobs(
   // ---- 3) Binde-Job --------------------------------------------------
   // Der Binde-Job führt zusammen: die Druck-Vorgänge + alle nicht-gedruckten
   // Teile (Aufsteller, Graupappe, Wire-O, …). Das steckt in komponenten[].
+  let bindenJobId: string | null = null;
   if (wireOzeile) {
     const z = wireOzeile;
     const bindenBauteil = `Wire-O binden${z.durchmesser ? ` ${z.durchmesser}` : ""}`;
@@ -421,11 +422,13 @@ export async function erzeugeJobs(
       schlaufen: z.schlaufen ?? null, schlaufen_gesamt: z.schlaufen_gesamt ?? null,
       bindeseite: z.bindeseite ?? null, spiralfarbe, auflage,
     };
-    if (bestehendBinden && !inhaltGleich(bestehendBinden, bindenNeuData)) {
+    if (bestehendBinden && inhaltGleich(bestehendBinden, bindenNeuData)) {
+      bindenJobId = bestehendBinden.id as string;
+    } else if (bestehendBinden) {
       uebersprungen.push(
         `${bindenBauteil}: bereits an flux gesendet, Daten haben sich geändert - nicht automatisch dupliziert, bitte manuell prüfen`,
       );
-    } else if (!bestehendBinden) {
+    } else {
       const schluessel = mkSchluessel(batchKeys, "binden", {
         bindeseite: z.bindeseite,
         schlaufen: z.schlaufen, // Loops pro Exemplar
@@ -486,6 +489,7 @@ export async function erzeugeJobs(
         .select("id")
         .single();
       if (jErr) throw new Error(`Binde-Job: ${jErr.message}`);
+      bindenJobId = j.id as string;
       bump(batch.nummer);
     }
   }
@@ -495,17 +499,20 @@ export async function erzeugeJobs(
     (z) => IST_INLAY.test(z.rolle ?? "") || IST_INLAY.test(z.verwendung ?? ""),
   );
   const konfektionBauteil = "Multiloft konfektionieren (Cover + Inlay + Cover, Nutzen schneiden)";
+  let konfektionJobId: string | null = null;
   if (inlayZeile) {
     const dbogen = inlayZeile.druckbogen ?? druckJobs[0]?.druckbogen ?? null;
     const fmt = inlayZeile.format ?? (rr.attribute?.format as string | undefined) ?? null;
 
     const bestehend = bestehendeMap.get(`konfektion::${konfektionBauteil}`);
     const neuData = { format: fmt, druckbogen: dbogen, netto_bogen: inlayZeile.netto_bogen ?? null, auflage };
-    if (bestehend && !inhaltGleich(bestehend, neuData)) {
+    if (bestehend && inhaltGleich(bestehend, neuData)) {
+      konfektionJobId = bestehend.id as string;
+    } else if (bestehend) {
       uebersprungen.push(
         `${konfektionBauteil}: bereits an flux gesendet, Daten haben sich geändert - nicht automatisch dupliziert, bitte manuell prüfen`,
       );
-    } else if (!bestehend) {
+    } else {
       const schluessel = mkSchluessel(batchKeys, "konfektion", { format: fmt, druckbogen: dbogen });
       const batch = await getBatch("konfektion", schluessel, { papier: fmt, druckbogen: dbogen });
 
@@ -540,23 +547,64 @@ export async function erzeugeJobs(
         })),
       ];
 
+      const { data: kj, error: jErr } = await sb
+        .from("job")
+        .insert({
+          portal_order_id: portalOrderId,
+          batch_id: batch.id,
+          typ: "konfektion",
+          bauteil: konfektionBauteil,
+          quelle_regel: inlayZeile.regel,
+          papier: fmt,
+          druckbogen: dbogen,
+          nutzen: inlayZeile.nutzen ?? null,
+          netto_bogen: inlayZeile.netto_bogen ?? null,
+          auflage,
+          abhaengig_von: druckJobIds,
+          komponenten,
+          status: "in_batch",
+        })
+        .select("id")
+        .single();
+      if (jErr) throw new Error(`Konfektion-Job: ${jErr.message}`);
+      konfektionJobId = kj.id as string;
+      bump(batch.nummer);
+    }
+  }
+
+  // ---- 5) Versand-Vorgang ---------------------------------------------
+  // Anders als druck/cello/binden/konfektion nicht aus einer Materialzeile
+  // abgeleitet, sondern immer genau einer je Auftrag (volle Auftragsmenge) -
+  // Grundlage für die spätere Label-/Carrier-Anbindung (analog flux bei
+  // Druck-Jobs). Braucht keinen Batch (kein auftragsübergreifendes Bündeln).
+  // Für Teillieferungen: siehe addVersandTeillieferung() - legt einen
+  // zusätzlichen Versand-Job mit reduzierter Menge manuell an.
+  const versandBauteil = "Versand";
+  let versandJobsNeu = 0;
+  {
+    const bestehend = bestehendeMap.get(`versand::${versandBauteil}`);
+    const neuData = { auflage };
+    if (bestehend && !inhaltGleich(bestehend, neuData)) {
+      uebersprungen.push(
+        `${versandBauteil}: bereits in Bearbeitung, Auftragsmenge hat sich geändert - nicht automatisch angepasst, bitte manuell prüfen`,
+      );
+    } else if (!bestehend) {
       const { error: jErr } = await sb.from("job").insert({
         portal_order_id: portalOrderId,
-        batch_id: batch.id,
-        typ: "konfektion",
-        bauteil: konfektionBauteil,
-        quelle_regel: inlayZeile.regel,
-        papier: fmt,
-        druckbogen: dbogen,
-        nutzen: inlayZeile.nutzen ?? null,
-        netto_bogen: inlayZeile.netto_bogen ?? null,
+        batch_id: null,
+        typ: "versand",
+        bauteil: versandBauteil,
         auflage,
-        abhaengig_von: druckJobIds,
-        komponenten,
-        status: "in_batch",
+        abhaengig_von: [
+          ...druckJobIds,
+          ...celloJobIds,
+          ...(bindenJobId ? [bindenJobId] : []),
+          ...(konfektionJobId ? [konfektionJobId] : []),
+        ],
+        status: "offen",
       });
-      if (jErr) throw new Error(`Konfektion-Job: ${jErr.message}`);
-      bump(batch.nummer);
+      if (jErr) throw new Error(`Versand-Job: ${jErr.message}`);
+      versandJobsNeu = 1;
     }
   }
 
@@ -566,6 +614,10 @@ export async function erzeugeJobs(
   for (const [, e] of alle) {
     nachTyp[e.typ] = (nachTyp[e.typ] ?? 0) + e.jobs;
     jobsGesamt += e.jobs;
+  }
+  if (versandJobsNeu) {
+    nachTyp.versand = (nachTyp.versand ?? 0) + versandJobsNeu;
+    jobsGesamt += versandJobsNeu;
   }
 
   return {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { DruckjobsButton } from "./DruckjobsButton";
 import {
+  addVersandTeillieferungAction,
   deleteJobDateiAction,
   saveJobFluxAction,
   sendeAuftragAnFluxAction,
@@ -365,6 +366,23 @@ function JobPopup({
   );
 }
 
+/** Weiteren Versand-Vorgang anlegen (Teillieferung) - zusätzlich zu dem einen,
+ *  den "Jobs erzeugen" automatisch mit der vollen Auftragsmenge erzeugt. */
+function VersandTeillieferungForm({ orderId }: { orderId: string }) {
+  const [state, action, pending] = useActionState(addVersandTeillieferungAction, empty);
+  return (
+    <form action={action} className="toolbar" style={{ gap: 8, marginTop: 4 }}>
+      <input type="hidden" name="order_id" value={orderId} />
+      <input name="menge" type="number" min={1} step={1} placeholder="Menge" style={{ width: 90 }} required />
+      <button type="submit" disabled={pending} className="ghost" style={{ padding: "6px 12px" }}>
+        {pending ? "…" : "+ Versand-Vorgang (Teillieferung)"}
+      </button>
+      {state.ok && <span className="msg-ok">✓ {state.note}</span>}
+      {state.error && <span className="msg-err">{state.error}</span>}
+    </form>
+  );
+}
+
 export function ArbeitsvorgaengePanel({
   orderId,
   jobs,
@@ -486,6 +504,8 @@ export function ArbeitsvorgaengePanel({
               </tbody>
             </table>
           </div>
+
+          <VersandTeillieferungForm orderId={orderId} />
 
           {druckJobs.length > 0 && (
             <>
