@@ -56,6 +56,7 @@ export default async function AppLayout({
         <Link href="/einstellungen/maschinen">Maschinen</Link>
         <Link href="/einstellungen/faehigkeiten">Fähigkeiten</Link>
         <Link href="/einstellungen/vernutzung">Vernutzung</Link>
+        <Link href="/einstellungen/wire-o-durchmesser">Wire-O Durchmesser</Link>
         <Link href="/einstellungen/frachtpreise">Frachtpreise</Link>
         <Link href="/einstellungen/versandartikel">Versandartikel</Link>
         <Link href="/einstellungen/packmittel">Kartonagen</Link>
