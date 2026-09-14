@@ -236,6 +236,14 @@ export async function erzeugeJobs(
         auflage,
         cello: z.cello ?? "keine",
         cello_seiten: z.cello_seiten ?? 1,
+        verfahren,
+        aufhaenger: aufhaenger === "mit",
+        // Wire-O-Werte des zugehörigen Bindevorgangs (falls vorhanden) - stecken
+        // schon im Druck-Batch-Schlüssel, jetzt auch robust auf dem Job selbst.
+        spiralfarbe,
+        durchmesser: wireOzeile?.durchmesser ?? null,
+        teilung: wireOzeile?.teilung ?? null,
+        schlaufen: wireOzeile?.schlaufen ?? null,
         flux_product: z.flux_product ?? null,
         flux_services: services,
         flux_paper_type: z.flux_paper_type ?? null,
@@ -379,6 +387,7 @@ export async function erzeugeJobs(
         schlaufen_gesamt: z.schlaufen_gesamt ?? null,
         bindeseite: z.bindeseite ?? null,
         spiralfarbe,
+        aufhaenger: aufhaenger === "mit",
         abhaengig_von: [...druckJobIds, ...celloJobIds],
         komponenten,
         status: "in_batch",
