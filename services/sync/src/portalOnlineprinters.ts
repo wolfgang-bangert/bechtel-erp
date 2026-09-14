@@ -55,9 +55,11 @@ type OpOrder = {
 type Options = { dryRun?: boolean; limit?: number; withFiles?: boolean; days?: number };
 
 // ---------------------------------------------------------------- API
-function apiUrl(path: string, params: Record<string, string> = {}) {
+function apiUrl(path: string, params: Record<string, string | string[]> = {}) {
   const u = new URL(env.onlineprinters.base() + path);
-  for (const [k, v] of Object.entries(params)) u.searchParams.append(k, v);
+  for (const [k, v] of Object.entries(params)) {
+    for (const one of Array.isArray(v) ? v : [v]) u.searchParams.append(k, one);
+  }
   return u;
 }
 
@@ -169,12 +171,21 @@ export async function pullOnlineprinters(opts: Options = {}) {
     .eq("code", "onlineprinters")
     .maybeSingle();
   if (pErr || !portal) throw new Error(`portal 'onlineprinters' fehlt (Migration?) — ${pErr?.message ?? ""}`);
-  const cfg = (portal.config ?? {}) as { poll_state?: string; s3_prefix?: string };
-  const pollState = cfg.poll_state ?? "NEW";
+  const cfg = (portal.config ?? {}) as {
+    poll_state?: string;
+    poll_states?: string[];
+    s3_prefix?: string;
+  };
+  // NEW allein reicht nicht: onlineprinters-Aufträge wechseln teils innerhalb
+  // von Minuten von NEW auf IN_PROGRESS (bei uns oder manuell auf dem
+  // Portal). Ein Auftrag, den der tägliche Poll in diesem kurzen Fenster
+  // verpasst, wurde bisher NIE mehr gesehen (der Status-Refresh prüft nur
+  // Aufträge, die wir schon kennen). Deshalb IN_PROGRESS mit abfragen.
+  const pollStates = cfg.poll_states ?? (cfg.poll_state ? [cfg.poll_state] : ["NEW", "IN_PROGRESS"]);
   const s3prefix = (cfg.s3_prefix ?? "portal/onlineprinters").replace(/\/+$/, "");
 
   const res = await opGet(
-    apiUrl("/api/customer-orders", { "state.state[]": pollState, pagination: "0" }),
+    apiUrl("/api/customer-orders", { "state.state[]": pollStates, pagination: "0" }),
   );
   const json = (await res.json()) as { "hydra:member"?: OpOrder[]; member?: OpOrder[] } | OpOrder[];
   let orders: OpOrder[] = Array.isArray(json)
@@ -233,7 +244,7 @@ export async function pullOnlineprinters(opts: Options = {}) {
 
   return {
     dryRun,
-    pollState,
+    pollStates,
     geladen: orders.length,
     neu: created,
     aktualisiert: updated,

@@ -29,6 +29,12 @@ RUN chmod +x /usr/local/bin/supercronic
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/services/sync/node_modules ./services/sync/node_modules
+# packages/shared hat eigene Laufzeit-Abhängigkeiten (z.B. pdf-lib für
+# pdfSplit.ts) - ohne diese Zeile schlägt der Import erst zur Laufzeit fehl
+# (nur type-only Imports von @supabase/supabase-js kommen ohne aus, tsx
+# löscht die beim Transpilieren; echte Imports wie pdf-lib brauchen das
+# Paket physisch).
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY packages ./packages
 COPY services ./services
 COPY package.json pnpm-workspace.yaml ./
