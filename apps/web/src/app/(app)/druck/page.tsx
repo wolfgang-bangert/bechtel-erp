@@ -555,10 +555,28 @@ function durchmesserAufhKey(b: Batch, cfg: Record<string, string[]>): string {
 }
 
 /** Kleine Überschrift + große fette Zahl/Wert darunter. */
-function LabelWert({ label, wert }: { label: string; wert: React.ReactNode }) {
+/** `zeigeLabel=false` blendet nur die kleine Überschrift aus (Höhe bleibt
+ *  gleich) - für Folgezeilen einer Gruppe, deren Kopf schon einmal stand. */
+function LabelWert({
+  label,
+  wert,
+  zeigeLabel = true,
+}: {
+  label: string;
+  wert: React.ReactNode;
+  zeigeLabel?: boolean;
+}) {
   return (
     <span style={{ display: "inline-flex", flexDirection: "column", lineHeight: 1.2 }}>
-      <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".03em", color: "var(--muted)" }}>
+      <span
+        style={{
+          fontSize: 10,
+          textTransform: "uppercase",
+          letterSpacing: ".03em",
+          color: "var(--muted)",
+          visibility: zeigeLabel ? "visible" : "hidden",
+        }}
+      >
         {label}
       </span>
       <span style={{ fontSize: 15, fontWeight: 700 }}>{wert}</span>
@@ -567,7 +585,9 @@ function LabelWert({ label, wert }: { label: string; wert: React.ReactNode }) {
 }
 
 /** Eine Gruppen-Kopfzeile: Label/Wert, Liefertermin, Abweichungen - je eine
- *  kleine Überschrift mit großem, fettem Wert darunter. */
+ *  kleine Überschrift mit großem, fettem Wert darunter. `zeigeHeader=false`
+ *  blendet die Spalten-Überschriften aus (für alle außer der ersten Zeile
+ *  einer Geschwister-Gruppe, damit sie nicht bei jeder Zeile wiederholt werden). */
 function GruppenZeile({
   label,
   wert,
@@ -575,14 +595,16 @@ function GruppenZeile({
   indent,
   as: As = "div",
   zeigeJobs = false,
+  zeigeHeader = true,
 }: {
   label: string;
   wert: string;
   batches: Batch[];
   indent: number;
   as?: "div" | "summary";
-  /** Job-Anzahl als erste Spalte zeigen (bei der klickbaren Endgruppen-Zeile). */
+  /** Job-Anzahl als erste Spalte zeigen. */
   zeigeJobs?: boolean;
+  zeigeHeader?: boolean;
 }) {
   const liefer = fruehesterLiefer(batches[0]);
   const abw = abweichungenGesamt(batches.flatMap((b) => b.job ?? []));
@@ -606,12 +628,13 @@ function GruppenZeile({
           ▸
         </span>
       )}
-      {zeigeJobs && <LabelWert label="Jobs" wert={jobsCount} />}
-      <LabelWert label={label} wert={wert} />
-      <LabelWert label="Liefertermin" wert={liefer ? `ab ${fmtDate(liefer)}` : "—"} />
+      {zeigeJobs && <LabelWert label="Jobs" wert={jobsCount} zeigeLabel={zeigeHeader} />}
+      <LabelWert label={label} wert={wert} zeigeLabel={zeigeHeader} />
+      <LabelWert label="Liefertermin" wert={liefer ? `ab ${fmtDate(liefer)}` : "—"} zeigeLabel={zeigeHeader} />
       <LabelWert
         label="Abweichungen"
         wert={abw > 0 ? <span style={{ color: "var(--due-1)" }}>{abw}</span> : "—"}
+        zeigeLabel={zeigeHeader}
       />
     </As>
   );
@@ -676,11 +699,13 @@ function JobsTabelle({ batches, gruppeKuerzel }: { batches: Batch[]; gruppeKuerz
 /**
  * Feste Gruppierungs-Hierarchie für Binden (Weiterverarbeitung), statt der
  * freien Gruppieren/Untergruppieren-Auswahl: Durchmesser (+ Aufhänger als
- * eigene Sondergruppe) ist immer die oberste Ebene. Darunter, je Modus:
- *   "loops" → Anzahl Loops → Farbe Spirale (3 Ebenen)
- *   "farbe" → Farbe Spirale (2 Ebenen)
+ * eigene Sondergruppe) ist immer die oberste Ebene, danach immer 3 Ebenen -
+ * nur die Reihenfolge von Loops/Farbe dreht sich je Modus um:
+ *   "loops" → Anzahl Loops → Farbe Spirale
+ *   "farbe" → Farbe Spirale → Anzahl Loops
  * Gruppenköpfe sind schlanke, immer sichtbare Zeilen (Label/Wert, groß+fett);
- * nur die Jobs-Tabelle ganz unten klappt auf.
+ * Spalten-Überschriften stehen nur einmal je Geschwister-Gruppe, nicht bei
+ * jeder Zeile. Nur die Jobs-Tabelle ganz unten klappt auf.
  */
 function BindenGruppen({
   batches,
@@ -694,29 +719,35 @@ function BindenGruppen({
   gruppeKuerzel: Record<string, string>;
   fluxUrlTpl: string | null;
 }) {
+  const [dim2, label2, dim3, label3] =
+    modus === "loops"
+      ? (["loops", "Anzahl Loops", "spiralfarbe", "Farbe Spirale"] as const)
+      : (["spiralfarbe", "Farbe Spirale", "loops", "Anzahl Loops"] as const);
+
   return (
     <>
-      {groupSorted(batches, (b) => durchmesserAufhKey(b, cfg)).map(([k1, g1]) => (
+      {groupSorted(batches, (b) => durchmesserAufhKey(b, cfg)).map(([k1, g1], i1) => (
         <div key={k1 || "_"} style={{ marginBottom: 6 }}>
-          <GruppenZeile label="Durchmesser" wert={k1} batches={g1} indent={0} />
-          {modus === "farbe"
-            ? groupSorted(g1, (b) => critWert(b, "spiralfarbe", cfg)).map(([k2, g2]) => (
-                <details key={k2 || "_"} style={{ marginLeft: 22 }}>
-                  <GruppenZeile as="summary" zeigeJobs label="Farbe Spirale" wert={k2} batches={g2} indent={0} />
-                  <JobsTabelle batches={g2} gruppeKuerzel={gruppeKuerzel} />
+          <GruppenZeile label="Durchmesser" wert={k1} batches={g1} indent={0} zeigeJobs zeigeHeader={i1 === 0} />
+          {groupSorted(g1, (b) => critWert(b, dim2, cfg)).map(([k2, g2], i2) => (
+            <div key={k2 || "_"}>
+              <GruppenZeile label={label2} wert={k2} batches={g2} indent={22} zeigeJobs zeigeHeader={i2 === 0} />
+              {groupSorted(g2, (b) => critWert(b, dim3, cfg)).map(([k3, g3], i3) => (
+                <details key={k3 || "_"} style={{ marginLeft: 44 }}>
+                  <GruppenZeile
+                    as="summary"
+                    zeigeJobs
+                    zeigeHeader={i3 === 0}
+                    label={label3}
+                    wert={k3}
+                    batches={g3}
+                    indent={0}
+                  />
+                  <JobsTabelle batches={g3} gruppeKuerzel={gruppeKuerzel} />
                 </details>
-              ))
-            : groupSorted(g1, (b) => critWert(b, "loops", cfg)).map(([k2, g2]) => (
-                <div key={k2 || "_"}>
-                  <GruppenZeile label="Anzahl Loops" wert={k2} batches={g2} indent={22} />
-                  {groupSorted(g2, (b) => critWert(b, "spiralfarbe", cfg)).map(([k3, g3]) => (
-                    <details key={k3 || "_"} style={{ marginLeft: 44 }}>
-                      <GruppenZeile as="summary" zeigeJobs label="Farbe Spirale" wert={k3} batches={g3} indent={0} />
-                      <JobsTabelle batches={g3} gruppeKuerzel={gruppeKuerzel} />
-                    </details>
-                  ))}
-                </div>
               ))}
+            </div>
+          ))}
         </div>
       ))}
     </>
