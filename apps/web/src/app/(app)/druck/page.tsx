@@ -277,6 +277,16 @@ function alterTage(iso: string): string {
 
 const sum = (js: Job[], f: (j: Job) => number) => js.reduce((a, j) => a + f(j), 0);
 
+/** Anzahl Abweichungen Auftrag ↔ Druckdaten über beliebig viele Jobs, je Auftrag einmal gezählt. */
+function abweichungenGesamt(jobs: Job[]): number {
+  const proOrder = new Map<string, { feld: string; text: string }[]>();
+  for (const j of jobs) {
+    if (j.portal_order_id && j.order?.abweichungen?.length)
+      proOrder.set(j.portal_order_id, j.order.abweichungen);
+  }
+  return [...proOrder.values()].reduce((a, x) => a + x.length, 0);
+}
+
 function BatchCard({
   b,
   cfg,
@@ -294,13 +304,7 @@ function BatchCard({
   const schlaufen = sum(jobs, (j) => j.schlaufen_gesamt ?? 0);
   const lts = jobs.map((j) => j.order?.deliver_date).filter(Boolean).sort() as string[];
   const ltText = lts.length ? fmtDate(lts[0]) : null;
-  // Abweichungen Auftrag ↔ Druckdaten, je Auftrag einmal gezählt
-  const abwProOrder = new Map<string, { feld: string; text: string }[]>();
-  for (const j of jobs) {
-    if (j.portal_order_id && j.order?.abweichungen?.length)
-      abwProOrder.set(j.portal_order_id, j.order.abweichungen);
-  }
-  const abwGesamt = [...abwProOrder.values()].reduce((a, x) => a + x.length, 0);
+  const abwGesamt = abweichungenGesamt(jobs);
 
   return (
     <div
@@ -584,8 +588,9 @@ export default async function DruckDashboard({
                   <h3 style={{ margin: "0 0 6px", fontSize: 13, color: "var(--muted)" }}>
                     {bucket.label} · {bl.length}
                   </h3>
-                  {gruppen.map(([gk, gb]) =>
-                    group ? (
+                  {gruppen.map(([gk, gb]) => {
+                    const gruppenAbw = abweichungenGesamt(gb.flatMap((b) => b.job ?? []));
+                    return group ? (
                       <details key={gk || "_"} open style={{ marginBottom: 14 }}>
                         <summary
                           style={{
@@ -611,6 +616,14 @@ export default async function DruckDashboard({
                               Liefertermin ab {fmtDate(fruehesterLiefer(gb[0]))}
                             </span>
                           )}
+                          {gruppenAbw > 0 && (
+                            <span
+                              style={{ ...chip, padding: "1px 7px", color: "#b45309", borderColor: "#b45309", background: "#fffbeb" }}
+                              title="Abweichungen Auftrag ↔ Druckdaten in dieser Gruppe"
+                            >
+                              ⚠ {gruppenAbw} {gruppenAbw === 1 ? "Abweichung" : "Abweichungen"}
+                            </span>
+                          )}
                         </summary>
                         <div style={{ marginTop: 4 }}>
                           {gb.map((b) => (
@@ -624,8 +637,8 @@ export default async function DruckDashboard({
                           <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
                         ))}
                       </div>
-                    ),
-                  )}
+                    );
+                  })}
                 </div>
               );
             })}
