@@ -4,7 +4,7 @@ import { fmtDate, fmtEur } from "@/lib/format";
 import { MatchForm, InvoiceDatalist, type Candidate } from "./ui";
 import { unmatchTransaction } from "./actions";
 import { BankSyncButton } from "./BankSyncButton";
-import { BankAvatar, TransactionRow } from "./TransactionRow";
+import { BankAvatar, BankNameEdit, TransactionRow } from "./TransactionRow";
 
 const MATCH_STATUS_LABEL: Record<string, string> = {
   unmatched: "offen",
@@ -202,6 +202,7 @@ export default async function BankPage({
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                       <BankAvatar name={a.bank_name || a.label} />
                       <Link href={`/bank?account=${a.id}`}>{kontoLabel(a)}</Link>
+                      <BankNameEdit accountId={a.id} bankName={a.bank_name} />
                     </span>
                   </td>
                   <td

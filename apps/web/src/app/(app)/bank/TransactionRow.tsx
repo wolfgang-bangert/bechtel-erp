@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useActionState } from "react";
 import { createPortal } from "react-dom";
+import { renameBankAccount, type RenameState } from "./actions";
 
 const AVATAR_COLORS = ["#2f6feb", "#c0392b", "#157f3b", "#8e44ad", "#d97706", "#0e7490", "#be185d"];
 
@@ -34,6 +36,62 @@ export function BankAvatar({ name }: { name: string }) {
     >
       {initials}
     </span>
+  );
+}
+
+const emptyRename: RenameState = {};
+
+/** Bankname per Klick editierbar - FinTS/CSV-Import füllt das Feld nicht,
+ *  damit sonst nur "KO" (aus dem Label "Konto ...") als Avatar-Kürzel
+ *  übrig bleibt. Zeigt Avatar + Namen, bei Klick ein kleines Eingabefeld. */
+export function BankNameEdit({ accountId, bankName }: { accountId: string; bankName: string | null }) {
+  const [editing, setEditing] = useState(false);
+  const [state, action, pending] = useActionState(renameBankAccount, emptyRename);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (state.ok) setEditing(false);
+  }, [state.ok]);
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        className="ghost"
+        onClick={() => setEditing(true)}
+        title="Bankname bearbeiten"
+        style={{ padding: "1px 5px", fontSize: 11 }}
+      >
+        ✎
+      </button>
+    );
+  }
+
+  return (
+    <form action={action} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <input type="hidden" name="account_id" value={accountId} />
+      <input
+        ref={inputRef}
+        name="bank_name"
+        defaultValue={bankName ?? ""}
+        autoFocus
+        placeholder="Bankname"
+        style={{ padding: "3px 6px", width: 140, fontSize: 13 }}
+        onKeyDown={(e) => e.key === "Escape" && setEditing(false)}
+      />
+      <button type="submit" disabled={pending} style={{ padding: "3px 8px", fontSize: 12 }}>
+        {pending ? "…" : "OK"}
+      </button>
+      <button
+        type="button"
+        className="ghost"
+        style={{ padding: "3px 8px", fontSize: 12 }}
+        onClick={() => setEditing(false)}
+      >
+        Abbrechen
+      </button>
+      {state.error && <span className="msg-err">{state.error}</span>}
+    </form>
   );
 }
 

@@ -16,16 +16,24 @@ function parseFile(file: string, includePending?: boolean): CamtEntry[] {
 
 const normIban = (s: string) => s.replace(/\s+/g, "").toUpperCase();
 
-async function ensureBankAccount(iban: string): Promise<string> {
+async function ensureBankAccount(iban: string, bankName?: string): Promise<string> {
   const { data: found } = await supabase
     .from("bank_account")
-    .select("id")
+    .select("id, bank_name")
     .eq("iban", iban)
     .maybeSingle();
-  if (found) return found.id;
+  if (found) {
+    // bank_name nachtragen, falls FinTS jetzt einen Namen liefert, den wir
+    // vorher noch nicht kannten (z.B. Konto wurde ursprünglich per CSV-Import
+    // angelegt) - eine bereits per Hand gepflegte Bezeichnung nicht überschreiben.
+    if (bankName && !found.bank_name) {
+      await supabase.from("bank_account").update({ bank_name: bankName }).eq("id", found.id);
+    }
+    return found.id;
+  }
   const { data, error } = await supabase
     .from("bank_account")
-    .insert({ iban, label: `Konto ${iban.slice(-4)}` })
+    .insert({ iban, label: `Konto ${iban.slice(-4)}`, bank_name: bankName ?? null })
     .select("id")
     .single();
   if (error) throw new Error(`bank_account anlegen: ${error.message}`);
@@ -38,10 +46,13 @@ export async function syncBankImport(opts: Options) {
   return importBankEntries(entries, { dryRun });
 }
 
-/** Bereits geparste Kontobewegungen dedupen und schreiben (CAMT-Datei oder FinTS). */
+/** Bereits geparste Kontobewegungen dedupen und schreiben (CAMT-Datei oder FinTS).
+ *  bankNames: IBAN → Bankname (z.B. das FinTS-Kürzel aus imports/fints.txt) -
+ *  füllt bank_account.bank_name beim Anlegen/Nachtragen, sonst bleibt es leer
+ *  und der Avatar zeigt nur "KO" (aus dem generischen Label). */
 export async function importBankEntries(
   entries: CamtEntry[],
-  { dryRun = false }: { dryRun?: boolean } = {},
+  { dryRun = false, bankNames = {} }: { dryRun?: boolean; bankNames?: Record<string, string> } = {},
 ) {
   if (entries.length === 0) return { entries: 0, imported: 0, duplikate: 0, dryRun };
 
@@ -70,7 +81,7 @@ export async function importBankEntries(
     };
   }
 
-  for (const iban of ibans) byIban.set(iban, await ensureBankAccount(iban));
+  for (const iban of ibans) byIban.set(iban, await ensureBankAccount(iban, bankNames[iban]));
 
   const rows = entries
     .filter((e) => !existing.has(e.dedupKey))

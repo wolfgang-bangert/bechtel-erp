@@ -176,7 +176,11 @@ export async function fintsPull(opts: { kuerzel?: string; days?: number; dryRun?
     }
   }
 
-  const imp = await importBankEntries(all, { dryRun });
+  // FinTS liefert keinen offiziellen Institutsnamen zurück - das eingetragene
+  // Kürzel aus imports/fints.txt ist der einzige uns bekannte Anhaltspunkt für
+  // bank_account.bank_name (Nutzer kann ihn auf /bank jederzeit per ✎ korrigieren).
+  const bankNames = Object.fromEntries(banks.map((b) => [b.iban, b.kuerzel.toUpperCase()]));
+  const imp = await importBankEntries(all, { dryRun, bankNames });
 
   if (!dryRun && balances.length) {
     for (const b of balances) {

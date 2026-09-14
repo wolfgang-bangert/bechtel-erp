@@ -129,6 +129,30 @@ export async function requestBankSync(_prev: SyncState, _formData: FormData): Pr
   return { ok: true, note: "Angefordert - wird in wenigen Minuten verarbeitet." };
 }
 
+export type RenameState = { ok?: boolean; error?: string };
+
+/** Bankname pflegen - FinTS/CSV-Importe kennen (noch) keinen offiziellen
+ *  Institutsnamen, das Feld bleibt sonst leer und die Avatare zeigen nur
+ *  "KO" (aus dem generischen Label "Konto ..."). */
+export async function renameBankAccount(
+  _prev: RenameState,
+  formData: FormData,
+): Promise<RenameState> {
+  const id = String(formData.get("account_id") ?? "");
+  const bankName = String(formData.get("bank_name") ?? "").trim();
+  if (!id) return { error: "Konto fehlt." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("bank_account")
+    .update({ bank_name: bankName || null })
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/bank");
+  return { ok: true };
+}
+
 export async function unmatchTransaction(formData: FormData): Promise<void> {
   const matchId = String(formData.get("match_id") ?? "");
   const txId = String(formData.get("tx_id") ?? "");
