@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate } from "@/lib/format";
+import { AlleZuklappenButton } from "./AlleZuklappenButton";
 import { BatchActions } from "./BatchActions";
+import { BatchRow } from "./BatchRow";
 import { SortControls } from "./SortControls";
 import { FluxOrderButton } from "./FluxOrderButton";
 
@@ -70,10 +72,21 @@ type Batch = {
   job: Job[];
 };
 
-const TYPEN: { typ: string; label: string; hint: string }[] = [
-  { typ: "druck", label: "Drucken", hint: "Schlüssel: Anzahl Loops · Farbe Spirale · Durchmesser" },
-  { typ: "cello", label: "Cellophanieren", hint: "nach dem Umschlag-Druck" },
-  { typ: "binden", label: "Binden (Wire-O)", hint: "Schlüssel: Anzahl Loops · Farbe Spirale · Teilung · Durchmesser" },
+type Abteilung = "druck" | "cello" | "binden" | "konfektion" | "versand";
+
+const TYPEN: { typ: string; label: string; hint: string; abteilung: Abteilung }[] = [
+  { typ: "druck", label: "Drucken", hint: "Schlüssel: Anzahl Loops · Farbe Spirale · Durchmesser", abteilung: "druck" },
+  { typ: "cello", label: "Cellophanieren", hint: "nach dem Umschlag-Druck", abteilung: "cello" },
+  { typ: "binden", label: "Binden (Wire-O)", hint: "Durchmesser (+ Aufhänger) → Loops/Farbe → Farbe", abteilung: "binden" },
+  { typ: "konfektion", label: "Konfektionieren (Multiloft)", hint: "Cover + Inlay + Cover stapeln, Nutzen schneiden", abteilung: "konfektion" },
+];
+
+const ABTEILUNGEN: { key: Abteilung; label: string }[] = [
+  { key: "druck", label: "Druck" },
+  { key: "cello", label: "Cello" },
+  { key: "binden", label: "Binden" },
+  { key: "konfektion", label: "Konfektion" },
+  { key: "versand", label: "Versand" },
 ];
 
 // Feld-Schlüssel → Klartext-Label für die Batch-Beschriftung
@@ -92,13 +105,22 @@ const FELD_LABEL: Record<string, string> = {
   format: "Format",
 };
 
-/** Batch-Schlüssel + Config → [{label, wert}] ohne Leerwerte. */
-function schluesselTeile(typ: string, schluessel: string, cfg: Record<string, string[]>) {
+/**
+ * Batch-Schlüssel + Config → [{label, wert}] ohne Leerwerte. `ausblenden`
+ * lässt Felder weg, die schon als Gruppen-Überschrift darüber stehen (z.B.
+ * Durchmesser/Loops/Farbe bei Binden) - sonst stünden sie doppelt da.
+ */
+function schluesselTeile(
+  typ: string,
+  schluessel: string,
+  cfg: Record<string, string[]>,
+  ausblenden: string[] = [],
+) {
   const felder = cfg[typ] ?? [];
   const werte = (schluessel ?? "").split(" | ");
   return felder
-    .map((f, i) => ({ label: FELD_LABEL[f] ?? f, wert: (werte[i] ?? "").trim() }))
-    .filter((x) => x.wert);
+    .map((f, i) => ({ f, label: FELD_LABEL[f] ?? f, wert: (werte[i] ?? "").trim() }))
+    .filter((x) => x.wert && !ausblenden.includes(x.f));
 }
 
 // logische Sortier-/Gruppier-Dimension → mögliche Config-Feldnamen
@@ -118,6 +140,13 @@ const DIM_LABEL: Record<string, string> = {
   aufhaenger: "Aufhänger",
   format: "Format",
 };
+
+/** Batches nach einem Schlüssel gruppieren, alphabetisch/numerisch sortiert. */
+function groupSorted(bs: Batch[], keyFn: (b: Batch) => string): [string, Batch[]][] {
+  const acc: Record<string, Batch[]> = {};
+  for (const b of bs) (acc[keyFn(b)] ??= []).push(b);
+  return Object.entries(acc).sort((x, y) => x[0].localeCompare(y[0], "de", { numeric: true }));
+}
 
 /** Wert eines Batches für eine Sortier-/Gruppier-Dimension. */
 function critWert(b: Batch, dim: string, cfg: Record<string, string[]>): string {
@@ -248,14 +277,16 @@ function KriterienChips({
   typ,
   schluessel,
   cfg,
+  ausblenden,
 }: {
   typ: string;
   schluessel: string;
   cfg: Record<string, string[]>;
+  ausblenden?: string[];
 }) {
   return (
     <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6, verticalAlign: "middle" }}>
-      {schluesselTeile(typ, schluessel, cfg).map((t) => (
+      {schluesselTeile(typ, schluessel, cfg, ausblenden).map((t) => (
         <KriteriumChip key={t.label} label={t.label} wert={t.wert} />
       ))}
     </span>
@@ -287,16 +318,63 @@ function abweichungenGesamt(jobs: Job[]): number {
   return [...proOrder.values()].reduce((a, x) => a + x.length, 0);
 }
 
-function BatchCard({
+/** Kopfzeile für eine BatchTabelle. */
+function BatchTabelleHead() {
+  return (
+    <thead>
+      <tr>
+        <th />
+        <th>Batch</th>
+        <th>Kriterien</th>
+        <th>Liefertermin</th>
+        <th>Status</th>
+        <th style={{ textAlign: "right" }}>Jobs / Menge</th>
+        <th>Abw.</th>
+      </tr>
+    </thead>
+  );
+}
+
+/** Kompakte, aufklappbare Tabellenansicht einer Batch-Liste. */
+function BatchTabelle({
+  batches,
+  cfg,
+  gruppeKuerzel,
+  fluxUrlTpl,
+  ausblenden,
+}: {
+  batches: Batch[];
+  cfg: Record<string, string[]>;
+  gruppeKuerzel: Record<string, string>;
+  fluxUrlTpl: string | null;
+  ausblenden?: string[];
+}) {
+  return (
+    <div className="table-scroll">
+      <table className="data">
+        <BatchTabelleHead />
+        <tbody>
+          {batches.map((b) => (
+            <BatchZeile key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} ausblenden={ausblenden} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function BatchZeile({
   b,
   cfg,
   gruppeKuerzel,
   fluxUrlTpl,
+  ausblenden,
 }: {
   b: Batch;
   cfg: Record<string, string[]>;
   gruppeKuerzel: Record<string, string>;
   fluxUrlTpl: string | null;
+  ausblenden?: string[];
 }) {
   const jobs = b.job ?? [];
   const bogen = sum(jobs, (j) => j.netto_bogen ?? 0);
@@ -305,53 +383,41 @@ function BatchCard({
   const lts = jobs.map((j) => j.order?.deliver_date).filter(Boolean).sort() as string[];
   const ltText = lts.length ? fmtDate(lts[0]) : null;
   const abwGesamt = abweichungenGesamt(jobs);
+  const mengeTxt =
+    b.typ === "druck"
+      ? `${bogen.toLocaleString("de-DE")} Bogen`
+      : b.typ === "binden"
+        ? `${schlaufen.toLocaleString("de-DE")} Schlaufen`
+        : `${expl.toLocaleString("de-DE")} Expl.`;
 
   return (
-    <div
-      id={b.nummer}
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius)",
-        padding: "10px 14px",
-        marginBottom: 10,
-      }}
+    <BatchRow
+      cols={[
+        <strong key="nr">{b.nummer}</strong>,
+        <KriterienChips key="k" typ={b.typ} schluessel={b.schluessel} cfg={cfg} ausblenden={ausblenden} />,
+        ltText ?? "—",
+        <span key="s" className="tag">
+          {b.status}
+        </span>,
+        <span key="m" style={{ whiteSpace: "nowrap" }}>
+          {jobs.length} / {mengeTxt}
+        </span>,
+        abwGesamt > 0 ? (
+          <span
+            key="a"
+            style={{ ...chip, padding: "1px 7px", color: "var(--due-1)", borderColor: "var(--due-1)", background: "color-mix(in srgb, var(--due-1) 15%, transparent)" }}
+          >
+            ⚠ {abwGesamt}
+          </span>
+        ) : (
+          "—"
+        ),
+      ]}
     >
-      <div
-        className="toolbar"
-        style={{ justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}
-      >
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", minWidth: 0 }}>
-          <strong>{b.nummer}</strong>
-          <KriterienChips typ={b.typ} schluessel={b.schluessel} cfg={cfg} />
-          {ltText && (
-            <span style={{ ...chip, color: "var(--accent)", borderColor: "var(--accent)" }}>
-              📅 {ltText}
-            </span>
-          )}
-          <span style={{ ...chip, background: "var(--tag-bg)" }}>{b.status}</span>
-          {abwGesamt > 0 && (
-            <span
-              style={{ ...chip, color: "#b45309", borderColor: "#b45309", background: "#fffbeb" }}
-              title="Abweichungen Auftrag ↔ Druckdaten"
-            >
-              ⚠ {abwGesamt} {abwGesamt === 1 ? "Abweichung" : "Abweichungen"}
-            </span>
-          )}
-        </div>
-        <div className="count" style={{ whiteSpace: "nowrap" }}>
-          {jobs.length} Jobs
-          {b.typ === "druck" && ` · ${bogen.toLocaleString("de-DE")} Bogen`}
-          {b.typ === "binden" && ` · ${schlaufen.toLocaleString("de-DE")} Schlaufen`}
-          {` · ${expl.toLocaleString("de-DE")} Expl. · seit ${alterTage(b.created_at)}`}
-          {b.flux_order_id ? ` · flux ${b.flux_order_id}` : ""}
-        </div>
+      <div className="count" style={{ marginBottom: 6 }}>
+        {b.flux_order_id ? `flux ${b.flux_order_id} · ` : ""}seit {alterTage(b.created_at)}
       </div>
-
-      <details style={{ marginTop: 6 }}>
-        <summary className="count" style={{ cursor: "pointer", padding: "2px 0" }}>
-          {jobs.length} {jobs.length === 1 ? "Job" : "Jobs"} anzeigen
-        </summary>
-        <div style={{ marginTop: 6 }}>
+      <div>
           {jobs.map((j) => {
             const stk = j.order?.blockstaerke_mm
               ? `${Number(j.order.blockstaerke_mm).toLocaleString("de-DE")} mm`
@@ -393,7 +459,7 @@ function BatchCard({
                     <>
                       {"  "}
                       <span
-                        style={{ ...chip, padding: "1px 7px", color: "#b45309", borderColor: "#b45309", background: "#fffbeb" }}
+                        style={{ ...chip, padding: "1px 7px", color: "var(--due-1)", borderColor: "var(--due-1)", background: "color-mix(in srgb, var(--due-1) 15%, transparent)" }}
                         title={j.order.abweichungen.map((a) => a.text).join("\n")}
                       >
                         ⚠ {j.order.abweichungen.length}
@@ -403,7 +469,7 @@ function BatchCard({
                 </summary>
                 <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.7 }}>
                   {j.order?.abweichungen?.length ? (
-                    <div style={{ color: "#b45309", marginBottom: 4 }}>
+                    <div style={{ color: "var(--due-1)", marginBottom: 4 }}>
                       {j.order.abweichungen.map((a, i) => (
                         <div key={i}>⚠ {a.text}</div>
                       ))}
@@ -467,10 +533,9 @@ function BatchCard({
             );
           })}
           {!jobs.length && <div className="count">Keine Jobs.</div>}
-        </div>
-      </details>
+      </div>
 
-      <details style={{ marginTop: 4 }}>
+      <details style={{ marginTop: 8 }}>
         <summary className="count" style={{ cursor: "pointer", padding: "2px 0" }}>
           Aktionen
         </summary>
@@ -478,16 +543,279 @@ function BatchCard({
           <BatchActions id={b.id} typ={b.typ} status={b.status} cello={b.cello} />
         </div>
       </details>
+    </BatchRow>
+  );
+}
+
+/** Durchmesser, mit eigener Sondergruppe für "+ Aufhänger" (Kalenderaufhänger
+ *  ändert die Fertigung spürbar - deshalb eigene Gruppe statt nur ein Chip). */
+function durchmesserAufhKey(b: Batch, cfg: Record<string, string[]>): string {
+  const d = critWert(b, "durchmesser", cfg);
+  const mitAufhaenger = critWert(b, "aufhaenger", cfg) === "mit";
+  return mitAufhaenger ? `${d} + Aufhänger` : d;
+}
+
+/** Kleine Überschrift + große fette Zahl/Wert darunter. */
+/** `zeigeLabel=false` blendet nur die kleine Überschrift aus (Höhe bleibt
+ *  gleich) - für Folgezeilen einer Gruppe, deren Kopf schon einmal stand. */
+function LabelWert({
+  label,
+  wert,
+  zeigeLabel = true,
+}: {
+  label: string;
+  wert: React.ReactNode;
+  zeigeLabel?: boolean;
+}) {
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", lineHeight: 1.2 }}>
+      <span
+        style={{
+          fontSize: 10,
+          textTransform: "uppercase",
+          letterSpacing: ".03em",
+          color: "var(--muted)",
+          visibility: zeigeLabel ? "visible" : "hidden",
+        }}
+      >
+        {label}
+      </span>
+      <span style={{ fontSize: 15, fontWeight: 700 }}>{wert}</span>
+    </span>
+  );
+}
+
+/** Eine Gruppen-Kopfzeile: Label/Wert, Liefertermin, Abweichungen - je eine
+ *  kleine Überschrift mit großem, fettem Wert darunter. `zeigeHeader=false`
+ *  blendet die Spalten-Überschriften aus (für alle außer der ersten Zeile
+ *  einer Geschwister-Gruppe, damit sie nicht bei jeder Zeile wiederholt werden). */
+// Je Ebene ein eigener Farbton (nicht nur Graustufen), damit sich Unter-/
+// Unteruntergruppen optisch klar von der Elternzeile abheben.
+const EBENEN_BG: Record<number, string> = {
+  1: "color-mix(in srgb, var(--tag-bg) 100%, transparent)",
+  2: "color-mix(in srgb, var(--accent) 7%, var(--panel))",
+  3: "var(--panel)",
+};
+
+function GruppenZeile({
+  label,
+  wert,
+  batches,
+  indent,
+  as: As = "div",
+  zeigeJobs = false,
+  zeigeHeader = true,
+  ebene = 1,
+}: {
+  label: string;
+  wert: string;
+  batches: Batch[];
+  indent: number;
+  as?: "div" | "summary";
+  /** Job-Anzahl als erste Spalte zeigen. */
+  zeigeJobs?: boolean;
+  zeigeHeader?: boolean;
+  /** 1-3: steuert die Hintergrundfärbung (oberste Ebene am kräftigsten). */
+  ebene?: number;
+}) {
+  // Frühester Liefertermin über ALLE Batches der Gruppe, nicht nur den ersten
+  // (batches[0] hätte bei mehreren Batches den falschen, zu späten Termin
+  // gezeigt, sobald ein späterer Batch zufällig zuerst in der Liste steht).
+  const alleLiefer = batches.map((b) => fruehesterLiefer(b)).filter((d): d is string => !!d);
+  const liefer = alleLiefer.length ? alleLiefer.reduce((a, c) => (c < a ? c : a)) : null;
+  const abw = abweichungenGesamt(batches.flatMap((b) => b.job ?? []));
+  const jobsCount = batches.reduce((n, b) => n + (b.job?.length ?? 0), 0);
+  return (
+    <As
+      className={As === "summary" ? "gruppen-zeile" : undefined}
+      style={
+        {
+          display: "flex",
+          gap: 26,
+          alignItems: "flex-end",
+          padding: "6px 10px",
+          marginLeft: indent,
+          // CSS-Var statt direktem "background", damit der :hover-Regel in
+          // globals.css (höhere Spezifität durch Klasse) nicht durch das
+          // Inline-Style überschrieben wird.
+          "--row-bg": EBENEN_BG[ebene] ?? "transparent",
+          background: As === "div" ? "var(--row-bg)" : undefined,
+          borderRadius: 6,
+          borderBottom: "1px solid var(--border)",
+          cursor: As === "summary" ? "pointer" : undefined,
+          listStyle: As === "summary" ? "none" : undefined,
+        } as React.CSSProperties
+      }
+    >
+      {As === "summary" && (
+        <span className="gruppen-chevron" aria-hidden style={{ alignSelf: "center" }}>
+          ▸
+        </span>
+      )}
+      {zeigeJobs && <LabelWert label="Jobs" wert={jobsCount} zeigeLabel={zeigeHeader} />}
+      <LabelWert label={label} wert={wert} zeigeLabel={zeigeHeader} />
+      <LabelWert label="Liefertermin" wert={liefer ? `ab ${fmtDate(liefer)}` : "—"} zeigeLabel={zeigeHeader} />
+      <LabelWert
+        label="Abweichungen"
+        wert={abw > 0 ? <span style={{ color: "var(--due-1)" }}>{abw}</span> : "—"}
+        zeigeLabel={zeigeHeader}
+      />
+    </As>
+  );
+}
+
+/** Flache Job-Tabelle (über alle Batches einer Endgruppe hinweg). */
+function JobsTabelle({ batches, gruppeKuerzel }: { batches: Batch[]; gruppeKuerzel: Record<string, string> }) {
+  const jobs = batches.flatMap((b) => b.job ?? []);
+  return (
+    <div className="table-scroll">
+      <table className="data">
+        <thead>
+          <tr>
+            <th>Auftrag</th>
+            <th>Liefertermin</th>
+            <th>Produktgruppe</th>
+            <th>Bauteil</th>
+            <th style={{ textAlign: "right" }}>Menge</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {jobs.map((j) => (
+            <tr key={j.id}>
+              <td>
+                {j.portal_order_id ? (
+                  <a href={`/druckauftraege/${j.portal_order_id}`} target="_blank" rel="noreferrer">
+                    {j.order?.external_reference ?? j.portal_order_id.slice(0, 8)}
+                  </a>
+                ) : (
+                  "—"
+                )}
+                {j.order?.abweichungen?.length ? (
+                  <span title={j.order.abweichungen.map((a) => a.text).join("\n")} style={{ color: "var(--due-1)" }}>
+                    {" "}
+                    ⚠
+                  </span>
+                ) : null}
+              </td>
+              <td>{j.order?.deliver_date ? fmtDate(j.order.deliver_date) : "—"}</td>
+              <td className="count">
+                {(j.order?.gruppe && (gruppeKuerzel[j.order.gruppe] ?? j.order.gruppe)) ?? "—"}
+              </td>
+              <td>{j.bauteil}</td>
+              <td style={{ textAlign: "right" }}>{((j.auflage || 0) + (j.zuschuss || 0)).toLocaleString("de-DE")}</td>
+              <td className="count">{j.status}</td>
+            </tr>
+          ))}
+          {!jobs.length && (
+            <tr>
+              <td colSpan={6} style={{ color: "var(--muted)" }}>
+                Keine Jobs.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
+  );
+}
+
+/**
+ * Feste Gruppierungs-Hierarchie für Binden (Weiterverarbeitung), statt der
+ * freien Gruppieren/Untergruppieren-Auswahl: Durchmesser (+ Aufhänger als
+ * eigene Sondergruppe) ist immer die oberste Ebene, danach immer 3 Ebenen -
+ * nur die Reihenfolge von Loops/Farbe dreht sich je Modus um:
+ *   "loops" → Anzahl Loops → Farbe Spirale
+ *   "farbe" → Farbe Spirale → Anzahl Loops
+ * Gruppenköpfe sind schlanke, immer sichtbare Zeilen (Label/Wert, groß+fett);
+ * Spalten-Überschriften stehen nur einmal je Geschwister-Gruppe, nicht bei
+ * jeder Zeile. Nur die Jobs-Tabelle ganz unten klappt auf.
+ */
+function BindenGruppen({
+  batches,
+  modus,
+  cfg,
+  gruppeKuerzel,
+}: {
+  batches: Batch[];
+  modus: "loops" | "farbe";
+  cfg: Record<string, string[]>;
+  gruppeKuerzel: Record<string, string>;
+  fluxUrlTpl: string | null;
+}) {
+  const [dim2, label2, dim3, label3] =
+    modus === "loops"
+      ? (["loops", "Anzahl Loops", "spiralfarbe", "Farbe Spirale"] as const)
+      : (["spiralfarbe", "Farbe Spirale", "loops", "Anzahl Loops"] as const);
+
+  return (
+    <>
+      {groupSorted(batches, (b) => durchmesserAufhKey(b, cfg)).map(([k1, g1], i1) => (
+        <details key={k1 || "_"} className="gd" style={{ marginBottom: 6 }}>
+          <GruppenZeile
+            as="summary"
+            label="Durchmesser"
+            wert={k1}
+            batches={g1}
+            indent={0}
+            zeigeJobs
+            zeigeHeader={i1 === 0}
+            ebene={1}
+          />
+          {groupSorted(g1, (b) => critWert(b, dim2, cfg)).map(([k2, g2], i2) => (
+            <details key={k2 || "_"} className="gd" style={{ marginLeft: 22 }}>
+              <GruppenZeile
+                as="summary"
+                label={label2}
+                wert={k2}
+                batches={g2}
+                indent={0}
+                zeigeJobs
+                zeigeHeader={i2 === 0}
+                ebene={2}
+              />
+              {groupSorted(g2, (b) => critWert(b, dim3, cfg)).map(([k3, g3], i3) => (
+                <details key={k3 || "_"} className="gd" style={{ marginLeft: 22 }}>
+                  <GruppenZeile
+                    as="summary"
+                    zeigeJobs
+                    zeigeHeader={i3 === 0}
+                    label={label3}
+                    wert={k3}
+                    batches={g3}
+                    indent={0}
+                    ebene={3}
+                  />
+                  <JobsTabelle batches={g3} gruppeKuerzel={gruppeKuerzel} />
+                </details>
+              ))}
+            </details>
+          ))}
+        </details>
+      ))}
+    </>
   );
 }
 
 export default async function DruckDashboard({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; group?: string; dir?: string }>;
+  searchParams: Promise<{
+    sort?: string;
+    group?: string;
+    group2?: string;
+    dir?: string;
+    abteilung?: string;
+    modus?: string;
+  }>;
 }) {
-  const { sort = "", group = "", dir = "asc" } = await searchParams;
+  const { sort = "", group = "", group2 = "", dir = "asc", abteilung: abteilungParam, modus: modusParam } =
+    await searchParams;
+  const ABTEILUNG_KEYS = new Set(ABTEILUNGEN.map((a) => a.key));
+  const abteilung: Abteilung = ABTEILUNG_KEYS.has(abteilungParam as Abteilung)
+    ? (abteilungParam as Abteilung)
+    : "druck";
+  const modus: "loops" | "farbe" = modusParam === "farbe" ? "farbe" : "loops";
   const desc = dir === "desc";
   const supabase = await createClient();
   const { data: cfgRow } = await supabase
@@ -520,10 +848,34 @@ export default async function DruckDashboard({
     .order("created_at", { ascending: true });
   const batches = (raw ?? []) as unknown as Batch[];
 
+  let versandJobs: {
+    id: string;
+    bauteil: string;
+    auflage: number;
+    status: string;
+    versand_datum: string | null;
+    versand_tracking: string | null;
+    created_at: string;
+    portal_order_id: string | null;
+    order: { external_reference: string | null; deliver_date: string | null } | null;
+  }[] = [];
+  if (abteilung === "versand") {
+    const { data: vRaw } = await supabase
+      .from("job")
+      .select(
+        "id, bauteil, auflage, status, versand_datum, versand_tracking, created_at, portal_order_id, " +
+          "order:portal_order_id(external_reference, deliver_date)",
+      )
+      .eq("typ", "versand")
+      .neq("status", "storniert")
+      .order("created_at", { ascending: false });
+    versandJobs = (vRaw ?? []) as unknown as typeof versandJobs;
+  }
+
   return (
     <>
       <div className="toolbar" style={{ justifyContent: "space-between" }}>
-        <h1 style={{ margin: 0 }}>Druck-Dashboard</h1>
+        <h1 style={{ margin: 0 }}>Dashboard</h1>
         <div className="toolbar" style={{ gap: 8, alignItems: "center" }}>
           <Link href="/druck/plan" className="ghost" style={{ padding: "7px 12px" }}>
             Belegungs-Board →
@@ -533,20 +885,105 @@ export default async function DruckDashboard({
           </Link>
         </div>
       </div>
-      <div style={{ margin: "6px 0 10px" }}>
-        <SortControls />
+
+      <div className="toolbar" style={{ gap: 6, marginTop: 4 }}>
+        {ABTEILUNGEN.map((a) => {
+          const href = a.key === "druck" ? "/druck" : `/druck?abteilung=${a.key}`;
+          const aktiv = a.key === abteilung;
+          return (
+            <Link
+              key={a.key}
+              href={href}
+              className={aktiv ? undefined : "ghost"}
+              style={{ padding: "7px 14px" }}
+            >
+              {a.label}
+            </Link>
+          );
+        })}
       </div>
+
+      {abteilung === "binden" ? (
+        <div className="toolbar" style={{ gap: 6, margin: "10px 0", alignItems: "center" }}>
+          <span className="count">Gruppieren nach</span>
+          <Link
+            href="/druck?abteilung=binden&modus=loops"
+            className={modus === "loops" ? undefined : "ghost"}
+            style={{ padding: "6px 12px" }}
+          >
+            Durchmesser + Anzahl Loops
+          </Link>
+          <Link
+            href="/druck?abteilung=binden&modus=farbe"
+            className={modus === "farbe" ? undefined : "ghost"}
+            style={{ padding: "6px 12px" }}
+          >
+            Durchmesser + Farbe Spirale
+          </Link>
+          <AlleZuklappenButton />
+        </div>
+      ) : abteilung !== "versand" ? (
+        <div style={{ margin: "10px 0" }}>
+          <SortControls />
+        </div>
+      ) : null}
+
       <p className="lead">
-        Batches sammeln Arbeitsvorgänge auftragsübergreifend. Druck-Batches sind nach
-        Anzahl Loops · Farbe Spirale · Durchmesser gruppiert (aus der Wire-O-Zeile); der
-        flux-Versand läuft je Auftrag im Druckauftrag.
+        {abteilung === "druck" &&
+          "Batches sammeln Arbeitsvorgänge auftragsübergreifend. Druck-Batches sind nach Anzahl Loops · Farbe Spirale · Durchmesser gruppiert (aus der Wire-O-Zeile); der flux-Versand läuft je Auftrag im Druckauftrag."}
+        {abteilung === "cello" && "Batches sammeln Arbeitsvorgänge auftragsübergreifend, nach dem Umschlag-Druck."}
+        {abteilung === "binden" &&
+          "Durchmesser (mit eigener Gruppe für Kalenderaufhänger) ist immer die oberste Ebene - darunter je nach Auswahl Loops → Farbe oder direkt Farbe."}
+        {abteilung === "konfektion" && "Multiloft: Cover + Inlay + Cover stapeln, Nutzen schneiden."}
+        {abteilung === "versand" && "Versand-Arbeitsvorgänge je Auftrag (ein Vorgang deckt normalerweise die volle Menge ab, zusätzliche bei Teillieferungen)."}
       </p>
 
-      {batches.length === 0 && (
-        <p className="lead">Noch keine Batches. In einem Auftrag „Jobs erzeugen" klicken.</p>
-      )}
+      {abteilung === "versand" ? (
+        versandJobs.length === 0 ? (
+          <p className="lead">Keine Versand-Vorgänge.</p>
+        ) : (
+          <div className="table-scroll">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Auftrag</th>
+                  <th>Vorgang</th>
+                  <th style={{ textAlign: "right" }}>Menge</th>
+                  <th>Liefertermin</th>
+                  <th>Status</th>
+                  <th>Tracking</th>
+                </tr>
+              </thead>
+              <tbody>
+                {versandJobs.map((v) => (
+                  <tr key={v.id}>
+                    <td>
+                      {v.portal_order_id ? (
+                        <a href={`/druckauftraege/${v.portal_order_id}`} target="_blank" rel="noreferrer">
+                          {v.order?.external_reference ?? v.portal_order_id.slice(0, 8)}
+                        </a>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td>{v.bauteil}</td>
+                    <td style={{ textAlign: "right" }}>{v.auflage.toLocaleString("de-DE")}</td>
+                    <td>{v.order?.deliver_date ? fmtDate(v.order.deliver_date) : "—"}</td>
+                    <td className="count">{v.status}</td>
+                    <td className="count">{v.versand_tracking ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : (
+        <>
+          {batches.length === 0 && (
+            <p className="lead">Noch keine Batches. In einem Auftrag „Jobs erzeugen" klicken.</p>
+          )}
 
-      {TYPEN.map(({ typ, label, hint }) => {
+          {TYPEN.filter((t) => t.abteilung === abteilung).map(({ typ, label, hint }) => {
         const list = batches.filter((b) => b.typ === typ && (b.job?.length ?? 0) > 0);
         if (!list.length) return null;
         return (
@@ -567,6 +1004,23 @@ export default async function DruckDashboard({
                   return (desc ? -c : c) || byLiefer(a, b);
                 });
               if (!bl.length) return null;
+
+              if (abteilung === "binden") {
+                return (
+                  <div key={bucket.label} style={{ marginTop: 10 }}>
+                    <h3 style={{ margin: "0 0 6px", fontSize: 13, color: "var(--muted)" }}>
+                      {bucket.label} · {bl.length}
+                    </h3>
+                    <BindenGruppen
+                      batches={bl}
+                      modus={modus}
+                      cfg={cfg}
+                      gruppeKuerzel={gruppeKuerzel}
+                      fluxUrlTpl={fluxUrlTpl}
+                    />
+                  </div>
+                );
+              }
 
               // Nach Einzelkriterium gruppieren?
               const gruppen: [string, Batch[]][] = group
@@ -618,7 +1072,7 @@ export default async function DruckDashboard({
                           )}
                           {gruppenAbw > 0 && (
                             <span
-                              style={{ ...chip, padding: "1px 7px", color: "#b45309", borderColor: "#b45309", background: "#fffbeb" }}
+                              style={{ ...chip, padding: "1px 7px", color: "var(--due-1)", borderColor: "var(--due-1)", background: "color-mix(in srgb, var(--due-1) 15%, transparent)" }}
                               title="Abweichungen Auftrag ↔ Druckdaten in dieser Gruppe"
                             >
                               ⚠ {gruppenAbw} {gruppenAbw === 1 ? "Abweichung" : "Abweichungen"}
@@ -626,16 +1080,41 @@ export default async function DruckDashboard({
                           )}
                         </summary>
                         <div style={{ marginTop: 4 }}>
-                          {gb.map((b) => (
-                            <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
-                          ))}
+                          {group2 ? (
+                            Object.entries(
+                              gb.reduce<Record<string, Batch[]>>((acc, b) => {
+                                const k = critWert(b, group2, cfg);
+                                (acc[k] ??= []).push(b);
+                                return acc;
+                              }, {}),
+                            )
+                              .sort((x, y) => x[0].localeCompare(y[0], "de", { numeric: true }))
+                              .map(([sk, sb]) => (
+                                <details key={sk || "_"} open style={{ marginLeft: 14, marginBottom: 10 }}>
+                                  <summary
+                                    style={{
+                                      cursor: "pointer",
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      color: "var(--muted)",
+                                      margin: "6px 0 4px",
+                                    }}
+                                  >
+                                    {DIM_LABEL[group2] ?? group2}: {sk} · {sb.length}
+                                  </summary>
+                                  <div style={{ marginTop: 4 }}>
+                                    <BatchTabelle batches={sb} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
+                                  </div>
+                                </details>
+                              ))
+                          ) : (
+                            <BatchTabelle batches={gb} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
+                          )}
                         </div>
                       </details>
                     ) : (
                       <div key={gk || "_"}>
-                        {gb.map((b) => (
-                          <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
-                        ))}
+                        <BatchTabelle batches={gb} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
                       </div>
                     );
                   })}
@@ -645,6 +1124,8 @@ export default async function DruckDashboard({
           </section>
         );
       })}
+        </>
+      )}
     </>
   );
 }

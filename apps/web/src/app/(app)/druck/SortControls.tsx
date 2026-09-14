@@ -37,6 +37,20 @@ export function SortControls() {
         ))}
       </select>
 
+      {sp.get("group") && (
+        <>
+          <span className="count">Untergruppieren</span>
+          <select style={sel} value={sp.get("group2") ?? ""} onChange={(e) => set("group2", e.target.value)}>
+            <option value="">– keine –</option>
+            {DIMS.filter(([v]) => v !== sp.get("group")).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
+
       <span className="count">Sortieren</span>
       <select style={sel} value={sp.get("sort") ?? ""} onChange={(e) => set("sort", e.target.value)}>
         <option value="">alle Kriterien</option>
