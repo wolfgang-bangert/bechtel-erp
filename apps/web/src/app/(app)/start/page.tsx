@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { FaelligTable, type FaelligOrder, type Gruppe } from "./FaelligTable";
 
 export const dynamic = "force-dynamic";
 
@@ -20,15 +21,86 @@ type Row = {
 /** Zeitpunkt, zu dem onlineprinters den Auftrag bereitgestellt hat. */
 const eingangTag = (r: Row) => isoTag(r.pc1 ?? r.pc2 ?? r.received_at);
 
-export default async function StartPage() {
+const GRUPPEN: { key: Gruppe; label: string; cls: string }[] = [
+  { key: "heute", label: "heute raus", cls: "due-heute" },
+  { key: "1tag", label: "1 Tag überfällig", cls: "due-1" },
+  { key: "2-4", label: "2–4 Tage überfällig", cls: "due-2-4" },
+  { key: "5plus", label: "5+ Tage überfällig", cls: "due-5plus" },
+  { key: "zukunft", label: "Zukunft", cls: "due-zukunft" },
+];
+
+/** Tage zwischen heute (00:00, Servertimezone Europe/Berlin) und Liefertermin. */
+function tageUeberfaellig(deliverIso: string): number {
+  const heute = new Date();
+  heute.setHours(0, 0, 0, 0);
+  const liefer = new Date(deliverIso);
+  liefer.setHours(0, 0, 0, 0);
+  return Math.round((heute.getTime() - liefer.getTime()) / 86400000);
+}
+
+function gruppeVon(tage: number): Gruppe {
+  if (tage < 0) return "zukunft";
+  if (tage === 0) return "heute";
+  if (tage === 1) return "1tag";
+  if (tage <= 4) return "2-4";
+  return "5plus";
+}
+
+type Search = { gruppe?: string };
+
+export default async function StartPage({
+  searchParams,
+}: {
+  searchParams: Promise<Search>;
+}) {
+  const sp = await searchParams;
+  const filterGruppe = (sp.gruppe ?? "") as Gruppe | "";
+
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("portal_order")
-    .select("received_at, portal_state, pc1:raw->>createdAt, pc2:raw->>api_createdAt_raw");
+  const [
+    { data: faelligData, error: faelligError },
+    { data: eingangData, error: eingangError },
+    { data: gruppenData },
+  ] = await Promise.all([
+    supabase
+      .from("portal_order")
+      .select(
+        "id, external_reference, description, quantity, deliver_date, portal_state, gruppe:resolve_result->>gruppe",
+      )
+      .not("deliver_date", "is", null)
+      .or("portal_state.is.null,portal_state.neq.FINISHED")
+      .order("deliver_date", { ascending: true }),
+    supabase
+      .from("portal_order")
+      .select("received_at, portal_state, pc1:raw->>createdAt, pc2:raw->>api_createdAt_raw"),
+    supabase.from("opri_produkt_gruppe").select("kuerzel, name"),
+  ]);
+  const gruppeName = new Map((gruppenData ?? []).map((g) => [g.kuerzel as string, g.name as string]));
 
-  const rows = (data ?? []) as Row[];
+  // ---- Auftrags-Fälligkeit (zentrale Steuerungsebene) -------------------
+  const faelligRows: FaelligOrder[] = ((faelligData ?? []) as unknown as {
+    id: string;
+    external_reference: string | null;
+    description: string | null;
+    quantity: number | null;
+    deliver_date: string;
+    portal_state: string | null;
+    gruppe: string | null; // Produktgruppen-Kürzel aus resolve_result
+  }[]).map((r) => {
+    const { gruppe: produktGruppeKuerzel, ...rest } = r;
+    const tage = tageUeberfaellig(r.deliver_date);
+    const produkt = (produktGruppeKuerzel && gruppeName.get(produktGruppeKuerzel)) || r.description || "—";
+    return { ...rest, tage, gruppe: gruppeVon(tage), produkt };
+  });
 
+  const counts: Record<Gruppe, number> = { heute: 0, "1tag": 0, "2-4": 0, "5plus": 0, zukunft: 0 };
+  for (const r of faelligRows) counts[r.gruppe]++;
+
+  const shown = filterGruppe ? faelligRows.filter((r) => r.gruppe === filterGruppe) : faelligRows;
+
+  // ---- Eingehende Aufträge je Tag (bisheriger Start-Inhalt) -------------
+  const rows = (eingangData ?? []) as Row[];
   const proTag = new Map<string, { anzahl: number; finished: number }>();
   for (const r of rows) {
     const k = eingangTag(r);
@@ -37,8 +109,6 @@ export default async function StartPage() {
     if (r.portal_state === "FINISHED") e.finished++;
     proTag.set(k, e);
   }
-
-  // lückenlose Tagesreihe, neueste zuerst
   const heute = new Date();
   const tage = Array.from({ length: TAGE }, (_, i) => {
     const key = isoTag(new Date(heute.getTime() - i * 86400000));
@@ -51,20 +121,59 @@ export default async function StartPage() {
       finished: e.finished,
     };
   });
-
   const max = Math.max(1, ...tage.map((t) => t.anzahl));
   const summe7 = tage.slice(0, 7).reduce((a, t) => a + t.anzahl, 0);
   const summe30 = tage.reduce((a, t) => a + t.anzahl, 0);
 
   return (
     <>
-      <h1 style={{ marginBottom: 4 }}>Start</h1>
+      <h1 style={{ marginBottom: 4 }}>Auftrags-Fälligkeit</h1>
+      <p className="lead" style={{ marginTop: 0 }}>
+        Aufträge nach Liefertermin, sortiert nach Dringlichkeit. Kachel anklicken zum Filtern, Zeile
+        anklicken öffnet den Auftrag.
+      </p>
+
+      {faelligError && <div className="banner-err">Fehler beim Laden: {faelligError.message}</div>}
+
+      <div className="toolbar" style={{ flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+        {GRUPPEN.map((g) => (
+          <Link
+            key={g.key}
+            href={filterGruppe === g.key ? "/start" : `/start?gruppe=${g.key}`}
+            className={g.cls}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 2,
+              padding: "10px 18px",
+              borderRadius: "var(--radius)",
+              border: "1px solid",
+              minWidth: 120,
+              textDecoration: "none",
+              opacity: filterGruppe && filterGruppe !== g.key ? 0.5 : 1,
+            }}
+          >
+            <strong style={{ fontSize: 26, lineHeight: 1 }}>{counts[g.key]}</strong>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>{g.label}</span>
+          </Link>
+        ))}
+        {filterGruppe && (
+          <Link href="/start" className="ghost" style={{ padding: "8px 14px", alignSelf: "center" }}>
+            Alle anzeigen
+          </Link>
+        )}
+      </div>
+
+      <FaelligTable rows={shown} />
+
+      <h2 style={{ marginTop: 32 }}>Eingehende Aufträge</h2>
       <p className="lead" style={{ marginTop: 0 }}>
         Bei onlineprinters bereitgestellte Aufträge je Tag (letzte {TAGE} Tage).{" "}
         <strong>{summe7}</strong> in den letzten 7 Tagen · <strong>{summe30}</strong> in {TAGE} Tagen.
       </p>
 
-      {error && <div className="banner-err">Fehler beim Laden: {error.message}</div>}
+      {eingangError && <div className="banner-err">Fehler beim Laden: {eingangError.message}</div>}
 
       <div className="rows" style={{ maxWidth: 560 }}>
         <div className="row head" style={{ gap: 10 }}>
