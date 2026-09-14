@@ -125,97 +125,153 @@ export default async function StartPage({
   const summe7 = tage.slice(0, 7).reduce((a, t) => a + t.anzahl, 0);
   const summe30 = tage.reduce((a, t) => a + t.anzahl, 0);
 
+  const heuteEingang = tage[0]?.anzahl ?? 0;
+
   return (
     <>
-      <h1 style={{ marginBottom: 4 }}>Auftrags-Fälligkeit</h1>
+      <h1 style={{ marginBottom: 4 }}>Start</h1>
       <p className="lead" style={{ marginTop: 0 }}>
-        Aufträge nach Liefertermin, sortiert nach Dringlichkeit. Kachel anklicken zum Filtern, Zeile
-        anklicken öffnet den Auftrag.
+        Fälligkeiten und eingehende Aufträge auf einen Blick - Kachel anklicken zum Filtern bzw.
+        ausklappen für die Details.
       </p>
 
-      {faelligError && <div className="banner-err">Fehler beim Laden: {faelligError.message}</div>}
+      <div className="kachel-grid">
+        <section className="kachel">
+          <div className="kachel-head">
+            <h2>Fälligkeiten</h2>
+            <span className="count">{faelligRows.length} offene Aufträge</span>
+          </div>
+          {faelligError && <div className="banner-err">Fehler beim Laden: {faelligError.message}</div>}
 
-      <div className="toolbar" style={{ flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-        {GRUPPEN.map((g) => (
-          <Link
-            key={g.key}
-            href={filterGruppe === g.key ? "/start" : `/start?gruppe=${g.key}`}
-            className={g.cls}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 2,
-              padding: "10px 18px",
-              borderRadius: "var(--radius)",
-              border: "1px solid",
-              minWidth: 120,
-              textDecoration: "none",
-              opacity: filterGruppe && filterGruppe !== g.key ? 0.5 : 1,
-            }}
-          >
-            <strong style={{ fontSize: 26, lineHeight: 1 }}>{counts[g.key]}</strong>
-            <span style={{ fontSize: 12, fontWeight: 600 }}>{g.label}</span>
-          </Link>
-        ))}
-        {filterGruppe && (
-          <Link href="/start" className="ghost" style={{ padding: "8px 14px", alignSelf: "center" }}>
-            Alle anzeigen
-          </Link>
-        )}
-      </div>
-
-      <FaelligTable rows={shown} />
-
-      <h2 style={{ marginTop: 32 }}>Eingehende Aufträge</h2>
-      <p className="lead" style={{ marginTop: 0 }}>
-        Bei onlineprinters bereitgestellte Aufträge je Tag (letzte {TAGE} Tage).{" "}
-        <strong>{summe7}</strong> in den letzten 7 Tagen · <strong>{summe30}</strong> in {TAGE} Tagen.
-      </p>
-
-      {eingangError && <div className="banner-err">Fehler beim Laden: {eingangError.message}</div>}
-
-      <div className="rows" style={{ maxWidth: 560 }}>
-        <div className="row head" style={{ gap: 10 }}>
-          <span style={{ width: 96 }}>Tag</span>
-          <span style={{ width: 44, textAlign: "right" }}>Anz.</span>
-          <span style={{ flex: 1 }} />
-          <span style={{ width: 80, textAlign: "right" }}>fertig</span>
-        </div>
-        {tage.map((t) => {
-          const we = t.wotag === "Sa" || t.wotag === "So";
-          return (
-            <div
-              className="row"
-              key={t.key}
-              style={{ gap: 10, alignItems: "center", opacity: t.anzahl === 0 ? 0.55 : 1 }}
-            >
-              <span style={{ width: 96, color: we ? "var(--muted)" : undefined }}>
-                {t.wotag} {t.label}
-              </span>
-              <span style={{ width: 44, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                <strong>{t.anzahl || "–"}</strong>
-              </span>
-              <span style={{ flex: 1, display: "flex", alignItems: "center" }}>
-                <span
-                  style={{
-                    display: "inline-block",
-                    height: 10,
-                    borderRadius: 3,
-                    width: `${(t.anzahl / max) * 100}%`,
-                    minWidth: t.anzahl ? 3 : 0,
-                    background: "var(--accent)",
-                  }}
-                />
-              </span>
-              <span
-                style={{ width: 80, textAlign: "right", color: "var(--muted)", fontVariantNumeric: "tabular-nums" }}
+          <div className="toolbar" style={{ flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+            {GRUPPEN.map((g) => (
+              <Link
+                key={g.key}
+                href={filterGruppe === g.key ? "/start" : `/start?gruppe=${g.key}`}
+                className={g.cls}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 2,
+                  padding: "8px 14px",
+                  borderRadius: "var(--radius)",
+                  border: "1px solid",
+                  minWidth: 92,
+                  textDecoration: "none",
+                  opacity: filterGruppe && filterGruppe !== g.key ? 0.5 : 1,
+                }}
               >
-                {t.finished || ""}
-              </span>
+                <strong style={{ fontSize: 22, lineHeight: 1 }}>{counts[g.key]}</strong>
+                <span style={{ fontSize: 11, fontWeight: 600 }}>{g.label}</span>
+              </Link>
+            ))}
+            {filterGruppe && (
+              <Link href="/start" className="ghost" style={{ padding: "6px 12px", alignSelf: "center" }}>
+                Alle anzeigen
+              </Link>
+            )}
+          </div>
+
+          <details className="kachel-body" open={!!filterGruppe}>
+            <summary className="gruppen-zeile kachel-summary">
+              <span className="gruppen-chevron">▸</span>
+              Aufträge anzeigen
+            </summary>
+            <FaelligTable rows={shown} />
+          </details>
+        </section>
+
+        <section className="kachel">
+          <div className="kachel-head">
+            <h2>Eingehende Aufträge</h2>
+            <span className="count">{heuteEingang} heute</span>
+          </div>
+          {eingangError && <div className="banner-err">Fehler beim Laden: {eingangError.message}</div>}
+          <p className="lead" style={{ marginTop: 0, marginBottom: 10 }}>
+            Bei onlineprinters bereitgestellte Aufträge je Tag. <strong>{summe7}</strong> in den
+            letzten 7 Tagen · <strong>{summe30}</strong> in {TAGE} Tagen.
+          </p>
+
+          <div className="toolbar" style={{ flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+            {[
+              { label: "heute", value: heuteEingang },
+              { label: "7 Tage", value: summe7 },
+              { label: `${TAGE} Tage`, value: summe30 },
+            ].map((s) => (
+              <div
+                key={s.label}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 2,
+                  padding: "8px 14px",
+                  borderRadius: "var(--radius)",
+                  border: "1px solid var(--border)",
+                  minWidth: 92,
+                }}
+              >
+                <strong style={{ fontSize: 22, lineHeight: 1 }}>{s.value}</strong>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)" }}>{s.label}</span>
+              </div>
+            ))}
+          </div>
+
+          <details className="kachel-body">
+            <summary className="gruppen-zeile kachel-summary">
+              <span className="gruppen-chevron">▸</span>
+              Tagesverlauf anzeigen ({TAGE} Tage)
+            </summary>
+            <div className="rows">
+              <div className="row head" style={{ gap: 10 }}>
+                <span style={{ width: 96 }}>Tag</span>
+                <span style={{ width: 44, textAlign: "right" }}>Anz.</span>
+                <span style={{ flex: 1 }} />
+                <span style={{ width: 80, textAlign: "right" }}>fertig</span>
+              </div>
+              {tage.map((t) => {
+                const we = t.wotag === "Sa" || t.wotag === "So";
+                return (
+                  <div
+                    className="row"
+                    key={t.key}
+                    style={{ gap: 10, alignItems: "center", opacity: t.anzahl === 0 ? 0.55 : 1 }}
+                  >
+                    <span style={{ width: 96, color: we ? "var(--muted)" : undefined }}>
+                      {t.wotag} {t.label}
+                    </span>
+                    <span style={{ width: 44, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                      <strong>{t.anzahl || "–"}</strong>
+                    </span>
+                    <span style={{ flex: 1, display: "flex", alignItems: "center" }}>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          height: 10,
+                          borderRadius: 3,
+                          width: `${(t.anzahl / max) * 100}%`,
+                          minWidth: t.anzahl ? 3 : 0,
+                          background: "var(--accent)",
+                        }}
+                      />
+                    </span>
+                    <span
+                      style={{
+                        width: 80,
+                        textAlign: "right",
+                        color: "var(--muted)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {t.finished || ""}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </details>
+        </section>
       </div>
 
       <p className="lead" style={{ marginTop: 14 }}>
