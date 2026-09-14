@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate } from "@/lib/format";
 import { BatchActions } from "./BatchActions";
+import { BatchRow } from "./BatchRow";
 import { SortControls } from "./SortControls";
 import { FluxOrderButton } from "./FluxOrderButton";
 
@@ -103,13 +104,22 @@ const FELD_LABEL: Record<string, string> = {
   format: "Format",
 };
 
-/** Batch-Schlüssel + Config → [{label, wert}] ohne Leerwerte. */
-function schluesselTeile(typ: string, schluessel: string, cfg: Record<string, string[]>) {
+/**
+ * Batch-Schlüssel + Config → [{label, wert}] ohne Leerwerte. `ausblenden`
+ * lässt Felder weg, die schon als Gruppen-Überschrift darüber stehen (z.B.
+ * Durchmesser/Loops/Farbe bei Binden) - sonst stünden sie doppelt da.
+ */
+function schluesselTeile(
+  typ: string,
+  schluessel: string,
+  cfg: Record<string, string[]>,
+  ausblenden: string[] = [],
+) {
   const felder = cfg[typ] ?? [];
   const werte = (schluessel ?? "").split(" | ");
   return felder
-    .map((f, i) => ({ label: FELD_LABEL[f] ?? f, wert: (werte[i] ?? "").trim() }))
-    .filter((x) => x.wert);
+    .map((f, i) => ({ f, label: FELD_LABEL[f] ?? f, wert: (werte[i] ?? "").trim() }))
+    .filter((x) => x.wert && !ausblenden.includes(x.f));
 }
 
 // logische Sortier-/Gruppier-Dimension → mögliche Config-Feldnamen
@@ -266,14 +276,16 @@ function KriterienChips({
   typ,
   schluessel,
   cfg,
+  ausblenden,
 }: {
   typ: string;
   schluessel: string;
   cfg: Record<string, string[]>;
+  ausblenden?: string[];
 }) {
   return (
     <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6, verticalAlign: "middle" }}>
-      {schluesselTeile(typ, schluessel, cfg).map((t) => (
+      {schluesselTeile(typ, schluessel, cfg, ausblenden).map((t) => (
         <KriteriumChip key={t.label} label={t.label} wert={t.wert} />
       ))}
     </span>
@@ -305,16 +317,63 @@ function abweichungenGesamt(jobs: Job[]): number {
   return [...proOrder.values()].reduce((a, x) => a + x.length, 0);
 }
 
-function BatchCard({
+/** Kopfzeile für eine BatchTabelle. */
+function BatchTabelleHead() {
+  return (
+    <thead>
+      <tr>
+        <th />
+        <th>Batch</th>
+        <th>Kriterien</th>
+        <th>Liefertermin</th>
+        <th>Status</th>
+        <th style={{ textAlign: "right" }}>Jobs / Menge</th>
+        <th>Abw.</th>
+      </tr>
+    </thead>
+  );
+}
+
+/** Kompakte, aufklappbare Tabellenansicht einer Batch-Liste. */
+function BatchTabelle({
+  batches,
+  cfg,
+  gruppeKuerzel,
+  fluxUrlTpl,
+  ausblenden,
+}: {
+  batches: Batch[];
+  cfg: Record<string, string[]>;
+  gruppeKuerzel: Record<string, string>;
+  fluxUrlTpl: string | null;
+  ausblenden?: string[];
+}) {
+  return (
+    <div className="table-scroll">
+      <table className="data">
+        <BatchTabelleHead />
+        <tbody>
+          {batches.map((b) => (
+            <BatchZeile key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} ausblenden={ausblenden} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function BatchZeile({
   b,
   cfg,
   gruppeKuerzel,
   fluxUrlTpl,
+  ausblenden,
 }: {
   b: Batch;
   cfg: Record<string, string[]>;
   gruppeKuerzel: Record<string, string>;
   fluxUrlTpl: string | null;
+  ausblenden?: string[];
 }) {
   const jobs = b.job ?? [];
   const bogen = sum(jobs, (j) => j.netto_bogen ?? 0);
@@ -323,53 +382,41 @@ function BatchCard({
   const lts = jobs.map((j) => j.order?.deliver_date).filter(Boolean).sort() as string[];
   const ltText = lts.length ? fmtDate(lts[0]) : null;
   const abwGesamt = abweichungenGesamt(jobs);
+  const mengeTxt =
+    b.typ === "druck"
+      ? `${bogen.toLocaleString("de-DE")} Bogen`
+      : b.typ === "binden"
+        ? `${schlaufen.toLocaleString("de-DE")} Schlaufen`
+        : `${expl.toLocaleString("de-DE")} Expl.`;
 
   return (
-    <div
-      id={b.nummer}
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius)",
-        padding: "10px 14px",
-        marginBottom: 10,
-      }}
+    <BatchRow
+      cols={[
+        <strong key="nr">{b.nummer}</strong>,
+        <KriterienChips key="k" typ={b.typ} schluessel={b.schluessel} cfg={cfg} ausblenden={ausblenden} />,
+        ltText ?? "—",
+        <span key="s" className="tag">
+          {b.status}
+        </span>,
+        <span key="m" style={{ whiteSpace: "nowrap" }}>
+          {jobs.length} / {mengeTxt}
+        </span>,
+        abwGesamt > 0 ? (
+          <span
+            key="a"
+            style={{ ...chip, padding: "1px 7px", color: "#b45309", borderColor: "#b45309", background: "#fffbeb" }}
+          >
+            ⚠ {abwGesamt}
+          </span>
+        ) : (
+          "—"
+        ),
+      ]}
     >
-      <div
-        className="toolbar"
-        style={{ justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}
-      >
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", minWidth: 0 }}>
-          <strong>{b.nummer}</strong>
-          <KriterienChips typ={b.typ} schluessel={b.schluessel} cfg={cfg} />
-          {ltText && (
-            <span style={{ ...chip, color: "var(--accent)", borderColor: "var(--accent)" }}>
-              📅 {ltText}
-            </span>
-          )}
-          <span style={{ ...chip, background: "var(--tag-bg)" }}>{b.status}</span>
-          {abwGesamt > 0 && (
-            <span
-              style={{ ...chip, color: "#b45309", borderColor: "#b45309", background: "#fffbeb" }}
-              title="Abweichungen Auftrag ↔ Druckdaten"
-            >
-              ⚠ {abwGesamt} {abwGesamt === 1 ? "Abweichung" : "Abweichungen"}
-            </span>
-          )}
-        </div>
-        <div className="count" style={{ whiteSpace: "nowrap" }}>
-          {jobs.length} Jobs
-          {b.typ === "druck" && ` · ${bogen.toLocaleString("de-DE")} Bogen`}
-          {b.typ === "binden" && ` · ${schlaufen.toLocaleString("de-DE")} Schlaufen`}
-          {` · ${expl.toLocaleString("de-DE")} Expl. · seit ${alterTage(b.created_at)}`}
-          {b.flux_order_id ? ` · flux ${b.flux_order_id}` : ""}
-        </div>
+      <div className="count" style={{ marginBottom: 6 }}>
+        {b.flux_order_id ? `flux ${b.flux_order_id} · ` : ""}seit {alterTage(b.created_at)}
       </div>
-
-      <details style={{ marginTop: 6 }}>
-        <summary className="count" style={{ cursor: "pointer", padding: "2px 0" }}>
-          {jobs.length} {jobs.length === 1 ? "Job" : "Jobs"} anzeigen
-        </summary>
-        <div style={{ marginTop: 6 }}>
+      <div>
           {jobs.map((j) => {
             const stk = j.order?.blockstaerke_mm
               ? `${Number(j.order.blockstaerke_mm).toLocaleString("de-DE")} mm`
@@ -485,10 +532,9 @@ function BatchCard({
             );
           })}
           {!jobs.length && <div className="count">Keine Jobs.</div>}
-        </div>
-      </details>
+      </div>
 
-      <details style={{ marginTop: 4 }}>
+      <details style={{ marginTop: 8 }}>
         <summary className="count" style={{ cursor: "pointer", padding: "2px 0" }}>
           Aktionen
         </summary>
@@ -496,7 +542,7 @@ function BatchCard({
           <BatchActions id={b.id} typ={b.typ} status={b.status} cello={b.cello} />
         </div>
       </details>
-    </div>
+    </BatchRow>
   );
 }
 
@@ -596,9 +642,13 @@ function BindenGruppen({
                     <details key={k2 || "_"} open style={{ marginBottom: 10 }}>
                       <GruppenSummary label="Farbe Spirale" wert={k2} anzahl={g2.length} style={{ fontSize: 12 }} />
                       <div style={{ marginTop: 4 }}>
-                        {g2.map((b) => (
-                          <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
-                        ))}
+                        <BatchTabelle
+                          batches={g2}
+                          cfg={cfg}
+                          gruppeKuerzel={gruppeKuerzel}
+                          fluxUrlTpl={fluxUrlTpl}
+                          ausblenden={["durchmesser", "aufhaenger", "spiralfarbe"]}
+                        />
                       </div>
                     </details>
                   ))
@@ -610,9 +660,13 @@ function BindenGruppen({
                           <details key={k3 || "_"} open style={{ marginBottom: 8 }}>
                             <GruppenSummary label="Farbe Spirale" wert={k3} anzahl={g3.length} style={{ fontSize: 11 }} />
                             <div style={{ marginTop: 4 }}>
-                              {g3.map((b) => (
-                                <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
-                              ))}
+                              <BatchTabelle
+                                batches={g3}
+                                cfg={cfg}
+                                gruppeKuerzel={gruppeKuerzel}
+                                fluxUrlTpl={fluxUrlTpl}
+                                ausblenden={["durchmesser", "aufhaenger", "schlaufen", "spiralfarbe"]}
+                              />
                             </div>
                           </details>
                         ))}
@@ -741,14 +795,14 @@ export default async function DruckDashboard({
             className={modus === "loops" ? undefined : "ghost"}
             style={{ padding: "6px 12px" }}
           >
-            Anzahl Loops
+            Durchmesser + Anzahl Loops
           </Link>
           <Link
             href="/druck?abteilung=binden&modus=farbe"
             className={modus === "farbe" ? undefined : "ghost"}
             style={{ padding: "6px 12px" }}
           >
-            Farbe Spirale
+            Durchmesser + Farbe Spirale
           </Link>
         </div>
       ) : abteilung !== "versand" ? (
@@ -932,24 +986,18 @@ export default async function DruckDashboard({
                                     {DIM_LABEL[group2] ?? group2}: {sk} · {sb.length}
                                   </summary>
                                   <div style={{ marginTop: 4 }}>
-                                    {sb.map((b) => (
-                                      <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
-                                    ))}
+                                    <BatchTabelle batches={sb} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
                                   </div>
                                 </details>
                               ))
                           ) : (
-                            gb.map((b) => (
-                              <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
-                            ))
+                            <BatchTabelle batches={gb} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
                           )}
                         </div>
                       </details>
                     ) : (
                       <div key={gk || "_"}>
-                        {gb.map((b) => (
-                          <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
-                        ))}
+                        <BatchTabelle batches={gb} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
                       </div>
                     );
                   })}
