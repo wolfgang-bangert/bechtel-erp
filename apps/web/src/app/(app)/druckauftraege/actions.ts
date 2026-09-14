@@ -301,3 +301,37 @@ export async function deleteJobDateiAction(_prev: State, fd: FormData): Promise<
   if (orderId) revalidatePath(`/druckauftraege/${orderId}`);
   return { ok: true, note: "entfernt" };
 }
+
+/**
+ * Zusätzlichen Versand-Arbeitsvorgang anlegen (z. B. Teillieferung) - neben
+ * dem einen, den "Jobs erzeugen" automatisch mit der vollen Auftragsmenge
+ * erzeugt. Menge wird bewusst nicht automatisch von den anderen abgezogen -
+ * der Bediener trägt sie für jede Teillieferung selbst ein.
+ */
+export async function addVersandTeillieferungAction(_prev: State, fd: FormData): Promise<State> {
+  const orderId = String(fd.get("order_id") ?? "");
+  const menge = Number(String(fd.get("menge") ?? "").replace(",", "."));
+  if (!orderId) return { error: "order_id fehlt" };
+  if (!menge || menge <= 0) return { error: "Menge eingeben (> 0)." };
+
+  const supabase = await createClient();
+  const { data: andereJobs } = await supabase
+    .from("job")
+    .select("id")
+    .eq("portal_order_id", orderId)
+    .neq("typ", "versand");
+
+  const { error } = await supabase.from("job").insert({
+    portal_order_id: orderId,
+    batch_id: null,
+    typ: "versand",
+    bauteil: "Versand (Teillieferung)",
+    auflage: menge,
+    abhaengig_von: (andereJobs ?? []).map((j) => j.id),
+    status: "offen",
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/druckauftraege/${orderId}`);
+  return { ok: true, note: `Versand-Vorgang über ${menge.toLocaleString("de-DE")} Stück angelegt.` };
+}
