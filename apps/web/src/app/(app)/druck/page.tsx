@@ -746,13 +746,31 @@ function BindenGruppen({
   return (
     <>
       {groupSorted(batches, (b) => durchmesserAufhKey(b, cfg)).map(([k1, g1], i1) => (
-        <div key={k1 || "_"} style={{ marginBottom: 6 }}>
-          <GruppenZeile label="Durchmesser" wert={k1} batches={g1} indent={0} zeigeJobs zeigeHeader={i1 === 0} ebene={1} />
+        <details key={k1 || "_"} open style={{ marginBottom: 6 }}>
+          <GruppenZeile
+            as="summary"
+            label="Durchmesser"
+            wert={k1}
+            batches={g1}
+            indent={0}
+            zeigeJobs
+            zeigeHeader={i1 === 0}
+            ebene={1}
+          />
           {groupSorted(g1, (b) => critWert(b, dim2, cfg)).map(([k2, g2], i2) => (
-            <div key={k2 || "_"}>
-              <GruppenZeile label={label2} wert={k2} batches={g2} indent={22} zeigeJobs zeigeHeader={i2 === 0} ebene={2} />
+            <details key={k2 || "_"} open style={{ marginLeft: 22 }}>
+              <GruppenZeile
+                as="summary"
+                label={label2}
+                wert={k2}
+                batches={g2}
+                indent={0}
+                zeigeJobs
+                zeigeHeader={i2 === 0}
+                ebene={2}
+              />
               {groupSorted(g2, (b) => critWert(b, dim3, cfg)).map(([k3, g3], i3) => (
-                <details key={k3 || "_"} style={{ marginLeft: 44 }}>
+                <details key={k3 || "_"} style={{ marginLeft: 22 }}>
                   <GruppenZeile
                     as="summary"
                     zeigeJobs
@@ -766,9 +784,9 @@ function BindenGruppen({
                   <JobsTabelle batches={g3} gruppeKuerzel={gruppeKuerzel} />
                 </details>
               ))}
-            </div>
+            </details>
           ))}
-        </div>
+        </details>
       ))}
     </>
   );
