@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate } from "@/lib/format";
+import { AlleZuklappenButton } from "./AlleZuklappenButton";
 import { BatchActions } from "./BatchActions";
 import { BatchRow } from "./BatchRow";
 import { SortControls } from "./SortControls";
@@ -617,7 +618,11 @@ function GruppenZeile({
   /** 1-3: steuert die Hintergrundfärbung (oberste Ebene am kräftigsten). */
   ebene?: number;
 }) {
-  const liefer = fruehesterLiefer(batches[0]);
+  // Frühester Liefertermin über ALLE Batches der Gruppe, nicht nur den ersten
+  // (batches[0] hätte bei mehreren Batches den falschen, zu späten Termin
+  // gezeigt, sobald ein späterer Batch zufällig zuerst in der Liste steht).
+  const alleLiefer = batches.map((b) => fruehesterLiefer(b)).filter((d): d is string => !!d);
+  const liefer = alleLiefer.length ? alleLiefer.reduce((a, c) => (c < a ? c : a)) : null;
   const abw = abweichungenGesamt(batches.flatMap((b) => b.job ?? []));
   const jobsCount = batches.reduce((n, b) => n + (b.job?.length ?? 0), 0);
   return (
@@ -746,7 +751,7 @@ function BindenGruppen({
   return (
     <>
       {groupSorted(batches, (b) => durchmesserAufhKey(b, cfg)).map(([k1, g1], i1) => (
-        <details key={k1 || "_"} open style={{ marginBottom: 6 }}>
+        <details key={k1 || "_"} className="gd" style={{ marginBottom: 6 }}>
           <GruppenZeile
             as="summary"
             label="Durchmesser"
@@ -758,7 +763,7 @@ function BindenGruppen({
             ebene={1}
           />
           {groupSorted(g1, (b) => critWert(b, dim2, cfg)).map(([k2, g2], i2) => (
-            <details key={k2 || "_"} open style={{ marginLeft: 22 }}>
+            <details key={k2 || "_"} className="gd" style={{ marginLeft: 22 }}>
               <GruppenZeile
                 as="summary"
                 label={label2}
@@ -770,7 +775,7 @@ function BindenGruppen({
                 ebene={2}
               />
               {groupSorted(g2, (b) => critWert(b, dim3, cfg)).map(([k3, g3], i3) => (
-                <details key={k3 || "_"} style={{ marginLeft: 22 }}>
+                <details key={k3 || "_"} className="gd" style={{ marginLeft: 22 }}>
                   <GruppenZeile
                     as="summary"
                     zeigeJobs
@@ -915,6 +920,7 @@ export default async function DruckDashboard({
           >
             Durchmesser + Farbe Spirale
           </Link>
+          <AlleZuklappenButton />
         </div>
       ) : abteilung !== "versand" ? (
         <div style={{ margin: "10px 0" }}>
