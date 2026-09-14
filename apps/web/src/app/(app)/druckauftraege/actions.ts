@@ -335,3 +335,31 @@ export async function addVersandTeillieferungAction(_prev: State, fd: FormData):
   revalidatePath(`/druckauftraege/${orderId}`);
   return { ok: true, note: `Versand-Vorgang über ${menge.toLocaleString("de-DE")} Stück angelegt.` };
 }
+
+export type SyncState = { ok?: boolean; error?: string; note?: string };
+
+/**
+ * Stößt den vollen Onlineprinters-Abruf an (neue Aufträge holen, offene
+ * Aufträge im Status aktualisieren inkl. FINISHED, auflösen, Jobs erzeugen) -
+ * dasselbe wie der tägliche 5:30-Uhr-Cron, nur manuell und sofort. Läuft
+ * nicht direkt (externe API-Calls nur im sync-Container) - legt eine Zeile
+ * in sync_request an, die der 2-Minuten-Cron dort abarbeitet.
+ */
+export async function requestPortalPullAction(_prev: SyncState, _fd: FormData): Promise<SyncState> {
+  const supabase = await createClient();
+
+  const { data: offen } = await supabase
+    .from("sync_request")
+    .select("id")
+    .eq("job", "portal:pull")
+    .in("status", ["pending", "running"])
+    .limit(1)
+    .maybeSingle();
+  if (offen) return { error: "Es läuft schon eine Aktualisierung - bitte kurz warten." };
+
+  const { error } = await supabase.from("sync_request").insert({ job: "portal:pull", params: {} });
+  if (error) return { error: error.message };
+
+  revalidatePath("/druckauftraege");
+  return { ok: true, note: "Angefordert - kann einige Minuten dauern (Abruf, Auflösen, Jobs erzeugen)." };
+}

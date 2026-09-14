@@ -1,12 +1,32 @@
 /**
  * Manuelle Anstöße aus der Web-App (z. B. "Banken aktualisieren"-Button auf
- * /bank) verarbeiten. Die Web-App kann fints:pull nicht selbst ausführen
- * (Python-venv nur im sync-Container) - sie legt stattdessen eine Zeile in
+ * /bank, "Aufträge aktualisieren"-Button auf /druckauftraege) verarbeiten.
+ * Die Web-App kann diese Jobs nicht selbst ausführen (Python-venv/externe
+ * API-Calls nur im sync-Container) - sie legt stattdessen eine Zeile in
  * sync_request an, dieser Schritt läuft per Cron alle paar Minuten und holt
  * offene Anfragen ab.
  */
 import { supabase } from "./supabase";
 import { fintsPull } from "./fints";
+
+/** Gleiche Kette wie CLI "portal:pull": neue Aufträge holen, offene
+ *  aktualisieren (Status inkl. FINISHED), dann auflösen + Jobs erzeugen. */
+async function portalPullFull() {
+  const { pullOnlineprinters, refreshOpenOnlineprinters } = await import("./portalOnlineprinters");
+  const geholt = await pullOnlineprinters({ dryRun: false, withFiles: true });
+  const aktualisiert = await refreshOpenOnlineprinters({ withFiles: true });
+  const { analysePdfMissing } = await import("./pdfAnalyse");
+  const pdf = await analysePdfMissing();
+  const { resolveOpri } = await import("./opriResolve");
+  await resolveOpri({});
+  const { splitPdfMissing } = await import("./pdfSplitStep");
+  const split = await splitPdfMissing();
+  const { jobsSync } = await import("./jobsSync");
+  const jobs = await jobsSync();
+  const { autoAssignDruckMaschinen } = await import("./maschine");
+  const maschinen = await autoAssignDruckMaschinen();
+  return { geholt, aktualisiert, pdf, split, jobs, maschinen };
+}
 
 type SyncRequest = {
   id: string;
@@ -36,6 +56,9 @@ export async function processSyncRequests() {
       switch (req.job) {
         case "fints:pull":
           result = await fintsPull(req.params as { kuerzel?: string; days?: number });
+          break;
+        case "portal:pull":
+          result = await portalPullFull();
           break;
         default:
           throw new Error(`unbekannter job: ${req.job}`);

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
+import { PortalPullButton } from "./PortalPullButton";
 
 export const dynamic = "force-dynamic";
 
@@ -57,9 +58,16 @@ export default async function DruckauftraegePage({
 
   const supabase = await createClient();
 
-  const [{ data: gruppen }, { data: stammartikel }] = await Promise.all([
+  const [{ data: gruppen }, { data: stammartikel }, { data: lastPull }] = await Promise.all([
     supabase.from("opri_produkt_gruppe").select("id, kuerzel, name").order("kuerzel"),
     supabase.from("opri_stammartikel").select("id, sku, name, gruppe_id").order("sku").limit(2000),
+    supabase
+      .from("sync_request")
+      .select("status, requested_at, finished_at, error")
+      .eq("job", "portal:pull")
+      .order("requested_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
   const gruppeName = new Map((gruppen ?? []).map((g) => [g.kuerzel as string, g.name as string]));
   const gruppeIdByKuerzel = new Map((gruppen ?? []).map((g) => [g.kuerzel as string, g.id as string]));
@@ -118,8 +126,14 @@ export default async function DruckauftraegePage({
 
   return (
     <>
-      <h1>Druckaufträge</h1>
-      <p className="lead">Eingehende Aufträge von OnlinePrinters.</p>
+      <div className="toolbar" style={{ justifyContent: "space-between" }}>
+        <h1 style={{ margin: 0 }}>Druckaufträge</h1>
+        <PortalPullButton last={lastPull ?? null} />
+      </div>
+      <p className="lead">
+        Eingehende Aufträge von OnlinePrinters. Automatisch täglich 5:30 Uhr, oder oben manuell
+        anstoßen (holt neue Aufträge + aktualisiert Status bestehender, auch auf FINISHED).
+      </p>
 
       <form className="toolbar" method="get" style={{ flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
         <label className="field" style={{ width: 200 }}>
