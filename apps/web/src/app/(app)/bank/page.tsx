@@ -35,12 +35,16 @@ export default async function BankPage({
   const fromRow = (page - 1) * PAGE_SIZE;
 
   const supabase = await createClient();
-  const { data: accounts } = await supabase
+  const { data: allAccounts } = await supabase
     .from("bank_account")
-    .select("id, iban, label, bank_name, balance, balance_date, balance_at, is_active")
+    .select("id, iban, label, bank_name, balance, balance_date, balance_at, is_active, kind")
     .order("label");
-  const accountsWithBalance = (accounts ?? []).filter((a) => a.balance != null);
+  // Darlehenskonten laufen zwar mit über denselben FinTS-Abruf, gehören aber
+  // nicht in die Übersicht des laufenden Zahlungsgeschäfts (Nutzer-Wunsch).
+  const accounts = (allAccounts ?? []).filter((a) => a.kind !== "darlehen");
+  const accountsWithBalance = accounts.filter((a) => a.balance != null);
   const totalBalance = accountsWithBalance.reduce((s, a) => s + Number(a.balance), 0);
+  const accountIds = new Set(accounts.map((a) => a.id));
 
   const { data: lastSync } = await supabase
     .from("sync_request")
@@ -77,7 +81,10 @@ export default async function BankPage({
         "incoming_document:incoming_document(id, doc_number))",
       { count: "exact" },
     );
-  if (account) query = query.eq("bank_account_id", account);
+  // Nur echte Girokonten - Darlehenskonten (accountIds enthält sie nicht)
+  // dürfen auch über einen von Hand gebauten ?account=-Link nicht auftauchen.
+  if (account && accountIds.has(account)) query = query.eq("bank_account_id", account);
+  else query = query.in("bank_account_id", [...accountIds]);
   // "offen" zeigt auch teilweise zugeordnete (Sammelzahlungen), damit man
   // dort weitere Rechnungen anhängen kann.
   if (status === "unmatched") query = query.in("match_status", ["unmatched", "partial"]);
