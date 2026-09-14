@@ -464,10 +464,11 @@ table.data td.wrap {
 
 /* ---- Dashboard: klickbare Gruppen-Kopfzeilen (Binden-Ansicht) ---- */
 .gruppen-zeile {
+  background: var(--row-bg, transparent);
   transition: background-color 0.1s;
 }
 .gruppen-zeile:hover {
-  background: var(--tag-bg);
+  background: color-mix(in srgb, var(--row-bg, var(--tag-bg)) 70%, var(--accent) 16%);
 }
 .gruppen-chevron {
   display: inline-block;

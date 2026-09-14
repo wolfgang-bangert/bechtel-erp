@@ -588,6 +588,14 @@ function LabelWert({
  *  kleine Überschrift mit großem, fettem Wert darunter. `zeigeHeader=false`
  *  blendet die Spalten-Überschriften aus (für alle außer der ersten Zeile
  *  einer Geschwister-Gruppe, damit sie nicht bei jeder Zeile wiederholt werden). */
+// Je Ebene ein eigener Farbton (nicht nur Graustufen), damit sich Unter-/
+// Unteruntergruppen optisch klar von der Elternzeile abheben.
+const EBENEN_BG: Record<number, string> = {
+  1: "color-mix(in srgb, var(--tag-bg) 100%, transparent)",
+  2: "color-mix(in srgb, var(--accent) 7%, var(--panel))",
+  3: "var(--panel)",
+};
+
 function GruppenZeile({
   label,
   wert,
@@ -596,6 +604,7 @@ function GruppenZeile({
   as: As = "div",
   zeigeJobs = false,
   zeigeHeader = true,
+  ebene = 1,
 }: {
   label: string;
   wert: string;
@@ -605,6 +614,8 @@ function GruppenZeile({
   /** Job-Anzahl als erste Spalte zeigen. */
   zeigeJobs?: boolean;
   zeigeHeader?: boolean;
+  /** 1-3: steuert die Hintergrundfärbung (oberste Ebene am kräftigsten). */
+  ebene?: number;
 }) {
   const liefer = fruehesterLiefer(batches[0]);
   const abw = abweichungenGesamt(batches.flatMap((b) => b.job ?? []));
@@ -612,16 +623,24 @@ function GruppenZeile({
   return (
     <As
       className={As === "summary" ? "gruppen-zeile" : undefined}
-      style={{
-        display: "flex",
-        gap: 26,
-        alignItems: "flex-end",
-        padding: "6px 10px",
-        marginLeft: indent,
-        borderBottom: "1px solid var(--border)",
-        cursor: As === "summary" ? "pointer" : undefined,
-        listStyle: As === "summary" ? "none" : undefined,
-      }}
+      style={
+        {
+          display: "flex",
+          gap: 26,
+          alignItems: "flex-end",
+          padding: "6px 10px",
+          marginLeft: indent,
+          // CSS-Var statt direktem "background", damit der :hover-Regel in
+          // globals.css (höhere Spezifität durch Klasse) nicht durch das
+          // Inline-Style überschrieben wird.
+          "--row-bg": EBENEN_BG[ebene] ?? "transparent",
+          background: As === "div" ? "var(--row-bg)" : undefined,
+          borderRadius: 6,
+          borderBottom: "1px solid var(--border)",
+          cursor: As === "summary" ? "pointer" : undefined,
+          listStyle: As === "summary" ? "none" : undefined,
+        } as React.CSSProperties
+      }
     >
       {As === "summary" && (
         <span className="gruppen-chevron" aria-hidden style={{ alignSelf: "center" }}>
@@ -728,10 +747,10 @@ function BindenGruppen({
     <>
       {groupSorted(batches, (b) => durchmesserAufhKey(b, cfg)).map(([k1, g1], i1) => (
         <div key={k1 || "_"} style={{ marginBottom: 6 }}>
-          <GruppenZeile label="Durchmesser" wert={k1} batches={g1} indent={0} zeigeJobs zeigeHeader={i1 === 0} />
+          <GruppenZeile label="Durchmesser" wert={k1} batches={g1} indent={0} zeigeJobs zeigeHeader={i1 === 0} ebene={1} />
           {groupSorted(g1, (b) => critWert(b, dim2, cfg)).map(([k2, g2], i2) => (
             <div key={k2 || "_"}>
-              <GruppenZeile label={label2} wert={k2} batches={g2} indent={22} zeigeJobs zeigeHeader={i2 === 0} />
+              <GruppenZeile label={label2} wert={k2} batches={g2} indent={22} zeigeJobs zeigeHeader={i2 === 0} ebene={2} />
               {groupSorted(g2, (b) => critWert(b, dim3, cfg)).map(([k3, g3], i3) => (
                 <details key={k3 || "_"} style={{ marginLeft: 44 }}>
                   <GruppenZeile
@@ -742,6 +761,7 @@ function BindenGruppen({
                     wert={k3}
                     batches={g3}
                     indent={0}
+                    ebene={3}
                   />
                   <JobsTabelle batches={g3} gruppeKuerzel={gruppeKuerzel} />
                 </details>
