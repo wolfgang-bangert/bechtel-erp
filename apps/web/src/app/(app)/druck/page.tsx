@@ -277,14 +277,14 @@ function alterTage(iso: string): string {
 
 const sum = (js: Job[], f: (j: Job) => number) => js.reduce((a, j) => a + f(j), 0);
 
-/** Anzahl Abweichungen Auftrag ↔ Druckdaten über beliebig viele Jobs, je Auftrag einmal gezählt. */
+/**
+ * Anzahl Abweichungen Auftrag ↔ Druckdaten über beliebig viele Jobs – je Job
+ * gezählt (nicht dedupliziert je Auftrag), damit die Summe zur Anzahl der
+ * einzeln markierten Jobs passt (mehrere Jobs desselben Auftrags zählen
+ * entsprechend mehrfach).
+ */
 function abweichungenGesamt(jobs: Job[]): number {
-  const proOrder = new Map<string, { feld: string; text: string }[]>();
-  for (const j of jobs) {
-    if (j.portal_order_id && j.order?.abweichungen?.length)
-      proOrder.set(j.portal_order_id, j.order.abweichungen);
-  }
-  return [...proOrder.values()].reduce((a, x) => a + x.length, 0);
+  return sum(jobs, (j) => j.order?.abweichungen?.length ?? 0);
 }
 
 function BatchCard({
