@@ -574,15 +574,19 @@ function GruppenZeile({
   batches,
   indent,
   as: As = "div",
+  zeigeJobs = false,
 }: {
   label: string;
   wert: string;
   batches: Batch[];
   indent: number;
   as?: "div" | "summary";
+  /** Job-Anzahl als erste Spalte zeigen (bei der klickbaren Endgruppen-Zeile). */
+  zeigeJobs?: boolean;
 }) {
   const liefer = fruehesterLiefer(batches[0]);
   const abw = abweichungenGesamt(batches.flatMap((b) => b.job ?? []));
+  const jobsCount = batches.reduce((n, b) => n + (b.job?.length ?? 0), 0);
   return (
     <As
       style={{
@@ -593,8 +597,10 @@ function GruppenZeile({
         marginLeft: indent,
         borderBottom: "1px solid var(--border)",
         cursor: As === "summary" ? "pointer" : undefined,
+        listStyle: As === "summary" ? "none" : undefined,
       }}
     >
+      {zeigeJobs && <LabelWert label="Jobs" wert={jobsCount} />}
       <LabelWert label={label} wert={wert} />
       <LabelWert label="Liefertermin" wert={liefer ? `ab ${fmtDate(liefer)}` : "—"} />
       <LabelWert
@@ -689,29 +695,19 @@ function BindenGruppen({
           <GruppenZeile label="Durchmesser" wert={k1} batches={g1} indent={0} />
           {modus === "farbe"
             ? groupSorted(g1, (b) => critWert(b, "spiralfarbe", cfg)).map(([k2, g2]) => (
-                <div key={k2 || "_"}>
-                  <GruppenZeile label="Farbe Spirale" wert={k2} batches={g2} indent={22} />
-                  <details style={{ marginLeft: 22 }}>
-                    <summary className="count" style={{ cursor: "pointer", padding: "4px 10px" }}>
-                      {g2.reduce((n, b) => n + (b.job?.length ?? 0), 0)} Jobs anzeigen
-                    </summary>
-                    <JobsTabelle batches={g2} gruppeKuerzel={gruppeKuerzel} />
-                  </details>
-                </div>
+                <details key={k2 || "_"} style={{ marginLeft: 22 }}>
+                  <GruppenZeile as="summary" zeigeJobs label="Farbe Spirale" wert={k2} batches={g2} indent={0} />
+                  <JobsTabelle batches={g2} gruppeKuerzel={gruppeKuerzel} />
+                </details>
               ))
             : groupSorted(g1, (b) => critWert(b, "loops", cfg)).map(([k2, g2]) => (
                 <div key={k2 || "_"}>
                   <GruppenZeile label="Anzahl Loops" wert={k2} batches={g2} indent={22} />
                   {groupSorted(g2, (b) => critWert(b, "spiralfarbe", cfg)).map(([k3, g3]) => (
-                    <div key={k3 || "_"}>
-                      <GruppenZeile label="Farbe Spirale" wert={k3} batches={g3} indent={44} />
-                      <details style={{ marginLeft: 44 }}>
-                        <summary className="count" style={{ cursor: "pointer", padding: "4px 10px" }}>
-                          {g3.reduce((n, b) => n + (b.job?.length ?? 0), 0)} Jobs anzeigen
-                        </summary>
-                        <JobsTabelle batches={g3} gruppeKuerzel={gruppeKuerzel} />
-                      </details>
-                    </div>
+                    <details key={k3 || "_"} style={{ marginLeft: 44 }}>
+                      <GruppenZeile as="summary" zeigeJobs label="Farbe Spirale" wert={k3} batches={g3} indent={0} />
+                      <JobsTabelle batches={g3} gruppeKuerzel={gruppeKuerzel} />
+                    </details>
                   ))}
                 </div>
               ))}
