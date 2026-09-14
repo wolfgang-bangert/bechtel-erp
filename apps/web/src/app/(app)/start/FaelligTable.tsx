@@ -10,10 +10,11 @@ export type FaelligOrder = {
   description: string | null;
   quantity: number | null;
   deliver_date: string;
-  ship_to: Record<string, unknown> | null;
   portal_state: string | null;
   tage: number;
   gruppe: Gruppe;
+  /** Produktgruppen-Name (deutsch), Fallback auf die rohe Portal-Beschreibung. */
+  produkt: string;
 };
 
 const GRUPPE_CLS: Record<Gruppe, string> = {
@@ -35,12 +36,6 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("de-DE");
 }
 
-function adrZeile(a: Record<string, unknown> | null): string {
-  if (!a) return "—";
-  const g = (k: string) => (a[k] == null ? "" : String(a[k]));
-  return [g("company") || g("name"), g("city")].filter(Boolean).join(" · ") || "—";
-}
-
 /** Klick auf eine Zeile führt direkt zum Auftrag (Produktionsstatus), nicht zu
  *  einem Versand-Popup - der Auftrag selbst ist hier die zentrale Einheit. */
 export function FaelligTable({ rows }: { rows: FaelligOrder[] }) {
@@ -54,7 +49,7 @@ export function FaelligTable({ rows }: { rows: FaelligOrder[] }) {
             <th>Fälligkeit</th>
             <th>Auftrag</th>
             <th>Liefertermin</th>
-            <th>Empfänger</th>
+            <th>Produkt</th>
             <th style={{ textAlign: "right" }}>Menge</th>
             <th>Status</th>
           </tr>
@@ -72,7 +67,7 @@ export function FaelligTable({ rows }: { rows: FaelligOrder[] }) {
               </td>
               <td>{o.external_reference ?? o.id.slice(0, 8)}</td>
               <td>{fmtDate(o.deliver_date)}</td>
-              <td className="count">{adrZeile(o.ship_to)}</td>
+              <td className="count">{o.produkt}</td>
               <td style={{ textAlign: "right" }}>{o.quantity != null ? o.quantity.toLocaleString("de-DE") : "—"}</td>
               <td className="count">{o.portal_state ?? "—"}</td>
             </tr>

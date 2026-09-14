@@ -58,18 +58,25 @@ export default async function StartPage({
 
   const supabase = await createClient();
 
-  const [{ data: faelligData, error: faelligError }, { data: eingangData, error: eingangError }] =
-    await Promise.all([
-      supabase
-        .from("portal_order")
-        .select("id, external_reference, description, quantity, deliver_date, ship_to, portal_state")
-        .not("deliver_date", "is", null)
-        .or("portal_state.is.null,portal_state.neq.FINISHED")
-        .order("deliver_date", { ascending: true }),
-      supabase
-        .from("portal_order")
-        .select("received_at, portal_state, pc1:raw->>createdAt, pc2:raw->>api_createdAt_raw"),
-    ]);
+  const [
+    { data: faelligData, error: faelligError },
+    { data: eingangData, error: eingangError },
+    { data: gruppenData },
+  ] = await Promise.all([
+    supabase
+      .from("portal_order")
+      .select(
+        "id, external_reference, description, quantity, deliver_date, portal_state, gruppe:resolve_result->>gruppe",
+      )
+      .not("deliver_date", "is", null)
+      .or("portal_state.is.null,portal_state.neq.FINISHED")
+      .order("deliver_date", { ascending: true }),
+    supabase
+      .from("portal_order")
+      .select("received_at, portal_state, pc1:raw->>createdAt, pc2:raw->>api_createdAt_raw"),
+    supabase.from("opri_produkt_gruppe").select("kuerzel, name"),
+  ]);
+  const gruppeName = new Map((gruppenData ?? []).map((g) => [g.kuerzel as string, g.name as string]));
 
   // ---- Auftrags-Fälligkeit (zentrale Steuerungsebene) -------------------
   const faelligRows: FaelligOrder[] = ((faelligData ?? []) as unknown as {
@@ -78,11 +85,13 @@ export default async function StartPage({
     description: string | null;
     quantity: number | null;
     deliver_date: string;
-    ship_to: Record<string, unknown> | null;
     portal_state: string | null;
+    gruppe: string | null; // Produktgruppen-Kürzel aus resolve_result
   }[]).map((r) => {
+    const { gruppe: produktGruppeKuerzel, ...rest } = r;
     const tage = tageUeberfaellig(r.deliver_date);
-    return { ...r, tage, gruppe: gruppeVon(tage) };
+    const produkt = (produktGruppeKuerzel && gruppeName.get(produktGruppeKuerzel)) || r.description || "—";
+    return { ...rest, tage, gruppe: gruppeVon(tage), produkt };
   });
 
   const counts: Record<Gruppe, number> = { heute: 0, "1tag": 0, "2-4": 0, "5plus": 0, zukunft: 0 };
