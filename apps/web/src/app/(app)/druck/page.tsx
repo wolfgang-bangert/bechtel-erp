@@ -70,18 +70,21 @@ type Batch = {
   job: Job[];
 };
 
-type Abteilung = "druck" | "weiterverarbeitung";
+type Abteilung = "druck" | "cello" | "binden" | "konfektion" | "versand";
 
 const TYPEN: { typ: string; label: string; hint: string; abteilung: Abteilung }[] = [
   { typ: "druck", label: "Drucken", hint: "Schlüssel: Anzahl Loops · Farbe Spirale · Durchmesser", abteilung: "druck" },
-  { typ: "cello", label: "Cellophanieren", hint: "nach dem Umschlag-Druck", abteilung: "weiterverarbeitung" },
-  { typ: "binden", label: "Binden (Wire-O)", hint: "Schlüssel: Anzahl Loops · Farbe Spirale · Teilung · Durchmesser", abteilung: "weiterverarbeitung" },
-  { typ: "konfektion", label: "Konfektionieren (Multiloft)", hint: "Cover + Inlay + Cover stapeln, Nutzen schneiden", abteilung: "weiterverarbeitung" },
+  { typ: "cello", label: "Cellophanieren", hint: "nach dem Umschlag-Druck", abteilung: "cello" },
+  { typ: "binden", label: "Binden (Wire-O)", hint: "Durchmesser (+ Aufhänger) → Loops/Farbe → Farbe", abteilung: "binden" },
+  { typ: "konfektion", label: "Konfektionieren (Multiloft)", hint: "Cover + Inlay + Cover stapeln, Nutzen schneiden", abteilung: "konfektion" },
 ];
 
 const ABTEILUNGEN: { key: Abteilung; label: string }[] = [
   { key: "druck", label: "Druck" },
-  { key: "weiterverarbeitung", label: "Weiterverarbeitung" },
+  { key: "cello", label: "Cello" },
+  { key: "binden", label: "Binden" },
+  { key: "konfektion", label: "Konfektion" },
+  { key: "versand", label: "Versand" },
 ];
 
 // Feld-Schlüssel → Klartext-Label für die Batch-Beschriftung
@@ -126,6 +129,13 @@ const DIM_LABEL: Record<string, string> = {
   aufhaenger: "Aufhänger",
   format: "Format",
 };
+
+/** Batches nach einem Schlüssel gruppieren, alphabetisch/numerisch sortiert. */
+function groupSorted(bs: Batch[], keyFn: (b: Batch) => string): [string, Batch[]][] {
+  const acc: Record<string, Batch[]> = {};
+  for (const b of bs) (acc[keyFn(b)] ??= []).push(b);
+  return Object.entries(acc).sort((x, y) => x[0].localeCompare(y[0], "de", { numeric: true }));
+}
 
 /** Wert eines Batches für eine Sortier-/Gruppier-Dimension. */
 function critWert(b: Batch, dim: string, cfg: Record<string, string[]>): string {
@@ -490,13 +500,152 @@ function BatchCard({
   );
 }
 
+/** Durchmesser, mit eigener Sondergruppe für "+ Aufhänger" (Kalenderaufhänger
+ *  ändert die Fertigung spürbar - deshalb eigene Gruppe statt nur ein Chip). */
+function durchmesserAufhKey(b: Batch, cfg: Record<string, string[]>): string {
+  const d = critWert(b, "durchmesser", cfg);
+  const mitAufhaenger = critWert(b, "aufhaenger", cfg) === "mit";
+  return mitAufhaenger ? `${d} + Aufhänger` : d;
+}
+
+function GruppenSummary({
+  label,
+  wert,
+  anzahl,
+  extra,
+  style,
+}: {
+  label: string;
+  wert: string;
+  anzahl: number;
+  extra?: React.ReactNode;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <summary
+      style={{
+        cursor: "pointer",
+        fontWeight: 600,
+        fontSize: 13,
+        margin: "8px 0 4px",
+        padding: "4px 10px",
+        background: "var(--tag-bg)",
+        borderRadius: 6,
+        display: "inline-flex",
+        gap: 10,
+        alignItems: "baseline",
+        ...style,
+      }}
+    >
+      <span>
+        {label}: {wert} <span className="count">· {anzahl}</span>
+      </span>
+      {extra}
+    </summary>
+  );
+}
+
+/**
+ * Feste Gruppierungs-Hierarchie für Binden (Weiterverarbeitung), statt der
+ * freien Gruppieren/Untergruppieren-Auswahl: Durchmesser (+ Aufhänger als
+ * eigene Sondergruppe) ist immer die oberste Ebene. Darunter, je Modus:
+ *   "loops" → Anzahl Loops → Farbe Spirale (3 Ebenen)
+ *   "farbe" → Farbe Spirale (2 Ebenen)
+ */
+function BindenGruppen({
+  batches,
+  modus,
+  cfg,
+  gruppeKuerzel,
+  fluxUrlTpl,
+}: {
+  batches: Batch[];
+  modus: "loops" | "farbe";
+  cfg: Record<string, string[]>;
+  gruppeKuerzel: Record<string, string>;
+  fluxUrlTpl: string | null;
+}) {
+  return (
+    <>
+      {groupSorted(batches, (b) => durchmesserAufhKey(b, cfg)).map(([k1, g1]) => {
+        const abw1 = abweichungenGesamt(g1.flatMap((b) => b.job ?? []));
+        return (
+          <details key={k1 || "_"} open style={{ marginBottom: 14 }}>
+            <GruppenSummary
+              label="Durchmesser"
+              wert={k1}
+              anzahl={g1.length}
+              extra={
+                <>
+                  {fruehesterLiefer(g1[0]) && (
+                    <span style={{ color: "var(--accent)" }}>
+                      Liefertermin ab {fmtDate(fruehesterLiefer(g1[0])!)}
+                    </span>
+                  )}
+                  {abw1 > 0 && (
+                    <span style={{ ...chip, padding: "1px 7px", color: "#b45309", borderColor: "#b45309", background: "#fffbeb" }}>
+                      ⚠ {abw1} {abw1 === 1 ? "Abweichung" : "Abweichungen"}
+                    </span>
+                  )}
+                </>
+              }
+            />
+            <div style={{ marginTop: 4, marginLeft: 14 }}>
+              {modus === "farbe"
+                ? groupSorted(g1, (b) => critWert(b, "spiralfarbe", cfg)).map(([k2, g2]) => (
+                    <details key={k2 || "_"} open style={{ marginBottom: 10 }}>
+                      <GruppenSummary label="Farbe Spirale" wert={k2} anzahl={g2.length} style={{ fontSize: 12 }} />
+                      <div style={{ marginTop: 4 }}>
+                        {g2.map((b) => (
+                          <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
+                        ))}
+                      </div>
+                    </details>
+                  ))
+                : groupSorted(g1, (b) => critWert(b, "loops", cfg)).map(([k2, g2]) => (
+                    <details key={k2 || "_"} open style={{ marginBottom: 10 }}>
+                      <GruppenSummary label="Anzahl Loops" wert={k2} anzahl={g2.length} style={{ fontSize: 12 }} />
+                      <div style={{ marginTop: 4, marginLeft: 14 }}>
+                        {groupSorted(g2, (b) => critWert(b, "spiralfarbe", cfg)).map(([k3, g3]) => (
+                          <details key={k3 || "_"} open style={{ marginBottom: 8 }}>
+                            <GruppenSummary label="Farbe Spirale" wert={k3} anzahl={g3.length} style={{ fontSize: 11 }} />
+                            <div style={{ marginTop: 4 }}>
+                              {g3.map((b) => (
+                                <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
+                              ))}
+                            </div>
+                          </details>
+                        ))}
+                      </div>
+                    </details>
+                  ))}
+            </div>
+          </details>
+        );
+      })}
+    </>
+  );
+}
+
 export default async function DruckDashboard({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; group?: string; group2?: string; dir?: string; abteilung?: string }>;
+  searchParams: Promise<{
+    sort?: string;
+    group?: string;
+    group2?: string;
+    dir?: string;
+    abteilung?: string;
+    modus?: string;
+  }>;
 }) {
-  const { sort = "", group = "", group2 = "", dir = "asc", abteilung: abteilungParam } = await searchParams;
-  const abteilung: Abteilung = abteilungParam === "weiterverarbeitung" ? "weiterverarbeitung" : "druck";
+  const { sort = "", group = "", group2 = "", dir = "asc", abteilung: abteilungParam, modus: modusParam } =
+    await searchParams;
+  const ABTEILUNG_KEYS = new Set(ABTEILUNGEN.map((a) => a.key));
+  const abteilung: Abteilung = ABTEILUNG_KEYS.has(abteilungParam as Abteilung)
+    ? (abteilungParam as Abteilung)
+    : "druck";
+  const modus: "loops" | "farbe" = modusParam === "farbe" ? "farbe" : "loops";
   const desc = dir === "desc";
   const supabase = await createClient();
   const { data: cfgRow } = await supabase
@@ -529,6 +678,30 @@ export default async function DruckDashboard({
     .order("created_at", { ascending: true });
   const batches = (raw ?? []) as unknown as Batch[];
 
+  let versandJobs: {
+    id: string;
+    bauteil: string;
+    auflage: number;
+    status: string;
+    versand_datum: string | null;
+    versand_tracking: string | null;
+    created_at: string;
+    portal_order_id: string | null;
+    order: { external_reference: string | null; deliver_date: string | null } | null;
+  }[] = [];
+  if (abteilung === "versand") {
+    const { data: vRaw } = await supabase
+      .from("job")
+      .select(
+        "id, bauteil, auflage, status, versand_datum, versand_tracking, created_at, portal_order_id, " +
+          "order:portal_order_id(external_reference, deliver_date)",
+      )
+      .eq("typ", "versand")
+      .neq("status", "storniert")
+      .order("created_at", { ascending: false });
+    versandJobs = (vRaw ?? []) as unknown as typeof versandJobs;
+  }
+
   return (
     <>
       <div className="toolbar" style={{ justifyContent: "space-between" }}>
@@ -545,7 +718,7 @@ export default async function DruckDashboard({
 
       <div className="toolbar" style={{ gap: 6, marginTop: 4 }}>
         {ABTEILUNGEN.map((a) => {
-          const href = a.key === "druck" ? "/druck" : "/druck?abteilung=weiterverarbeitung";
+          const href = a.key === "druck" ? "/druck" : `/druck?abteilung=${a.key}`;
           const aktiv = a.key === abteilung;
           return (
             <Link
@@ -560,21 +733,86 @@ export default async function DruckDashboard({
         })}
       </div>
 
-      <div style={{ margin: "10px 0" }}>
-        <SortControls />
-      </div>
+      {abteilung === "binden" ? (
+        <div className="toolbar" style={{ gap: 6, margin: "10px 0", alignItems: "center" }}>
+          <span className="count">Gruppieren nach</span>
+          <Link
+            href="/druck?abteilung=binden&modus=loops"
+            className={modus === "loops" ? undefined : "ghost"}
+            style={{ padding: "6px 12px" }}
+          >
+            Anzahl Loops
+          </Link>
+          <Link
+            href="/druck?abteilung=binden&modus=farbe"
+            className={modus === "farbe" ? undefined : "ghost"}
+            style={{ padding: "6px 12px" }}
+          >
+            Farbe Spirale
+          </Link>
+        </div>
+      ) : abteilung !== "versand" ? (
+        <div style={{ margin: "10px 0" }}>
+          <SortControls />
+        </div>
+      ) : null}
+
       <p className="lead">
-        Batches sammeln Arbeitsvorgänge auftragsübergreifend.{" "}
-        {abteilung === "druck"
-          ? "Druck-Batches sind nach Anzahl Loops · Farbe Spirale · Durchmesser gruppiert (aus der Wire-O-Zeile); der flux-Versand läuft je Auftrag im Druckauftrag."
-          : "Cellophanieren, Binden und Konfektionieren - über \"Gruppieren\"/\"Untergruppieren\" oben nach den passenden Kriterien zusammenstellen (z. B. Durchmesser, dann Farbe Spirale oder Anzahl Loops)."}
+        {abteilung === "druck" &&
+          "Batches sammeln Arbeitsvorgänge auftragsübergreifend. Druck-Batches sind nach Anzahl Loops · Farbe Spirale · Durchmesser gruppiert (aus der Wire-O-Zeile); der flux-Versand läuft je Auftrag im Druckauftrag."}
+        {abteilung === "cello" && "Batches sammeln Arbeitsvorgänge auftragsübergreifend, nach dem Umschlag-Druck."}
+        {abteilung === "binden" &&
+          "Durchmesser (mit eigener Gruppe für Kalenderaufhänger) ist immer die oberste Ebene - darunter je nach Auswahl Loops → Farbe oder direkt Farbe."}
+        {abteilung === "konfektion" && "Multiloft: Cover + Inlay + Cover stapeln, Nutzen schneiden."}
+        {abteilung === "versand" && "Versand-Arbeitsvorgänge je Auftrag (ein Vorgang deckt normalerweise die volle Menge ab, zusätzliche bei Teillieferungen)."}
       </p>
 
-      {batches.length === 0 && (
-        <p className="lead">Noch keine Batches. In einem Auftrag „Jobs erzeugen" klicken.</p>
-      )}
+      {abteilung === "versand" ? (
+        versandJobs.length === 0 ? (
+          <p className="lead">Keine Versand-Vorgänge.</p>
+        ) : (
+          <div className="table-scroll">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Auftrag</th>
+                  <th>Vorgang</th>
+                  <th style={{ textAlign: "right" }}>Menge</th>
+                  <th>Liefertermin</th>
+                  <th>Status</th>
+                  <th>Tracking</th>
+                </tr>
+              </thead>
+              <tbody>
+                {versandJobs.map((v) => (
+                  <tr key={v.id}>
+                    <td>
+                      {v.portal_order_id ? (
+                        <a href={`/druckauftraege/${v.portal_order_id}`} target="_blank" rel="noreferrer">
+                          {v.order?.external_reference ?? v.portal_order_id.slice(0, 8)}
+                        </a>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td>{v.bauteil}</td>
+                    <td style={{ textAlign: "right" }}>{v.auflage.toLocaleString("de-DE")}</td>
+                    <td>{v.order?.deliver_date ? fmtDate(v.order.deliver_date) : "—"}</td>
+                    <td className="count">{v.status}</td>
+                    <td className="count">{v.versand_tracking ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : (
+        <>
+          {batches.length === 0 && (
+            <p className="lead">Noch keine Batches. In einem Auftrag „Jobs erzeugen" klicken.</p>
+          )}
 
-      {TYPEN.filter((t) => t.abteilung === abteilung).map(({ typ, label, hint }) => {
+          {TYPEN.filter((t) => t.abteilung === abteilung).map(({ typ, label, hint }) => {
         const list = batches.filter((b) => b.typ === typ && (b.job?.length ?? 0) > 0);
         if (!list.length) return null;
         return (
@@ -595,6 +833,23 @@ export default async function DruckDashboard({
                   return (desc ? -c : c) || byLiefer(a, b);
                 });
               if (!bl.length) return null;
+
+              if (abteilung === "binden") {
+                return (
+                  <div key={bucket.label} style={{ marginTop: 10 }}>
+                    <h3 style={{ margin: "0 0 6px", fontSize: 13, color: "var(--muted)" }}>
+                      {bucket.label} · {bl.length}
+                    </h3>
+                    <BindenGruppen
+                      batches={bl}
+                      modus={modus}
+                      cfg={cfg}
+                      gruppeKuerzel={gruppeKuerzel}
+                      fluxUrlTpl={fluxUrlTpl}
+                    />
+                  </div>
+                );
+              }
 
               // Nach Einzelkriterium gruppieren?
               const gruppen: [string, Batch[]][] = group
@@ -704,6 +959,8 @@ export default async function DruckDashboard({
           </section>
         );
       })}
+        </>
+      )}
     </>
   );
 }
