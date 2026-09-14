@@ -26,7 +26,7 @@ export default async function AppLayout({
         <Link href="/rechnungen">Rechnungen</Link>
 
         <div className="nav-group">onlineprinters</div>
-        <Link href="/druck">Druck-Dashboard</Link>
+        <Link href="/druck">Dashboard</Link>
         <Link href="/druck/plan">Belegungs-Board</Link>
         <Link href="/einstellungen/batch-gruppierung">Batch-Gruppierung</Link>
         <Link href="/abrechnung">Wochen-Abrechnung</Link>

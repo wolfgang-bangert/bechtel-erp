@@ -70,10 +70,18 @@ type Batch = {
   job: Job[];
 };
 
-const TYPEN: { typ: string; label: string; hint: string }[] = [
-  { typ: "druck", label: "Drucken", hint: "Schlüssel: Anzahl Loops · Farbe Spirale · Durchmesser" },
-  { typ: "cello", label: "Cellophanieren", hint: "nach dem Umschlag-Druck" },
-  { typ: "binden", label: "Binden (Wire-O)", hint: "Schlüssel: Anzahl Loops · Farbe Spirale · Teilung · Durchmesser" },
+type Abteilung = "druck" | "weiterverarbeitung";
+
+const TYPEN: { typ: string; label: string; hint: string; abteilung: Abteilung }[] = [
+  { typ: "druck", label: "Drucken", hint: "Schlüssel: Anzahl Loops · Farbe Spirale · Durchmesser", abteilung: "druck" },
+  { typ: "cello", label: "Cellophanieren", hint: "nach dem Umschlag-Druck", abteilung: "weiterverarbeitung" },
+  { typ: "binden", label: "Binden (Wire-O)", hint: "Schlüssel: Anzahl Loops · Farbe Spirale · Teilung · Durchmesser", abteilung: "weiterverarbeitung" },
+  { typ: "konfektion", label: "Konfektionieren (Multiloft)", hint: "Cover + Inlay + Cover stapeln, Nutzen schneiden", abteilung: "weiterverarbeitung" },
+];
+
+const ABTEILUNGEN: { key: Abteilung; label: string }[] = [
+  { key: "druck", label: "Druck" },
+  { key: "weiterverarbeitung", label: "Weiterverarbeitung" },
 ];
 
 // Feld-Schlüssel → Klartext-Label für die Batch-Beschriftung
@@ -485,9 +493,10 @@ function BatchCard({
 export default async function DruckDashboard({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; group?: string; dir?: string }>;
+  searchParams: Promise<{ sort?: string; group?: string; group2?: string; dir?: string; abteilung?: string }>;
 }) {
-  const { sort = "", group = "", dir = "asc" } = await searchParams;
+  const { sort = "", group = "", group2 = "", dir = "asc", abteilung: abteilungParam } = await searchParams;
+  const abteilung: Abteilung = abteilungParam === "weiterverarbeitung" ? "weiterverarbeitung" : "druck";
   const desc = dir === "desc";
   const supabase = await createClient();
   const { data: cfgRow } = await supabase
@@ -523,7 +532,7 @@ export default async function DruckDashboard({
   return (
     <>
       <div className="toolbar" style={{ justifyContent: "space-between" }}>
-        <h1 style={{ margin: 0 }}>Druck-Dashboard</h1>
+        <h1 style={{ margin: 0 }}>Dashboard</h1>
         <div className="toolbar" style={{ gap: 8, alignItems: "center" }}>
           <Link href="/druck/plan" className="ghost" style={{ padding: "7px 12px" }}>
             Belegungs-Board →
@@ -533,20 +542,39 @@ export default async function DruckDashboard({
           </Link>
         </div>
       </div>
-      <div style={{ margin: "6px 0 10px" }}>
+
+      <div className="toolbar" style={{ gap: 6, marginTop: 4 }}>
+        {ABTEILUNGEN.map((a) => {
+          const href = a.key === "druck" ? "/druck" : "/druck?abteilung=weiterverarbeitung";
+          const aktiv = a.key === abteilung;
+          return (
+            <Link
+              key={a.key}
+              href={href}
+              className={aktiv ? undefined : "ghost"}
+              style={{ padding: "7px 14px" }}
+            >
+              {a.label}
+            </Link>
+          );
+        })}
+      </div>
+
+      <div style={{ margin: "10px 0" }}>
         <SortControls />
       </div>
       <p className="lead">
-        Batches sammeln Arbeitsvorgänge auftragsübergreifend. Druck-Batches sind nach
-        Anzahl Loops · Farbe Spirale · Durchmesser gruppiert (aus der Wire-O-Zeile); der
-        flux-Versand läuft je Auftrag im Druckauftrag.
+        Batches sammeln Arbeitsvorgänge auftragsübergreifend.{" "}
+        {abteilung === "druck"
+          ? "Druck-Batches sind nach Anzahl Loops · Farbe Spirale · Durchmesser gruppiert (aus der Wire-O-Zeile); der flux-Versand läuft je Auftrag im Druckauftrag."
+          : "Cellophanieren, Binden und Konfektionieren - über \"Gruppieren\"/\"Untergruppieren\" oben nach den passenden Kriterien zusammenstellen (z. B. Durchmesser, dann Farbe Spirale oder Anzahl Loops)."}
       </p>
 
       {batches.length === 0 && (
         <p className="lead">Noch keine Batches. In einem Auftrag „Jobs erzeugen" klicken.</p>
       )}
 
-      {TYPEN.map(({ typ, label, hint }) => {
+      {TYPEN.filter((t) => t.abteilung === abteilung).map(({ typ, label, hint }) => {
         const list = batches.filter((b) => b.typ === typ && (b.job?.length ?? 0) > 0);
         if (!list.length) return null;
         return (
@@ -626,9 +654,40 @@ export default async function DruckDashboard({
                           )}
                         </summary>
                         <div style={{ marginTop: 4 }}>
-                          {gb.map((b) => (
-                            <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
-                          ))}
+                          {group2 ? (
+                            Object.entries(
+                              gb.reduce<Record<string, Batch[]>>((acc, b) => {
+                                const k = critWert(b, group2, cfg);
+                                (acc[k] ??= []).push(b);
+                                return acc;
+                              }, {}),
+                            )
+                              .sort((x, y) => x[0].localeCompare(y[0], "de", { numeric: true }))
+                              .map(([sk, sb]) => (
+                                <details key={sk || "_"} open style={{ marginLeft: 14, marginBottom: 10 }}>
+                                  <summary
+                                    style={{
+                                      cursor: "pointer",
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      color: "var(--muted)",
+                                      margin: "6px 0 4px",
+                                    }}
+                                  >
+                                    {DIM_LABEL[group2] ?? group2}: {sk} · {sb.length}
+                                  </summary>
+                                  <div style={{ marginTop: 4 }}>
+                                    {sb.map((b) => (
+                                      <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
+                                    ))}
+                                  </div>
+                                </details>
+                              ))
+                          ) : (
+                            gb.map((b) => (
+                              <BatchCard key={b.id} b={b} cfg={cfg} gruppeKuerzel={gruppeKuerzel} fluxUrlTpl={fluxUrlTpl} />
+                            ))
+                          )}
                         </div>
                       </details>
                     ) : (
