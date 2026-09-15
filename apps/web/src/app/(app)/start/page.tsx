@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { FaelligTable, type FaelligOrder, type Gruppe } from "./FaelligTable";
+import { PortalPullButton } from "../druckauftraege/PortalPullButton";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,7 @@ export default async function StartPage({
     { data: faelligData, error: faelligError },
     { data: eingangData, error: eingangError },
     { data: gruppenData },
+    { data: lastPull },
   ] = await Promise.all([
     supabase
       .from("portal_order")
@@ -75,6 +77,13 @@ export default async function StartPage({
       .from("portal_order")
       .select("received_at, portal_state, pc1:raw->>createdAt, pc2:raw->>api_createdAt_raw"),
     supabase.from("opri_produkt_gruppe").select("kuerzel, name"),
+    supabase
+      .from("sync_request")
+      .select("status, requested_at, finished_at, error")
+      .eq("job", "portal:pull")
+      .order("requested_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
   const gruppeName = new Map((gruppenData ?? []).map((g) => [g.kuerzel as string, g.name as string]));
 
@@ -184,7 +193,10 @@ export default async function StartPage({
 
         <section className="kachel">
           <div className="kachel-head">
-            <h2>Eingehende Aufträge</h2>
+            <span style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <h2>Eingehende Aufträge</h2>
+              <PortalPullButton last={lastPull ?? null} />
+            </span>
             <span className="count">{heuteEingang} heute</span>
           </div>
           {eingangError && <div className="banner-err">Fehler beim Laden: {eingangError.message}</div>}
