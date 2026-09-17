@@ -187,7 +187,7 @@ export default async function StartPage({
               <span className="gruppen-chevron">▸</span>
               Aufträge anzeigen
             </summary>
-            <FaelligTable rows={shown} />
+            <FaelligTable rows={shown} gruppe={filterGruppe || undefined} />
           </details>
         </section>
 

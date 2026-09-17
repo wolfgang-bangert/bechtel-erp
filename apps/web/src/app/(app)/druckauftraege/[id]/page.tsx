@@ -114,10 +114,20 @@ type Detail = {
 
 export default async function DruckauftragPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string; gruppe?: string }>;
 }) {
   const { id } = await params;
+  const { from, gruppe } = await searchParams;
+  // Von der Start-Fälligkeiten-Kachel aufgerufen? Dann auch dorthin zurück
+  // (mit demselben Filter, falls einer aktiv war), statt immer auf die
+  // (dort meist gar nicht sichtbare) volle Liste.
+  const back =
+    from === "start"
+      ? { href: gruppe ? `/start?gruppe=${gruppe}` : "/start", label: "← Start" }
+      : { href: "/druckauftraege", label: "← Liste" };
   const supabase = await createClient();
 
   const { data: raw } = await supabase
@@ -259,8 +269,8 @@ export default async function DruckauftragPage({
           Druckauftrag {data.external_reference}{" "}
           <span className="tag">{data.portal_state ?? "?"}</span>
         </h1>
-        <Link href="/druckauftraege" className="ghost" style={{ padding: "7px 12px" }}>
-          ← Liste
+        <Link href={back.href} className="ghost" style={{ padding: "7px 12px" }}>
+          {back.label}
         </Link>
       </div>
       <p className="lead">

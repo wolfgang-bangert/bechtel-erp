@@ -38,8 +38,9 @@ function fmtDate(iso: string) {
 
 /** Klick auf eine Zeile führt direkt zum Auftrag (Produktionsstatus), nicht zu
  *  einem Versand-Popup - der Auftrag selbst ist hier die zentrale Einheit. */
-export function FaelligTable({ rows }: { rows: FaelligOrder[] }) {
+export function FaelligTable({ rows, gruppe }: { rows: FaelligOrder[]; gruppe?: Gruppe }) {
   const router = useRouter();
+  const rueckQuery = `from=start${gruppe ? `&gruppe=${gruppe}` : ""}`;
 
   return (
     <div className="table-scroll">
@@ -56,7 +57,11 @@ export function FaelligTable({ rows }: { rows: FaelligOrder[] }) {
         </thead>
         <tbody>
           {rows.map((o) => (
-            <tr key={o.id} onClick={() => router.push(`/druckauftraege/${o.id}`)} style={{ cursor: "pointer" }}>
+            <tr
+              key={o.id}
+              onClick={() => router.push(`/druckauftraege/${o.id}?${rueckQuery}`)}
+              style={{ cursor: "pointer" }}
+            >
               <td>
                 <span
                   className={GRUPPE_CLS[o.gruppe]}
