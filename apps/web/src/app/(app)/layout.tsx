@@ -47,6 +47,9 @@ export default async function AppLayout({
         <Link href="/versand">Sendungen</Link>
         <Link href="/versand/vergleich">Frachtpreis-Vergleich</Link>
 
+        <div className="nav-group">Werkzeuge</div>
+        <Link href="/werkzeuge/pdf-kombinieren">PDF: Seiten nebeneinander</Link>
+
         <div className="nav-group">Einstellungen</div>
         <Link href="/einstellungen">Übersicht</Link>
         <Link href="/einstellungen/sachkonten">Sachkonten</Link>

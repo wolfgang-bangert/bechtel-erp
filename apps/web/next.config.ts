@@ -9,7 +9,11 @@ const nextConfig: NextConfig = {
   // Workspace-Paket mit rohem TS-Quellcode (packages/shared) mitkompilieren
   transpilePackages: ["@werk/shared"],
   experimental: {
-    // Server Actions von diesem Ursprung erlauben (lokale Entwicklung)
+    serverActions: {
+      // Next.js-Default ist 1 MB - zu wenig für PDF-Uploads (Druckdaten,
+      // Arbeitsvorgang-Anhänge, PDF-Kombinieren-Werkzeug).
+      bodySizeLimit: "25mb",
+    },
   },
 };
 
