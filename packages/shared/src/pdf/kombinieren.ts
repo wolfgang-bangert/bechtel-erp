@@ -72,22 +72,28 @@ export async function pdfMetadaten(bytes: Uint8Array): Promise<PdfMetadaten> {
 type Box = { x: number; y: number; width: number; height: number };
 type Matrix6 = [number, number, number, number, number, number];
 
-/**
- * pdf-lib embedded eine Seite immer "roh", ohne den eigenen /Rotate-Eintrag
- * zu berücksichtigen (getestet: embedPages() ignoriert die Rotation komplett -
- * Inhalt kommt unverändert raus, auch wenn die Seite z.B. auf 90°/180°
- * gedreht angezeigt werden soll). Ohne diese Funktion würde eine gedrehte
- * Quellseite (häufig bei "Wende"-Produkten, wo die zweite Hälfte auf den Kopf
- * gestellt ist) falsch (ungedreht) im Ergebnis landen.
- *
- * Baut die Rotation direkt in eine Transformationsmatrix ein (Rotation +
- * Verschiebung, sodass der rotierte Inhalt bei (0,0) beginnt) und rendert die
- * Seite einmal in ein Zwischendokument, mit allen Boxen entsprechend gedreht.
- * Seiten mit Rotate=0 (der Normalfall) bleiben unverändert.
- */
-function rotationsMatrix(winkel: 90 | 180 | 270, media: Box): Matrix6 {
-  const { x: bx, y: by, width: bw, height: bh } = media;
+// ---------------------------------------------------------------------------
+// Affine 2D-Hilfsfunktionen für die Rotationsbehandlung.
+//
+// pdf-lib embeddet eine Seite immer "roh", ohne ihren eigenen /Rotate-Eintrag
+// zu berücksichtigen (durch einen isolierten Test bestätigt: der Inhalt einer
+// auf 90°/180° gedrehten Quellseite kommt unverändert/ungedreht raus). Häufig
+// bei "Wende"-Produkten, wo die zweite Buchhälfte auf den Kopf gestellt ist.
+//
+// Alles läuft in EINEM embedPage()-Aufruf pro Seite (nicht über ein
+// Zwischendokument!) - ein zweiter Test hat gezeigt, dass eine Seite, die
+// selbst schon eine eingebettete Seite enthält, beim nochmaligen Einbetten in
+// ein drittes Dokument ihren Inhalt komplett verliert (leere Seite statt
+// Fehler). Die Rotation steckt deshalb direkt in der an embedPage()
+// übergebenen Matrix, zusammen mit der Verschiebung (Box -> Ursprung) und der
+// späteren Skalierung (fürs Angleichen der Trimhöhen) - alles in einer Matrix.
+// ---------------------------------------------------------------------------
+
+function rotationsMatrix(winkel: 0 | 90 | 180 | 270, box: Box): Matrix6 {
+  const { x: bx, y: by, width: bw, height: bh } = box;
   switch (winkel) {
+    case 0:
+      return [1, 0, 0, 1, -bx, -by];
     case 90:
       return [0, -1, 1, 0, -by, bx + bw];
     case 180:
@@ -95,6 +101,11 @@ function rotationsMatrix(winkel: 90 | 180 | 270, media: Box): Matrix6 {
     case 270:
       return [0, 1, -1, 0, by + bh, -bx];
   }
+}
+
+function normWinkel(angle: number): 0 | 90 | 180 | 270 {
+  const w = ((angle % 360) + 360) % 360;
+  return w === 90 || w === 180 || w === 270 ? w : 0;
 }
 
 function transformPunkt(m: Matrix6, x: number, y: number): [number, number] {
@@ -115,38 +126,76 @@ function transformBox(m: Matrix6, box: Box): Box {
   return { x: minX, y: minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY };
 }
 
-async function normalisierteSeite(quellPage: PDFPage): Promise<PDFPage> {
-  const winkel = ((quellPage.getRotation().angle % 360) + 360) % 360;
-  if (winkel !== 90 && winkel !== 180 && winkel !== 270) return quellPage; // 0° (Normalfall) oder unerwarteter Wert
+function invertMatrix([a, b, c, d, e, f]: Matrix6): Matrix6 {
+  const det = a * d - b * c;
+  return [d / det, -b / det, -c / det, a / det, (c * f - d * e) / det, (b * e - a * f) / det];
+}
 
-  const media = quellPage.getMediaBox();
-  const mat = rotationsMatrix(winkel, media);
-  const neuMedia = transformBox(mat, media);
+function skaliereMatrix(m: Matrix6, s: number): Matrix6 {
+  return [m[0] * s, m[1] * s, m[2] * s, m[3] * s, m[4] * s, m[5] * s];
+}
 
-  const zwischendoc = await PDFDocument.create();
-  const bbox = {
-    left: media.x,
-    bottom: media.y,
-    right: media.x + media.width,
-    top: media.y + media.height,
+/**
+ * Bereitet eine Quellseite fürs Kombinieren vor: rotationskorrigierte
+ * ("visuelle") Trimhöhe + Beschnitt an den 3 äußeren Kanten, dazu die
+ * BoundingBox (in der ROHEN/unrotierten Koordinaten der Quellseite - genau
+ * dort clippt embedPage()) und eine Basismatrix, die Rotation + Verschiebung
+ * (Box -> Ursprung) in einem Schritt erledigt. Die Naht-Seite (rechte Kante
+ * links / linke Kante rechts) wird hart auf TrimBox gekappt - das ist eine
+ * Falz-/Stoßkante, keine Schnittkante, dort braucht es keinen Beschnitt.
+ */
+function bereiteSeiteVor(page: PDFPage, position: "links" | "rechts") {
+  const winkel = normWinkel(page.getRotation().angle);
+  const rawTrim = page.getTrimBox();
+  const rawBleed = page.getBleedBox();
+
+  // Rotationsmatrix, verankert an der BleedBox (beliebiger, aber
+  // konsistenter Anker) - ergibt "visuelle" (rotationskorrigierte)
+  // Koordinaten mit der BleedBox bei (0,0).
+  const matBleed = rotationsMatrix(winkel, rawBleed);
+  const visTrim = transformBox(matBleed, rawTrim);
+  const visBleed = transformBox(matBleed, rawBleed); // == {x:0, y:0, width, height}
+
+  const visMixedBB: Box =
+    position === "links"
+      ? { x: 0, y: 0, width: visTrim.x + visTrim.width, height: visBleed.height }
+      : { x: visTrim.x, y: 0, width: visBleed.width - visTrim.x, height: visBleed.height };
+
+  // Dieselbe Rotation, jetzt so verschoben, dass visMixedBB bei (0,0) beginnt.
+  const matBasis: Matrix6 = [
+    matBleed[0],
+    matBleed[1],
+    matBleed[2],
+    matBleed[3],
+    matBleed[4] - visMixedBB.x,
+    matBleed[5] - visMixedBB.y,
+  ];
+  // BoundingBox für embedPage() muss in ROHEN Quellkoordinaten sein (PDF Form
+  // XObjects clippen vor Anwendung der Matrix) - visMixedBB durch die
+  // Umkehrung von matBleed zurückrechnen.
+  const rawMixedBB = transformBox(invertMatrix(matBleed), visMixedBB);
+
+  const beschnittAussen =
+    position === "links"
+      ? visTrim.x // Abstand Beschnitt-links -> Trim-links
+      : visBleed.width - (visTrim.x + visTrim.width); // Abstand Trim-rechts -> Beschnitt-rechts
+
+  return {
+    page,
+    matBasis,
+    rawBB: {
+      left: rawMixedBB.x,
+      bottom: rawMixedBB.y,
+      right: rawMixedBB.x + rawMixedBB.width,
+      top: rawMixedBB.y + rawMixedBB.height,
+    },
+    breite: visMixedBB.width,
+    hoehe: visMixedBB.height,
+    trimHoehe: visTrim.height,
+    beschnittAussen,
+    beschnittUnten: visTrim.y,
+    beschnittOben: visBleed.height - (visTrim.y + visTrim.height),
   };
-  const [embedded] = await zwischendoc.embedPages([quellPage], [bbox], [mat]);
-  const neuePage = zwischendoc.addPage([neuMedia.width, neuMedia.height]);
-  // Keine width/height angeben: die Rotation steckt schon in der Matrix, eine
-  // zusätzliche Skalierung über drawPage würde mit embeddedPage.width/height
-  // (den UNgedrehten Rohmaßen) rechnen und das Ergebnis verzerren.
-  neuePage.drawPage(embedded, { x: 0, y: 0 });
-
-  const setzeBox = (box: Box, set: (x: number, y: number, w: number, h: number) => void) => {
-    const b = transformBox(mat, box);
-    set(b.x, b.y, b.width, b.height);
-  };
-  setzeBox(quellPage.getTrimBox(), (x, y, w, h) => neuePage.setTrimBox(x, y, w, h));
-  setzeBox(quellPage.getBleedBox(), (x, y, w, h) => neuePage.setBleedBox(x, y, w, h));
-  setzeBox(quellPage.getCropBox(), (x, y, w, h) => neuePage.setCropBox(x, y, w, h));
-  setzeBox(quellPage.getArtBox(), (x, y, w, h) => neuePage.setArtBox(x, y, w, h));
-
-  return neuePage;
 }
 
 // Marken brauchen Platz JENSEITS des Beschnitts - bei echten Druck-PDFs ist
@@ -209,7 +258,8 @@ function zeichneSchnittmarken(
  * Beschnitt, keine Schneidezeichen dort (Falz-/Stoßkante, keine Schnittkante).
  * Die 3 äußeren Kanten jeder Seite behalten ihren originalen Beschnitt
  * (BleedBox), außen kommen wieder Schneidezeichen dazu - wie bei einer
- * normal ausgeschossenen Druckvorlage.
+ * normal ausgeschossenen Druckvorlage. Gedrehte Quellseiten (z.B. "Wende"-
+ * Produkte) werden dabei korrekt gedreht.
  */
 export async function seitenNebeneinander(
   bytes: Uint8Array,
@@ -228,83 +278,50 @@ export async function seitenNebeneinander(
     }
   }
 
-  // Gedrehte Seiten (z.B. "Wende"-Produkte mit auf den Kopf gestellter
-  // zweiter Hälfte) erst auf Rotate=0 normalisieren - sonst embedPages()
-  // ignoriert die Rotation und der Inhalt landet ungedreht im Ergebnis.
-  const linksPage = await normalisierteSeite(src.getPage(linkeSeite - 1));
-  const rechtsPage = await normalisierteSeite(src.getPage(rechteSeite - 1));
-
-  const lTrim = linksPage.getTrimBox();
-  const lBleed = linksPage.getBleedBox();
-  const rTrim = rechtsPage.getTrimBox();
-  const rBleed = rechtsPage.getBleedBox();
-
-  // Embed-BoundingBox je Seite: außen bis zur BleedBox, innen (Naht) hart auf
-  // TrimBox gekappt - sonst würde die BleedBox der Nachbarseite überlappen.
-  const linksBB = {
-    left: lBleed.x,
-    bottom: lBleed.y,
-    right: lTrim.x + lTrim.width,
-    top: lBleed.y + lBleed.height,
-  };
-  const rechtsBB = {
-    left: rTrim.x,
-    bottom: rBleed.y,
-    right: rBleed.x + rBleed.width,
-    top: rBleed.y + rBleed.height,
-  };
-
-  const out = await PDFDocument.create();
-  // Einzeln statt gebündelt via embedPages(): links/rechts können aus
-  // unterschiedlichen Dokumenten stammen (z.B. wenn nur eine der beiden
-  // Seiten in normalisierteSeite() in ein Zwischendokument gerendert wurde) -
-  // embedPages() verlangt dagegen denselben Kontext für alle Seiten im Array.
-  const links = await out.embedPage(linksPage, linksBB);
-  const rechts = await out.embedPage(rechtsPage, rechtsBB);
+  const L = bereiteSeiteVor(src.getPage(linkeSeite - 1), "links");
+  const R = bereiteSeiteVor(src.getPage(rechteSeite - 1), "rechts");
 
   // Beide Seiten auf dieselbe Trimhöhe skalieren (Normalfall: identisch,
   // ändert nichts), damit die Naht exakt passt.
-  const trimHoehe = Math.max(lTrim.height, rTrim.height);
-  const scaleL = trimHoehe / lTrim.height;
-  const scaleR = trimHoehe / rTrim.height;
+  const trimHoehe = Math.max(L.trimHoehe, R.trimHoehe);
+  const scaleL = trimHoehe / L.trimHoehe;
+  const scaleR = trimHoehe / R.trimHoehe;
 
-  const linksBreite = links.width * scaleL;
-  const linksHoehe = links.height * scaleL;
-  const rechtsBreite = rechts.width * scaleR;
-  const rechtsHoehe = rechts.height * scaleR;
+  const out = await PDFDocument.create();
+  // Einzeln statt gebündelt via embedPages(): links/rechts können aus
+  // unterschiedlichen Quell-Rotationszuständen stammen; die Skalierung steckt
+  // direkt in der Matrix, drawPage() bekommt deshalb bewusst keine eigene
+  // width/height mehr (das würde mit den unrotierten Rohmaßen rechnen).
+  const linksEmbed = await out.embedPage(L.page, L.rawBB, skaliereMatrix(L.matBasis, scaleL));
+  const rechtsEmbed = await out.embedPage(R.page, R.rawBB, skaliereMatrix(R.matBasis, scaleR));
 
-  const beschnittLinksAussen = (lTrim.x - lBleed.x) * scaleL;
-  const beschnittUntenL = (lTrim.y - lBleed.y) * scaleL;
-  const beschnittObenL = (lBleed.y + lBleed.height - (lTrim.y + lTrim.height)) * scaleL;
+  const linksBreite = L.breite * scaleL;
+  const linksHoehe = L.hoehe * scaleL;
+  const rechtsBreite = R.breite * scaleR;
+  const rechtsHoehe = R.hoehe * scaleR;
 
-  const beschnittRechtsAussen = (rBleed.x + rBleed.width - (rTrim.x + rTrim.width)) * scaleR;
-  const beschnittUntenR = (rTrim.y - rBleed.y) * scaleR;
-  const beschnittObenR = (rBleed.y + rBleed.height - (rTrim.y + rTrim.height)) * scaleR;
+  const beschnittLinksAussen = L.beschnittAussen * scaleL;
+  const beschnittUntenL = L.beschnittUnten * scaleL;
+  const beschnittObenL = L.beschnittOben * scaleL;
+
+  const beschnittRechtsAussen = R.beschnittAussen * scaleR;
+  const beschnittUntenR = R.beschnittUnten * scaleR;
+  const beschnittObenR = R.beschnittOben * scaleR;
 
   const beschnittUnten = Math.max(beschnittUntenL, beschnittUntenR);
   const beschnittOben = Math.max(beschnittObenL, beschnittObenR);
 
   // Alles (Inhalt + Beschnitt) um MARKEN_RAND nach innen verschoben - der so
   // freiwerdende äußere Rand ist ausschließlich für die Schneidezeichen da.
-  const naht = MARKEN_RAND + beschnittLinksAussen + lTrim.width * scaleL; // x-Koordinate der Stoßkante
-  const trimBreiteGesamt = lTrim.width * scaleL + rTrim.width * scaleR;
-  const pageWidth = naht + rTrim.width * scaleR + beschnittRechtsAussen + MARKEN_RAND;
+  const naht = MARKEN_RAND + beschnittLinksAussen + (linksBreite - beschnittLinksAussen); // x-Koordinate der Stoßkante
+  const trimBreiteGesamt = (linksBreite - beschnittLinksAussen) + (rechtsBreite - beschnittRechtsAussen);
+  const pageWidth = naht + (rechtsBreite - beschnittRechtsAussen) + beschnittRechtsAussen + MARKEN_RAND;
   const pageHeight = MARKEN_RAND + beschnittUnten + trimHoehe + beschnittOben + MARKEN_RAND;
   const trimY = MARKEN_RAND + beschnittUnten;
 
   const neueSeite = out.addPage([pageWidth, pageHeight]);
-  neueSeite.drawPage(links, {
-    x: naht - linksBreite,
-    y: trimY - beschnittUntenL,
-    width: linksBreite,
-    height: linksHoehe,
-  });
-  neueSeite.drawPage(rechts, {
-    x: naht,
-    y: trimY - beschnittUntenR,
-    width: rechtsBreite,
-    height: rechtsHoehe,
-  });
+  neueSeite.drawPage(linksEmbed, { x: naht - linksBreite, y: trimY - beschnittUntenL });
+  neueSeite.drawPage(rechtsEmbed, { x: naht, y: trimY - beschnittUntenR });
 
   const trim: Box = { x: MARKEN_RAND + beschnittLinksAussen, y: trimY, width: trimBreiteGesamt, height: trimHoehe };
   zeichneSchnittmarken(neueSeite, trim, {
