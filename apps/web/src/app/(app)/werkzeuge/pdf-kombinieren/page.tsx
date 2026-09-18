@@ -9,7 +9,8 @@ export default function PdfKombinierenPage() {
       <p className="lead" style={{ marginTop: 0 }}>
         PDF hochladen (wird nur temporär abgelegt), zwei Seiten wählen und als eine
         doppelt breite Seite herunterladen - z. B. Seite 1 + letzte Seite aus 18x A4 zu
-        1x A3 (Umschlag/Deckblatt-Fall).
+        1x A3 (Umschlag/Deckblatt-Fall). Die Naht in der Mitte stößt exakt im Endformat
+        aneinander, außen bleiben Beschnitt und Schneidezeichen erhalten.
       </p>
       <PdfKombinierenForm />
     </>
