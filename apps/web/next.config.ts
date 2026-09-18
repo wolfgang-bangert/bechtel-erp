@@ -11,8 +11,9 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       // Next.js-Default ist 1 MB - zu wenig für PDF-Uploads (Druckdaten,
-      // Arbeitsvorgang-Anhänge, PDF-Kombinieren-Werkzeug).
-      bodySizeLimit: "25mb",
+      // Arbeitsvorgang-Anhänge, PDF-Kombinieren-Werkzeug). 25 MB war in der
+      // Praxis auch schon zu knapp (echte Druck-PDF mit 31 MB scheiterte).
+      bodySizeLimit: "100mb",
     },
   },
 };
