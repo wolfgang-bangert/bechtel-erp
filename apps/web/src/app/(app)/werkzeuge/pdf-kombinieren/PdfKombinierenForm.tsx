@@ -10,7 +10,8 @@ export function PdfKombinierenForm() {
   const [upload, uploadAction, uploadPending] = useActionState(uploadPdfAction, emptyUpload);
   const [del, deleteAction, deletePending] = useActionState(deleteTempPdfAction, emptyDelete);
 
-  const pageCount = upload.pageCount ?? 0;
+  const meta = upload.metadaten;
+  const pageCount = meta?.pageCount ?? 0;
   const [links, setLinks] = useState(1);
   const [rechts, setRechts] = useState(1);
 
@@ -78,6 +79,97 @@ export function PdfKombinierenForm() {
             </form>
           </div>
           {del.error && <div className="msg-err">{del.error}</div>}
+
+          {meta && (
+            <>
+              {(meta.titel || meta.autor || meta.ersteller || meta.produzent || meta.erstelltAm || meta.geaendertAm) && (
+                <dl className="kv">
+                  {meta.titel && (
+                    <>
+                      <dt>Titel</dt>
+                      <dd>{meta.titel}</dd>
+                    </>
+                  )}
+                  {meta.autor && (
+                    <>
+                      <dt>Autor</dt>
+                      <dd>{meta.autor}</dd>
+                    </>
+                  )}
+                  {meta.ersteller && (
+                    <>
+                      <dt>Ersteller (Creator)</dt>
+                      <dd>{meta.ersteller}</dd>
+                    </>
+                  )}
+                  {meta.produzent && (
+                    <>
+                      <dt>Produzent</dt>
+                      <dd>{meta.produzent}</dd>
+                    </>
+                  )}
+                  {meta.erstelltAm && (
+                    <>
+                      <dt>Erstellt am</dt>
+                      <dd>{new Date(meta.erstelltAm).toLocaleString("de-DE")}</dd>
+                    </>
+                  )}
+                  {meta.geaendertAm && (
+                    <>
+                      <dt>Geändert am</dt>
+                      <dd>{new Date(meta.geaendertAm).toLocaleString("de-DE")}</dd>
+                    </>
+                  )}
+                </dl>
+              )}
+
+              <div className="table-scroll">
+                <table className="data">
+                  <thead>
+                    <tr>
+                      <th>Seite</th>
+                      <th>TrimBox (Endformat)</th>
+                      <th>MediaBox</th>
+                      <th>CropBox</th>
+                      <th>BleedBox</th>
+                      <th>ArtBox</th>
+                      <th>Rotation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {meta.seiten.map((s) => (
+                      <tr key={s.seite} className={s.seite === links || s.seite === rechts ? "gruppen-zeile" : undefined}>
+                        <td>
+                          {s.seite}
+                          {s.seite === links && " ← links"}
+                          {s.seite === rechts && " ← rechts"}
+                        </td>
+                        <td>
+                          <strong>
+                            {s.trimBox.breiteMm} × {s.trimBox.hoeheMm} mm
+                          </strong>
+                          <span className="count"> ({s.trimBox.breitePt} × {s.trimBox.hoehePt} pt)</span>
+                        </td>
+                        <td className="count">
+                          {s.mediaBox.breiteMm} × {s.mediaBox.hoeheMm} mm
+                        </td>
+                        <td className="count">
+                          {s.cropBox.breiteMm} × {s.cropBox.hoeheMm} mm
+                        </td>
+                        <td className="count">
+                          {s.bleedBox.breiteMm} × {s.bleedBox.hoeheMm} mm
+                        </td>
+                        <td className="count">
+                          {s.artBox.breiteMm} × {s.artBox.hoeheMm} mm
+                        </td>
+                        <td className="count">{s.rotation}°</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
 
           {upload.previewUrl && (
             <iframe
