@@ -4,9 +4,11 @@
  * Seite rechts. Reine Byte-Verarbeitung, kein Storage-Zugriff hier (analog
  * zu pdfSplit.ts) - der Aufrufer lädt/speichert selbst.
  */
-import { PDFDocument, type PDFPage } from "pdf-lib";
+import { PDFDocument, rgb, type PDFPage } from "pdf-lib";
 
 const PT_ZU_MM = 25.4 / 72;
+const MM_ZU_PT = 72 / 25.4;
+const mmZuPt = (mm: number) => mm * MM_ZU_PT;
 const runden = (n: number, stellen = 1) => Math.round(n * 10 ** stellen) / 10 ** stellen;
 
 export type Boxmass = { breitePt: number; hoehePt: number; breiteMm: number; hoeheMm: number };
@@ -67,16 +69,71 @@ export async function pdfMetadaten(bytes: Uint8Array): Promise<PdfMetadaten> {
   };
 }
 
-/** TrimBox (Endformat nach dem Schnitt) als Embed-BoundingBox - ohne das
- *  würde embedPdf() die volle MediaBox nehmen und Beschnitt/Schneidezeichen
- *  blieben im Ergebnis sichtbar. Ohne gesetzte TrimBox fällt pdf-lib auf
- *  CropBox bzw. MediaBox zurück (unverändertes Verhalten für solche PDFs). */
-function trimBoundingBox(page: PDFPage) {
-  const { x, y, width, height } = page.getTrimBox();
-  return { left: x, bottom: y, right: x + width, top: y + height };
+type Box = { x: number; y: number; width: number; height: number };
+
+/** Schneidezeichen an einer Ecke des Trimbereichs - je eine kurze horizontale
+ *  und vertikale Linie im Beschnittbereich, mit kleiner Lücke zur Trim-Kante
+ *  (Standard-Druckerei-Konvention). Länge wird auf den tatsächlich
+ *  vorhandenen Beschnitt begrenzt - kein Zeichnen ins Leere/über den Rand. */
+function eckmarke(
+  page: PDFPage,
+  ecke: { x: number; y: number; dx: -1 | 1; dy: -1 | 1; freiX: number; freiY: number },
+) {
+  const gap = mmZuPt(2);
+  const len = mmZuPt(4);
+  const dicke = 0.5;
+  const farbe = rgb(0, 0, 0);
+
+  const lenX = Math.min(len, ecke.freiX - gap);
+  const lenY = Math.min(len, ecke.freiY - gap);
+  if (lenX > 0.5) {
+    page.drawLine({
+      start: { x: ecke.x + ecke.dx * gap, y: ecke.y },
+      end: { x: ecke.x + ecke.dx * (gap + lenX), y: ecke.y },
+      thickness: dicke,
+      color: farbe,
+    });
+  }
+  if (lenY > 0.5) {
+    page.drawLine({
+      start: { x: ecke.x, y: ecke.y + ecke.dy * gap },
+      end: { x: ecke.x, y: ecke.y + ecke.dy * (gap + lenY) },
+      thickness: dicke,
+      color: farbe,
+    });
+  }
 }
 
-/** Seitenzahlen sind 1-basiert (wie im UI angezeigt). */
+/** Schneidezeichen an den 4 echten Außenecken des kombinierten Endformats
+ *  (nicht an der Naht in der Mitte - das ist eine Falz-/Stoßkante, keine
+ *  Schnittkante). */
+function zeichneSchnittmarken(page: PDFPage, trim: Box, pageWidth: number, pageHeight: number) {
+  const links = trim.x;
+  const rechts = trim.x + trim.width;
+  const unten = trim.y;
+  const oben = trim.y + trim.height;
+
+  eckmarke(page, { x: links, y: unten, dx: -1, dy: -1, freiX: links, freiY: unten });
+  eckmarke(page, { x: rechts, y: unten, dx: 1, dy: -1, freiX: pageWidth - rechts, freiY: unten });
+  eckmarke(page, { x: links, y: oben, dx: -1, dy: 1, freiX: links, freiY: pageHeight - oben });
+  eckmarke(page, {
+    x: rechts,
+    y: oben,
+    dx: 1,
+    dy: 1,
+    freiX: pageWidth - rechts,
+    freiY: pageHeight - oben,
+  });
+}
+
+/**
+ * Seitenzahlen sind 1-basiert (wie im UI angezeigt). Die innere Naht (rechte
+ * Kante links / linke Kante rechts) liegt exakt auf Endformat - kein
+ * Beschnitt, keine Schneidezeichen dort (Falz-/Stoßkante, keine Schnittkante).
+ * Die 3 äußeren Kanten jeder Seite behalten ihren originalen Beschnitt
+ * (BleedBox), außen kommen wieder Schneidezeichen dazu - wie bei einer
+ * normal ausgeschossenen Druckvorlage.
+ */
 export async function seitenNebeneinander(
   bytes: Uint8Array,
   linkeSeite: number,
@@ -97,22 +154,73 @@ export async function seitenNebeneinander(
   const linksPage = src.getPage(linkeSeite - 1);
   const rechtsPage = src.getPage(rechteSeite - 1);
 
+  const lTrim = linksPage.getTrimBox();
+  const lBleed = linksPage.getBleedBox();
+  const rTrim = rechtsPage.getTrimBox();
+  const rBleed = rechtsPage.getBleedBox();
+
+  // Embed-BoundingBox je Seite: außen bis zur BleedBox, innen (Naht) hart auf
+  // TrimBox gekappt - sonst würde die BleedBox der Nachbarseite überlappen.
+  const linksBB = {
+    left: lBleed.x,
+    bottom: lBleed.y,
+    right: lTrim.x + lTrim.width,
+    top: lBleed.y + lBleed.height,
+  };
+  const rechtsBB = {
+    left: rTrim.x,
+    bottom: rBleed.y,
+    right: rBleed.x + rBleed.width,
+    top: rBleed.y + rBleed.height,
+  };
+
   const out = await PDFDocument.create();
-  const [links, rechts] = await out.embedPages(
-    [linksPage, rechtsPage],
-    [trimBoundingBox(linksPage), trimBoundingBox(rechtsPage)],
-  );
+  const [links, rechts] = await out.embedPages([linksPage, rechtsPage], [linksBB, rechtsBB]);
 
-  // Beide Quellseiten auf gleiche Höhe skalieren (bei exakt gleich großen
-  // Seiten - dem Normalfall, z.B. 2x A4 - ändert das nichts) und
-  // nebeneinander auf eine neue Seite zeichnen.
-  const height = Math.max(links.height, rechts.height);
-  const linksBreite = links.width * (height / links.height);
-  const rechtsBreite = rechts.width * (height / rechts.height);
+  // Beide Seiten auf dieselbe Trimhöhe skalieren (Normalfall: identisch,
+  // ändert nichts), damit die Naht exakt passt.
+  const trimHoehe = Math.max(lTrim.height, rTrim.height);
+  const scaleL = trimHoehe / lTrim.height;
+  const scaleR = trimHoehe / rTrim.height;
 
-  const page = out.addPage([linksBreite + rechtsBreite, height]);
-  page.drawPage(links, { x: 0, y: 0, width: linksBreite, height });
-  page.drawPage(rechts, { x: linksBreite, y: 0, width: rechtsBreite, height });
+  const linksBreite = links.width * scaleL;
+  const linksHoehe = links.height * scaleL;
+  const rechtsBreite = rechts.width * scaleR;
+  const rechtsHoehe = rechts.height * scaleR;
+
+  const beschnittLinksAussen = (lTrim.x - lBleed.x) * scaleL;
+  const beschnittUntenL = (lTrim.y - lBleed.y) * scaleL;
+  const beschnittObenL = (lBleed.y + lBleed.height - (lTrim.y + lTrim.height)) * scaleL;
+
+  const beschnittRechtsAussen = (rBleed.x + rBleed.width - (rTrim.x + rTrim.width)) * scaleR;
+  const beschnittUntenR = (rTrim.y - rBleed.y) * scaleR;
+  const beschnittObenR = (rBleed.y + rBleed.height - (rTrim.y + rTrim.height)) * scaleR;
+
+  const beschnittUnten = Math.max(beschnittUntenL, beschnittUntenR);
+  const beschnittOben = Math.max(beschnittObenL, beschnittObenR);
+
+  const naht = beschnittLinksAussen + lTrim.width * scaleL; // x-Koordinate der Stoßkante
+  const trimBreiteGesamt = lTrim.width * scaleL + rTrim.width * scaleR;
+  const pageWidth = naht + rTrim.width * scaleR + beschnittRechtsAussen;
+  const pageHeight = beschnittUnten + trimHoehe + beschnittOben;
+
+  const neueSeite = out.addPage([pageWidth, pageHeight]);
+  neueSeite.drawPage(links, {
+    x: naht - linksBreite,
+    y: beschnittUnten - beschnittUntenL,
+    width: linksBreite,
+    height: linksHoehe,
+  });
+  neueSeite.drawPage(rechts, {
+    x: naht,
+    y: beschnittUnten - beschnittUntenR,
+    width: rechtsBreite,
+    height: rechtsHoehe,
+  });
+
+  const trim: Box = { x: beschnittLinksAussen, y: beschnittUnten, width: trimBreiteGesamt, height: trimHoehe };
+  zeichneSchnittmarken(neueSeite, trim, pageWidth, pageHeight);
+  neueSeite.setTrimBox(trim.x, trim.y, trim.width, trim.height);
 
   return out.save();
 }
