@@ -70,6 +70,84 @@ export async function pdfMetadaten(bytes: Uint8Array): Promise<PdfMetadaten> {
 }
 
 type Box = { x: number; y: number; width: number; height: number };
+type Matrix6 = [number, number, number, number, number, number];
+
+/**
+ * pdf-lib embedded eine Seite immer "roh", ohne den eigenen /Rotate-Eintrag
+ * zu berücksichtigen (getestet: embedPages() ignoriert die Rotation komplett -
+ * Inhalt kommt unverändert raus, auch wenn die Seite z.B. auf 90°/180°
+ * gedreht angezeigt werden soll). Ohne diese Funktion würde eine gedrehte
+ * Quellseite (häufig bei "Wende"-Produkten, wo die zweite Hälfte auf den Kopf
+ * gestellt ist) falsch (ungedreht) im Ergebnis landen.
+ *
+ * Baut die Rotation direkt in eine Transformationsmatrix ein (Rotation +
+ * Verschiebung, sodass der rotierte Inhalt bei (0,0) beginnt) und rendert die
+ * Seite einmal in ein Zwischendokument, mit allen Boxen entsprechend gedreht.
+ * Seiten mit Rotate=0 (der Normalfall) bleiben unverändert.
+ */
+function rotationsMatrix(winkel: 90 | 180 | 270, media: Box): Matrix6 {
+  const { x: bx, y: by, width: bw, height: bh } = media;
+  switch (winkel) {
+    case 90:
+      return [0, -1, 1, 0, -by, bx + bw];
+    case 180:
+      return [-1, 0, 0, -1, bx + bw, by + bh];
+    case 270:
+      return [0, 1, -1, 0, by + bh, -bx];
+  }
+}
+
+function transformPunkt(m: Matrix6, x: number, y: number): [number, number] {
+  return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+}
+
+function transformBox(m: Matrix6, box: Box): Box {
+  const ecken = [
+    transformPunkt(m, box.x, box.y),
+    transformPunkt(m, box.x + box.width, box.y),
+    transformPunkt(m, box.x, box.y + box.height),
+    transformPunkt(m, box.x + box.width, box.y + box.height),
+  ];
+  const xs = ecken.map((e) => e[0]);
+  const ys = ecken.map((e) => e[1]);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  return { x: minX, y: minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY };
+}
+
+async function normalisierteSeite(quellPage: PDFPage): Promise<PDFPage> {
+  const winkel = ((quellPage.getRotation().angle % 360) + 360) % 360;
+  if (winkel !== 90 && winkel !== 180 && winkel !== 270) return quellPage; // 0° (Normalfall) oder unerwarteter Wert
+
+  const media = quellPage.getMediaBox();
+  const mat = rotationsMatrix(winkel, media);
+  const neuMedia = transformBox(mat, media);
+
+  const zwischendoc = await PDFDocument.create();
+  const bbox = {
+    left: media.x,
+    bottom: media.y,
+    right: media.x + media.width,
+    top: media.y + media.height,
+  };
+  const [embedded] = await zwischendoc.embedPages([quellPage], [bbox], [mat]);
+  const neuePage = zwischendoc.addPage([neuMedia.width, neuMedia.height]);
+  // Keine width/height angeben: die Rotation steckt schon in der Matrix, eine
+  // zusätzliche Skalierung über drawPage würde mit embeddedPage.width/height
+  // (den UNgedrehten Rohmaßen) rechnen und das Ergebnis verzerren.
+  neuePage.drawPage(embedded, { x: 0, y: 0 });
+
+  const setzeBox = (box: Box, set: (x: number, y: number, w: number, h: number) => void) => {
+    const b = transformBox(mat, box);
+    set(b.x, b.y, b.width, b.height);
+  };
+  setzeBox(quellPage.getTrimBox(), (x, y, w, h) => neuePage.setTrimBox(x, y, w, h));
+  setzeBox(quellPage.getBleedBox(), (x, y, w, h) => neuePage.setBleedBox(x, y, w, h));
+  setzeBox(quellPage.getCropBox(), (x, y, w, h) => neuePage.setCropBox(x, y, w, h));
+  setzeBox(quellPage.getArtBox(), (x, y, w, h) => neuePage.setArtBox(x, y, w, h));
+
+  return neuePage;
+}
 
 // Marken brauchen Platz JENSEITS des Beschnitts - bei echten Druck-PDFs ist
 // der Beschnitt selbst oft nur 3mm, das reicht für Lücke+Marke nicht aus
@@ -150,8 +228,11 @@ export async function seitenNebeneinander(
     }
   }
 
-  const linksPage = src.getPage(linkeSeite - 1);
-  const rechtsPage = src.getPage(rechteSeite - 1);
+  // Gedrehte Seiten (z.B. "Wende"-Produkte mit auf den Kopf gestellter
+  // zweiter Hälfte) erst auf Rotate=0 normalisieren - sonst embedPages()
+  // ignoriert die Rotation und der Inhalt landet ungedreht im Ergebnis.
+  const linksPage = await normalisierteSeite(src.getPage(linkeSeite - 1));
+  const rechtsPage = await normalisierteSeite(src.getPage(rechteSeite - 1));
 
   const lTrim = linksPage.getTrimBox();
   const lBleed = linksPage.getBleedBox();
@@ -174,7 +255,12 @@ export async function seitenNebeneinander(
   };
 
   const out = await PDFDocument.create();
-  const [links, rechts] = await out.embedPages([linksPage, rechtsPage], [linksBB, rechtsBB]);
+  // Einzeln statt gebündelt via embedPages(): links/rechts können aus
+  // unterschiedlichen Dokumenten stammen (z.B. wenn nur eine der beiden
+  // Seiten in normalisierteSeite() in ein Zwischendokument gerendert wurde) -
+  // embedPages() verlangt dagegen denselben Kontext für alle Seiten im Array.
+  const links = await out.embedPage(linksPage, linksBB);
+  const rechts = await out.embedPage(rechtsPage, rechtsBB);
 
   // Beide Seiten auf dieselbe Trimhöhe skalieren (Normalfall: identisch,
   // ändert nichts), damit die Naht exakt passt.
