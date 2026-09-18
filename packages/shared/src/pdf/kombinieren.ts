@@ -71,59 +71,58 @@ export async function pdfMetadaten(bytes: Uint8Array): Promise<PdfMetadaten> {
 
 type Box = { x: number; y: number; width: number; height: number };
 
+// Marken brauchen Platz JENSEITS des Beschnitts - bei echten Druck-PDFs ist
+// der Beschnitt selbst oft nur 3mm, das reicht für Lücke+Marke nicht aus
+// (beobachtet: 3mm Beschnitt ließ nur ~1mm für die Marke übrig, praktisch
+// unsichtbar). Deshalb bekommt die Ergebnisseite einen eigenen zusätzlichen
+// Rand nur für die Marken, zusätzlich zum ggf. vorhandenen Original-Beschnitt -
+// exakt wie bei einer normal ausgeschossenen Druckvorlage (MediaBox >
+// BleedBox), unabhängig davon wie viel (oder wenig) Beschnitt die Quelle hat.
+const MARKEN_RAND = mmZuPt(5);
+const MARKEN_LAENGE = mmZuPt(4);
+const MARKEN_DICKE = 0.5;
+
 /** Schneidezeichen an einer Ecke des Trimbereichs - je eine kurze horizontale
- *  und vertikale Linie im Beschnittbereich, mit kleiner Lücke zur Trim-Kante
- *  (Standard-Druckerei-Konvention). Länge wird auf den tatsächlich
- *  vorhandenen Beschnitt begrenzt - kein Zeichnen ins Leere/über den Rand. */
+ *  und vertikale Linie, beginnend am Rand des originalen Beschnitts (gapX/
+ *  gapY) und hineinragend in den zusätzlichen Marken-Rand. */
 function eckmarke(
   page: PDFPage,
-  ecke: { x: number; y: number; dx: -1 | 1; dy: -1 | 1; freiX: number; freiY: number },
+  ecke: { x: number; y: number; dx: -1 | 1; dy: -1 | 1; gapX: number; gapY: number },
 ) {
-  const gap = mmZuPt(2);
-  const len = mmZuPt(4);
-  const dicke = 0.5;
   const farbe = rgb(0, 0, 0);
-
-  const lenX = Math.min(len, ecke.freiX - gap);
-  const lenY = Math.min(len, ecke.freiY - gap);
-  if (lenX > 0.5) {
-    page.drawLine({
-      start: { x: ecke.x + ecke.dx * gap, y: ecke.y },
-      end: { x: ecke.x + ecke.dx * (gap + lenX), y: ecke.y },
-      thickness: dicke,
-      color: farbe,
-    });
-  }
-  if (lenY > 0.5) {
-    page.drawLine({
-      start: { x: ecke.x, y: ecke.y + ecke.dy * gap },
-      end: { x: ecke.x, y: ecke.y + ecke.dy * (gap + lenY) },
-      thickness: dicke,
-      color: farbe,
-    });
-  }
+  page.drawLine({
+    start: { x: ecke.x + ecke.dx * ecke.gapX, y: ecke.y },
+    end: { x: ecke.x + ecke.dx * (ecke.gapX + MARKEN_LAENGE), y: ecke.y },
+    thickness: MARKEN_DICKE,
+    color: farbe,
+  });
+  page.drawLine({
+    start: { x: ecke.x, y: ecke.y + ecke.dy * ecke.gapY },
+    end: { x: ecke.x, y: ecke.y + ecke.dy * (ecke.gapY + MARKEN_LAENGE) },
+    thickness: MARKEN_DICKE,
+    color: farbe,
+  });
 }
 
 /** Schneidezeichen an den 4 echten Außenecken des kombinierten Endformats
  *  (nicht an der Naht in der Mitte - das ist eine Falz-/Stoßkante, keine
- *  Schnittkante). */
-function zeichneSchnittmarken(page: PDFPage, trim: Box, pageWidth: number, pageHeight: number) {
+ *  Schnittkante). gapLinks/gapRechts/gapUnten/gapOben: der jeweils an dieser
+ *  Kante vorhandene originale Beschnitt - die Marke setzt direkt dahinter an,
+ *  statt den Beschnitt zu überdecken. */
+function zeichneSchnittmarken(
+  page: PDFPage,
+  trim: Box,
+  gaps: { links: number; rechts: number; unten: number; oben: number },
+) {
   const links = trim.x;
   const rechts = trim.x + trim.width;
   const unten = trim.y;
   const oben = trim.y + trim.height;
 
-  eckmarke(page, { x: links, y: unten, dx: -1, dy: -1, freiX: links, freiY: unten });
-  eckmarke(page, { x: rechts, y: unten, dx: 1, dy: -1, freiX: pageWidth - rechts, freiY: unten });
-  eckmarke(page, { x: links, y: oben, dx: -1, dy: 1, freiX: links, freiY: pageHeight - oben });
-  eckmarke(page, {
-    x: rechts,
-    y: oben,
-    dx: 1,
-    dy: 1,
-    freiX: pageWidth - rechts,
-    freiY: pageHeight - oben,
-  });
+  eckmarke(page, { x: links, y: unten, dx: -1, dy: -1, gapX: gaps.links, gapY: gaps.unten });
+  eckmarke(page, { x: rechts, y: unten, dx: 1, dy: -1, gapX: gaps.rechts, gapY: gaps.unten });
+  eckmarke(page, { x: links, y: oben, dx: -1, dy: 1, gapX: gaps.links, gapY: gaps.oben });
+  eckmarke(page, { x: rechts, y: oben, dx: 1, dy: 1, gapX: gaps.rechts, gapY: gaps.oben });
 }
 
 /**
@@ -199,28 +198,42 @@ export async function seitenNebeneinander(
   const beschnittUnten = Math.max(beschnittUntenL, beschnittUntenR);
   const beschnittOben = Math.max(beschnittObenL, beschnittObenR);
 
-  const naht = beschnittLinksAussen + lTrim.width * scaleL; // x-Koordinate der Stoßkante
+  // Alles (Inhalt + Beschnitt) um MARKEN_RAND nach innen verschoben - der so
+  // freiwerdende äußere Rand ist ausschließlich für die Schneidezeichen da.
+  const naht = MARKEN_RAND + beschnittLinksAussen + lTrim.width * scaleL; // x-Koordinate der Stoßkante
   const trimBreiteGesamt = lTrim.width * scaleL + rTrim.width * scaleR;
-  const pageWidth = naht + rTrim.width * scaleR + beschnittRechtsAussen;
-  const pageHeight = beschnittUnten + trimHoehe + beschnittOben;
+  const pageWidth = naht + rTrim.width * scaleR + beschnittRechtsAussen + MARKEN_RAND;
+  const pageHeight = MARKEN_RAND + beschnittUnten + trimHoehe + beschnittOben + MARKEN_RAND;
+  const trimY = MARKEN_RAND + beschnittUnten;
 
   const neueSeite = out.addPage([pageWidth, pageHeight]);
   neueSeite.drawPage(links, {
     x: naht - linksBreite,
-    y: beschnittUnten - beschnittUntenL,
+    y: trimY - beschnittUntenL,
     width: linksBreite,
     height: linksHoehe,
   });
   neueSeite.drawPage(rechts, {
     x: naht,
-    y: beschnittUnten - beschnittUntenR,
+    y: trimY - beschnittUntenR,
     width: rechtsBreite,
     height: rechtsHoehe,
   });
 
-  const trim: Box = { x: beschnittLinksAussen, y: beschnittUnten, width: trimBreiteGesamt, height: trimHoehe };
-  zeichneSchnittmarken(neueSeite, trim, pageWidth, pageHeight);
+  const trim: Box = { x: MARKEN_RAND + beschnittLinksAussen, y: trimY, width: trimBreiteGesamt, height: trimHoehe };
+  zeichneSchnittmarken(neueSeite, trim, {
+    links: beschnittLinksAussen,
+    rechts: beschnittRechtsAussen,
+    unten: beschnittUnten,
+    oben: beschnittOben,
+  });
   neueSeite.setTrimBox(trim.x, trim.y, trim.width, trim.height);
+  neueSeite.setBleedBox(
+    MARKEN_RAND,
+    MARKEN_RAND,
+    pageWidth - 2 * MARKEN_RAND,
+    pageHeight - 2 * MARKEN_RAND,
+  );
 
   return out.save();
 }
