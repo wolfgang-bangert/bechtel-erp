@@ -6,11 +6,65 @@
  */
 import { PDFDocument, type PDFPage } from "pdf-lib";
 
-/** Seitenzahl einer PDF auslesen, ohne pdf-lib in web/sync direkt als
- *  Abhängigkeit zu brauchen. Wirft bei ungültigen/beschädigten PDFs. */
-export async function seitenzahl(bytes: Uint8Array): Promise<number> {
+const PT_ZU_MM = 25.4 / 72;
+const runden = (n: number, stellen = 1) => Math.round(n * 10 ** stellen) / 10 ** stellen;
+
+export type Boxmass = { breitePt: number; hoehePt: number; breiteMm: number; hoeheMm: number };
+
+function boxmass(b: { width: number; height: number }): Boxmass {
+  return {
+    breitePt: runden(b.width),
+    hoehePt: runden(b.height),
+    breiteMm: runden(b.width * PT_ZU_MM),
+    hoeheMm: runden(b.height * PT_ZU_MM),
+  };
+}
+
+export type SeitenBoxen = {
+  seite: number; // 1-basiert
+  mediaBox: Boxmass;
+  cropBox: Boxmass;
+  bleedBox: Boxmass;
+  trimBox: Boxmass;
+  artBox: Boxmass;
+  rotation: number;
+};
+
+export type PdfMetadaten = {
+  pageCount: number;
+  titel: string | null;
+  autor: string | null;
+  ersteller: string | null; // Creator (erzeugende Anwendung)
+  produzent: string | null; // Producer (PDF-Bibliothek)
+  erstelltAm: string | null; // ISO
+  geaendertAm: string | null; // ISO
+  seiten: SeitenBoxen[];
+};
+
+/** Seitenzahl + alle Box-Maße (v.a. TrimBox) und Dokument-Metadaten, ohne
+ *  pdf-lib in web/sync direkt als Abhängigkeit zu brauchen. Wirft bei
+ *  ungültigen/beschädigten PDFs. */
+export async function pdfMetadaten(bytes: Uint8Array): Promise<PdfMetadaten> {
   const doc = await PDFDocument.load(bytes);
-  return doc.getPageCount();
+  const seiten: SeitenBoxen[] = doc.getPages().map((p, i) => ({
+    seite: i + 1,
+    mediaBox: boxmass(p.getMediaBox()),
+    cropBox: boxmass(p.getCropBox()),
+    bleedBox: boxmass(p.getBleedBox()),
+    trimBox: boxmass(p.getTrimBox()),
+    artBox: boxmass(p.getArtBox()),
+    rotation: p.getRotation().angle,
+  }));
+  return {
+    pageCount: seiten.length,
+    titel: doc.getTitle() ?? null,
+    autor: doc.getAuthor() ?? null,
+    ersteller: doc.getCreator() ?? null,
+    produzent: doc.getProducer() ?? null,
+    erstelltAm: doc.getCreationDate()?.toISOString() ?? null,
+    geaendertAm: doc.getModificationDate()?.toISOString() ?? null,
+    seiten,
+  };
 }
 
 /** TrimBox (Endformat nach dem Schnitt) als Embed-BoundingBox - ohne das

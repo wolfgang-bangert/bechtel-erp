@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { deleteObject, putObject, signedGetUrl } from "@/lib/storage";
-import { seitenzahl } from "@werk/shared/pdf/kombinieren";
+import { pdfMetadaten, type PdfMetadaten } from "@werk/shared/pdf/kombinieren";
 
 const PREFIX = "tmp/pdf-kombinieren/";
 
@@ -11,12 +11,13 @@ export type UploadState = {
   error?: string;
   key?: string;
   fileName?: string;
-  pageCount?: number;
+  metadaten?: PdfMetadaten;
   previewUrl?: string | null;
 };
 
-/** PDF hochladen (temporär, unter tmp/pdf-kombinieren/), Seitenzahl auslesen
- *  und einen kurzlebigen Vorschau-Link erzeugen. */
+/** PDF hochladen (temporär, unter tmp/pdf-kombinieren/), Metadaten (Seitenzahl,
+ *  Boxen inkl. TrimBox, Dokumentinfo) auslesen und einen kurzlebigen
+ *  Vorschau-Link erzeugen. */
 export async function uploadPdfAction(_prev: UploadState, formData: FormData): Promise<UploadState> {
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Keine Datei ausgewählt." };
@@ -25,19 +26,19 @@ export async function uploadPdfAction(_prev: UploadState, formData: FormData): P
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  let pageCount: number;
+  let metadaten: PdfMetadaten;
   try {
-    pageCount = await seitenzahl(bytes);
+    metadaten = await pdfMetadaten(bytes);
   } catch {
     return { error: "PDF konnte nicht gelesen werden - ist die Datei beschädigt?" };
   }
-  if (pageCount < 1) return { error: "PDF hat keine Seiten." };
+  if (metadaten.pageCount < 1) return { error: "PDF hat keine Seiten." };
 
   const key = `${PREFIX}${randomUUID()}.pdf`;
   await putObject(key, bytes, "application/pdf");
   const previewUrl = await signedGetUrl(key, 1800);
 
-  return { ok: true, key, fileName: file.name, pageCount, previewUrl };
+  return { ok: true, key, fileName: file.name, metadaten, previewUrl };
 }
 
 export type DeleteState = { ok?: boolean; error?: string };
