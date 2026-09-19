@@ -50,6 +50,7 @@ export default async function AppLayout({
         <div className="nav-group">Werkzeuge</div>
         <Link href="/werkzeuge/pdf-kombinieren">PDF: Seiten nebeneinander</Link>
         <Link href="/werkzeuge/pdf-seiten-verwalten">PDF: Seiten verwalten</Link>
+        <Link href="/werkzeuge/preislisten-analyse">Preislisten-Analyse</Link>
 
         <div className="nav-group">Einstellungen</div>
         <Link href="/einstellungen">Übersicht</Link>

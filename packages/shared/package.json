@@ -13,7 +13,8 @@
     "./druck": "./src/druck/jobs.ts",
     "./druck/pdfSplit": "./src/druck/pdfSplit.ts",
     "./pdf/kombinieren": "./src/pdf/kombinieren.ts",
-    "./pdf/seiten": "./src/pdf/seiten.ts"
+    "./pdf/seiten": "./src/pdf/seiten.ts",
+    "./pdf/analyse": "./src/pdf/analyse.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",
