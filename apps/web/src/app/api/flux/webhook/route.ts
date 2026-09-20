@@ -125,7 +125,7 @@ function parseEvents(body: unknown): Ev[] {
       });
     }
   }
-  return out.filter((e) => e.orderId || e.orderItemId);
+  return out;
 }
 
 /** HMAC-SHA256 des rohen Bodys gegen den X-Signature-Header prüfen */
@@ -174,6 +174,18 @@ export async function POST(req: Request) {
   }
 
   const events = parseEvents(body);
+  // nichts erkannt (leerer/unerwartet geformter Body) -> trotzdem einen
+  // Log-Eintrag anlegen, statt die Meldung stillschweigend zu verwerfen.
+  if (events.length === 0) {
+    events.push({
+      orderId: null,
+      orderItemId: null,
+      status: null,
+      workStep: null,
+      event: null,
+      message: null,
+    });
+  }
   const sb = createAdminClient();
 
   // Status-Map laden (flux-Status -> werk job.status)
