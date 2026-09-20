@@ -65,6 +65,7 @@ export default async function AppLayout({
         <Link href="/einstellungen/frachtpreise">Frachtpreise</Link>
         <Link href="/einstellungen/versandartikel">Versandartikel</Link>
         <Link href="/einstellungen/ip-adressen">IP-Adressen</Link>
+        <Link href="/einstellungen/flux-webhooks">flux-Webhooks</Link>
         <Link href="/einstellungen/packmittel">Kartonagen</Link>
         <Link href="/einstellungen/packregeln">Kartonregeln</Link>
         <Link href="/einstellungen/nummernkreise">Nummernkreise</Link>
