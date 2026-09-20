@@ -39,6 +39,7 @@ type Ev = {
   workStep: string | null;
   event: string | null;
   message: string | null;
+  printerRef: string | null;
 };
 
 const s = (v: unknown): string | null => {
@@ -79,6 +80,18 @@ function parseEvents(body: unknown): Ev[] {
     ]);
     const topStep = pick(r, ["workStep", "work_step", "step", "currentWorkStep"]);
     const message = pick(r, ["message", "msg", "note", "text"]);
+    // "Drucker: Status geändert" meldet keinen Auftrag, sondern einen Drucker -
+    // Feldnamen geraten (noch kein echtes Payload gesehen), Zuordnung über
+    // maschine.flux_printer_name.
+    const printerRef = pick(r, [
+      "printerId",
+      "printer_id",
+      "printerName",
+      "printer_name",
+      "printer",
+      "deviceName",
+      "name",
+    ]);
 
     // Liste von orderItems im Body?
     const items = ["orderItems", "items", "orderItemIds"].flatMap((k) => {
@@ -102,6 +115,7 @@ function parseEvents(body: unknown): Ev[] {
             workStep: pick(io, ["workStep", "work_step", "step"]) ?? topStep,
             event,
             message,
+            printerRef,
           });
         } else {
           out.push({
@@ -111,6 +125,7 @@ function parseEvents(body: unknown): Ev[] {
             workStep: topStep,
             event,
             message,
+            printerRef,
           });
         }
       }
@@ -122,6 +137,7 @@ function parseEvents(body: unknown): Ev[] {
         workStep: topStep,
         event,
         message,
+        printerRef,
       });
     }
   }
@@ -184,6 +200,7 @@ export async function POST(req: Request) {
       workStep: null,
       event: null,
       message: null,
+      printerRef: null,
     });
   }
   const sb = createAdminClient();
@@ -246,6 +263,13 @@ export async function POST(req: Request) {
     });
 
     const now = new Date().toISOString();
+
+    if (ev.printerRef) {
+      await sb
+        .from("maschine")
+        .update({ flux_printer_status: ev.status, flux_printer_status_at: now })
+        .ilike("flux_printer_name", ev.printerRef);
+    }
 
     if (orderId) {
       await sb

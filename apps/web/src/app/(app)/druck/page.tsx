@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate } from "@/lib/format";
+import { GRUPPEN, tageUeberfaellig, gruppeVon } from "@/lib/faelligkeit";
 import { AlleZuklappenButton } from "./AlleZuklappenButton";
 import { BatchActions } from "./BatchActions";
 import { BatchRow } from "./BatchRow";
@@ -139,7 +140,16 @@ const DIM_LABEL: Record<string, string> = {
   teilung: "Teilung",
   aufhaenger: "Aufhänger",
   format: "Format",
+  faelligkeit: "Fälligkeit",
+  cello: "Cello",
 };
+
+/** Sortier-Index für die Fälligkeits-Gruppierung (feste Reihenfolge statt
+ *  alphabetisch - sonst stünde "1 Tag überfällig" vor "heute raus"). */
+function faelligkeitSortIndex(label: string): number {
+  const i = GRUPPEN.findIndex((g) => g.label === label);
+  return i === -1 ? 999 : i;
+}
 
 /** Batches nach einem Schlüssel gruppieren, alphabetisch/numerisch sortiert. */
 function groupSorted(bs: Batch[], keyFn: (b: Batch) => string): [string, Batch[]][] {
@@ -151,6 +161,15 @@ function groupSorted(bs: Batch[], keyFn: (b: Batch) => string): [string, Batch[]
 /** Wert eines Batches für eine Sortier-/Gruppier-Dimension. */
 function critWert(b: Batch, dim: string, cfg: Record<string, string[]>): string {
   if (dim === "liefertermin") return fruehesterLiefer(b) ?? "9999-99-99";
+  if (dim === "faelligkeit") {
+    const lt = fruehesterLiefer(b);
+    if (!lt) return "—";
+    return GRUPPEN.find((g) => g.key === gruppeVon(tageUeberfaellig(lt)))?.label ?? "—";
+  }
+  if (dim === "cello") {
+    if (!b.cello || b.cello === "keine") return "keine";
+    return `${b.cello === "glanz" ? "glänzend" : "matt"} ${b.cello_seiten === 2 ? "zweiseitig" : "einseitig"}`;
+  }
   if (dim === "format") {
     const fs = [
       ...new Set((b.job ?? []).map((j) => prodFmt(j)).filter(Boolean)),
@@ -307,6 +326,28 @@ function alterTage(iso: string): string {
 }
 
 const sum = (js: Job[], f: (j: Job) => number) => js.reduce((a, j) => a + f(j), 0);
+
+/** relative Zeit für den Drucker-Status ("vor X Min/Std/Tg"). */
+function vorZeit(iso: string): string {
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 1) return "gerade eben";
+  if (min < 60) return `vor ${min} Min`;
+  const std = Math.floor(min / 60);
+  if (std < 24) return `vor ${std} Std`;
+  return `vor ${Math.floor(std / 24)} Tg`;
+}
+
+const DRUCKER_STATUS_FARBE: Record<string, string> = {
+  "drucker ist bereit": "var(--ok)",
+  "druckerfehler": "var(--err)",
+  "drucker druckt": "var(--accent)",
+  "drucker wärmt auf": "var(--accent)",
+  "drucker ist offline": "var(--muted)",
+  "druckerstatus unbekannt": "var(--muted)",
+  "kein druckerstatus verfügbar": "var(--muted)",
+};
+const druckerFarbe = (status: string | null) =>
+  (status && DRUCKER_STATUS_FARBE[status.toLowerCase()]) || "var(--muted)";
 
 /** Anzahl Abweichungen Auftrag ↔ Druckdaten über beliebig viele Jobs, je Auftrag einmal gezählt. */
 function abweichungenGesamt(jobs: Job[]): number {
@@ -872,6 +913,38 @@ export default async function DruckDashboard({
     versandJobs = (vRaw ?? []) as unknown as typeof versandJobs;
   }
 
+  // ---- Druck-Übersicht + Drucker-Status (nur Abteilung Druck) -----------
+  let druckKennzahlen: { jobs: number; drucke: number; papier: [string, number][] } | null = null;
+  let drucker: {
+    id: string;
+    name: string;
+    flux_printer_status: string | null;
+    flux_printer_status_at: string | null;
+  }[] = [];
+  if (abteilung === "druck") {
+    const druckJobsAlle = batches
+      .filter((b) => b.typ === "druck" && (b.job?.length ?? 0) > 0)
+      .flatMap((b) => b.job ?? []);
+    const papierMap = new Map<string, number>();
+    for (const j of druckJobsAlle) {
+      const key = j.papier || "unbekannt";
+      papierMap.set(key, (papierMap.get(key) ?? 0) + (j.netto_bogen ?? 0));
+    }
+    druckKennzahlen = {
+      jobs: druckJobsAlle.length,
+      drucke: sum(druckJobsAlle, (j) => j.netto_bogen ?? 0),
+      papier: [...papierMap.entries()].sort((a, b) => b[1] - a[1]),
+    };
+
+    const { data: druckerRaw } = await supabase
+      .from("maschine")
+      .select("id, name, flux_printer_status, flux_printer_status_at")
+      .eq("typ", "druck")
+      .eq("aktiv", true)
+      .order("sortierung");
+    drucker = (druckerRaw ?? []) as typeof drucker;
+  }
+
   return (
     <>
       <div className="toolbar" style={{ justifyContent: "space-between" }}>
@@ -902,6 +975,111 @@ export default async function DruckDashboard({
           );
         })}
       </div>
+
+      {abteilung === "druck" && druckKennzahlen && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "2fr 1fr",
+            gap: 16,
+            margin: "14px 0",
+          }}
+        >
+          <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "12px 16px" }}>
+            <div style={{ display: "flex", gap: 32 }}>
+              <LabelWert label="Jobs" wert={druckKennzahlen.jobs.toLocaleString("de-DE")} />
+              <LabelWert
+                label="Anzahl der Drucke"
+                wert={druckKennzahlen.drucke.toLocaleString("de-DE")}
+              />
+            </div>
+            {druckKennzahlen.papier.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div className="count" style={{ marginBottom: 4 }}>
+                  Druckbogen nach Papiersorte
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {druckKennzahlen.papier.map(([papier, bogen]) => (
+                    <span key={papier} style={chip}>
+                      {papier} <strong>{bogen.toLocaleString("de-DE")}</strong>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "12px 16px" }}>
+            <div className="count" style={{ marginBottom: 6 }}>
+              Drucker-Status
+            </div>
+            {drucker.length === 0 ? (
+              <p className="count">Keine aktiven Drucker hinterlegt.</p>
+            ) : (
+              drucker.map((d) => (
+                <div
+                  key={d.id}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0" }}
+                >
+                  <span
+                    style={{
+                      width: 9,
+                      height: 9,
+                      borderRadius: "50%",
+                      background: druckerFarbe(d.flux_printer_status),
+                      flex: "none",
+                    }}
+                  />
+                  <span style={{ flex: 1 }}>{d.name}</span>
+                  <span className="count">
+                    {d.flux_printer_status
+                      ? `${d.flux_printer_status} · ${vorZeit(d.flux_printer_status_at!)}`
+                      : "—"}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {abteilung === "druck" && (
+        <div className="toolbar" style={{ gap: 6, margin: "10px 0", alignItems: "center" }}>
+          <span className="count">Schnellzugriff</span>
+          <Link
+            href="/druck?abteilung=druck&group=faelligkeit"
+            className={group === "faelligkeit" ? undefined : "ghost"}
+            style={{ padding: "6px 12px" }}
+          >
+            Fälligkeit
+          </Link>
+          <Link
+            href="/druck?abteilung=druck&group=durchmesser&group2=loops"
+            className={group === "durchmesser" && group2 === "loops" ? undefined : "ghost"}
+            style={{ padding: "6px 12px" }}
+          >
+            Bindung: Durchmesser + Loops
+          </Link>
+          <Link
+            href="/druck?abteilung=druck&group=durchmesser&group2=spiralfarbe"
+            className={group === "durchmesser" && group2 === "spiralfarbe" ? undefined : "ghost"}
+            style={{ padding: "6px 12px" }}
+          >
+            Bindung: Durchmesser + Farbe
+          </Link>
+          <Link
+            href="/druck?abteilung=druck&group=cello"
+            className={group === "cello" ? undefined : "ghost"}
+            style={{ padding: "6px 12px" }}
+          >
+            Cello-Veredelung
+          </Link>
+          {(group || group2) && (
+            <Link href="/druck?abteilung=druck" className="ghost" style={{ padding: "6px 12px" }}>
+              zurücksetzen
+            </Link>
+          )}
+        </div>
+      )}
 
       {abteilung === "binden" ? (
         <div className="toolbar" style={{ gap: 6, margin: "10px 0", alignItems: "center" }}>
@@ -1032,9 +1210,13 @@ export default async function DruckDashboard({
                     }, {}),
                   )
                     .map(([k, arr]) => [k, [...arr].sort(byLiefer)] as [string, Batch[]])
-                    .sort((x, y) =>
-                      x[0].localeCompare(y[0], "de", { numeric: true }) * (desc ? -1 : 1),
-                    )
+                    .sort((x, y) => {
+                      const c =
+                        group === "faelligkeit"
+                          ? faelligkeitSortIndex(x[0]) - faelligkeitSortIndex(y[0])
+                          : x[0].localeCompare(y[0], "de", { numeric: true });
+                      return c * (desc ? -1 : 1);
+                    })
                 : [["", bl]];
 
               return (
