@@ -213,6 +213,23 @@ export default async function DruckauftragPage({
     batch: { nummer: string; typ: string; status: string } | null;
   }[];
 
+  const { data: fluxLogRaw } = await supabase
+    .from("flux_status_log")
+    .select("id, received_at, event, status, work_step, message, matched, flux_order_id")
+    .eq("portal_order_id", id)
+    .order("received_at", { ascending: false })
+    .limit(50);
+  const fluxLog = (fluxLogRaw ?? []) as {
+    id: string;
+    received_at: string;
+    event: string | null;
+    status: string | null;
+    work_step: string | null;
+    message: string | null;
+    matched: boolean;
+    flux_order_id: string | null;
+  }[];
+
   const cat = await loadCatalogForForm();
   const { data: fluxUrlRow } = await supabase
     .from("setting")
@@ -496,6 +513,47 @@ export default async function DruckauftragPage({
         lastPayload={data.flux_payload}
         lastResponse={data.flux_response}
       />
+
+      <h2 style={{ marginTop: 18 }}>
+        flux-Log{" "}
+        {fluxLog.length > 0 && <span className="tag">{fluxLog.length}</span>}
+      </h2>
+      {fluxLog.length === 0 ? (
+        <p className="lead">Noch keine Statusmeldung von flux zu diesem Auftrag eingegangen.</p>
+      ) : (
+        <div className="table-scroll">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Zeit</th>
+                <th>Event</th>
+                <th>Status</th>
+                <th>Workstep</th>
+                <th>Nachricht</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fluxLog.map((z) => (
+                <tr key={z.id}>
+                  <td className="count">
+                    {new Date(z.received_at).toLocaleString("de-DE", {
+                      dateStyle: "short",
+                      timeStyle: "medium",
+                    })}
+                  </td>
+                  <td>{z.event ?? "—"}</td>
+                  <td>{z.status ?? "—"}</td>
+                  <td>{z.work_step ?? "—"}</td>
+                  <td className="wrap count">{z.message ?? ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="count" style={{ marginTop: -4 }}>
+        <Link href="/druck/flux-log">alle flux-Logs ansehen →</Link>
+      </p>
 
       <h2 style={{ marginTop: 18 }}>Dateien</h2>
       <DateienPanel files={fileLinks} />
