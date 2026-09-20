@@ -59,6 +59,16 @@ const pick = (o: Record<string, unknown>, keys: string[]): string | null => {
 /** normalisiert einen flux-Status-String für den Map-Lookup */
 const normStatus = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, "");
 
+/** flux verschachtelt "event" als Objekt ({id, conditions}), nicht als String
+ *  (bestätigt über einen echten Testversand: {"event":{"id":"PRINT_JOB_STATUS_
+ *  CHANGED", "conditions":[...]}, "data":{...}, "message":"..."}). */
+function pickEventId(r: Record<string, unknown>): string | null {
+  const ev = r["event"];
+  if (typeof ev === "string") return s(ev);
+  if (ev && typeof ev === "object") return pick(ev as Record<string, unknown>, ["id", "type", "name"]);
+  return pick(r, ["type", "eventType", "topic"]);
+}
+
 /** eine oder mehrere Statusmeldungen aus dem Webhook-Body herausziehen */
 function parseEvents(body: unknown): Ev[] {
   const roots: Record<string, unknown>[] = Array.isArray(body)
@@ -67,23 +77,28 @@ function parseEvents(body: unknown): Ev[] {
       ? [body as Record<string, unknown>]
       : [];
 
+  // Status-Feldnamen: "displayStatus" ist über einen echten Testversand
+  // bestätigt (aus event.conditions[].key); die übrigen bleiben als Fallback
+  // für andere Event-Typen.
+  const STATUS_KEYS = ["displayStatus", "status", "state", "orderStatus", "orderItemStatus", "newStatus"];
+
   const out: Ev[] = [];
   for (const r of roots) {
-    const orderId = pick(r, ["orderId", "order_id", "orderNumber", "id"]);
-    const event = pick(r, ["event", "type", "eventType", "topic"]);
-    const topStatus = pick(r, [
-      "status",
-      "state",
-      "orderStatus",
-      "orderItemStatus",
-      "newStatus",
-    ]);
-    const topStep = pick(r, ["workStep", "work_step", "step", "currentWorkStep"]);
+    // Echte Nutzdaten stecken bei flux in "data" (beim Testversand leer {}) -
+    // dort zuerst suchen, mit dem Root-Objekt als Fallback für andere/ältere
+    // Payload-Formen.
+    const d = r.data && typeof r.data === "object" ? (r.data as Record<string, unknown>) : {};
+    const pickBoth = (keys: string[]) => pick(d, keys) ?? pick(r, keys);
+
+    const orderId = pickBoth(["orderId", "order_id", "orderNumber", "id"]);
+    const event = pickEventId(r);
+    const topStatus = pickBoth(STATUS_KEYS);
+    const topStep = pickBoth(["workStep", "work_step", "step", "currentWorkStep"]);
     const message = pick(r, ["message", "msg", "note", "text"]);
     // "Drucker: Status geändert" meldet keinen Auftrag, sondern einen Drucker -
-    // Feldnamen geraten (noch kein echtes Payload gesehen), Zuordnung über
-    // maschine.flux_printer_name.
-    const printerRef = pick(r, [
+    // Feldnamen noch nicht über einen echten Printer-Event bestätigt, nur
+    // vermutet; Zuordnung über maschine.flux_printer_name.
+    const printerRef = pickBoth([
       "printerId",
       "printer_id",
       "printerName",
@@ -95,7 +110,7 @@ function parseEvents(body: unknown): Ev[] {
 
     // Liste von orderItems im Body?
     const items = ["orderItems", "items", "orderItemIds"].flatMap((k) => {
-      const v = r[k];
+      const v = d[k] ?? r[k];
       return Array.isArray(v) ? v : [];
     });
 
@@ -111,7 +126,7 @@ function parseEvents(body: unknown): Ev[] {
               "itemId",
               "id",
             ]),
-            status: pick(io, ["status", "state", "orderItemStatus"]) ?? topStatus,
+            status: pick(io, [...STATUS_KEYS, "orderItemStatus"]) ?? topStatus,
             workStep: pick(io, ["workStep", "work_step", "step"]) ?? topStep,
             event,
             message,
