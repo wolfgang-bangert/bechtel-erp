@@ -91,6 +91,7 @@ export default async function FluxLogPage({
               <th>Auftrag</th>
               <th>Signatur</th>
               <th>Nachricht</th>
+              <th>Rohdaten</th>
             </tr>
           </thead>
           <tbody>
@@ -123,6 +124,25 @@ export default async function FluxLogPage({
                   )}
                 </td>
                 <td className="wrap count">{z.message ?? ""}</td>
+                <td>
+                  <details>
+                    <summary style={{ cursor: "pointer", color: "var(--muted)" }}>roh</summary>
+                    <pre
+                      style={{
+                        background: "var(--panel)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 6,
+                        padding: 10,
+                        overflow: "auto",
+                        fontSize: 11,
+                        maxWidth: 400,
+                        maxHeight: 300,
+                      }}
+                    >
+                      {JSON.stringify(z.raw, null, 2)}
+                    </pre>
+                  </details>
+                </td>
               </tr>
             ))}
           </tbody>
