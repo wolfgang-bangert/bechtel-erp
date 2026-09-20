@@ -10,6 +10,8 @@ const DIMS: [string, string][] = [
   ["teilung", "Teilung"],
   ["aufhaenger", "Aufhänger"],
   ["format", "Format"],
+  ["faelligkeit", "Fälligkeit"],
+  ["cello", "Cello"],
 ];
 
 export function SortControls() {
