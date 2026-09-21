@@ -136,3 +136,13 @@ export async function analysiereDatei(bytes: Uint8Array): Promise<DateiAnalyse> 
     bilderUngeprueft: farben.filter((f) => f.einschaetzung.includes("Bilder")).length,
   };
 }
+
+/** Nur die Seitenzahl einer PDF (läuft auch im Browser). null bei defekter Datei. */
+export async function pdfSeitenzahl(bytes: Uint8Array): Promise<number | null> {
+  try {
+    const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
+    return doc.getPageCount();
+  } catch {
+    return null;
+  }
+}

@@ -144,9 +144,14 @@ export default async function ProduktPage({ params }: { params: Promise<{ id: st
         <h1 style={{ margin: 0 }}>
           {produkt.name} {produkt.sprache && <span className="tag">{String(produkt.sprache).toUpperCase()}</span>}
         </h1>
-        <Link href="/produkte" className="ghost" style={{ padding: "7px 12px" }}>
-          ← Produkte
-        </Link>
+        <div className="toolbar" style={{ gap: 8 }}>
+          <Link href={`/produkte/${id}/archiv`} className="ghost" style={{ padding: "7px 12px" }}>
+            Archiv (Originale) →
+          </Link>
+          <Link href="/produkte" className="ghost" style={{ padding: "7px 12px" }}>
+            ← Produkte
+          </Link>
+        </div>
       </div>
       <p className="lead">
         {kapitel.length} Kapitel · {teile.length} Produktteile. Ein Kapitel besteht aus Unterregister + Inhalt; das
