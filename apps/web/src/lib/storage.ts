@@ -47,6 +47,22 @@ export async function signedGetUrl(
   }
 }
 
+/**
+ * Kurzlebiger PUT-Link: der Browser lädt große Dateien damit direkt in den
+ * Speicher, ohne Umweg über den Webserver. Braucht CORS am Bucket.
+ */
+export async function signedPutUrl(
+  key: string,
+  contentType: string,
+  expiresIn = 3600,
+): Promise<string> {
+  return getSignedUrl(
+    client(),
+    new PutObjectCommand({ Bucket: need("S3_BUCKET"), Key: key, ContentType: contentType }),
+    { expiresIn },
+  );
+}
+
 /** Objekt-Bytes lesen (für Server Actions, die eine Datei bearbeiten müssen). */
 export async function getObjectBytes(key: string): Promise<Buffer> {
   const res = await client().send(
