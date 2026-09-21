@@ -10,6 +10,7 @@ import { ArbeitsvorgaengePanel } from "./ArbeitsvorgaengePanel";
 import { TauschUmschlagInhaltButton } from "./TauschUmschlagInhaltButton";
 import { loadCatalogForForm } from "@/lib/flux/loadCatalog";
 import { brauchtUmschlagInhaltTrennung } from "@werk/shared/druck/pdfSplit";
+import { materialBedarf } from "@werk/shared/opri";
 
 export const dynamic = "force-dynamic";
 
@@ -454,13 +455,15 @@ export default async function DruckauftragPage({
                             )}
                           </td>
                           <td style={{ textAlign: "right" }}>
-                            {m.menge} {m.einheit && m.einheit !== "stück" ? "" : "Stk"}
-                            {m.netto_bogen != null && (
-                              <div className="count">
-                                {m.netto_bogen} Bogen{m.druckbogen ? ` ${m.druckbogen}` : ""}
-                                {m.nutzen ? ` (${m.nutzen}-up)` : ""}
-                              </div>
-                            )}
+                            {(() => {
+                              const b = materialBedarf(m);
+                              return (
+                                <>
+                                  {b.menge.toLocaleString("de-DE")} {b.einheit}
+                                  {b.herleitung && <div className="count">{b.herleitung}</div>}
+                                </>
+                              );
+                            })()}
                           </td>
                           <td className="count">
                             {m.ungeloest ? (
