@@ -20,6 +20,7 @@ export default async function AppLayout({
         <div className="nav-group">Stammdaten</div>
         <Link href="/organisationen">Organisationen</Link>
         <Link href="/darlehen">Darlehen</Link>
+        <Link href="/produkte">Produkte</Link>
 
         <div className="nav-group">Vertrieb</div>
         <Link href="/auftraege">Aufträge</Link>
