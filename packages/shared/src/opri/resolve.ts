@@ -140,6 +140,45 @@ export type MaterialZeile = {
   ungeloest?: string;
 };
 
+export type MaterialBedarfEingabe = {
+  menge: number;
+  einheit?: string | null;
+  netto_bogen?: number | null;
+  nutzen?: number | null;
+  druckbogen?: string | null;
+  schlaufen?: number | null;
+  schlaufen_gesamt?: number | null;
+};
+
+/**
+ * Tatsächlich benötigte physische Menge einer Materialzeile. `menge` allein
+ * ist bei Bogen-/Blatt-Zeilen ein Zwischenwert (Einzelseiten vor Nutzen-
+ * Teilung) und bei Wire-O nur ein Platzhalter (mengen_formel kennt keine
+ * Schlaufen-Geometrie) - netto_bogen/schlaufen_gesamt sind die echten Werte.
+ */
+export function materialBedarf(z: MaterialBedarfEingabe): {
+  menge: number;
+  einheit: string;
+  herleitung: string | null;
+} {
+  if (z.netto_bogen != null) {
+    return {
+      menge: z.netto_bogen,
+      einheit: `Bogen${z.druckbogen ? ` ${z.druckbogen}` : ""}`,
+      herleitung: z.nutzen ? `${z.menge.toLocaleString("de-DE")} ${z.einheit} ÷ ${z.nutzen}-Nutzen` : null,
+    };
+  }
+  if (z.schlaufen_gesamt != null && z.schlaufen) {
+    const auflage = Math.round(z.schlaufen_gesamt / z.schlaufen);
+    return {
+      menge: z.schlaufen_gesamt,
+      einheit: "Stück",
+      herleitung: `${z.schlaufen} Schlaufen/Expl. × ${auflage.toLocaleString("de-DE")} Auflage`,
+    };
+  }
+  return { menge: z.menge, einheit: z.einheit && z.einheit !== "stück" ? z.einheit : "Stk", herleitung: null };
+}
+
 /** Abweichung Auftragsangabe ↔ Druckdaten (PDF), zur Prüfung im Batch. */
 export type Abweichung = {
   feld: "format" | "seiten" | "ausrichtung";
