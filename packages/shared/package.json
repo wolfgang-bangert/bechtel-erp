@@ -15,7 +15,8 @@
     "./pdf/kombinieren": "./src/pdf/kombinieren.ts",
     "./pdf/seiten": "./src/pdf/seiten.ts",
     "./pdf/analyse": "./src/pdf/analyse.ts",
-    "./produkt/register": "./src/produkt/register.ts"
+    "./produkt/register": "./src/produkt/register.ts",
+    "./produkt/dateiname": "./src/produkt/dateiname.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",

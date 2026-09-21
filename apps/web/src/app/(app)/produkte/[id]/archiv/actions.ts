@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { deleteObject, getObjectBytes, putObject, signedPutUrl } from "@/lib/storage";
 import { seitenNeuZusammenstellen } from "@werk/shared/pdf/seiten";
+import { ipKeyAusDateiname } from "@werk/shared/produkt/dateiname";
 
 const ORDNER = new Set(["hauptregister", "unterregister", "inhalt", "deck"]);
 
@@ -93,6 +94,7 @@ export async function loescheArchivDatei(archivId: string, produktId: string): P
 type ArchivRow = {
   id: string;
   ordner: string;
+  original_name: string;
   ip_key: string | null;
   seitenzahl: number | null;
   file_id: string;
@@ -136,7 +138,7 @@ export async function erzeugeEinzeldateien(produktId: string): Promise<{
 
   const { data: archivRaw, error: e1 } = await sb
     .from("produkt_archiv")
-    .select("id, ordner, ip_key, seitenzahl, file_id, file:file_id(storage_path)")
+    .select("id, ordner, original_name, ip_key, seitenzahl, file_id, file:file_id(storage_path)")
     .eq("produkt_id", produktId);
   const { data: teileRaw, error: e2 } = await sb
     .from("produktteil")
@@ -146,6 +148,17 @@ export async function erzeugeEinzeldateien(produktId: string): Promise<{
   if (e1 || e2) return { ...res, error: (e1 ?? e2)!.message };
 
   const archiv = (archivRaw ?? []) as unknown as ArchivRow[];
+
+  // Einträge ohne IP-Schlüssel (z.B. Dateiname "IP_73 Übersicht ..." mit
+  // Leerzeichen statt "_") aus dem Namen nachtragen und dauerhaft speichern.
+  for (const a of archiv) {
+    if (a.ip_key) continue;
+    const key = ipKeyAusDateiname(a.original_name);
+    if (!key) continue;
+    a.ip_key = key;
+    await sb.from("produkt_archiv").update({ ip_key: key }).eq("id", a.id);
+  }
+
   const teile = (teileRaw ?? []) as unknown as TeilRow[];
   const bytesCache = new Map<string, Buffer>();
 
