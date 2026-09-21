@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { pdfSeitenzahl } from "@werk/shared/pdf/analyse";
+import { ipKeyAusDateiname } from "@werk/shared/produkt/dateiname";
 import { presignArchivUpload, registriereArchivDatei } from "./actions";
 
 type Status = "wartet" | "prüft" | "lädt" | "fertig" | "übersprungen" | "fehler";
@@ -96,7 +97,7 @@ export function ArchivUpload({
           // laden, nur um Seiten zu zählen - Seitenzahl bleibt dann leer.
           const seitenzahl =
             file.size > MAX_ZAEHLEN ? null : await pdfSeitenzahl(new Uint8Array(await file.arrayBuffer()));
-          const ipKey = e.name.match(/^IP_(\d+[a-z]?)_/i)?.[1]?.toLowerCase() ?? null;
+          const ipKey = ipKeyAusDateiname(e.name);
 
           let letzterFehler = "";
           let geschafft = false;
