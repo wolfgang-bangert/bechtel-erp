@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { siteOrigin } from "@/lib/origin";
 
 export type LoginState = { error?: string };
 
@@ -45,10 +46,9 @@ export async function requestPasswordReset(
   const email = String(formData.get("email") ?? "").trim();
   if (!email) return { error: "E-Mail eingeben." };
 
-  const origin = (formData.get("origin") as string) || "";
   const supabase = await createClient();
   await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback`,
+    redirectTo: `${await siteOrigin()}/auth/callback`,
   });
 
   return { ok: true };
