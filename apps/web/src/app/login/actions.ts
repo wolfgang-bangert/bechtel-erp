@@ -32,6 +32,28 @@ export async function signIn(
   redirect("/einstellungen");
 }
 
+export type ResetState = { ok?: boolean; error?: string };
+
+/**
+ * Immer dieselbe Meldung, unabhängig davon, ob die Adresse existiert - sonst
+ * ließe sich über den Unterschied erraten, wer bei werk ein Konto hat.
+ */
+export async function requestPasswordReset(
+  _prev: ResetState,
+  formData: FormData,
+): Promise<ResetState> {
+  const email = String(formData.get("email") ?? "").trim();
+  if (!email) return { error: "E-Mail eingeben." };
+
+  const origin = (formData.get("origin") as string) || "";
+  const supabase = await createClient();
+  await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/auth/callback`,
+  });
+
+  return { ok: true };
+}
+
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();

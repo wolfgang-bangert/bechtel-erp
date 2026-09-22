@@ -30,9 +30,24 @@ export async function requireUser() {
   return user;
 }
 
-/** Rollen des aktuellen Benutzers (RLS: user_role liefert nur die eigenen Zeilen). */
+/** Rollen des aktuellen Benutzers (RLS: user_role liefert nur die eigenen Zeilen).
+ *  Deaktivierte Konten (app_user.is_active = false) bekommen keine Rollen -
+ *  "Zugriff entziehen" ist damit ein einzelner Schalter statt Rollen einzeln
+ *  zu löschen. */
 export async function getRoles(): Promise<AppRole[]> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data: au } = await supabase
+    .from("app_user")
+    .select("is_active")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (au && au.is_active === false) return [];
+
   const { data } = await supabase.from("user_role").select("role");
   return (data ?? []).map((r) => r.role as AppRole);
 }

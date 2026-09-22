@@ -73,6 +73,7 @@ export default async function AppLayout({
         <Link href="/einstellungen/packregeln">Kartonregeln</Link>
         <Link href="/einstellungen/nummernkreise">Nummernkreise</Link>
         <Link href="/einstellungen/firmenprofil">Firmenprofil</Link>
+        <Link href="/einstellungen/mitarbeiter">Mitarbeiter</Link>
 
         <div className="spacer" />
 
@@ -80,6 +81,7 @@ export default async function AppLayout({
         <div className="nav-group" style={{ paddingTop: 0 }}>
           {roles.join(", ") || "keine Rolle"}
         </div>
+        <Link href="/einstellungen/passwort">Passwort ändern</Link>
         <form action={signOut}>
           <button className="ghost" type="submit" style={{ width: "100%" }}>
             Abmelden
