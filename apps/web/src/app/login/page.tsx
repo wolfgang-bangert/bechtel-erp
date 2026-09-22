@@ -1,13 +1,27 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { Suspense, useActionState, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { signIn, requestPasswordReset, type LoginState, type ResetState } from "./actions";
 
 const initialLogin: LoginState = {};
 const initialReset: ResetState = {};
 
+/** ?fehler=... vom /auth/callback in eine verständliche Meldung übersetzen. */
+function fehlerText(fehler: string | null): string | null {
+  if (!fehler) return null;
+  if (fehler.startsWith("link-ungueltig-otp_expired")) {
+    return "Der Link ist schon verbraucht oder abgelaufen - bitte einen neuen anfordern (\"Passwort vergessen?\").";
+  }
+  if (fehler.startsWith("link-ungueltig-")) {
+    return `Der Link konnte nicht bestätigt werden (${fehler.replace("link-ungueltig-", "")}) - bitte einen neuen anfordern.`;
+  }
+  return "Der Link ist ungültig oder abgelaufen - bitte einen neuen anfordern.";
+}
+
 function LoginForm({ onVergessen }: { onVergessen: () => void }) {
   const [state, action, pending] = useActionState(signIn, initialLogin);
+  const linkFehler = fehlerText(useSearchParams().get("fehler"));
 
   return (
     <form className="card" action={action}>
@@ -24,6 +38,7 @@ function LoginForm({ onVergessen }: { onVergessen: () => void }) {
         <input id="password" name="password" type="password" autoComplete="current-password" required />
       </div>
 
+      {linkFehler && <div className="banner-err">{linkFehler}</div>}
       {state.error && <div className="banner-err">{state.error}</div>}
 
       <button type="submit" disabled={pending} style={{ width: "100%" }}>
@@ -82,11 +97,13 @@ export default function LoginPage() {
 
   return (
     <div className="centered">
-      {vergessen ? (
-        <VergessenForm onZurueck={() => setVergessen(false)} />
-      ) : (
-        <LoginForm onVergessen={() => setVergessen(true)} />
-      )}
+      <Suspense fallback={null}>
+        {vergessen ? (
+          <VergessenForm onZurueck={() => setVergessen(false)} />
+        ) : (
+          <LoginForm onVergessen={() => setVergessen(true)} />
+        )}
+      </Suspense>
     </div>
   );
 }
