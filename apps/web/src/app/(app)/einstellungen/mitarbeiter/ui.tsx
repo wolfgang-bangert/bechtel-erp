@@ -2,7 +2,15 @@
 
 import { useActionState } from "react";
 import type { AppRole } from "@/lib/auth";
-import { ladeEin, nachtragen, rolleEntfernen, rolleHinzufuegen, zugriffUmschalten, type RowState } from "./actions";
+import {
+  ladeEin,
+  linkErneutSenden,
+  nachtragen,
+  rolleEntfernen,
+  rolleHinzufuegen,
+  zugriffUmschalten,
+  type RowState,
+} from "./actions";
 
 export const ROLLEN_LABEL: Record<AppRole, string> = {
   admin: "Admin (volle Rechte)",
@@ -86,6 +94,20 @@ function ZugriffButton({ userId, aktiv }: { userId: string; aktiv: boolean }) {
   );
 }
 
+function ErneutSendenButton({ email }: { email: string }) {
+  const [state, action, pending] = useActionState(linkErneutSenden, empty);
+  return (
+    <form action={action} style={{ display: "inline" }}>
+      <input type="hidden" name="email" value={email} />
+      <button type="submit" className="ghost" disabled={pending} title="Neuen Anmeldelink per Mail schicken">
+        {pending ? "…" : "Einladungsmail erneut senden"}
+      </button>
+      {state.ok && <span className="msg-ok">✓ verschickt</span>}
+      {state.error && <span className="msg-err">{state.error}</span>}
+    </form>
+  );
+}
+
 export function MitarbeiterZeile({ m }: { m: Mitarbeiter }) {
   return (
     <div className="row" style={{ flexWrap: "wrap", opacity: m.is_active ? 1 : 0.5 }}>
@@ -102,6 +124,7 @@ export function MitarbeiterZeile({ m }: { m: Mitarbeiter }) {
         ))}
         <RolleHinzufuegenForm userId={m.id} />
       </span>
+      {m.email && <ErneutSendenButton email={m.email} />}
       <ZugriffButton userId={m.id} aktiv={m.is_active} />
     </div>
   );

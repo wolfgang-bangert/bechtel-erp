@@ -1,26 +1,12 @@
 "use server";
 
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { siteOrigin } from "@/lib/origin";
 import type { AppRole } from "@/lib/auth";
 
 export type RowState = { ok?: boolean; error?: string };
-
-/**
- * Feste Domain bevorzugen (WERK_DOMAIN, dieselbe Variable wie für Caddy) -
- * Header-basierte Erkennung hinter dem Reverse Proxy lieferte in Produktion
- * "0.0.0.0:3000" statt der echten Domain und ließ Einladungs-Links scheitern.
- * Header-Fallback bleibt für die lokale Entwicklung (dort ist WERK_DOMAIN
- * nicht gesetzt).
- */
-async function origin(): Promise<string> {
-  if (process.env.WERK_DOMAIN) return `https://${process.env.WERK_DOMAIN}`;
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto") ?? "http";
-  return `${proto}://${h.get("host")}`;
-}
 
 export async function ladeEin(_prev: RowState, fd: FormData): Promise<RowState> {
   const email = String(fd.get("email") ?? "").trim().toLowerCase();
@@ -30,7 +16,7 @@ export async function ladeEin(_prev: RowState, fd: FormData): Promise<RowState> 
 
   const admin = createAdminClient();
   const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${await origin()}/auth/callback`,
+    redirectTo: `${await siteOrigin()}/auth/callback`,
   });
   if (inviteErr) return { error: `Einladung fehlgeschlagen: ${inviteErr.message}` };
   const userId = invited.user.id;
@@ -96,6 +82,26 @@ export async function nachtragen(_prev: RowState, fd: FormData): Promise<RowStat
   if (urErr && urErr.code !== "23505") return { error: urErr.message };
 
   revalidatePath("/einstellungen/mitarbeiter");
+  return { ok: true };
+}
+
+/**
+ * "Einladungsmail erneut senden" - ein erneuter admin.inviteUserByEmail()
+ * schlägt für bereits registrierte Konten fehl ("already registered"); für
+ * einen frischen Link (egal ob das Konto die erste Einladung noch nie
+ * bestätigt oder sein Passwort einfach vergessen hat) ist resetPasswordForEmail
+ * der richtige, dafür vorgesehene Weg - funktioniert für jedes bestehende Konto.
+ */
+export async function linkErneutSenden(_prev: RowState, fd: FormData): Promise<RowState> {
+  const email = String(fd.get("email") ?? "").trim();
+  if (!email) return { error: "E-Mail fehlt." };
+
+  const sb = await createClient();
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: `${await siteOrigin()}/auth/callback`,
+  });
+  if (error) return { error: error.message };
+
   return { ok: true };
 }
 

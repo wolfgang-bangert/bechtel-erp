@@ -57,7 +57,6 @@ function VergessenForm({ onZurueck }: { onZurueck: () => void }) {
 
   return (
     <form className="card" action={action}>
-      <input type="hidden" name="origin" value={typeof window !== "undefined" ? window.location.origin : ""} />
       <h1>werk</h1>
       <p className="sub">Passwort vergessen</p>
 
