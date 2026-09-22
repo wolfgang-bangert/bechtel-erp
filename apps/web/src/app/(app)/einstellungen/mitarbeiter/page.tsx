@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getRoles, hasRole } from "@/lib/auth";
-import { EinladenForm, MitarbeiterZeile, type Mitarbeiter } from "./ui";
+import { EinladenForm, MitarbeiterZeile, NachtragenForm, type Mitarbeiter } from "./ui";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +44,7 @@ export default async function MitarbeiterPage() {
         ))}
         <EinladenForm />
       </div>
+      <NachtragenForm />
     </>
   );
 }
