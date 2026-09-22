@@ -8,7 +8,15 @@ import type { AppRole } from "@/lib/auth";
 
 export type RowState = { ok?: boolean; error?: string };
 
+/**
+ * Feste Domain bevorzugen (WERK_DOMAIN, dieselbe Variable wie für Caddy) -
+ * Header-basierte Erkennung hinter dem Reverse Proxy lieferte in Produktion
+ * "0.0.0.0:3000" statt der echten Domain und ließ Einladungs-Links scheitern.
+ * Header-Fallback bleibt für die lokale Entwicklung (dort ist WERK_DOMAIN
+ * nicht gesetzt).
+ */
 async function origin(): Promise<string> {
+  if (process.env.WERK_DOMAIN) return `https://${process.env.WERK_DOMAIN}`;
   const h = await headers();
   const proto = h.get("x-forwarded-proto") ?? "http";
   return `${proto}://${h.get("host")}`;
@@ -44,6 +52,48 @@ export async function ladeEin(_prev: RowState, fd: FormData): Promise<RowState> 
     await admin.auth.admin.deleteUser(userId); // löscht app_user via on delete cascade mit
     return { error: `Konnte Rolle nicht setzen: ${urErr.message}` };
   }
+
+  revalidatePath("/einstellungen/mitarbeiter");
+  return { ok: true };
+}
+
+/**
+ * Für Konten, die schon vor diesem Einladen-Ablauf direkt im Supabase-
+ * Dashboard angelegt wurden (auth.users existiert, aber keine app_user/
+ * user_role-Zeile) - ergänzt nur die fehlenden Zeilen, verschickt keine neue
+ * Einladungsmail. Sucht per E-Mail, da die Admin-API keine direkte
+ * getUserByEmail-Funktion hat.
+ */
+export async function nachtragen(_prev: RowState, fd: FormData): Promise<RowState> {
+  const email = String(fd.get("email") ?? "").trim().toLowerCase();
+  const name = String(fd.get("name") ?? "").trim();
+  const rolle = String(fd.get("rolle") ?? "") as AppRole;
+  if (!email || !name) return { error: "E-Mail und Name sind Pflicht." };
+
+  const admin = createAdminClient();
+  let userId: string | null = null;
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) return { error: error.message };
+    const found = data.users.find((u) => u.email?.toLowerCase() === email);
+    if (found) {
+      userId = found.id;
+      break;
+    }
+    if (data.users.length < 200) break;
+  }
+  if (!userId) {
+    return { error: `Kein Supabase-Konto mit "${email}" gefunden - zuerst über "Einladen" anlegen.` };
+  }
+
+  const sb = await createClient();
+  const { error: auErr } = await sb
+    .from("app_user")
+    .upsert({ id: userId, kind: "employee", display_name: name, email }, { onConflict: "id" });
+  if (auErr) return { error: auErr.message };
+
+  const { error: urErr } = await sb.from("user_role").insert({ user_id: userId, role: rolle });
+  if (urErr && urErr.code !== "23505") return { error: urErr.message };
 
   revalidatePath("/einstellungen/mitarbeiter");
   return { ok: true };

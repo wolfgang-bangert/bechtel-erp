@@ -45,6 +45,7 @@ services:
       - .env
     environment:
       TZ: Europe/Berlin
+      WERK_DOMAIN: ${WERK_DOMAIN:-werk.bechtel-druck.de}
     expose:
       - "3000"
 

@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import type { AppRole } from "@/lib/auth";
-import { ladeEin, rolleEntfernen, rolleHinzufuegen, zugriffUmschalten, type RowState } from "./actions";
+import { ladeEin, nachtragen, rolleEntfernen, rolleHinzufuegen, zugriffUmschalten, type RowState } from "./actions";
 
 export const ROLLEN_LABEL: Record<AppRole, string> = {
   admin: "Admin (volle Rechte)",
@@ -126,5 +126,35 @@ export function EinladenForm() {
       {state.ok && <span className="msg-ok">✓ Einladung verschickt</span>}
       {state.error && <span className="msg-err">{state.error}</span>}
     </form>
+  );
+}
+
+export function NachtragenForm() {
+  const [state, action, pending] = useActionState(nachtragen, empty);
+  return (
+    <details style={{ marginTop: 10 }}>
+      <summary className="count" style={{ cursor: "pointer" }}>
+        Bestehendes Konto nachtragen (schon im Supabase-Dashboard angelegt)
+      </summary>
+      <form action={action} className="row" style={{ flexWrap: "wrap", marginTop: 6 }}>
+        <input name="name" placeholder="Name" className="w-name" required />
+        <input name="email" type="email" placeholder="E-Mail (wie im Dashboard)" style={{ width: 220 }} required />
+        <select name="rolle" defaultValue="office" style={{ width: 220 }}>
+          {STAFF_ROLLEN.map((r) => (
+            <option key={r} value={r}>
+              {ROLLEN_LABEL[r]}
+            </option>
+          ))}
+        </select>
+        <button type="submit" disabled={pending}>
+          {pending ? "…" : "Nachtragen"}
+        </button>
+        {state.ok && <span className="msg-ok">✓ ergänzt</span>}
+        {state.error && <span className="msg-err">{state.error}</span>}
+      </form>
+      <p className="count" style={{ marginTop: 4 }}>
+        Verschickt keine neue Mail - für Konten, die vor dieser Funktion direkt im Supabase-Dashboard entstanden sind.
+      </p>
+    </details>
   );
 }
