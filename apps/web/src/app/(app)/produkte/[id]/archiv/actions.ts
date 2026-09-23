@@ -182,7 +182,12 @@ export async function erzeugeEinzeldateien(produktId: string): Promise<{
       }
       let bytes = bytesCache.get(src.id);
       if (!bytes) {
-        bytes = await getObjectBytes(src.file.storage_path);
+        try {
+          bytes = await getObjectBytes(src.file.storage_path);
+        } catch (e) {
+          res.fehlend.push(`${a.quelle}: nicht aus dem Speicher lesbar (${e instanceof Error ? e.message : "Fehler"})`);
+          continue;
+        }
         bytesCache.set(src.id, bytes);
       }
       const refs = [];
@@ -297,7 +302,14 @@ export async function kapitelPdfErzeugen(kapitelId: string): Promise<{ ok?: bool
     );
   if (pfade.length === 0) return { error: "Keine Dateien in diesem Kapitel (erst im Archiv hochladen und Einzeldateien erzeugen)." };
 
-  const bytes = await Promise.all(pfade.map((p) => getObjectBytes(p)));
+  const geladen = await Promise.allSettled(pfade.map((p) => getObjectBytes(p)));
+  const fehlgeschlagen = geladen
+    .map((r, i) => (r.status === "rejected" ? pfade[i] : null))
+    .filter((p): p is string => p !== null);
+  if (fehlgeschlagen.length > 0) {
+    return { error: `Datei(en) nicht aus dem Speicher lesbar: ${fehlgeschlagen.join(", ")}` };
+  }
+  const bytes = geladen.map((r) => (r as PromiseFulfilledResult<Buffer>).value);
   let pdf: Uint8Array;
   try {
     pdf = await dateienZusammenfuehren(bytes);
