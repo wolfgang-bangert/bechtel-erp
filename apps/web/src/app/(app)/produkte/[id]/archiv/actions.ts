@@ -4,8 +4,9 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { deleteObject, getObjectBytes, putObject, signedPutUrl } from "@/lib/storage";
-import { dateienZusammenfuehren, seitenNeuZusammenstellen } from "@werk/shared/pdf/seiten";
+import { dateienZusammenfuehren, kennungStempeln, seitenNeuZusammenstellen } from "@werk/shared/pdf/seiten";
 import { ipKeyAusDateiname } from "@werk/shared/produkt/dateiname";
+import { kapitelKennung } from "@werk/shared/produkt/kennung";
 
 const ORDNER = new Set(["hauptregister", "unterregister", "inhalt", "deck"]);
 
@@ -269,28 +270,41 @@ const KAPITEL_TEIL_ORDER: Record<string, number> = { unterregister: 1, inhalt: 2
 
 type KapitelTeilRow = {
   typ: string;
+  register_position: number | null;
+  register_teile: number | null;
   dateien: { reihenfolge: number; file: { storage_path: string } | null }[];
 };
 
 /** Für ein Kapitel: Dateien beider Teile (Unterregister + Inhalt) laden, in
- *  Bindereihenfolge zu einer Druck-PDF zusammenführen, altes Ergebnis ersetzen. */
+ *  Bindereihenfolge zu einer Druck-PDF zusammenführen, mit der Rand-Kennung
+ *  (Sprache_Kapitelnr_Registerhöhe) stempeln, altes Ergebnis ersetzen. */
 export async function kapitelPdfErzeugen(kapitelId: string): Promise<{ ok?: boolean; error?: string }> {
   const sb = await createClient();
 
   const { data: kapitel } = await sb
     .from("produkt_kapitel")
-    .select("id, nr, produkt_id, file_id")
+    .select("id, nr, produkt_id, file_id, produkt:produkt_id(sprache)")
     .eq("id", kapitelId)
     .maybeSingle();
   if (!kapitel) return { error: "Kapitel nicht gefunden." };
+  const sprache = (kapitel.produkt as unknown as { sprache: string | null } | null)?.sprache ?? null;
 
   const { data: teileRaw, error: e1 } = await sb
     .from("produktteil")
-    .select("typ, dateien:produktteil_datei(reihenfolge, file:file_id(storage_path))")
+    .select(
+      "typ, register_position, register_teile, dateien:produktteil_datei(reihenfolge, file:file_id(storage_path))",
+    )
     .eq("kapitel_id", kapitelId);
   if (e1) return { error: e1.message };
 
   const teile = (teileRaw ?? []) as unknown as KapitelTeilRow[];
+  const unterregister = teile.find((t) => t.typ === "unterregister");
+  const kennung = kapitelKennung(
+    sprache,
+    kapitel.nr as string,
+    unterregister?.register_position ?? null,
+    unterregister?.register_teile ?? null,
+  );
   const pfade = teile
     .filter((t) => t.typ in KAPITEL_TEIL_ORDER)
     .sort((a, b) => KAPITEL_TEIL_ORDER[a.typ] - KAPITEL_TEIL_ORDER[b.typ])
@@ -313,6 +327,7 @@ export async function kapitelPdfErzeugen(kapitelId: string): Promise<{ ok?: bool
   let pdf: Uint8Array;
   try {
     pdf = await dateienZusammenfuehren(bytes);
+    pdf = await kennungStempeln(pdf, kennung);
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Zusammenführen fehlgeschlagen." };
   }
