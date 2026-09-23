@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { registerMm } from "@werk/shared/produkt/register";
 import { KapitelName, TeilZeile, type MaterialOpt, type Teil } from "./ui";
+import { AlleKapitelPdfsButton, KapitelPdfButton } from "./KapitelAktionen";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,8 @@ type KapitelRow = {
   hauptregister_teil_id: string | null;
   name: string;
   sortierung: number;
+  file_id: string | null;
+  file: { filename: string; storage_path: string } | null;
 };
 
 const fmtMm = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -54,7 +57,11 @@ export default async function ProduktPage({ params }: { params: Promise<{ id: st
       )
       .eq("produkt_id", id)
       .order("sortierung"),
-    supabase.from("produkt_kapitel").select("id, nr, hauptregister_teil_id, name, sortierung").eq("produkt_id", id).order("sortierung"),
+    supabase
+      .from("produkt_kapitel")
+      .select("id, nr, hauptregister_teil_id, name, sortierung, file_id, file:file_id(filename, storage_path)")
+      .eq("produkt_id", id)
+      .order("sortierung"),
     supabase.from("produktteil_typ").select("key, label"),
     supabase.from("material").select("id, name, name_kurz").eq("is_active", true).order("name"),
   ]);
@@ -101,6 +108,7 @@ export default async function ProduktPage({ params }: { params: Promise<{ id: st
   const kapitelBlock = async (k: KapitelRow) => {
     const kt = teile.filter((t) => t.kapitel_id === k.id);
     const ur = kt.find((t) => t.typ === "unterregister");
+    const kapitelPdfUrl = k.file ? await signedGetUrl(k.file.storage_path, 1800, k.file.filename) : null;
     return (
       <details key={k.id} style={{ marginBottom: 6 }}>
         <summary
@@ -121,6 +129,18 @@ export default async function ProduktPage({ params }: { params: Promise<{ id: st
               ? `${fmtMm(registerMm(ur.register_position, 297, ur.register_teile ?? 10))} mm`
               : ""}
           </span>
+          {kapitelPdfUrl && (
+            <a
+              href={kapitelPdfUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="count"
+            >
+              Kapitel-PDF ↓
+            </a>
+          )}
+          <KapitelPdfButton kapitelId={k.id} />
         </summary>
         <div style={{ padding: "8px 4px 4px 14px" }}>
           <KapitelName produktId={id} kapitelId={k.id} name={k.name} />
@@ -155,9 +175,10 @@ export default async function ProduktPage({ params }: { params: Promise<{ id: st
       </div>
       <p className="lead">
         {kapitel.length} Kapitel · {teile.length} Produktteile. Ein Kapitel besteht aus Unterregister + Inhalt; das
-        Hauptregister ist ein eigener Teil. Titel, Material und Farbigkeit je Teil sowie der Kapitelname lassen sich
-        hier bearbeiten.
+        Hauptregister ist ein eigener Teil. Klick auf einen Produktteil öffnet die Details zum Bearbeiten.
       </p>
+
+      <AlleKapitelPdfsButton produktId={id} />
 
       <h2>Vorspann</h2>
       <div className="rows">

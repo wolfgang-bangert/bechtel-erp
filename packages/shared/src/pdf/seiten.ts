@@ -41,3 +41,17 @@ export async function seitenNeuZusammenstellen(
 
   return out.save();
 }
+
+/** Mehrere PDFs komplett hintereinander zusammenführen (alle Seiten, in
+ *  Datei-Reihenfolge) - für "alle Dateien eines Kapitels zu einer Druck-PDF
+ *  zusammenfügen" statt Seiten einzeln auszuwählen. */
+export async function dateienZusammenfuehren(dateien: Uint8Array[]): Promise<Uint8Array> {
+  if (dateien.length === 0) throw new Error("Keine Datei übergeben.");
+  const out = await PDFDocument.create();
+  for (const bytes of dateien) {
+    const src = await PDFDocument.load(bytes);
+    const pages = await out.copyPages(src, src.getPageIndices());
+    for (const p of pages) out.addPage(p);
+  }
+  return out.save();
+}

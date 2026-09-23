@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { deleteObject, getObjectBytes, putObject, signedPutUrl } from "@/lib/storage";
-import { seitenNeuZusammenstellen } from "@werk/shared/pdf/seiten";
+import { dateienZusammenfuehren, seitenNeuZusammenstellen } from "@werk/shared/pdf/seiten";
 import { ipKeyAusDateiname } from "@werk/shared/produkt/dateiname";
 
 const ORDNER = new Set(["hauptregister", "unterregister", "inhalt", "deck"]);
@@ -255,4 +255,107 @@ export async function erzeugeEinzeldateien(produktId: string): Promise<{
   revalidatePath(`/produkte/${produktId}`);
   revalidatePath(`/produkte/${produktId}/archiv`);
   return { ...res, ok: true };
+}
+
+// ---------------------------------------------------------------- Kapitel-PDF
+// Reihenfolge beim Zusammenführen: Unterregister-Reiter zuerst, dann Inhalt -
+// entspricht der physischen Bindereihenfolge (Reiter vor seinem Inhalt).
+const KAPITEL_TEIL_ORDER: Record<string, number> = { unterregister: 1, inhalt: 2 };
+
+type KapitelTeilRow = {
+  typ: string;
+  dateien: { reihenfolge: number; file: { storage_path: string } | null }[];
+};
+
+/** Für ein Kapitel: Dateien beider Teile (Unterregister + Inhalt) laden, in
+ *  Bindereihenfolge zu einer Druck-PDF zusammenführen, altes Ergebnis ersetzen. */
+export async function kapitelPdfErzeugen(kapitelId: string): Promise<{ ok?: boolean; error?: string }> {
+  const sb = await createClient();
+
+  const { data: kapitel } = await sb
+    .from("produkt_kapitel")
+    .select("id, nr, produkt_id, file_id")
+    .eq("id", kapitelId)
+    .maybeSingle();
+  if (!kapitel) return { error: "Kapitel nicht gefunden." };
+
+  const { data: teileRaw, error: e1 } = await sb
+    .from("produktteil")
+    .select("typ, dateien:produktteil_datei(reihenfolge, file:file_id(storage_path))")
+    .eq("kapitel_id", kapitelId);
+  if (e1) return { error: e1.message };
+
+  const teile = (teileRaw ?? []) as unknown as KapitelTeilRow[];
+  const pfade = teile
+    .filter((t) => t.typ in KAPITEL_TEIL_ORDER)
+    .sort((a, b) => KAPITEL_TEIL_ORDER[a.typ] - KAPITEL_TEIL_ORDER[b.typ])
+    .flatMap((t) =>
+      [...t.dateien]
+        .filter((d) => d.file)
+        .sort((a, b) => a.reihenfolge - b.reihenfolge)
+        .map((d) => d.file!.storage_path),
+    );
+  if (pfade.length === 0) return { error: "Keine Dateien in diesem Kapitel (erst im Archiv hochladen und Einzeldateien erzeugen)." };
+
+  const bytes = await Promise.all(pfade.map((p) => getObjectBytes(p)));
+  let pdf: Uint8Array;
+  try {
+    pdf = await dateienZusammenfuehren(bytes);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Zusammenführen fehlgeschlagen." };
+  }
+
+  const key = `produkte/${kapitel.produkt_id}/kapitel/${randomUUID()}.pdf`;
+  await putObject(key, pdf, "application/pdf");
+  const { data: file, error: fe } = await sb
+    .from("file")
+    .insert({
+      kind: "print_data",
+      storage_path: key,
+      filename: dateiname(`Kapitel ${kapitel.nr}.pdf`),
+      mime: "application/pdf",
+      size_bytes: pdf.byteLength,
+    })
+    .select("id")
+    .single();
+  if (fe || !file) {
+    await deleteObject(key).catch(() => {});
+    return { error: fe?.message ?? "Datei konnte nicht angelegt werden." };
+  }
+
+  const alterFileId = kapitel.file_id as string | null;
+  const { error: ue } = await sb.from("produkt_kapitel").update({ file_id: file.id }).eq("id", kapitelId);
+  if (ue) {
+    await sb.from("file").delete().eq("id", file.id);
+    await deleteObject(key).catch(() => {});
+    return { error: ue.message };
+  }
+  if (alterFileId) await sb.from("file").delete().eq("id", alterFileId); // alte Kapitel-PDF ersetzen
+
+  revalidatePath(`/produkte/${kapitel.produkt_id}`);
+  return { ok: true };
+}
+
+/** Kapitel-PDFs für alle Kapitel eines Produkts erzeugen (nacheinander). */
+export async function alleKapitelPdfsErzeugen(
+  produktId: string,
+): Promise<{ ok?: boolean; error?: string; erzeugt: number; fehler: string[] }> {
+  const sb = await createClient();
+  const { data: kapitelRaw, error } = await sb
+    .from("produkt_kapitel")
+    .select("id, nr")
+    .eq("produkt_id", produktId)
+    .order("sortierung");
+  if (error) return { erzeugt: 0, fehler: [], error: error.message };
+
+  let erzeugt = 0;
+  const fehler: string[] = [];
+  for (const k of kapitelRaw ?? []) {
+    const r = await kapitelPdfErzeugen(k.id as string);
+    if (r.error) fehler.push(`${k.nr}: ${r.error}`);
+    else erzeugt++;
+  }
+
+  revalidatePath(`/produkte/${produktId}`);
+  return { ok: true, erzeugt, fehler };
 }

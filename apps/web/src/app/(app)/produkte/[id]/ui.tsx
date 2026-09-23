@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { saveKapitel, saveProduktteil, type RowState } from "./actions";
 
 export type MaterialOpt = { id: string; label: string };
@@ -22,6 +22,138 @@ export type Teil = {
 
 const empty: RowState = {};
 
+function TeilDetailModal({
+  produktId,
+  teil,
+  materialien,
+  onClose,
+}: {
+  produktId: string;
+  teil: Teil;
+  materialien: MaterialOpt[];
+  onClose: () => void;
+}) {
+  const [state, action, pending] = useActionState(saveProduktteil, empty);
+
+  useEffect(() => {
+    if (state.ok) onClose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.ok]);
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,.35)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 100,
+        padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "var(--panel)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius)",
+          padding: 20,
+          width: 560,
+          maxWidth: "100%",
+          maxHeight: "calc(100vh - 32px)",
+          overflow: "auto",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="toolbar" style={{ justifyContent: "space-between", marginBottom: 10 }}>
+          <h2 style={{ margin: 0, fontSize: 16 }}>
+            {teil.typLabel} {teil.nr && <span className="count">{teil.nr}</span>}
+          </h2>
+          <button type="button" className="ghost" onClick={onClose} style={{ padding: "4px 10px" }}>
+            ✕
+          </button>
+        </div>
+
+        <form action={action} className="rows" style={{ gap: 10 }}>
+          <input type="hidden" name="id" value={teil.id} />
+          <input type="hidden" name="produkt_id" value={produktId} />
+
+          <label className="rows" style={{ gap: 2 }}>
+            <span className="count">Titel</span>
+            <input name="titel" defaultValue={teil.titel ?? ""} />
+          </label>
+          <label className="rows" style={{ gap: 2 }}>
+            <span className="count">Material</span>
+            <select name="material_id" defaultValue={teil.material_id ?? ""}>
+              <option value="">– Material –</option>
+              {materialien.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="rows" style={{ gap: 2, maxWidth: 100 }}>
+            <span className="count">Farbigkeit</span>
+            <input name="farbigkeit" defaultValue={teil.farbigkeit ?? ""} placeholder="4/4" />
+          </label>
+
+          <div className="toolbar" style={{ gap: 16 }}>
+            {teil.seitenzahl != null && <span className="count">{teil.seitenzahl} Seiten</span>}
+            {teil.registerText && <span className="count">{teil.registerText}</span>}
+          </div>
+
+          <div className="toolbar" style={{ justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+            {state.error && <span className="msg-err">{state.error}</span>}
+            <button type="submit" disabled={pending}>
+              {pending ? "…" : "Speichern"}
+            </button>
+          </div>
+        </form>
+
+        <div style={{ marginTop: 14 }}>
+          <div className="count" style={{ marginBottom: 6 }}>
+            Dateien
+          </div>
+          {teil.dateien.length === 0 ? (
+            <p className="count">
+              Keine Datei{teil.ips.length > 0 && <> · geplant: {teil.ips.map((ip) => `IP ${ip}`).join(", ")}</>}
+            </p>
+          ) : (
+            teil.dateien.map((d) => (
+              <div key={d.id} style={{ marginBottom: 12 }}>
+                {d.url ? (
+                  <a href={d.url} target="_blank" rel="noreferrer">
+                    {d.filename}
+                  </a>
+                ) : (
+                  <span>{d.filename}</span>
+                )}
+                {d.url && (
+                  <iframe
+                    src={d.url}
+                    title={d.filename}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      height: 360,
+                      marginTop: 4,
+                      border: "1px solid var(--border)",
+                      borderRadius: 6,
+                    }}
+                  />
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TeilZeile({
   produktId,
   teil,
@@ -31,61 +163,33 @@ export function TeilZeile({
   teil: Teil;
   materialien: MaterialOpt[];
 }) {
-  const [state, action, pending] = useActionState(saveProduktteil, empty);
+  const [offen, setOffen] = useState(false);
   return (
-    <div style={{ marginBottom: 6 }}>
-      <form className="row" action={action} style={{ flexWrap: "wrap" }}>
-        <input type="hidden" name="id" value={teil.id} />
-        <input type="hidden" name="produkt_id" value={produktId} />
+    <>
+      <div
+        className="row"
+        style={{ cursor: "pointer", alignItems: "center" }}
+        onClick={() => setOffen(true)}
+      >
         <span className="tag" style={{ minWidth: 92, textAlign: "center" }}>
           {teil.typLabel}
         </span>
-        <span style={{ width: 70 }} className="count">
+        <span style={{ width: 60 }} className="count">
           {teil.nr ?? "—"}
         </span>
-        <input name="titel" defaultValue={teil.titel ?? ""} placeholder="Titel" className="w-name" />
-        <select name="material_id" defaultValue={teil.material_id ?? ""} style={{ width: 200 }}>
-          <option value="">– Material –</option>
-          {materialien.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-        <input name="farbigkeit" defaultValue={teil.farbigkeit ?? ""} placeholder="4/4" style={{ width: 60 }} />
-        <span className="count" style={{ width: 70 }}>
-          {teil.seitenzahl != null ? `${teil.seitenzahl} S.` : ""}
-        </span>
-        <span className="count" style={{ width: 130 }}>
-          {teil.registerText ?? ""}
-        </span>
-        <button type="submit" disabled={pending}>
-          {pending ? "…" : "Speichern"}
-        </button>
-        {state.ok && <span className="msg-ok">✓</span>}
-        {state.error && <span className="msg-err">{state.error}</span>}
-      </form>
-      <div className="count" style={{ marginLeft: 8, marginTop: 2 }}>
-        {teil.dateien.length > 0 ? (
-          teil.dateien.map((d) =>
-            d.url ? (
-              <a key={d.id} href={d.url} target="_blank" rel="noreferrer" style={{ marginRight: 12 }}>
-                {d.filename}
-              </a>
-            ) : (
-              <span key={d.id} style={{ marginRight: 12 }}>
-                {d.filename}
-              </span>
-            ),
-          )
-        ) : (
-          <>
-            keine Datei
-            {teil.ips.length > 0 && <> · geplant: {teil.ips.map((ip) => `IP ${ip}`).join(", ")}</>}
-          </>
+        <span className="w-name">{teil.titel || "—"}</span>
+        {teil.dateien.length > 0 && (
+          <span className="count" title={teil.dateien.map((d) => d.filename).join(", ")}>
+            📄 {teil.dateien.length}
+          </span>
         )}
+        {teil.material_id && <span className="count">{materialien.find((m) => m.id === teil.material_id)?.label}</span>}
+        {teil.farbigkeit && <span className="tag">{teil.farbigkeit}</span>}
       </div>
-    </div>
+      {offen && (
+        <TeilDetailModal produktId={produktId} teil={teil} materialien={materialien} onClose={() => setOffen(false)} />
+      )}
+    </>
   );
 }
 
