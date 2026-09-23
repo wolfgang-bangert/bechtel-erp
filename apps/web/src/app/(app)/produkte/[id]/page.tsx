@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { registerMm } from "@werk/shared/produkt/register";
+import { kapitelKennung } from "@werk/shared/produkt/kennung";
 import { KapitelName, TeilZeile, type MaterialOpt, type Teil } from "./ui";
 import { AlleKapitelPdfsButton, KapitelPdfButton, KapitelPdfLink } from "./KapitelAktionen";
 
@@ -109,6 +110,7 @@ export default async function ProduktPage({ params }: { params: Promise<{ id: st
     const kt = teile.filter((t) => t.kapitel_id === k.id);
     const ur = kt.find((t) => t.typ === "unterregister");
     const kapitelPdfUrl = k.file ? await signedGetUrl(k.file.storage_path, 1800, k.file.filename) : null;
+    const kennung = kapitelKennung(produkt.sprache, k.nr, ur?.register_position ?? null, ur?.register_teile ?? null);
     return (
       <details key={k.id} style={{ marginBottom: 6 }}>
         <summary
@@ -134,6 +136,9 @@ export default async function ProduktPage({ params }: { params: Promise<{ id: st
         </summary>
         <div style={{ padding: "8px 4px 4px 14px" }}>
           <KapitelName produktId={id} kapitelId={k.id} name={k.name} />
+          <p className="count" style={{ marginTop: -4, marginBottom: 8 }}>
+            Kennung (Rand-Stempel): <strong>{kennung}</strong>
+          </p>
           {await Promise.all(
             kt
               .sort((a, b) => a.sortierung - b.sortierung)
