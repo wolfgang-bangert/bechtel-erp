@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { registerMm } from "@werk/shared/produkt/register";
 import { KapitelName, TeilZeile, type MaterialOpt, type Teil } from "./ui";
-import { AlleKapitelPdfsButton, KapitelPdfButton } from "./KapitelAktionen";
+import { AlleKapitelPdfsButton, KapitelPdfButton, KapitelPdfLink } from "./KapitelAktionen";
 
 export const dynamic = "force-dynamic";
 
@@ -129,17 +129,7 @@ export default async function ProduktPage({ params }: { params: Promise<{ id: st
               ? `${fmtMm(registerMm(ur.register_position, 297, ur.register_teile ?? 10))} mm`
               : ""}
           </span>
-          {kapitelPdfUrl && (
-            <a
-              href={kapitelPdfUrl}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="count"
-            >
-              Kapitel-PDF ↓
-            </a>
-          )}
+          {kapitelPdfUrl && <KapitelPdfLink href={kapitelPdfUrl} />}
           <KapitelPdfButton kapitelId={k.id} />
         </summary>
         <div style={{ padding: "8px 4px 4px 14px" }}>

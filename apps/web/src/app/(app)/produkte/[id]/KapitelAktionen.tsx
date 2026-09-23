@@ -4,6 +4,20 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { alleKapitelPdfsErzeugen, kapitelPdfErzeugen } from "./archiv/actions";
 
+export function KapitelPdfLink({ href }: { href: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="count"
+    >
+      Kapitel-PDF ↓
+    </a>
+  );
+}
+
 export function KapitelPdfButton({ kapitelId }: { kapitelId: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
