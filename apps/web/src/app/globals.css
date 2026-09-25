@@ -266,6 +266,10 @@ button.ghost {
   padding: 8px 10px;
   margin: 10px 0;
 }
+.bestand-warn {
+  color: var(--err);
+  font-weight: 600;
+}
 
 /* ---- Fälligkeits-Ampel (Versand) ---- */
 .due-heute {

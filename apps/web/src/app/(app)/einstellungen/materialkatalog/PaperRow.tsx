@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { setFluxPaperType, setDicke, setFormat, type State } from "./actions";
 
@@ -56,7 +57,7 @@ export function PaperRow({
   return (
     <tr style={dickeFehlt ? { background: "var(--danger-bg, rgba(220,50,50,0.06))" } : undefined}>
       <td>
-        {m.name_kurz || m.name}
+        <Link href={`/einstellungen/materialkatalog/${m.id}`}>{m.name_kurz || m.name}</Link>
         {m.name_kurz && m.name !== m.name_kurz ? <div className="count">{m.name}</div> : null}
       </td>
       <td className="count">{m.rolle ?? "—"}</td>
