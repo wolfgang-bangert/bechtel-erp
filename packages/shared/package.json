@@ -17,7 +17,8 @@
     "./pdf/analyse": "./src/pdf/analyse.ts",
     "./produkt/register": "./src/produkt/register.ts",
     "./produkt/dateiname": "./src/produkt/dateiname.ts",
-    "./produkt/kennung": "./src/produkt/kennung.ts"
+    "./produkt/kennung": "./src/produkt/kennung.ts",
+    "./material/bezug": "./src/material/bezug.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",
