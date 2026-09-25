@@ -11,6 +11,8 @@ export type Bezug = {
   lieferant_org_id: string | null;
   bezeichnung: string;
   format: string | null;
+  rohbogen_id: string | null;
+  druckbogen_id: string | null;
   lagerort: string | null;
   einheit: string;
   bestand: number;
@@ -21,6 +23,7 @@ export type Bezug = {
 };
 
 export type Lieferant = { id: string; name: string };
+export type Bogenformat = { id: string; code: string; name: string };
 
 const empty: RowState = {};
 
@@ -29,11 +32,15 @@ function BezugRow({
   materialId,
   lieferanten,
   quellOptionen,
+  rohboegen,
+  druckboegen,
 }: {
   row?: Bezug;
   materialId: string;
   lieferanten: Lieferant[];
   quellOptionen: Bezug[];
+  rohboegen: Bogenformat[];
+  druckboegen: Bogenformat[];
 }) {
   const [state, action, pending] = useActionState(speichereBezug, empty);
   const [dState, dAction, dPending] = useActionState(loescheBezug, empty);
@@ -57,7 +64,21 @@ function BezugRow({
         placeholder="Bezeichnung, z.B. Juwel Offset"
         required
       />
-      <input name="format" defaultValue={row?.format ?? ""} placeholder="Format" style={{ width: 110 }} />
+      <select name="rohbogen_id" defaultValue={row?.rohbogen_id ?? ""} style={{ width: 100 }}>
+        <option value="">– Rohbogen –</option>
+        {rohboegen.map((r) => (
+          <option key={r.id} value={r.id}>{r.code}</option>
+        ))}
+      </select>
+      <select name="druckbogen_id" defaultValue={row?.druckbogen_id ?? ""} style={{ width: 100 }}>
+        <option value="">– Druckbogen –</option>
+        {druckboegen.map((d) => (
+          <option key={d.id} value={d.id}>{d.code}</option>
+        ))}
+      </select>
+      {row && !row.rohbogen_id && !row.druckbogen_id && row.format && (
+        <span className="count" title="Altes Freitext-Format">({row.format})</span>
+      )}
       <input name="lagerort" defaultValue={row?.lagerort ?? ""} placeholder="Lagerort" style={{ width: 120 }} />
       <input name="einheit" defaultValue={row?.einheit ?? "Bogen"} placeholder="Einheit" style={{ width: 70 }} />
       <input
@@ -119,17 +140,22 @@ export function BezuegeTable({
   materialId,
   bezuege,
   lieferanten,
+  rohboegen,
+  druckboegen,
 }: {
   materialId: string;
   bezuege: Bezug[];
   lieferanten: Lieferant[];
+  rohboegen: Bogenformat[];
+  druckboegen: Bogenformat[];
 }) {
   return (
     <div className="rows">
       <div className="row head">
         <span style={{ width: 140 }}>Lieferant</span>
         <span className="w-name">Bezeichnung</span>
-        <span style={{ width: 110 }}>Format</span>
+        <span style={{ width: 100 }}>Rohbogen</span>
+        <span style={{ width: 100 }}>Druckbogen</span>
         <span style={{ width: 120 }}>Lagerort</span>
         <span style={{ width: 70 }}>Einheit</span>
         <span style={{ width: 80 }}>Bestand</span>
@@ -139,9 +165,23 @@ export function BezuegeTable({
         <span style={{ width: 64 }}>Nutzen</span>
       </div>
       {bezuege.map((b) => (
-        <BezugRow key={b.id} row={b} materialId={materialId} lieferanten={lieferanten} quellOptionen={bezuege} />
+        <BezugRow
+          key={b.id}
+          row={b}
+          materialId={materialId}
+          lieferanten={lieferanten}
+          quellOptionen={bezuege}
+          rohboegen={rohboegen}
+          druckboegen={druckboegen}
+        />
       ))}
-      <BezugRow materialId={materialId} lieferanten={lieferanten} quellOptionen={bezuege} />
+      <BezugRow
+        materialId={materialId}
+        lieferanten={lieferanten}
+        quellOptionen={bezuege}
+        rohboegen={rohboegen}
+        druckboegen={druckboegen}
+      />
     </div>
   );
 }

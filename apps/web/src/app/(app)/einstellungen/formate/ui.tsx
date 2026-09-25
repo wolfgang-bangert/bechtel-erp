@@ -6,6 +6,8 @@ import {
   deleteFormat,
   saveBogen,
   deleteBogen,
+  saveRohbogen,
+  deleteRohbogen,
   type RowState,
 } from "./actions";
 
@@ -28,6 +30,14 @@ export type Bogen = {
   hoehe_mm: number;
   greifer_mm: number;
   is_default: boolean;
+  is_active: boolean;
+};
+export type Rohbogen = {
+  id: string;
+  code: string;
+  name: string;
+  breite_mm: number;
+  hoehe_mm: number;
   is_active: boolean;
 };
 
@@ -104,7 +114,43 @@ function BogenRow({ row }: { row?: Bogen }) {
   );
 }
 
-export function FormateEditor({ formate, boegen }: { formate: Format[]; boegen: Bogen[] }) {
+function RohbogenRow({ row }: { row?: Rohbogen }) {
+  const [st, act, p] = useActionState(saveRohbogen, empty);
+  const [dst, dact, dp] = useActionState(deleteRohbogen, empty);
+  const isNew = !row;
+  return (
+    <form className={isNew ? "row new" : "row"} action={act}>
+      {row && <input type="hidden" name="id" value={row.id} />}
+      <input className="w-code" name="code" defaultValue={row?.code ?? ""} placeholder="Code" required />
+      <input className="w-name" name="name" defaultValue={row?.name ?? ""} placeholder="Name" required />
+      <input name="breite_mm" defaultValue={row?.breite_mm ?? ""} placeholder="B mm" style={{ width: 70 }} inputMode="decimal" required />
+      <input name="hoehe_mm" defaultValue={row?.hoehe_mm ?? ""} placeholder="H mm" style={{ width: 70 }} inputMode="decimal" required />
+      <label className="chk">
+        <input type="checkbox" name="is_active" defaultChecked={row?.is_active ?? true} /> aktiv
+      </label>
+      <button type="submit" disabled={p}>{p ? "…" : isNew ? "Hinzufügen" : "Speichern"}</button>
+      {st.ok && <span className="msg-ok">✓</span>}
+      {st.error && <span className="msg-err">{st.error}</span>}
+      {row && (
+        <button type="submit" className="ghost" formAction={dact} formNoValidate disabled={dp}
+          onClick={(e) => { if (!confirm("Rohbogen löschen?")) e.preventDefault(); }}>
+          ✕
+        </button>
+      )}
+      {dst.error && <span className="msg-err">{dst.error}</span>}
+    </form>
+  );
+}
+
+export function FormateEditor({
+  formate,
+  boegen,
+  rohboegen,
+}: {
+  formate: Format[];
+  boegen: Bogen[];
+  rohboegen: Rohbogen[];
+}) {
   return (
     <>
       <h2>Endformate</h2>
@@ -135,6 +181,24 @@ export function FormateEditor({ formate, boegen }: { formate: Format[]; boegen: 
           <BogenRow key={b.id} row={b} />
         ))}
         <BogenRow />
+      </div>
+
+      <h2>Rohbögen</h2>
+      <p className="lead" style={{ marginTop: -4 }}>
+        Vom Lieferanten gekaufte, ungeschnittene Bogenformate - Quelle für Druckbögen (siehe
+        Materialkatalog → Materialbezüge → "geschnitten aus").
+      </p>
+      <div className="rows">
+        <div className="row head">
+          <span className="w-code">Code</span>
+          <span className="w-name">Name</span>
+          <span style={{ width: 70 }}>B mm</span>
+          <span style={{ width: 70 }}>H mm</span>
+        </div>
+        {rohboegen.map((r) => (
+          <RohbogenRow key={r.id} row={r} />
+        ))}
+        <RohbogenRow />
       </div>
     </>
   );

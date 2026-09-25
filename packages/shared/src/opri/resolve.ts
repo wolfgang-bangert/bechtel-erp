@@ -111,6 +111,7 @@ export type MaterialZeile = {
   regel: string;
   rolle: string | null;
   verwendung: string | null;
+  material_id: string | null;
   material: string | null;
   material_kurz: string | null;
   grammatur: string | null;
@@ -190,6 +191,7 @@ export type MaterialBeitrag = {
 
 export type MaterialGruppe = {
   schluessel: string;
+  materialId: string | null;
   label: string;
   einheit: string;
   gesamt: number;
@@ -220,10 +222,14 @@ export function aggregiereMaterialbedarf(orders: MaterialOrderInput[]): Material
       const label = [z.material_kurz || z.material || z.regel, z.grammatur, z.format]
         .filter(Boolean)
         .join(" · ");
-      const schluessel = `${label}||${b.einheit}`;
+      // material_id (falls im Resolver ein Katalog-Material getroffen hat) statt Text
+      // gruppieren - robuster als Label-Vergleich, falls sich der Anzeigetext je
+      // Auftrag minimal unterscheidet.
+      const schluessel = `${z.material_id ?? label}||${b.einheit}`;
 
       const g = gruppen.get(schluessel) ?? {
         schluessel,
+        materialId: z.material_id ?? null,
         label,
         einheit: b.einheit,
         gesamt: 0,
@@ -816,6 +822,7 @@ export function resolveOne(ref: RefData, order: OrderInput): ResolveResult {
       regel: r.name,
       rolle: r.material_rolle,
       verwendung: r.verwendung,
+      material_id: mat?.id ?? null,
       material: mat?.name ?? null,
       material_kurz: mat?.name_kurz ?? null,
       grammatur: r.grammatur,
