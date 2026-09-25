@@ -953,6 +953,9 @@ export default async function DruckDashboard({
           <Link href="/druck/plan" className="ghost" style={{ padding: "7px 12px" }}>
             Belegungs-Board →
           </Link>
+          <Link href="/druck/materialuebersicht" className="ghost" style={{ padding: "7px 12px" }}>
+            Materialübersicht →
+          </Link>
           <Link href="/druckauftraege" className="ghost" style={{ padding: "7px 12px" }}>
             Druckaufträge →
           </Link>

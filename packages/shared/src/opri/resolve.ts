@@ -179,6 +179,77 @@ export function materialBedarf(z: MaterialBedarfEingabe): {
   return { menge: z.menge, einheit: z.einheit && z.einheit !== "stück" ? z.einheit : "Stk", herleitung: null };
 }
 
+export type MaterialBeitrag = {
+  orderId: string;
+  externalReference: string | null;
+  deliverDate: string | null;
+  menge: number;
+  einheit: string;
+  herleitung: string | null;
+};
+
+export type MaterialGruppe = {
+  schluessel: string;
+  label: string;
+  einheit: string;
+  gesamt: number;
+  beitraege: MaterialBeitrag[];
+};
+
+export type MaterialOrderInput = {
+  id: string;
+  external_reference: string | null;
+  deliver_date: string | null;
+  resolve_result: { materialliste?: MaterialZeile[] } | null;
+};
+
+/**
+ * Materialbedarf über mehrere Aufträge aufsummieren - je Material (Kurzname/
+ * Name/Regel + Grammatur + Format) gruppiert, mit den beitragenden Aufträgen
+ * für die Aufklapp-Ansicht. Reine Funktion, unabhängig vom "offen"/"FINISHED"-
+ * Filter der aufrufenden Seite.
+ */
+export function aggregiereMaterialbedarf(orders: MaterialOrderInput[]): MaterialGruppe[] {
+  const gruppen = new Map<string, MaterialGruppe>();
+  for (const o of orders) {
+    for (const z of o.resolve_result?.materialliste ?? []) {
+      if (z.ungeloest) continue;
+      const b = materialBedarf(z);
+      if (!b.menge) continue;
+
+      const label = [z.material_kurz || z.material || z.regel, z.grammatur, z.format]
+        .filter(Boolean)
+        .join(" · ");
+      const schluessel = `${label}||${b.einheit}`;
+
+      const g = gruppen.get(schluessel) ?? {
+        schluessel,
+        label,
+        einheit: b.einheit,
+        gesamt: 0,
+        beitraege: [],
+      };
+      g.gesamt += b.menge;
+      g.beitraege.push({
+        orderId: o.id,
+        externalReference: o.external_reference,
+        deliverDate: o.deliver_date,
+        menge: b.menge,
+        einheit: b.einheit,
+        herleitung: b.herleitung,
+      });
+      gruppen.set(schluessel, g);
+    }
+  }
+
+  return [...gruppen.values()]
+    .map((g) => ({
+      ...g,
+      beitraege: g.beitraege.sort((a, b) => (a.deliverDate ?? "9999").localeCompare(b.deliverDate ?? "9999")),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, "de", { numeric: true }));
+}
+
 /** Abweichung Auftragsangabe ↔ Druckdaten (PDF), zur Prüfung im Batch. */
 export type Abweichung = {
   feld: "format" | "seiten" | "ausrichtung";
