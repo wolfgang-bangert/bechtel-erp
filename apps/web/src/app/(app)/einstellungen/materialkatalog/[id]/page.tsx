@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { unterMindestbestand } from "@werk/shared/material/bezug";
-import { BezuegeTable, UmbuchenForm, type Bezug, type Lieferant } from "./ui";
+import { BezuegeTable, UmbuchenForm, type Bezug, type Lieferant, type Bogenformat } from "./ui";
 
 export const dynamic = "force-dynamic";
 
@@ -17,19 +17,24 @@ export default async function MaterialBezuegePage({ params }: { params: Promise<
     .maybeSingle();
   if (!material) notFound();
 
-  const [{ data: bezuegeRaw }, { data: lieferantenRaw }] = await Promise.all([
-    supabase
-      .from("material_bezug")
-      .select(
-        "id, material_id, lieferant_org_id, bezeichnung, format, lagerort, einheit, bestand, mindestbestand, einkaufspreis, quelle_bezug_id, nutzen",
-      )
-      .eq("material_id", id)
-      .order("bezeichnung"),
-    supabase.from("organization").select("id, name").in("relation", ["supplier", "both"]).order("name"),
-  ]);
+  const [{ data: bezuegeRaw }, { data: lieferantenRaw }, { data: rohboegenRaw }, { data: druckboegenRaw }] =
+    await Promise.all([
+      supabase
+        .from("material_bezug")
+        .select(
+          "id, material_id, lieferant_org_id, bezeichnung, format, rohbogen_id, druckbogen_id, lagerort, einheit, bestand, mindestbestand, einkaufspreis, quelle_bezug_id, nutzen",
+        )
+        .eq("material_id", id)
+        .order("bezeichnung"),
+      supabase.from("organization").select("id, name").in("relation", ["supplier", "both"]).order("name"),
+      supabase.from("rohbogen").select("id, code, name").eq("is_active", true).order("code"),
+      supabase.from("druckbogen").select("id, code, name").eq("is_active", true).order("code"),
+    ]);
 
   const bezuege = (bezuegeRaw ?? []) as Bezug[];
   const lieferanten = (lieferantenRaw ?? []) as Lieferant[];
+  const rohboegen = (rohboegenRaw ?? []) as Bogenformat[];
+  const druckboegen = (druckboegenRaw ?? []) as Bogenformat[];
   const kritisch = bezuege.filter((b) => unterMindestbestand(b.bestand, b.mindestbestand));
   const quellen = bezuege.filter((b) => !b.quelle_bezug_id);
 
@@ -54,7 +59,13 @@ export default async function MaterialBezuegePage({ params }: { params: Promise<
         </div>
       )}
 
-      <BezuegeTable materialId={id} bezuege={bezuege} lieferanten={lieferanten} />
+      <BezuegeTable
+        materialId={id}
+        bezuege={bezuege}
+        lieferanten={lieferanten}
+        rohboegen={rohboegen}
+        druckboegen={druckboegen}
+      />
 
       {quellen.map((q) => {
         const ziele = bezuege.filter((b) => b.quelle_bezug_id === q.id);

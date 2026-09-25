@@ -11,6 +11,16 @@ export const dynamic = "force-dynamic";
 
 type OrderRow = MaterialOrderInput & { portal_state: string | null };
 
+type BezugInfo = {
+  id: string;
+  bezeichnung: string;
+  bestand: number;
+  einheit: string;
+  lagerort: string | null;
+  lieferant: { name: string } | null;
+};
+type BezuegeMap = Map<string, BezugInfo[]>;
+
 const ANSICHTEN = [
   { key: "offen", label: "Offen (nicht FINISHED)" },
   { key: "monat", label: "Erledigt nach Monat" },
@@ -49,6 +59,29 @@ export default async function MaterialuebersichtPage({
   const { data, error } = await query;
   const orders = (data ?? []) as unknown as OrderRow[];
 
+  // Materialbezug je vorkommendem Material laden - reine Zusatzanzeige, beeinflusst
+  // die Bedarfs-Gruppen oben nicht: fehlt ein Bezug, bleibt die Bedarfs-Zeile trotzdem sichtbar.
+  const materialIds = [
+    ...new Set(
+      orders.flatMap((o) => (o.resolve_result?.materialliste ?? []).map((z) => z.material_id).filter((x): x is string => !!x)),
+    ),
+  ];
+  let bezuegeByMaterial: BezuegeMap = new Map();
+  if (materialIds.length > 0) {
+    const { data: bezuegeRaw } = await supabase
+      .from("material_bezug")
+      .select("id, material_id, bezeichnung, bestand, einheit, lagerort, lieferant:lieferant_org_id(name)")
+      .in("material_id", materialIds)
+      .eq("is_active", true);
+    const bezuege = (bezuegeRaw ?? []) as unknown as (BezugInfo & { material_id: string })[];
+    bezuegeByMaterial = new Map();
+    for (const b of bezuege) {
+      const liste = bezuegeByMaterial.get(b.material_id) ?? [];
+      liste.push(b);
+      bezuegeByMaterial.set(b.material_id, liste);
+    }
+  }
+
   return (
     <>
       <div className="toolbar" style={{ justifyContent: "space-between" }}>
@@ -85,10 +118,11 @@ export default async function MaterialuebersichtPage({
       {error && <div className="banner-err">Fehler beim Laden: {error.message}</div>}
 
       {ansicht === "monat" ? (
-        <MonatsAnsicht orders={orders} />
+        <MonatsAnsicht orders={orders} bezuegeByMaterial={bezuegeByMaterial} />
       ) : (
         <MaterialGruppenListe
           gruppen={aggregiereMaterialbedarf(orders)}
+          bezuegeByMaterial={bezuegeByMaterial}
           leerText={
             ansicht === "offen"
               ? "Keine offenen Aufträge mit aufgelösten Materialien."
@@ -100,7 +134,7 @@ export default async function MaterialuebersichtPage({
   );
 }
 
-function MonatsAnsicht({ orders }: { orders: OrderRow[] }) {
+function MonatsAnsicht({ orders, bezuegeByMaterial }: { orders: OrderRow[]; bezuegeByMaterial: BezuegeMap }) {
   const monate = new Map<string, { label: string; sortKey: string; orders: OrderRow[] }>();
   for (const o of orders) {
     const sortKey = monatSortKey(o.deliver_date);
@@ -130,7 +164,11 @@ function MonatsAnsicht({ orders }: { orders: OrderRow[] }) {
             {m.label} <span className="count" style={{ fontWeight: 400 }}>· {m.orders.length} Aufträge</span>
           </summary>
           <div style={{ padding: "8px 0 4px 10px" }}>
-            <MaterialGruppenListe gruppen={aggregiereMaterialbedarf(m.orders)} leerText="Keine aufgelösten Materialien." />
+            <MaterialGruppenListe
+              gruppen={aggregiereMaterialbedarf(m.orders)}
+              bezuegeByMaterial={bezuegeByMaterial}
+              leerText="Keine aufgelösten Materialien."
+            />
           </div>
         </details>
       ))}
@@ -138,7 +176,15 @@ function MonatsAnsicht({ orders }: { orders: OrderRow[] }) {
   );
 }
 
-function MaterialGruppenListe({ gruppen, leerText }: { gruppen: MaterialGruppe[]; leerText: string }) {
+function MaterialGruppenListe({
+  gruppen,
+  bezuegeByMaterial,
+  leerText,
+}: {
+  gruppen: MaterialGruppe[];
+  bezuegeByMaterial: BezuegeMap;
+  leerText: string;
+}) {
   if (gruppen.length === 0) return <p className="lead">{leerText}</p>;
 
   return (
@@ -147,7 +193,9 @@ function MaterialGruppenListe({ gruppen, leerText }: { gruppen: MaterialGruppe[]
         <span className="w-name">Material</span>
         <span style={{ width: 160 }}>Gesamtbedarf</span>
       </div>
-      {gruppen.map((g) => (
+      {gruppen.map((g) => {
+        const bezuege = g.materialId ? bezuegeByMaterial.get(g.materialId) : undefined;
+        return (
         <details key={g.schluessel} style={{ marginBottom: 6 }}>
           <summary
             style={{
@@ -167,6 +215,17 @@ function MaterialGruppenListe({ gruppen, leerText }: { gruppen: MaterialGruppe[]
               {g.gesamt.toLocaleString("de-DE")} {g.einheit}
             </span>
           </summary>
+          <p className="count" style={{ margin: "4px 0 0 10px" }}>
+            Materialbezug:{" "}
+            {bezuege && bezuege.length > 0
+              ? bezuege
+                  .map(
+                    (b) =>
+                      `${b.bezeichnung}${b.lieferant ? ` (${b.lieferant.name})` : ""} - ${b.bestand.toLocaleString("de-DE")} ${b.einheit}${b.lagerort ? ` @ ${b.lagerort}` : ""}`,
+                  )
+                  .join(" · ")
+              : "kein Materialbezug hinterlegt"}
+          </p>
           <div className="table-scroll" style={{ marginTop: 6 }}>
             <table className="data">
               <thead>
@@ -196,7 +255,8 @@ function MaterialGruppenListe({ gruppen, leerText }: { gruppen: MaterialGruppe[]
             </table>
           </div>
         </details>
-      ))}
+        );
+      })}
     </div>
   );
 }

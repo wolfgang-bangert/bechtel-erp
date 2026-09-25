@@ -85,3 +85,36 @@ export async function deleteBogen(_p: RowState, fd: FormData): Promise<RowState>
   revalidatePath("/einstellungen/formate");
   return { ok: true };
 }
+
+export async function saveRohbogen(_p: RowState, fd: FormData): Promise<RowState> {
+  const id = s(fd, "id");
+  const code = s(fd, "code");
+  const name = s(fd, "name");
+  const breite = n(fd, "breite_mm");
+  const hoehe = n(fd, "hoehe_mm");
+  if (!code || !name || !breite || !hoehe) return { error: "Code, Name, Maße sind Pflicht." };
+  const payload = {
+    code,
+    name,
+    breite_mm: breite,
+    hoehe_mm: hoehe,
+    is_active: fd.get("is_active") != null,
+  };
+  const supabase = await createClient();
+  const { error } = id
+    ? await supabase.from("rohbogen").update(payload).eq("id", id)
+    : await supabase.from("rohbogen").insert(payload);
+  if (error) return { error: error.message };
+  revalidatePath("/einstellungen/formate");
+  return { ok: true };
+}
+
+export async function deleteRohbogen(_p: RowState, fd: FormData): Promise<RowState> {
+  const id = s(fd, "id");
+  if (!id) return { error: "id fehlt" };
+  const supabase = await createClient();
+  const { error } = await supabase.from("rohbogen").delete().eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/einstellungen/formate");
+  return { ok: true };
+}
