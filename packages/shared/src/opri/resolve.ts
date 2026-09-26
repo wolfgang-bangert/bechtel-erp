@@ -192,6 +192,7 @@ export type MaterialBeitrag = {
 export type MaterialGruppe = {
   schluessel: string;
   materialId: string | null;
+  druckbogen: string | null;
   label: string;
   einheit: string;
   gesamt: number;
@@ -230,6 +231,7 @@ export function aggregiereMaterialbedarf(orders: MaterialOrderInput[]): Material
       const g = gruppen.get(schluessel) ?? {
         schluessel,
         materialId: z.material_id ?? null,
+        druckbogen: z.druckbogen ?? null,
         label,
         einheit: b.einheit,
         gesamt: 0,
