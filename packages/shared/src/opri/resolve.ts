@@ -223,10 +223,13 @@ export function aggregiereMaterialbedarf(orders: MaterialOrderInput[]): Material
       const label = [z.material_kurz || z.material || z.regel, z.grammatur, z.format]
         .filter(Boolean)
         .join(" · ");
-      // material_id (falls im Resolver ein Katalog-Material getroffen hat) statt Text
-      // gruppieren - robuster als Label-Vergleich, falls sich der Anzeigetext je
-      // Auftrag minimal unterscheidet.
-      const schluessel = `${z.material_id ?? label}||${b.einheit}`;
+      // Primär über den Anzeigetext gruppieren - der ist immer vorhanden und für
+      // dasselbe Material stabil. material_id ist erst seit kurzem im Resolver
+      // enthalten; ältere, noch nicht neu aufgelöste resolve_result-Stände haben
+      // sie noch nicht. Über Text zu gruppieren und material_id nur zusätzlich
+      // mitzunehmen (statt als Gruppierungs-Schlüssel), verhindert, dass ein und
+      // dasselbe Material wegen fehlender material_id in zwei Gruppen zerfällt.
+      const schluessel = `${label}||${b.einheit}`;
 
       const g = gruppen.get(schluessel) ?? {
         schluessel,
@@ -237,6 +240,8 @@ export function aggregiereMaterialbedarf(orders: MaterialOrderInput[]): Material
         gesamt: 0,
         beitraege: [],
       };
+      if (!g.materialId && z.material_id) g.materialId = z.material_id;
+      if (!g.druckbogen && z.druckbogen) g.druckbogen = z.druckbogen;
       g.gesamt += b.menge;
       g.beitraege.push({
         orderId: o.id,
