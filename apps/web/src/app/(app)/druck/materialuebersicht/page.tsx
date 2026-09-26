@@ -18,8 +18,14 @@ type BezugInfo = {
   einheit: string;
   lagerort: string | null;
   lieferant: { name: string } | null;
+  druckbogen: { code: string } | null;
 };
+// Schlüssel: materialId||druckbogenCode - fasst mehrere Materialbezüge mit
+// demselben Material+Druckbogenformat zusammen (z.B. "80g Offset SRAeco" von
+// zwei verschiedenen Lieferanten), unabhängig von Bezeichnung/Lieferant.
 type BezuegeMap = Map<string, BezugInfo[]>;
+
+const bezugSchluessel = (materialId: string, druckbogenCode: string | null) => `${materialId}||${druckbogenCode ?? ""}`;
 
 const ANSICHTEN = [
   { key: "offen", label: "Offen (nicht FINISHED)" },
@@ -68,17 +74,23 @@ export default async function MaterialuebersichtPage({
   ];
   let bezuegeByMaterial: BezuegeMap = new Map();
   if (materialIds.length > 0) {
+    // Nur Druckbogen-Bezüge (fertig geschnitten, druckfertig) - Rohbogen ist ein interner
+    // Zwischenschritt (Umbuchen), den ein Auftrag nicht direkt "braucht".
     const { data: bezuegeRaw } = await supabase
       .from("material_bezug")
-      .select("id, material_id, bezeichnung, bestand, einheit, lagerort, lieferant:lieferant_org_id(name)")
+      .select(
+        "id, material_id, bezeichnung, bestand, einheit, lagerort, lieferant:lieferant_org_id(name), druckbogen:druckbogen_id(code)",
+      )
       .in("material_id", materialIds)
+      .not("druckbogen_id", "is", null)
       .eq("is_active", true);
     const bezuege = (bezuegeRaw ?? []) as unknown as (BezugInfo & { material_id: string })[];
     bezuegeByMaterial = new Map();
     for (const b of bezuege) {
-      const liste = bezuegeByMaterial.get(b.material_id) ?? [];
+      const schluessel = bezugSchluessel(b.material_id, b.druckbogen?.code ?? null);
+      const liste = bezuegeByMaterial.get(schluessel) ?? [];
       liste.push(b);
-      bezuegeByMaterial.set(b.material_id, liste);
+      bezuegeByMaterial.set(schluessel, liste);
     }
   }
 
@@ -194,7 +206,8 @@ function MaterialGruppenListe({
         <span style={{ width: 160 }}>Gesamtbedarf</span>
       </div>
       {gruppen.map((g) => {
-        const bezuege = g.materialId ? bezuegeByMaterial.get(g.materialId) : undefined;
+        const bezuege = g.materialId ? bezuegeByMaterial.get(bezugSchluessel(g.materialId, g.druckbogen)) : undefined;
+        const bezugGesamt = bezuege?.reduce((sum, b) => sum + b.bestand, 0) ?? 0;
         return (
         <details key={g.schluessel} style={{ marginBottom: 6 }}>
           <summary
@@ -209,7 +222,9 @@ function MaterialGruppenListe({
             }}
           >
             <span className="w-name">
-              {g.label || "—"} <span className="count">· {g.beitraege.length} Aufträge</span>
+              {g.label || "—"}
+              {g.druckbogen && <span className="tag" style={{ marginLeft: 6 }}>{g.druckbogen}</span>}{" "}
+              <span className="count">· {g.beitraege.length} Aufträge</span>
             </span>
             <span style={{ width: 160, fontWeight: 600 }}>
               {g.gesamt.toLocaleString("de-DE")} {g.einheit}
@@ -217,14 +232,21 @@ function MaterialGruppenListe({
           </summary>
           <p className="count" style={{ margin: "4px 0 0 10px" }}>
             Materialbezug:{" "}
-            {bezuege && bezuege.length > 0
-              ? bezuege
+            {bezuege && bezuege.length > 0 ? (
+              <>
+                <strong>{bezugGesamt.toLocaleString("de-DE")} {bezuege[0].einheit} gesamt</strong>
+                {" ("}
+                {bezuege
                   .map(
                     (b) =>
-                      `${b.bezeichnung}${b.lieferant ? ` (${b.lieferant.name})` : ""} - ${b.bestand.toLocaleString("de-DE")} ${b.einheit}${b.lagerort ? ` @ ${b.lagerort}` : ""}`,
+                      `${b.lieferant?.name ?? "—"} – ${b.bezeichnung}: ${b.bestand.toLocaleString("de-DE")} ${b.einheit}${b.lagerort ? ` @ ${b.lagerort}` : ""}`,
                   )
-                  .join(" · ")
-              : "kein Materialbezug hinterlegt"}
+                  .join(" · ")}
+                {")"}
+              </>
+            ) : (
+              "kein Materialbezug hinterlegt"
+            )}
           </p>
           <div className="table-scroll" style={{ marginTop: 6 }}>
             <table className="data">
