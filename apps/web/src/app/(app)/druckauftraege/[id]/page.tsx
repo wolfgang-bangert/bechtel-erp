@@ -14,25 +14,35 @@ import { materialBedarf } from "@werk/shared/opri";
 
 export const dynamic = "force-dynamic";
 
-
-function AddrBlock({ a }: { a: Record<string, unknown> | null }) {
-  if (!a) return <span className="count">—</span>;
+/** Adresse eingeklappt (nur erste Zeile) mit Aufklappen für den Rest. */
+function AddrDetails({ label, a }: { label: string; a: Record<string, unknown> | null }) {
+  if (!a) {
+    return (
+      <div>
+        <h2>{label}</h2>
+        <span className="count">—</span>
+      </div>
+    );
+  }
   const g = (k: string) => (a[k] == null ? "" : String(a[k]));
+  const zeilen = [
+    g("company"),
+    g("name"),
+    [g("street")].filter(Boolean).join(" "),
+    g("addition1"),
+    [g("zip"), g("city")].filter(Boolean).join(" "),
+    g("country"),
+    g("phone") && `Tel. ${g("phone")}`,
+    g("email"),
+  ].filter(Boolean);
+  const [erste, ...rest] = zeilen;
   return (
-    <div style={{ whiteSpace: "pre-line" }}>
-      {[
-        g("company"),
-        g("name"),
-        [g("street")].filter(Boolean).join(" "),
-        g("addition1"),
-        [g("zip"), g("city")].filter(Boolean).join(" "),
-        g("country"),
-        g("phone") && `Tel. ${g("phone")}`,
-        g("email"),
-      ]
-        .filter(Boolean)
-        .join("\n")}
-    </div>
+    <details>
+      <summary style={{ cursor: "pointer" }}>
+        <strong>{label}</strong>: {erste ?? "—"}
+      </summary>
+      {rest.length > 0 && <div style={{ whiteSpace: "pre-line", marginTop: 4 }}>{rest.join("\n")}</div>}
+    </details>
   );
 }
 
@@ -113,15 +123,28 @@ type Detail = {
   }[];
 };
 
+const TABS = [
+  { key: "preis", label: "Preis & Abrechnung" },
+  { key: "positionen", label: "Positionen" },
+  { key: "aufloesung", label: "Auflösung" },
+  { key: "material", label: "Materialliste" },
+  { key: "arbeitsvorgaenge", label: "Arbeitsvorgänge" },
+  { key: "fluxlog", label: "flux-Log" },
+  { key: "dateien", label: "Dateien" },
+  { key: "raw", label: "Rohdaten" },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
+
 export default async function DruckauftragPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ from?: string; gruppe?: string }>;
+  searchParams: Promise<{ from?: string; gruppe?: string; tab?: string }>;
 }) {
   const { id } = await params;
-  const { from, gruppe } = await searchParams;
+  const { from, gruppe, tab: tabRaw } = await searchParams;
+  const tab: TabKey = TABS.some((t) => t.key === tabRaw) ? (tabRaw as TabKey) : "arbeitsvorgaenge";
   // Von der Start-Fälligkeiten-Kachel aufgerufen? Dann auch dorthin zurück
   // (mit demselben Filter, falls einer aktiv war), statt immer auf die
   // (dort meist gar nicht sichtbare) volle Liste.
@@ -129,6 +152,13 @@ export default async function DruckauftragPage({
     from === "start"
       ? { href: gruppe ? `/start?gruppe=${gruppe}` : "/start", label: "← Start" }
       : { href: "/druckauftraege", label: "← Liste" };
+  const tabHref = (k: string) => {
+    const sp = new URLSearchParams();
+    if (from) sp.set("from", from);
+    if (gruppe) sp.set("gruppe", gruppe);
+    sp.set("tab", k);
+    return `?${sp.toString()}`;
+  };
   const supabase = await createClient();
 
   const { data: raw } = await supabase
@@ -280,6 +310,15 @@ export default async function DruckauftragPage({
   }));
   const sentOrderId = jobs.find((j) => j.typ === "druck" && j.flux_order_id)?.flux_order_id ?? null;
 
+  const r = data.resolve_result;
+  const counts: Partial<Record<TabKey, number>> = {
+    positionen: items.length,
+    material: r?.materialliste?.length ?? 0,
+    arbeitsvorgaenge: jobs.length,
+    fluxlog: fluxLog.length,
+    dateien: fileLinks.length,
+  };
+
   return (
     <>
       <div className="toolbar" style={{ justifyContent: "space-between" }}>
@@ -310,91 +349,120 @@ export default async function DruckauftragPage({
           {data.total_gross != null ? ` / ${Number(data.total_gross).toFixed(2)} brutto` : ""}{" "}
           {data.currency ?? ""}
         </dd>
+        <dt>Erkannt</dt>
+        <dd>
+          {r ? (
+            <>
+              {r.gruppe ?? "—"}
+              {Object.entries(r.attribute ?? {}).length > 0 &&
+                ` · ${Object.entries(r.attribute)
+                  .map(([k, v]) => `${k}=${v}`)
+                  .join(", ")}`}
+              {r.blockstaerke_mm ? ` · Blockstärke ${r.blockstaerke_mm} mm` : ""}
+            </>
+          ) : (
+            <span className="count">noch nicht aufgelöst</span>
+          )}
+        </dd>
       </dl>
 
       <div className="row" style={{ border: "none", padding: 0, gap: 24, marginTop: 8 }}>
-        <div>
-          <h2>Empfänger</h2>
-          <AddrBlock a={data.ship_to as Record<string, unknown> | null} />
-        </div>
-        <div>
-          <h2>Absender</h2>
-          <AddrBlock a={data.sender as Record<string, unknown> | null} />
-        </div>
+        <AddrDetails label="Empfänger" a={data.ship_to as Record<string, unknown> | null} />
+        <AddrDetails label="Absender" a={data.sender as Record<string, unknown> | null} />
       </div>
 
-      <h2 style={{ marginTop: 18 }}>
-        Preis &amp; Abrechnung
-        {data.abrechnung && (
-          <span className="tag" style={{ marginLeft: 6 }}>
-            KW {data.abrechnung.kw}/{data.abrechnung.jahr} · {data.abrechnung.status}
-          </span>
+      <div className="toolbar" style={{ gap: 4, marginTop: 16, flexWrap: "wrap" }}>
+        {TABS.map((t) =>
+          t.key === tab ? (
+            <span key={t.key} style={{ padding: "7px 12px", fontWeight: 600 }}>
+              {t.label}
+              {counts[t.key] != null ? ` (${counts[t.key]})` : ""}
+            </span>
+          ) : (
+            <Link key={t.key} href={tabHref(t.key)} className="ghost" style={{ padding: "7px 12px" }}>
+              {t.label}
+              {counts[t.key] != null ? ` (${counts[t.key]})` : ""}
+            </Link>
+          ),
         )}
-      </h2>
-      {data.abrechnung ? (
-        <p className="lead">
-          Bereits in{" "}
-          <Link href={`/abrechnung/${data.abrechnung.id}`}>
-            Abrechnung KW {data.abrechnung.kw}/{data.abrechnung.jahr}
-          </Link>{" "}
-          ({data.abrechnung.status}). Änderungen dort vornehmen.
-        </p>
-      ) : (
-        <PreisPanel
-          id={data.id}
-          versandDatum={data.versand_datum}
-          berechnet={data.berechnet}
-          istRekla={data.ist_rekla}
-          reklaVermerk={data.rekla_vermerk}
-          preisNetto={data.preis_netto}
-          preisQuelle={data.preis_quelle}
-        />
+      </div>
+
+      {tab === "preis" && (
+        <>
+          <h2 style={{ marginTop: 12 }}>
+            Preis &amp; Abrechnung
+            {data.abrechnung && (
+              <span className="tag" style={{ marginLeft: 6 }}>
+                KW {data.abrechnung.kw}/{data.abrechnung.jahr} · {data.abrechnung.status}
+              </span>
+            )}
+          </h2>
+          {data.abrechnung ? (
+            <p className="lead">
+              Bereits in{" "}
+              <Link href={`/abrechnung/${data.abrechnung.id}`}>
+                Abrechnung KW {data.abrechnung.kw}/{data.abrechnung.jahr}
+              </Link>{" "}
+              ({data.abrechnung.status}). Änderungen dort vornehmen.
+            </p>
+          ) : (
+            <PreisPanel
+              id={data.id}
+              versandDatum={data.versand_datum}
+              berechnet={data.berechnet}
+              istRekla={data.ist_rekla}
+              reklaVermerk={data.rekla_vermerk}
+              preisNetto={data.preis_netto}
+              preisQuelle={data.preis_quelle}
+            />
+          )}
+        </>
       )}
 
-      <h2>
-        Positionen <span className="tag">{items.length}</span>
-      </h2>
-      <div className="table-scroll">
-        <table className="data">
-          <thead>
-            <tr>
-              <th>Pos</th>
-              <th>SKU</th>
-              <th style={{ textAlign: "right" }}>Menge</th>
-              <th>Beschreibung</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((it, i) => (
-              <tr key={i}>
-                <td>{it.position ?? "—"}</td>
-                <td>{it.sku ?? "—"}</td>
-                <td style={{ textAlign: "right" }}>{it.quantity != null ? Number(it.quantity) : "—"}</td>
-                <td className="wrap">{it.description ?? "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="lead" style={{ marginTop: 4 }}>
-        Welche Positionen produktionsrelevant sind, klärt die SKU-Regel-Engine (Phase 2).
-      </p>
+      {tab === "positionen" && (
+        <>
+          <h2 style={{ marginTop: 12 }}>
+            Positionen <span className="tag">{items.length}</span>
+          </h2>
+          <div className="table-scroll">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Pos</th>
+                  <th>SKU</th>
+                  <th style={{ textAlign: "right" }}>Menge</th>
+                  <th>Beschreibung</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((it, i) => (
+                  <tr key={i}>
+                    <td>{it.position ?? "—"}</td>
+                    <td>{it.sku ?? "—"}</td>
+                    <td style={{ textAlign: "right" }}>{it.quantity != null ? Number(it.quantity) : "—"}</td>
+                    <td className="wrap">{it.description ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="lead" style={{ marginTop: 4 }}>
+            Welche Positionen produktionsrelevant sind, klärt die SKU-Regel-Engine (Phase 2).
+          </p>
+        </>
+      )}
 
-      <div className="toolbar" style={{ justifyContent: "space-between" }}>
-        <h2 style={{ margin: 0 }}>
-          Auflösung{" "}
-          {data.resolved_at && (
-            <span className="count">zuletzt {fmtDate(data.resolved_at)}</span>
-          )}
-        </h2>
-        <ResolveButton id={data.id} />
-      </div>
-      {!data.resolve_result ? (
-        <p className="lead">Noch nicht aufgelöst — „neu auflösen" klicken.</p>
-      ) : (
-        (() => {
-          const r = data.resolve_result;
-          return (
+      {tab === "aufloesung" && (
+        <>
+          <div className="toolbar" style={{ justifyContent: "space-between", marginTop: 12 }}>
+            <h2 style={{ margin: 0 }}>
+              Auflösung {data.resolved_at && <span className="count">zuletzt {fmtDate(data.resolved_at)}</span>}
+            </h2>
+            <ResolveButton id={data.id} />
+          </div>
+          {!r ? (
+            <p className="lead">Noch nicht aufgelöst — „neu auflösen" klicken.</p>
+          ) : (
             <>
               <dl className="kv">
                 <dt>Produktgruppe</dt>
@@ -408,78 +476,10 @@ export default async function DruckauftragPage({
                     .join(", ") || "—"}
                 </dd>
                 <dt>Optionen</dt>
-                <dd>
-                  {(r.optionen ?? []).map((o) => o.typ ?? o.sku).join(" · ") || "—"}
-                </dd>
+                <dd>{(r.optionen ?? []).map((o) => o.typ ?? o.sku).join(" · ") || "—"}</dd>
                 <dt>Blockstärke</dt>
                 <dd>{r.blockstaerke_mm ? `${r.blockstaerke_mm} mm` : "—"}</dd>
               </dl>
-
-              <h3 style={{ margin: "14px 0 6px", fontSize: 14 }}>Materialliste</h3>
-              {r.materialliste?.length ? (
-                <div className="table-scroll">
-                  <table className="data">
-                    <thead>
-                      <tr>
-                        <th>Rolle / Verwendung</th>
-                        <th>Material</th>
-                        <th style={{ textAlign: "right" }}>Menge</th>
-                        <th>Hinweis</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {r.materialliste.map((m, i) => (
-                        <tr key={i}>
-                          <td>
-                            {m.rolle ?? "?"}
-                            {m.verwendung ? ` · ${m.verwendung}` : ""}
-                            {m.seite ? ` · ${m.seite}` : ""}
-                          </td>
-                          <td>
-                            {m.material_kurz || m.material || "—"}
-                            {m.grammatur ? ` (${m.grammatur})` : ""}
-                            {m.format ? ` ${m.format}` : ""}
-                            {m.durchmesser && (
-                              <div className="count">
-                                Ø {m.durchmesser}
-                                {m.teilung ? ` · ${m.teilung}` : ""}
-                                {m.schlaufen != null
-                                  ? ` · ${m.schlaufen} Schlaufen/Expl.${
-                                      m.schlaufen_gesamt != null
-                                        ? ` · ${m.schlaufen_gesamt.toLocaleString("de-DE")} gesamt`
-                                        : ""
-                                    }`
-                                  : ""}
-                                {m.bindeseite ? ` · ${m.bindeseite}` : ""}
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ textAlign: "right" }}>
-                            {(() => {
-                              const b = materialBedarf(m);
-                              return (
-                                <>
-                                  {b.menge.toLocaleString("de-DE")} {b.einheit}
-                                  {b.herleitung && <div className="count">{b.herleitung}</div>}
-                                </>
-                              );
-                            })()}
-                          </td>
-                          <td className="count">
-                            {m.ungeloest ? (
-                              <span className="msg-err">{m.ungeloest}</span>
-                            ) : (
-                              m.produktionshinweis ?? ""
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="lead">Keine Materialregel hat gegriffen.</p>
-              )}
 
               {brauchtUmschlagInhaltTrennung(r.materialliste ?? []) && (
                 <div className="lead" style={{ marginTop: 8 }}>
@@ -491,93 +491,171 @@ export default async function DruckauftragPage({
 
               {(r.ungeloest?.length || r.hinweise?.length) && (
                 <p className="lead" style={{ marginTop: 8 }}>
-                  {r.ungeloest?.length ? (
-                    <>Nicht zugeordnete SKUs: {r.ungeloest.join(", ")}. </>
-                  ) : null}
+                  {r.ungeloest?.length ? <>Nicht zugeordnete SKUs: {r.ungeloest.join(", ")}. </> : null}
                   {(r.hinweise ?? []).join(" · ")}
                 </p>
               )}
             </>
-          );
-        })()
+          )}
+        </>
       )}
 
-      <ArbeitsvorgaengePanel
-        orderId={data.id}
-        jobs={arbeitsvorgaenge}
-        products={cat.products}
-        signatures={cat.signatures}
-        paperTypes={cat.paperTypes}
-        printers={cat.printers}
-        catalogError={cat.catalogError}
-        sentOrderId={data.flux_order_id ?? sentOrderId}
-        fluxUrlTpl={fluxUrlTpl}
-        lastSentAt={data.flux_sent_at}
-        lastPayload={data.flux_payload}
-        lastResponse={data.flux_response}
-      />
-
-      <h2 style={{ marginTop: 18 }}>
-        flux-Log{" "}
-        {fluxLog.length > 0 && <span className="tag">{fluxLog.length}</span>}
-      </h2>
-      {fluxLog.length === 0 ? (
-        <p className="lead">Noch keine Statusmeldung von flux zu diesem Auftrag eingegangen.</p>
-      ) : (
-        <div className="table-scroll">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Zeit</th>
-                <th>Event</th>
-                <th>Status</th>
-                <th>Workstep</th>
-                <th>Nachricht</th>
-              </tr>
-            </thead>
-            <tbody>
-              {fluxLog.map((z) => (
-                <tr key={z.id}>
-                  <td className="count">
-                    {new Date(z.received_at).toLocaleString("de-DE", {
-                      dateStyle: "short",
-                      timeStyle: "medium",
-                    })}
-                  </td>
-                  <td>{z.event ?? "—"}</td>
-                  <td>{z.status ?? "—"}</td>
-                  <td>{z.work_step ?? "—"}</td>
-                  <td className="wrap count">{z.message ?? ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {tab === "material" && (
+        <>
+          <h2 style={{ marginTop: 12 }}>
+            Materialliste <span className="tag">{r?.materialliste?.length ?? 0}</span>
+          </h2>
+          {!r ? (
+            <p className="lead">Noch nicht aufgelöst — siehe Tab „Auflösung".</p>
+          ) : r.materialliste?.length ? (
+            <div className="table-scroll">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Rolle / Verwendung</th>
+                    <th>Material</th>
+                    <th style={{ textAlign: "right" }}>Menge</th>
+                    <th>Hinweis</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {r.materialliste.map((m, i) => (
+                    <tr key={i}>
+                      <td>
+                        {m.rolle ?? "?"}
+                        {m.verwendung ? ` · ${m.verwendung}` : ""}
+                        {m.seite ? ` · ${m.seite}` : ""}
+                      </td>
+                      <td>
+                        {m.material_kurz || m.material || "—"}
+                        {m.grammatur ? ` (${m.grammatur})` : ""}
+                        {m.format ? ` ${m.format}` : ""}
+                        {m.durchmesser && (
+                          <div className="count">
+                            Ø {m.durchmesser}
+                            {m.teilung ? ` · ${m.teilung}` : ""}
+                            {m.schlaufen != null
+                              ? ` · ${m.schlaufen} Schlaufen/Expl.${
+                                  m.schlaufen_gesamt != null
+                                    ? ` · ${m.schlaufen_gesamt.toLocaleString("de-DE")} gesamt`
+                                    : ""
+                                }`
+                              : ""}
+                            {m.bindeseite ? ` · ${m.bindeseite}` : ""}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {(() => {
+                          const b = materialBedarf(m);
+                          return (
+                            <>
+                              {b.menge.toLocaleString("de-DE")} {b.einheit}
+                              {b.herleitung && <div className="count">{b.herleitung}</div>}
+                            </>
+                          );
+                        })()}
+                      </td>
+                      <td className="count">
+                        {m.ungeloest ? <span className="msg-err">{m.ungeloest}</span> : m.produktionshinweis ?? ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="lead">Keine Materialregel hat gegriffen.</p>
+          )}
+        </>
       )}
-      <p className="count" style={{ marginTop: -4 }}>
-        <Link href="/druck/flux-log">alle flux-Logs ansehen →</Link>
-      </p>
 
-      <h2 style={{ marginTop: 18 }}>Dateien</h2>
-      <DateienPanel files={fileLinks} />
+      {tab === "arbeitsvorgaenge" && (
+        <ArbeitsvorgaengePanel
+          orderId={data.id}
+          jobs={arbeitsvorgaenge}
+          products={cat.products}
+          signatures={cat.signatures}
+          paperTypes={cat.paperTypes}
+          printers={cat.printers}
+          catalogError={cat.catalogError}
+          sentOrderId={data.flux_order_id ?? sentOrderId}
+          fluxUrlTpl={fluxUrlTpl}
+          lastSentAt={data.flux_sent_at}
+          lastPayload={data.flux_payload}
+          lastResponse={data.flux_response}
+        />
+      )}
 
-      <h2>Rohdaten (Portal)</h2>
-      <details>
-        <summary style={{ cursor: "pointer", color: "var(--muted)" }}>raw JSON anzeigen</summary>
-        <pre
-          style={{
-            background: "var(--panel)",
-            border: "1px solid var(--border)",
-            borderRadius: 6,
-            padding: 12,
-            overflow: "auto",
-            fontSize: 12,
-            maxHeight: 500,
-          }}
-        >
-          {JSON.stringify(data.raw, null, 2)}
-        </pre>
-      </details>
+      {tab === "fluxlog" && (
+        <>
+          <h2 style={{ marginTop: 12 }}>
+            flux-Log {fluxLog.length > 0 && <span className="tag">{fluxLog.length}</span>}
+          </h2>
+          {fluxLog.length === 0 ? (
+            <p className="lead">Noch keine Statusmeldung von flux zu diesem Auftrag eingegangen.</p>
+          ) : (
+            <div className="table-scroll">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Zeit</th>
+                    <th>Event</th>
+                    <th>Status</th>
+                    <th>Workstep</th>
+                    <th>Nachricht</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fluxLog.map((z) => (
+                    <tr key={z.id}>
+                      <td className="count">
+                        {new Date(z.received_at).toLocaleString("de-DE", {
+                          dateStyle: "short",
+                          timeStyle: "medium",
+                        })}
+                      </td>
+                      <td>{z.event ?? "—"}</td>
+                      <td>{z.status ?? "—"}</td>
+                      <td>{z.work_step ?? "—"}</td>
+                      <td className="wrap count">{z.message ?? ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="count" style={{ marginTop: 4 }}>
+            <Link href="/druck/flux-log">alle flux-Logs ansehen →</Link>
+          </p>
+        </>
+      )}
+
+      {tab === "dateien" && (
+        <>
+          <h2 style={{ marginTop: 12 }}>Dateien</h2>
+          <DateienPanel files={fileLinks} />
+        </>
+      )}
+
+      {tab === "raw" && (
+        <>
+          <h2 style={{ marginTop: 12 }}>Rohdaten (Portal)</h2>
+          <pre
+            style={{
+              background: "var(--panel)",
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+              padding: 12,
+              overflow: "auto",
+              fontSize: 12,
+              maxHeight: 500,
+            }}
+          >
+            {JSON.stringify(data.raw, null, 2)}
+          </pre>
+        </>
+      )}
     </>
   );
 }
