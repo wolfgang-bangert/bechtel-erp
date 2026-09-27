@@ -69,7 +69,7 @@ function kb(b: number | null) {
 }
 
 /** Dateien, die für diesen Job an flux gehen - plus Upload zum Ergänzen/Tauschen. */
-function JobDateien({ orderId, job }: { orderId: string; job: ArbeitsvorgangJob }) {
+export function JobDateien({ orderId, job }: { orderId: string; job: ArbeitsvorgangJob }) {
   const [uploadState, uploadAction, uploadPending] = useActionState(uploadJobDateiAction, empty);
   const [deleteState, deleteAction] = useActionState(deleteJobDateiAction, empty);
 
@@ -135,7 +135,7 @@ function JobDateien({ orderId, job }: { orderId: string; job: ArbeitsvorgangJob 
 }
 
 /** Flux-Formular eines Druck-Jobs (Produkt/Standbogen/Papier/Beidseitig/Farbe). */
-function FluxFelder({
+export function FluxFelder({
   orderId,
   job,
   products,
