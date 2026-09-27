@@ -5,6 +5,7 @@ import { signedGetUrl } from "@/lib/storage";
 import { fmtDate } from "@/lib/format";
 import { loadCatalogForForm } from "@/lib/flux/loadCatalog";
 import { FluxFelder, JobDateien, type ArbeitsvorgangJob } from "../../druckauftraege/[id]/ArbeitsvorgaengePanel";
+import { LaufzettelButton } from "../../druckauftraege/[id]/LaufzettelButton";
 
 export const dynamic = "force-dynamic";
 
@@ -137,9 +138,12 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
             </Link>
           )}
           {job.portal_order_id && (
-            <Link href={`/druckauftraege/${job.portal_order_id}`} className="ghost" style={{ padding: "7px 12px" }}>
-              Zum Auftrag →
-            </Link>
+            <>
+              <LaufzettelButton orderId={job.portal_order_id} />
+              <Link href={`/druckauftraege/${job.portal_order_id}`} className="ghost" style={{ padding: "7px 12px" }}>
+                Zum Auftrag →
+              </Link>
+            </>
           )}
           <Link href="/druck" className="ghost" style={{ padding: "7px 12px" }}>
             ← Dashboard
