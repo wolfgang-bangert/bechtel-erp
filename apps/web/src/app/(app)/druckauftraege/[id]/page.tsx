@@ -311,6 +311,19 @@ export default async function DruckauftragPage({
   const sentOrderId = jobs.find((j) => j.typ === "druck" && j.flux_order_id)?.flux_order_id ?? null;
 
   const r = data.resolve_result;
+
+  let gruppenName: string | null = null;
+  if (r?.gruppe) {
+    const { data: gruppeRow } = await supabase
+      .from("opri_produkt_gruppe")
+      .select("name")
+      .eq("kuerzel", r.gruppe)
+      .maybeSingle();
+    gruppenName = gruppeRow?.name ?? null;
+  }
+  const produktBeschreibung = gruppenName ?? data.description;
+  const thumbnailUrl = fileLinks.find((f) => f.typ === "thumbnail")?.viewUrl ?? null;
+
   const counts: Partial<Record<TabKey, number>> = {
     positionen: items.length,
     material: r?.materialliste?.length ?? 0,
@@ -330,27 +343,47 @@ export default async function DruckauftragPage({
           {back.label}
         </Link>
       </div>
-      <p className="lead">
-        {portal?.name ?? portal?.code} · {data.reference_type}/{data.external_reference} ·
-        Eingang {fmtDate(data.received_at)}
-      </p>
+      <p className="lead">{portal?.name ?? portal?.code} · {data.reference_type}</p>
 
-      <h2>Auftrag</h2>
-      <dl className="kv">
-        <dt>Produkt</dt>
-        <dd>{data.description ?? "—"}</dd>
-        <dt>Menge</dt>
-        <dd>{data.quantity != null ? Number(data.quantity) : "—"}</dd>
-        <dt>Liefertermin</dt>
-        <dd>{data.deliver_date ? fmtDate(data.deliver_date) : "—"}</dd>
+      <div className="row" style={{ border: "none", padding: 0, gap: 24, alignItems: "flex-start" }}>
+        <dl className="kv" style={{ flex: 1, fontSize: 15 }}>
+          <dt>opri-Nummer</dt>
+          <dd>
+            <strong>{data.external_reference}</strong>
+          </dd>
+          <dt>Produkt</dt>
+          <dd>
+            <strong>{produktBeschreibung ?? "—"}</strong>
+          </dd>
+          <dt>Menge</dt>
+          <dd>
+            <strong>{data.quantity != null ? Number(data.quantity) : "—"}</strong>
+          </dd>
+          <dt>Liefertermin</dt>
+          <dd>
+            <strong>{data.deliver_date ? fmtDate(data.deliver_date) : "—"}</strong>
+          </dd>
+          <dt>Eingang</dt>
+          <dd>{fmtDate(data.received_at)}</dd>
+        </dl>
+        {thumbnailUrl && (
+          <img
+            src={thumbnailUrl}
+            alt="Vorschau"
+            style={{ width: 160, borderRadius: 6, border: "1px solid var(--border)" }}
+          />
+        )}
+      </div>
+
+      <dl className="kv" style={{ marginTop: 8 }}>
         <dt>Betrag</dt>
-        <dd>
+        <dd className="count">
           {data.total_net != null ? `${Number(data.total_net).toFixed(2)} netto` : "—"}
           {data.total_gross != null ? ` / ${Number(data.total_gross).toFixed(2)} brutto` : ""}{" "}
           {data.currency ?? ""}
         </dd>
         <dt>Erkannt</dt>
-        <dd>
+        <dd className="count">
           {r ? (
             <>
               {r.gruppe ?? "—"}
@@ -361,7 +394,7 @@ export default async function DruckauftragPage({
               {r.blockstaerke_mm ? ` · Blockstärke ${r.blockstaerke_mm} mm` : ""}
             </>
           ) : (
-            <span className="count">noch nicht aufgelöst</span>
+            "noch nicht aufgelöst"
           )}
         </dd>
       </dl>

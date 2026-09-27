@@ -96,6 +96,10 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  overflow-y: auto;
 }
 .sidebar .brand {
   font-weight: 700;
