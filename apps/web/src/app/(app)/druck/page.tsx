@@ -544,8 +544,11 @@ function BatchZeile({
                         .join("  +  ")}
                     </div>
                   )}
-                  {j.portal_order_id && (
-                    <div style={{ marginTop: 6 }}>
+                  <div style={{ marginTop: 6, display: "flex", gap: 6 }}>
+                    <Link href={`/druck/${j.id}`} className="ghost" style={{ padding: "4px 10px" }}>
+                      Job-Details →
+                    </Link>
+                    {j.portal_order_id && (
                       <a
                         href={`/druckauftraege/${j.portal_order_id}`}
                         target="_blank"
@@ -555,8 +558,8 @@ function BatchZeile({
                       >
                         Zum Auftrag →
                       </a>
-                    </div>
-                  )}
+                    )}
+                  </div>
                   {b.typ === "druck" && j.portal_order_id && (
                     <FluxOrderButton
                       portalOrderId={j.portal_order_id}
@@ -725,13 +728,9 @@ function JobsTabelle({ batches, gruppeKuerzel }: { batches: Batch[]; gruppeKuerz
           {jobs.map((j) => (
             <tr key={j.id}>
               <td>
-                {j.portal_order_id ? (
-                  <a href={`/druckauftraege/${j.portal_order_id}`} target="_blank" rel="noreferrer">
-                    {j.order?.external_reference ?? j.portal_order_id.slice(0, 8)}
-                  </a>
-                ) : (
-                  "—"
-                )}
+                <Link href={`/druck/${j.id}`}>
+                  {j.order?.external_reference ?? j.id.slice(0, 8)}
+                </Link>
                 {j.order?.abweichungen?.length ? (
                   <span title={j.order.abweichungen.map((a) => a.text).join("\n")} style={{ color: "var(--due-1)" }}>
                     {" "}
