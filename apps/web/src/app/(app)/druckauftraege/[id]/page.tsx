@@ -546,54 +546,53 @@ export default async function DruckauftragPage({
                 <thead>
                   <tr>
                     <th>Rolle / Verwendung</th>
-                    <th>Material</th>
                     <th style={{ textAlign: "right" }}>Menge</th>
+                    <th>Material</th>
+                    <th>Herleitung</th>
                     <th>Hinweis</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {r.materialliste.map((m, i) => (
-                    <tr key={i}>
-                      <td>
-                        {m.rolle ?? "?"}
-                        {m.verwendung ? ` · ${m.verwendung}` : ""}
-                        {m.seite ? ` · ${m.seite}` : ""}
-                      </td>
-                      <td>
-                        {m.material_kurz || m.material || "—"}
-                        {m.grammatur ? ` (${m.grammatur})` : ""}
-                        {m.format ? ` ${m.format}` : ""}
-                        {m.durchmesser && (
-                          <div className="count">
-                            Ø {m.durchmesser}
-                            {m.teilung ? ` · ${m.teilung}` : ""}
-                            {m.schlaufen != null
-                              ? ` · ${m.schlaufen} Schlaufen/Expl.${
-                                  m.schlaufen_gesamt != null
-                                    ? ` · ${m.schlaufen_gesamt.toLocaleString("de-DE")} gesamt`
-                                    : ""
-                                }`
-                              : ""}
-                            {m.bindeseite ? ` · ${m.bindeseite}` : ""}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        {(() => {
-                          const b = materialBedarf(m);
-                          return (
-                            <>
-                              {b.menge.toLocaleString("de-DE")} {b.einheit}
-                              {b.herleitung && <div className="count">{b.herleitung}</div>}
-                            </>
-                          );
-                        })()}
-                      </td>
-                      <td className="count">
-                        {m.ungeloest ? <span className="msg-err">{m.ungeloest}</span> : m.produktionshinweis ?? ""}
-                      </td>
-                    </tr>
-                  ))}
+                  {r.materialliste.map((m, i) => {
+                    const b = materialBedarf(m);
+                    const einheit = m.druckbogen ? b.einheit.replace(` ${m.druckbogen}`, "") : b.einheit;
+                    return (
+                      <tr key={i}>
+                        <td>
+                          {m.rolle ?? "?"}
+                          {m.verwendung ? ` · ${m.verwendung}` : ""}
+                          {m.seite ? ` · ${m.seite}` : ""}
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          {b.menge.toLocaleString("de-DE")} {einheit}
+                        </td>
+                        <td>
+                          {m.material_kurz || m.material || "—"}
+                          {m.grammatur ? ` (${m.grammatur})` : ""}
+                          {m.format ? ` ${m.format}` : ""}
+                          {m.druckbogen ? ` ${m.druckbogen}` : ""}
+                          {m.durchmesser && (
+                            <div className="count">
+                              Ø {m.durchmesser}
+                              {m.teilung ? ` · ${m.teilung}` : ""}
+                              {m.schlaufen != null
+                                ? ` · ${m.schlaufen} Schlaufen/Expl.${
+                                    m.schlaufen_gesamt != null
+                                      ? ` · ${m.schlaufen_gesamt.toLocaleString("de-DE")} gesamt`
+                                      : ""
+                                  }`
+                                : ""}
+                              {m.bindeseite ? ` · ${m.bindeseite}` : ""}
+                            </div>
+                          )}
+                        </td>
+                        <td className="count">{b.herleitung ?? "—"}</td>
+                        <td className="count">
+                          {m.ungeloest ? <span className="msg-err">{m.ungeloest}</span> : m.produktionshinweis ?? ""}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
