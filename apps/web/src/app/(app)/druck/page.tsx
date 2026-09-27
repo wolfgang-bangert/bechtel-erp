@@ -7,6 +7,7 @@ import { BatchActions } from "./BatchActions";
 import { BatchRow } from "./BatchRow";
 import { SortControls } from "./SortControls";
 import { FluxOrderButton } from "./FluxOrderButton";
+import { SPIRAL_HEX } from "@werk/shared/druck/spiralfarbe";
 
 export const dynamic = "force-dynamic";
 
@@ -183,19 +184,6 @@ function critWert(b: Batch, dim: string, cfg: Record<string, string[]>): string 
 }
 
 // ---- grafische Kriterien-Chips ------------------------------------------
-const SPIRAL_HEX: Record<string, string> = {
-  "weiß": "#ffffff",
-  weiss: "#ffffff",
-  silber: "#c7ccd1",
-  silver: "#c7ccd1",
-  schwarz: "#1b1b1e",
-  black: "#1b1b1e",
-  gold: "#d4af37",
-  blau: "#2f6feb",
-  rot: "#c0392b",
-  gruen: "#2e9e5b",
-  "grün": "#2e9e5b",
-};
 const chip: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",

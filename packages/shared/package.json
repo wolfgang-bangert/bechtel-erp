@@ -15,10 +15,12 @@
     "./pdf/kombinieren": "./src/pdf/kombinieren.ts",
     "./pdf/seiten": "./src/pdf/seiten.ts",
     "./pdf/analyse": "./src/pdf/analyse.ts",
+    "./pdf/laufzettel": "./src/pdf/laufzettel.ts",
     "./produkt/register": "./src/produkt/register.ts",
     "./produkt/dateiname": "./src/produkt/dateiname.ts",
     "./produkt/kennung": "./src/produkt/kennung.ts",
-    "./material/bezug": "./src/material/bezug.ts"
+    "./material/bezug": "./src/material/bezug.ts",
+    "./druck/spiralfarbe": "./src/druck/spiralfarbe.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",

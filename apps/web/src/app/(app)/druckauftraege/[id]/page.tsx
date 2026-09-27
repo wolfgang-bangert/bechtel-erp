@@ -8,6 +8,7 @@ import { PreisPanel } from "./PreisPanel";
 import { DateienPanel } from "./DateienPanel";
 import { ArbeitsvorgaengePanel } from "./ArbeitsvorgaengePanel";
 import { TauschUmschlagInhaltButton } from "./TauschUmschlagInhaltButton";
+import { LaufzettelButton } from "./LaufzettelButton";
 import { loadCatalogForForm } from "@/lib/flux/loadCatalog";
 import { brauchtUmschlagInhaltTrennung } from "@werk/shared/druck/pdfSplit";
 import { materialBedarf } from "@werk/shared/opri";
@@ -339,9 +340,12 @@ export default async function DruckauftragPage({
           Druckauftrag {data.external_reference}{" "}
           <span className="tag">{data.portal_state ?? "?"}</span>
         </h1>
-        <Link href={back.href} className="ghost" style={{ padding: "7px 12px" }}>
-          {back.label}
-        </Link>
+        <div className="toolbar" style={{ gap: 8 }}>
+          <LaufzettelButton orderId={data.id} />
+          <Link href={back.href} className="ghost" style={{ padding: "7px 12px" }}>
+            {back.label}
+          </Link>
+        </div>
       </div>
       <p className="lead">{portal?.name ?? portal?.code} · {data.reference_type}</p>
 

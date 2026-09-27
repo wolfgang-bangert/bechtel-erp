@@ -5,8 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 import { resolvePortalOrder } from "@/lib/opri/resolve";
 import { erzeugeJobs } from "@/lib/druck/materialize";
 import { matchOnePreis } from "@/lib/preise/match";
-import { getObjectBytes, putObject } from "@/lib/storage";
+import { getObjectBytes, putObject, deleteObject, signedGetUrl } from "@/lib/storage";
 import { splitUmschlagInhalt } from "@werk/shared/druck/pdfSplit";
+import { erzeugeLaufzettelPdf, type LaufzettelInput } from "@werk/shared/pdf/laufzettel";
+import { materialBedarf } from "@werk/shared/opri";
+import { randomUUID } from "node:crypto";
 
 export type State = { ok?: boolean; error?: string; note?: string };
 
@@ -362,4 +365,145 @@ export async function requestPortalPullAction(_prev: SyncState, _fd: FormData): 
 
   revalidatePath("/druckauftraege");
   return { ok: true, note: "Angefordert - kann einige Minuten dauern (Abruf, Auflösen, Jobs erzeugen)." };
+}
+
+export type LaufzettelState = { ok?: boolean; url?: string; error?: string };
+
+/**
+ * werk-generierter Produktions-Begleitzettel (Materialliste, Arbeitsvorgänge,
+ * Wire-O-Angaben) - ergänzt die vom Portal gelieferte, unveränderte
+ * "Auftragslauftasche" (jobSheet). Direkt aufgerufen (kein useActionState),
+ * damit der Button die zurückgegebene URL sofort im selben Klick-Handler
+ * öffnen kann (window.open aus einem useEffect würde vom Popup-Blocker
+ * abgefangen).
+ */
+export async function erzeugeLaufzettelAction(orderId: string): Promise<LaufzettelState> {
+  const supabase = await createClient();
+
+  const { data: order } = await supabase
+    .from("portal_order")
+    .select("external_reference, description, quantity, deliver_date, resolve_result")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!order) return { error: "Auftrag nicht gefunden." };
+
+  const r = order.resolve_result as {
+    gruppe?: string | null;
+    materialliste?: {
+      rolle: string | null;
+      verwendung: string | null;
+      material: string | null;
+      material_kurz: string | null;
+      menge: number;
+      einheit?: string;
+      nutzen?: number | null;
+      netto_bogen?: number | null;
+      druckbogen?: string | null;
+      schlaufen?: number | null;
+      schlaufen_gesamt?: number | null;
+      ungeloest?: string;
+    }[];
+  } | null;
+
+  let produkt = order.description ?? "—";
+  if (r?.gruppe) {
+    const { data: gruppeRow } = await supabase
+      .from("opri_produkt_gruppe")
+      .select("name")
+      .eq("kuerzel", r.gruppe)
+      .maybeSingle();
+    if (gruppeRow?.name) produkt = gruppeRow.name;
+  }
+
+  const { data: jobsRaw } = await supabase
+    .from("job")
+    .select("typ, bauteil, papier, teilung, durchmesser, schlaufen, schlaufen_gesamt, spiralfarbe, status")
+    .eq("portal_order_id", orderId)
+    .order("created_at", { ascending: true });
+  const jobs = (jobsRaw ?? []) as {
+    typ: string;
+    bauteil: string;
+    papier: string | null;
+    teilung: string | null;
+    durchmesser: string | null;
+    schlaufen: number | null;
+    schlaufen_gesamt: number | null;
+    spiralfarbe: string | null;
+    status: string;
+  }[];
+
+  const teilungen = [...new Set(jobs.map((j) => j.teilung).filter((t): t is string => !!t))];
+  const durchmesserSkala: LaufzettelInput["durchmesserSkala"] = {};
+  if (teilungen.length > 0) {
+    const { data: stufenRaw } = await supabase
+      .from("wire_o_durchmesser")
+      .select("teilung, durchmesser_zoll, durchmesser_mm, bezeichnung")
+      .in("teilung", teilungen)
+      .order("durchmesser_mm", { ascending: true });
+    for (const s of (stufenRaw ?? []) as { teilung: string; durchmesser_zoll: string | null; durchmesser_mm: number | null; bezeichnung: string | null }[]) {
+      const liste = durchmesserSkala[s.teilung] ?? [];
+      liste.push({ zoll: s.durchmesser_zoll, mm: s.durchmesser_mm, bezeichnung: s.bezeichnung });
+      durchmesserSkala[s.teilung] = liste;
+    }
+  }
+
+  const input: LaufzettelInput = {
+    auftrag: {
+      referenz: order.external_reference ?? orderId.slice(0, 8),
+      produkt,
+      menge: order.quantity != null ? Number(order.quantity) : null,
+      liefertermin: order.deliver_date,
+    },
+    materialliste: (r?.materialliste ?? [])
+      .filter((m) => !m.ungeloest && (m.material || m.material_kurz))
+      .map((m) => {
+        const b = materialBedarf(m);
+        return {
+          rolle: m.rolle,
+          verwendung: m.verwendung,
+          material: m.material_kurz || m.material || "—",
+          menge: `${b.menge.toLocaleString("de-DE")} ${b.einheit}`,
+        };
+      }),
+    arbeitsvorgaenge: jobs,
+    durchmesserSkala,
+  };
+
+  let pdf: Uint8Array;
+  try {
+    pdf = await erzeugeLaufzettelPdf(input);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Laufzettel konnte nicht erzeugt werden." };
+  }
+
+  const key = `portal/onlineprinters/laufzettel/${orderId}/${randomUUID()}.pdf`;
+  await putObject(key, pdf, "application/pdf");
+
+  const { data: alt } = await supabase
+    .from("portal_order_file")
+    .select("id, storage_key")
+    .eq("portal_order_id", orderId)
+    .eq("typ", "laufzettel")
+    .maybeSingle();
+
+  const { error: insErr } = await supabase.from("portal_order_file").insert({
+    portal_order_id: orderId,
+    typ: "laufzettel",
+    storage_key: key,
+    filename: `Laufzettel-${order.external_reference ?? orderId.slice(0, 8)}.pdf`,
+    bytes: pdf.byteLength,
+    fetched_at: new Date().toISOString(),
+  });
+  if (insErr) {
+    await deleteObject(key).catch(() => {});
+    return { error: insErr.message };
+  }
+  if (alt) {
+    await supabase.from("portal_order_file").delete().eq("id", alt.id);
+    if (alt.storage_key) await deleteObject(alt.storage_key).catch(() => {});
+  }
+
+  const url = await signedGetUrl(key, 1800);
+  revalidatePath(`/druckauftraege/${orderId}`);
+  return { ok: true, url: url ?? undefined };
 }
