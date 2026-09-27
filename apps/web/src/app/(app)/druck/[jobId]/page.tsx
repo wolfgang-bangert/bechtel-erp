@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { fmtDate } from "@/lib/format";
+import { loadCatalogForForm } from "@/lib/flux/loadCatalog";
+import { FluxFelder, JobDateien, type ArbeitsvorgangJob } from "../../druckauftraege/[id]/ArbeitsvorgaengePanel";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +26,7 @@ type JobDetail = {
   durchmesser: string | null;
   schlaufen: number | null;
   schlaufen_gesamt: number | null;
+  komponenten: ArbeitsvorgangJob["komponenten"];
   verfahren: string | null;
   status: string;
   notiz: string | null;
@@ -32,6 +35,7 @@ type JobDetail = {
   flux_signature: string | null;
   flux_printer: string | null;
   flux_paper_type: string | null;
+  flux_services: Record<string, unknown> | null;
   flux_order_id: string | null;
   flux_order_item_id: string | null;
   flux_status: string | null;
@@ -51,8 +55,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
     .from("job")
     .select(
       "id, typ, bauteil, papier, farbigkeit, format, druckbogen, nutzen, netto_bogen, auflage, zuschuss, cello, cello_seiten, " +
-        "teilung, durchmesser, schlaufen, schlaufen_gesamt, verfahren, status, notiz, portal_order_id, " +
-        "flux_product, flux_signature, flux_printer, flux_paper_type, flux_order_id, flux_order_item_id, flux_status, " +
+        "teilung, durchmesser, schlaufen, schlaufen_gesamt, komponenten, verfahren, status, notiz, portal_order_id, " +
+        "flux_product, flux_signature, flux_printer, flux_paper_type, flux_services, flux_order_id, flux_order_item_id, flux_status, " +
         "batch:batch_id(id, nummer, typ, status), " +
         "order:portal_order_id(external_reference, deliver_date, gruppe:resolve_result->>gruppe)",
     )
@@ -69,12 +73,56 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
   const dateien = await Promise.all(
     ((dateienRaw ?? []) as { id: string; storage_key: string; filename: string | null; bytes: number | null; herkunft: string }[]).map(
       async (d) => ({
-        ...d,
+        id: d.id,
+        filename: d.filename,
+        bytes: d.bytes,
+        herkunft: d.herkunft,
         viewUrl: await signedGetUrl(d.storage_key, 1800),
         downloadUrl: await signedGetUrl(d.storage_key, 1800, d.filename ?? undefined),
       }),
     ),
   );
+
+  const avJob: ArbeitsvorgangJob = {
+    id: job.id,
+    typ: job.typ,
+    bauteil: job.bauteil,
+    papier: job.papier,
+    farbigkeit: job.farbigkeit,
+    format: job.format,
+    druckbogen: job.druckbogen,
+    nutzen: job.nutzen,
+    netto_bogen: job.netto_bogen,
+    auflage: job.auflage,
+    cello: job.cello,
+    cello_seiten: job.cello_seiten,
+    teilung: job.teilung,
+    durchmesser: job.durchmesser,
+    schlaufen_gesamt: job.schlaufen_gesamt,
+    komponenten: job.komponenten,
+    status: job.status,
+    flux_product: job.flux_product,
+    flux_signature: job.flux_signature,
+    flux_printer: job.flux_printer,
+    flux_paper_type: job.flux_paper_type,
+    flux_services: job.flux_services,
+    flux_order_item_id: job.flux_order_item_id,
+    pdf: dateien.length > 0,
+    dateien,
+    batch: job.batch,
+  };
+
+  let cat: Awaited<ReturnType<typeof loadCatalogForForm>> | null = null;
+  let fluxUrlTpl: string | null = null;
+  if (job.typ === "druck") {
+    cat = await loadCatalogForForm();
+    const { data: fluxUrlRow } = await supabase
+      .from("setting")
+      .select("value")
+      .eq("key", "flux_order_url_tpl")
+      .maybeSingle();
+    fluxUrlTpl = (fluxUrlRow?.value as string | null) ?? null;
+  }
 
   return (
     <>
@@ -146,48 +194,44 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
         <dd>{job.notiz ?? "—"}</dd>
       </dl>
 
-      <h2 style={{ marginTop: 22 }}>flux</h2>
-      <dl className="kv">
-        <dt>Produkt</dt>
-        <dd>{job.flux_product ?? "—"}</dd>
-        <dt>Standbogen</dt>
-        <dd>{job.flux_signature ?? "—"}</dd>
-        <dt>Papiersorte</dt>
-        <dd>{job.flux_paper_type ?? "—"}</dd>
-        <dt>Drucker</dt>
-        <dd>{job.flux_printer ?? "—"}</dd>
-        <dt>Auftrag/Position</dt>
-        <dd>
-          {job.flux_order_id ?? "—"}
-          {job.flux_order_item_id ? ` / ${job.flux_order_item_id}` : ""}
-        </dd>
-        <dt>Status</dt>
-        <dd>{job.flux_status ?? "—"}</dd>
-      </dl>
-
-      <h2 style={{ marginTop: 22 }}>Dateien</h2>
-      {dateien.length === 0 ? (
-        <p className="count">Keine Dateien.</p>
-      ) : (
-        <div className="rows">
-          {dateien.map((d) => (
-            <div key={d.id} className="row">
-              {d.viewUrl ? (
-                <a href={d.viewUrl} target="_blank" rel="noreferrer" className="w-name">
-                  {d.filename ?? d.id}
-                </a>
-              ) : (
-                <span className="w-name">{d.filename ?? d.id}</span>
-              )}
-              <span className="count">{d.herkunft}</span>
-              {d.downloadUrl && (
-                <a href={d.downloadUrl} className="ghost" style={{ padding: "4px 10px" }}>
-                  Download
-                </a>
-              )}
+      <h2 style={{ marginTop: 22 }}>flux & Dateien</h2>
+      {job.typ === "druck" && cat ? (
+        <>
+          {cat.catalogError && (
+            <div className="banner-err" style={{ marginBottom: 10 }}>
+              flux-Katalog nicht erreichbar ({cat.catalogError}).
             </div>
-          ))}
-        </div>
+          )}
+          <datalist id="flux-products">
+            {cat.products.map((p) => (
+              <option key={p.name} value={p.name} />
+            ))}
+          </datalist>
+          <datalist id="flux-signatures">
+            {cat.signatures.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
+          <datalist id="flux-printers">
+            {cat.printers.map((p) => (
+              <option key={p} value={p} />
+            ))}
+          </datalist>
+          <datalist id="flux-papers">
+            {cat.paperTypes.map((p) => (
+              <option key={p} value={p} />
+            ))}
+          </datalist>
+          {job.portal_order_id ? (
+            <FluxFelder orderId={job.portal_order_id} job={avJob} products={cat.products} fluxUrlTpl={fluxUrlTpl} />
+          ) : (
+            <p className="count">Kein zugehöriger Auftrag - flux-Übergabe nicht möglich.</p>
+          )}
+        </>
+      ) : job.portal_order_id ? (
+        <JobDateien orderId={job.portal_order_id} job={avJob} />
+      ) : (
+        <p className="count">Kein zugehöriger Auftrag - keine Dateiverwaltung möglich.</p>
       )}
     </>
   );
