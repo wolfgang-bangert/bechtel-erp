@@ -453,6 +453,11 @@ async function main() {
       console.log(JSON.stringify(await backfillZipParts(), null, 1));
       break;
     }
+    case "portal:thumb-backfill": {
+      const { backfillPartThumbnails } = await import("./portalOnlineprinters");
+      console.log(JSON.stringify(await backfillPartThumbnails(), null, 1));
+      break;
+    }
     case "portal:refresh": {
       const limArg = process.argv.find((a) => a.startsWith("--limit="))?.split("=")[1];
       const { refreshOpenOnlineprinters } = await import("./portalOnlineprinters");

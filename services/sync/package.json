@@ -42,6 +42,8 @@
     "opri:import-sku": "tsx src/cli.ts opri:import-sku",
     "opri:resolve": "tsx src/cli.ts opri:resolve",
     "portal:pull": "tsx src/cli.ts portal:pull",
+    "portal:zip-backfill": "tsx src/cli.ts portal:zip-backfill",
+    "portal:thumb-backfill": "tsx src/cli.ts portal:thumb-backfill",
     "material:import": "tsx src/cli.ts material:import",
     "mail:fetch": "tsx src/cli.ts mail:fetch",
     "incoming:extract": "tsx src/cli.ts incoming:extract",

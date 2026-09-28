@@ -528,6 +528,78 @@ export async function backfillZipParts() {
   return { zips: (zips ?? []).length, aufgeloest, teile, fehler };
 }
 
+/**
+ * Vorschaubilder (partThumbnail) für bereits vorhandene printDataPart-Zeilen
+ * nachträglich rendern (z.B. für Mehrteiler, die vor Einführung von
+ * partThumbnail synchronisiert wurden).
+ */
+export async function backfillPartThumbnails() {
+  const { data: portal } = await supabase
+    .from("portal")
+    .select("id, config")
+    .eq("code", "onlineprinters")
+    .maybeSingle();
+  const s3prefix = (
+    ((portal?.config ?? {}) as { s3_prefix?: string }).s3_prefix ?? "portal/onlineprinters"
+  ).replace(/\/+$/, "");
+
+  const { data: parts } = await supabase
+    .from("portal_order_file")
+    .select(
+      "portal_order_id, filename, storage_key, portal_order:portal_order_id(external_reference)",
+    )
+    .eq("typ", "printDataPart")
+    .not("storage_key", "is", null);
+
+  let erzeugt = 0;
+  let uebersprungen = 0;
+  const fehler: string[] = [];
+  for (const p of parts ?? []) {
+    const ref =
+      (p.portal_order as { external_reference?: string } | null)?.external_reference ??
+      (p.portal_order_id as string);
+    const filename = p.filename as string | null;
+    if (!filename) continue;
+    const { data: exThumb } = await supabase
+      .from("portal_order_file")
+      .select("id")
+      .eq("portal_order_id", p.portal_order_id)
+      .eq("typ", "partThumbnail")
+      .eq("filename", filename)
+      .maybeSingle();
+    if (exThumb) {
+      uebersprungen++;
+      continue;
+    }
+    try {
+      const leaf = filename.split("/").pop() ?? filename;
+      const safe = leaf.replace(/[^\w.\-]+/g, "_");
+      const thumbKey = `${s3prefix}/${ref}/partThumbnail-${safe}.jpg`;
+      const bytes = await getObjectBytes(p.storage_key as string);
+      const jpeg = await renderFirstPageJpeg(bytes);
+      if (!jpeg) {
+        fehler.push(`${ref}/${filename}: Rendern fehlgeschlagen`);
+        continue;
+      }
+      await putObject(thumbKey, jpeg, "image/jpeg");
+      await supabase.from("portal_order_file").insert({
+        portal_order_id: p.portal_order_id,
+        typ: "partThumbnail",
+        source_url: null,
+        storage_key: thumbKey,
+        filename,
+        bytes: jpeg.length,
+        is_zip: false,
+        fetched_at: new Date().toISOString(),
+      });
+      erzeugt++;
+    } catch (e) {
+      fehler.push(`${ref}/${filename}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return { teile: (parts ?? []).length, erzeugt, uebersprungen, fehler };
+}
+
 /** PDFs aus einem Druckdaten-ZIP einzeln in S3 + portal_order_file ablegen. */
 async function extractZipParts(
   orderId: string,
