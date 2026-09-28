@@ -144,8 +144,8 @@ export function TransactionRow({
                 background: "var(--panel)",
                 border: "1px solid var(--border)",
                 borderRadius: "var(--radius)",
-                width: "min(560px, 100%)",
-                maxHeight: "84vh",
+                width: "min(860px, 96vw)",
+                maxHeight: "90vh",
                 overflow: "auto",
               }}
             >
