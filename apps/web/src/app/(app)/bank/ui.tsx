@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { matchTransaction, type MatchState } from "./actions";
+import { matchTransaction, matchSpecial, uploadBeleg, type MatchState, type UploadState } from "./actions";
 
 const empty: MatchState = {};
 
@@ -62,6 +62,82 @@ export function MatchForm({
       </button>
       {state.ok && <span className="msg-ok">✓</span>}
       {state.error && <span className="msg-err">{state.error}</span>}
+    </form>
+  );
+}
+
+export const SONDER_LABEL: Record<string, string> = {
+  skonto: "Skonto",
+  doppelzahlung: "Doppelzahlung",
+  sonstige: "Sonstige (ohne Beleg)",
+};
+
+/** Buchung ohne Beleg verbuchen - Skonto, Doppelzahlung oder Sonstiges. */
+export function SpecialMatchForm({ txId, remaining }: { txId: string; remaining: number }) {
+  const [state, action, pending] = useActionState(matchSpecial, empty);
+
+  return (
+    <form action={action} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+      <input type="hidden" name="tx_id" value={txId} />
+      <select name="kind" defaultValue="" required style={{ width: 180 }}>
+        <option value="" disabled>
+          Sonderbuchung…
+        </option>
+        {Object.entries(SONDER_LABEL).map(([k, label]) => (
+          <option key={k} value={k}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <input name="note" placeholder="Notiz (optional)" style={{ width: 200 }} />
+      <input
+        name="alloc_amount"
+        inputMode="decimal"
+        placeholder={`Betrag (Rest ${remaining.toFixed(2)})`}
+        style={{ width: 150 }}
+      />
+      <button type="submit" disabled={pending}>
+        {pending ? "…" : "verbuchen"}
+      </button>
+      {state.ok && <span className="msg-ok">✓</span>}
+      {state.error && <span className="msg-err">{state.error}</span>}
+    </form>
+  );
+}
+
+const emptyUpload: UploadState = {};
+
+/** Beleg direkt aus der Bank-Detailansicht hochladen - legt eine
+ *  Eingangsrechnung an, verknüpft sie sofort und verlinkt zur vollständigen
+ *  Bearbeitung (Positionen/Kontierung) auf die bestehende Belegseite. */
+export function BelegUploadForm({ txId, remaining }: { txId: string; remaining: number }) {
+  const [state, action, pending] = useActionState(uploadBeleg, emptyUpload);
+
+  return (
+    <form action={action} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+      <input type="hidden" name="tx_id" value={txId} />
+      <input type="file" name="file" accept="application/pdf,image/*" required style={{ width: 220 }} />
+      <input
+        name="alloc_amount"
+        inputMode="decimal"
+        placeholder={`Betrag (Rest ${remaining.toFixed(2)})`}
+        style={{ width: 150 }}
+      />
+      <button type="submit" disabled={pending}>
+        {pending ? "…" : "hochladen"}
+      </button>
+      {state.error && <span className="msg-err">{state.error}</span>}
+      {state.ok && state.docId && (
+        <a
+          className="ghost"
+          href={`/eingangsrechnungen/${state.docId}`}
+          target="_blank"
+          rel="noreferrer"
+          style={{ padding: "5px 10px" }}
+        >
+          Beleg öffnen &amp; bearbeiten →
+        </a>
+      )}
     </form>
   );
 }
