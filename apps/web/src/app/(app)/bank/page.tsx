@@ -21,7 +21,7 @@ const kontoLabel = (a: { label: string; bank_name: string | null; iban: string }
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 100;
-type Search = { account?: string; status?: string; page?: string };
+type Search = { account?: string; status?: string; q?: string; page?: string };
 
 export default async function BankPage({
   searchParams,
@@ -31,6 +31,7 @@ export default async function BankPage({
   const sp = await searchParams;
   const account = sp.account ?? "";
   const status = sp.status ?? "unmatched";
+  const q = (sp.q ?? "").trim();
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
   const fromRow = (page - 1) * PAGE_SIZE;
 
@@ -90,6 +91,18 @@ export default async function BankPage({
   // dort weitere Rechnungen anhängen kann.
   if (status === "unmatched") query = query.in("match_status", ["unmatched", "partial"]);
   else if (status) query = query.eq("match_status", status);
+  if (q) {
+    const like = `%${q.replace(/[%,]/g, "")}%`;
+    const filters = [`counterparty_name.ilike.${like}`, `purpose.ilike.${like}`];
+    // Zahl eingegeben (mit Komma oder Punkt) → auch auf den Betrag matchen,
+    // Vorzeichen ignorieren (Nutzer weiß bei Suche oft nicht, ob Soll/Haben).
+    const num = q.replace(".", "").replace(",", ".");
+    if (/^-?\d+(\.\d{1,2})?$/.test(num)) {
+      const n = Number(num);
+      filters.push(`amount.eq.${n}`, `amount.eq.${-n}`);
+    }
+    query = query.or(filters.join(","));
+  }
 
   const res = await query
     .order("booking_date", { ascending: false })
@@ -169,6 +182,7 @@ export default async function BankPage({
     const u = new URLSearchParams();
     if (account) u.set("account", account);
     if (status) u.set("status", status);
+    if (q) u.set("q", q);
     if (p > 1) u.set("page", String(p));
     const s = u.toString();
     return s ? `/bank?${s}` : "/bank";
@@ -261,7 +275,16 @@ export default async function BankPage({
           <option value="matched">zugeordnet</option>
           <option value="ignored">ignoriert</option>
         </select>
+        <input
+          name="q"
+          defaultValue={q}
+          placeholder="Gegenseite, Verwendungszweck, Betrag…"
+          style={{ minWidth: 260 }}
+        />
         <button type="submit">Anzeigen</button>
+        {(account || (status && status !== "unmatched") || q) && (
+          <Link href="/bank">zurücksetzen</Link>
+        )}
         <span className="count">{total.toLocaleString("de-DE")} Umsätze</span>
       </form>
 
