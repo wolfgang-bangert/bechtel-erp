@@ -13,7 +13,11 @@ export default async function AppLayout({
   return (
     <div className="shell">
       <nav className="sidebar">
-        <div className="brand">werk</div>
+        <div className="brand">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-bechtel-light.svg" alt="Bechtel Druck" />
+          <span className="tool-name">werk</span>
+        </div>
 
         <Link href="/start">Start</Link>
 
