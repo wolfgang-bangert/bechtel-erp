@@ -105,7 +105,10 @@ export async function matchTransaction(
   return { ok: true };
 }
 
-const SONDER_KINDS = ["skonto", "doppelzahlung", "sonstige"] as const;
+/** Sachkonten, bei denen die USt aus dem an dieser Bankzeile bereits
+ *  verknüpften Beleg abgeleitet wird (Skonto mindert Rechnung und USt im
+ *  selben Verhältnis). */
+const SKONTO_ACCOUNTS = new Set(["3736", "3731", "8736", "8731"]);
 
 /** Verbleibenden, noch nicht zugeordneten Betrag einer Buchung ermitteln. */
 async function remainingAmount(
@@ -144,13 +147,43 @@ async function refreshMatchStatus(
     .eq("id", txId);
 }
 
-/** Sonderbuchung ohne Beleg (Skonto, Doppelzahlung, Sonstiges) verbuchen. */
+/** Aus einem an dieser Bankzeile bereits verknüpften Beleg (Rechnung/
+ *  Eingangsrechnung) den effektiven Steuersatz ableiten (tax_total/net_total)
+ *  - für die USt-Aufteilung einer Skonto-Buchungszeile. Bei mehreren/keinem
+ *  Beleg wird das erste brauchbare Ergebnis genommen bzw. null (dann bleibt
+ *  die Buchungszeile ohne USt-Aufteilung, Betrag als Ganzes gebucht). */
+async function effectiveTaxRateForTransaction(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  txId: string,
+): Promise<number | null> {
+  const { data: matches } = await supabase
+    .from("bank_transaction_match")
+    .select(
+      "sales_invoice:sales_invoice(net_total, tax_total), incoming_document:incoming_document(net_amount, tax_amount)",
+    )
+    .eq("bank_transaction_id", txId)
+    .or("sales_invoice_id.not.is.null,incoming_document_id.not.is.null");
+  for (const m of matches ?? []) {
+    const inv = m.sales_invoice as unknown as { net_total: number | null; tax_total: number | null } | null;
+    const inc = m.incoming_document as unknown as { net_amount: number | null; tax_amount: number | null } | null;
+    const net = inv?.net_total ?? inc?.net_amount;
+    const tax = inv?.tax_total ?? inc?.tax_amount;
+    if (net && tax != null && net > 0) return Math.round((tax / net) * 10000) / 100;
+  }
+  return null;
+}
+
+/** Buchungszeile gegen ein Sachkonto (Skonto, Durchlaufende Posten, ...)
+ *  oder - falls (noch) kein passendes Sachkonto existiert - als reine
+ *  Notiz ohne Ziel. Optional mit angehängtem Beleg (kein voller
+ *  Eingangsrechnungs-Datensatz, nur die Datei). */
 export async function matchSpecial(_prev: MatchState, formData: FormData): Promise<MatchState> {
   const txId = String(formData.get("tx_id") ?? "");
-  const kind = String(formData.get("kind") ?? "");
+  const ledgerAccount = String(formData.get("ledger_account") ?? "").trim() || null;
   const note = String(formData.get("note") ?? "").trim() || null;
+  const file = formData.get("file") as File | null;
   if (!txId) return { error: "Umsatz fehlt." };
-  if (!SONDER_KINDS.includes(kind as (typeof SONDER_KINDS)[number])) return { error: "Art wählen." };
+  if (!ledgerAccount && !note) return { error: "Sachkonto wählen oder Notiz eingeben." };
 
   const supabase = await createClient();
   const r = await remainingAmount(supabase, txId);
@@ -161,10 +194,52 @@ export async function matchSpecial(_prev: MatchState, formData: FormData): Promi
   const allocInput = allocRaw ? Number(allocRaw) : null;
   const amt = r2(Math.min(r.remaining, allocInput && allocInput > 0 ? allocInput : r.remaining));
 
-  const { error: me } = await supabase
-    .from("bank_transaction_match")
-    .insert({ bank_transaction_id: txId, kind, note, amount: amt, auto: false });
-  if (me) return { error: me.message };
+  let netAmount: number | null = null;
+  let taxRate: number | null = null;
+  let taxAmount: number | null = null;
+  if (ledgerAccount && SKONTO_ACCOUNTS.has(ledgerAccount)) {
+    const rate = await effectiveTaxRateForTransaction(supabase, txId);
+    if (rate != null) {
+      taxRate = rate;
+      netAmount = r2(amt / (1 + rate / 100));
+      taxAmount = r2(amt - netAmount);
+    }
+  }
+
+  let attachmentKey: string | null = null;
+  let attachmentName: string | null = null;
+  if (file && file.size > 0) {
+    const bytes = Buffer.from(await file.arrayBuffer());
+    attachmentKey = `bank/buchung/${txId}/${randomUUID()}-${file.name.replace(/[^\w.-]+/g, "_")}`;
+    await putObject(attachmentKey, bytes, file.type || "application/octet-stream");
+    attachmentName = file.name;
+  }
+
+  // kind nur als freundliches Label für die Anzeige ableiten - kein
+  // Einfluss auf die Konstellation, das Sachkonto ist das eigentliche Ziel.
+  const kind = ledgerAccount === "1590" ? "doppelzahlung" : SKONTO_ACCOUNTS.has(ledgerAccount ?? "")
+    ? "skonto"
+    : ledgerAccount
+      ? null
+      : "sonstige";
+
+  const { error: me } = await supabase.from("bank_transaction_match").insert({
+    bank_transaction_id: txId,
+    ledger_account: ledgerAccount,
+    kind,
+    note,
+    amount: amt,
+    net_amount: netAmount,
+    tax_rate: taxRate,
+    tax_amount: taxAmount,
+    attachment_storage_key: attachmentKey,
+    attachment_file_name: attachmentName,
+    auto: false,
+  });
+  if (me) {
+    if (attachmentKey) await deleteObject(attachmentKey).catch(() => {});
+    return { error: me.message };
+  }
 
   await refreshMatchStatus(supabase, txId, r.tx.amount);
   revalidateAll();
@@ -293,7 +368,15 @@ export async function unmatchTransaction(formData: FormData): Promise<void> {
   const txId = String(formData.get("tx_id") ?? "");
   if (!matchId) return;
   const supabase = await createClient();
+  // angehängter Beleg einer Sachkonto-Buchungszeile hat sonst keine
+  // Referenz mehr - verwaist beim Aufheben, also mit löschen.
+  const { data: removed } = await supabase
+    .from("bank_transaction_match")
+    .select("attachment_storage_key")
+    .eq("id", matchId)
+    .maybeSingle();
   await supabase.from("bank_transaction_match").delete().eq("id", matchId);
+  if (removed?.attachment_storage_key) await deleteObject(removed.attachment_storage_key).catch(() => {});
   if (txId) {
     const { data: rest } = await supabase
       .from("bank_transaction_match")
