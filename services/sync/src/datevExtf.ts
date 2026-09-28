@@ -3,20 +3,20 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { env } from "./env";
 import { supabase } from "./supabase";
-import { pagedSelect } from "./db";
+import { generateInvoiceBooking } from "./syncInvoiceBookings";
 
 /* --------------------------------------------------------------------------
  * DATEV EXTF-Buchungsstapel (Ausgangsrechnungen / Debitoren) aus sales_invoice.
- * Erlöskonten-Zuordnung über setting 'datev.revenue_accounts'.
+ * Die Erlöskonto-Aufteilung kommt aus sales_invoice_booking (siehe
+ * syncInvoiceBookings.ts) - dieselben Buchungszeilen, die auch auf der
+ * Rechnung angezeigt werden, statt sie hier separat neu zu berechnen.
+ * Für Rechnungen ohne bereits generierte Buchungszeilen wird hier einmalig
+ * nachgezogen (generateInvoiceBooking), damit der Export nichts stillschweigend
+ * überspringt.
  * BU-Schlüssel bleibt leer (SKR03-Automatikkonten) — vom Steuerberater bestätigen.
  * -------------------------------------------------------------------------- */
 
 type Options = { from: string; to: string; dryRun?: boolean };
-
-const EU = new Set([
-  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "GR", "HU", "IE",
-  "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
-]);
 
 const HEADER_FIELDS = [
   "Umsatz (ohne Soll/Haben-Kz)", "Soll/Haben-Kennzeichen", "WKZ Umsatz", "Kurs",
@@ -42,70 +42,19 @@ const clean = (s: string, max: number) =>
 const q = (v: string) => (v === "" ? "" : `"${v.replace(/"/g, '""')}"`);
 const raw = (v: string | number) => String(v);
 
-type RevMap = Record<string, string>;
-
-function revenueAccount(
-  rate: number,
-  taxCountry: string,
-  map: RevMap,
-): string {
-  if (rate >= 18) return map.standard_19;
-  if (rate >= 6 && rate < 8) return map.standard_7;
-  // rate ~0
-  const c = (taxCountry || "DE").toUpperCase();
-  if (c === "DE") return map.tax_free_other ?? map.fallback;
-  if (EU.has(c)) return map.reverse_charge_eu ?? map.fallback;
-  return map.export_third_country ?? map.fallback;
-}
-
+type Booking = { ledger_account: string; gross_amount: number };
 type Inv = {
   id: string;
   external_id: string | null;
   kind: string;
   invoice_number: string | null;
   invoice_date: string | null;
-  net_total: number | null;
-  tax_total: number | null;
-  gross_total: number | null;
-  tax_breakdown: Record<string, number> | null;
-  organization: { name: string; customer_number: string | null; tax_country: string | null } | null;
+  organization: { name: string; customer_number: string | null } | null;
+  bookings: Booking[];
 };
-
-/** [rate%, bruttoAnteil][] für eine Rechnung. */
-function taxSplit(inv: Inv): [number, number][] {
-  const gross = inv.gross_total ?? 0;
-  const net = inv.net_total ?? 0;
-  const tb = inv.tax_breakdown;
-  if (tb && Object.keys(tb).length > 0) {
-    const out: [number, number][] = [];
-    for (const [rateStr, taxAmt] of Object.entries(tb)) {
-      const rate = Math.round(Number(rateStr) * 100);
-      const netPortion = rate > 0 ? taxAmt / (rate / 100) : 0;
-      out.push([rate, Math.round((netPortion + taxAmt) * 100) / 100]);
-    }
-    // Rundungsdifferenz auf die größte Zeile
-    const sum = out.reduce((s, [, g]) => s + g, 0);
-    if (out.length && Math.abs(sum - gross) >= 0.01) {
-      out.sort((a, b) => b[1] - a[1]);
-      out[0][1] = Math.round((out[0][1] + (gross - sum)) * 100) / 100;
-    }
-    return out;
-  }
-  const rate =
-    net > 0 && (inv.tax_total ?? 0) > 0
-      ? Math.round(((inv.tax_total ?? 0) / net) * 100)
-      : 0;
-  return [[rate, gross]];
-}
 
 export async function exportDatevExtf(opts: Options) {
   const { from, to, dryRun = false } = opts;
-  const map = (
-    (
-      await pagedSelect<{ key: string; value: RevMap }>("setting", "key, value")
-    ).find((s) => s.key === "datev.revenue_accounts")?.value ?? {}
-  ) as RevMap;
-  if (!map.standard_19) throw new Error("setting datev.revenue_accounts fehlt/leer");
 
   const invoices: Inv[] = [];
   const size = 1000;
@@ -114,7 +63,9 @@ export async function exportDatevExtf(opts: Options) {
     const { data, error } = await supabase
       .from("sales_invoice")
       .select(
-        "id, external_id, kind, invoice_number, invoice_date, net_total, tax_total, gross_total, tax_breakdown, organization:organization(name, customer_number, tax_country)",
+        "id, external_id, kind, invoice_number, invoice_date, " +
+          "organization:organization(name, customer_number), " +
+          "bookings:sales_invoice_booking(ledger_account, gross_amount)",
       )
       .gte("invoice_date", from)
       .lte("invoice_date", to)
@@ -127,13 +78,35 @@ export async function exportDatevExtf(opts: Options) {
     fromRow += size;
   }
 
+  // Für Rechnungen ohne bereits generierte Buchungszeilen einmalig nachziehen,
+  // damit der Export nichts stillschweigend überspringt - nicht im DRY RUN
+  // (der darf nichts schreiben; fehlende Buchungszeilen zählen dort einfach
+  // als "noBooking" übersprungen).
+  const missingBooking = dryRun
+    ? []
+    : invoices.filter((inv) => inv.invoice_number?.trim() && inv.bookings.length === 0);
+  for (const inv of missingBooking) {
+    try {
+      const r = await generateInvoiceBooking(inv.id);
+      if (r.zeilen) {
+        const { data: fresh } = await supabase
+          .from("sales_invoice_booking")
+          .select("ledger_account, gross_amount")
+          .eq("sales_invoice_id", inv.id);
+        inv.bookings = (fresh ?? []) as Booking[];
+      }
+    } catch {
+      // bleibt ohne Buchungszeilen -> unten als noBooking übersprungen
+    }
+  }
+
   const personenkontoLen = env.datev.sachkontoLen() + 1;
   const debMin = 10 ** (personenkontoLen - 1); // z. B. 10000
   const debMax = 7 * 10 ** (personenkontoLen - 1) - 1; // z. B. 69999
 
   const dataLines: string[] = [];
   const sourceIds: string[] = [];
-  const skips = { noNumber: 0, noDebitor: 0, badDebitor: 0 };
+  const skips = { noNumber: 0, noDebitor: 0, badDebitor: 0, noBooking: 0 };
   let grossTotal = 0;
 
   for (const inv of invoices) {
@@ -151,6 +124,10 @@ export async function exportDatevExtf(opts: Options) {
       skips.badDebitor += 1;
       continue;
     }
+    if (inv.bookings.length === 0) {
+      skips.noBooking += 1; // Buchungszeilen konnten nicht erzeugt werden
+      continue;
+    }
 
     const isCredit = inv.kind === "credit_note";
     const sh = isCredit ? "H" : "S";
@@ -158,15 +135,15 @@ export async function exportDatevExtf(opts: Options) {
     const num = clean(inv.invoice_number, 36);
     const text = clean(`${isCredit ? "GS" : "RE"} ${num} ${org?.name ?? ""}`, 60);
 
-    for (const [rate, grossPortion] of taxSplit(inv)) {
+    for (const b of inv.bookings) {
+      const grossPortion = b.gross_amount;
       if (Math.abs(grossPortion) < 0.005) continue;
-      const konto = revenueAccount(rate, org?.tax_country ?? "DE", map);
       const cells = new Array<string>(N_COLS).fill("");
       cells[0] = raw(amount(grossPortion)); // Umsatz (Zahl, ohne Anführungszeichen)
       cells[1] = q(sh); // Soll/Haben-Kz
       cells[2] = q("EUR"); // WKZ Umsatz
       cells[6] = raw(debitor); // Konto = Debitor
-      cells[7] = raw(konto); // Gegenkonto = Erlöskonto
+      cells[7] = raw(b.ledger_account); // Gegenkonto = Erlöskonto
       // cells[8] BU-Schlüssel: leer (SKR03-Automatikkonto)
       cells[9] = raw(beleg); // Belegdatum DDMM
       cells[10] = q(num); // Belegfeld 1 (Rechnungsnummer)
@@ -176,7 +153,7 @@ export async function exportDatevExtf(opts: Options) {
     }
     sourceIds.push(inv.id);
   }
-  const skipped = skips.noNumber + skips.noDebitor + skips.badDebitor;
+  const skipped = skips.noNumber + skips.noDebitor + skips.badDebitor + skips.noBooking;
 
   const now = new Date();
   const ts =

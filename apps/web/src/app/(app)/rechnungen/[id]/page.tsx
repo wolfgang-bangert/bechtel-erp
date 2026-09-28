@@ -21,11 +21,11 @@ export default async function RechnungDetail({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: inv, error }, { data: items }] = await Promise.all([
+  const [{ data: inv, error }, { data: items }, { data: bookings }] = await Promise.all([
     supabase
       .from("sales_invoice")
       .select(
-        "*, organization:organization(id, name), sales_order:sales_order(id, order_number)",
+        "*, organization:organization(id, name, customer_number), sales_order:sales_order(id, order_number)",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -34,12 +34,17 @@ export default async function RechnungDetail({
       .select("position, description, quantity, unit_price, tax_rate, net_amount")
       .eq("sales_invoice_id", id)
       .order("position", { nullsFirst: false }),
+    supabase
+      .from("sales_invoice_booking")
+      .select("ledger_account, tax_rate, net_amount, tax_amount, gross_amount")
+      .eq("sales_invoice_id", id)
+      .order("gross_amount", { ascending: false }),
   ]);
 
   if (error) return <div className="banner-err">Fehler: {error.message}</div>;
   if (!inv) notFound();
 
-  const org = inv.organization as unknown as { id: string; name: string } | null;
+  const org = inv.organization as unknown as { id: string; name: string; customer_number: string | null } | null;
   const order = inv.sales_order as unknown as { id: string; order_number: string | null } | null;
   const taxes = (inv.tax_breakdown ?? {}) as Record<string, number>;
   const addr = (inv.billing_address_snapshot ?? {}) as Record<string, unknown>;
@@ -174,6 +179,49 @@ export default async function RechnungDetail({
           <strong>{fmtEur(inv.gross_total)}</strong>
         </dd>
       </dl>
+
+      <h2>Buchung</h2>
+      <p className="lead">
+        Debitor{" "}
+        {org?.customer_number ? (
+          <strong>{org.customer_number}</strong>
+        ) : (
+          <span className="msg-err">keine Debitorennummer hinterlegt</span>
+        )}{" "}
+        an Erlöskonto{(bookings ?? []).length > 1 ? "-e" : ""}
+      </p>
+      {(bookings ?? []).length > 0 ? (
+        <div className="table-scroll">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Erlöskonto</th>
+                <th style={{ textAlign: "right" }}>USt %</th>
+                <th style={{ textAlign: "right" }}>Netto</th>
+                <th style={{ textAlign: "right" }}>USt</th>
+                <th style={{ textAlign: "right" }}>Brutto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(bookings ?? []).map((b, i) => (
+                <tr key={i}>
+                  <td>{b.ledger_account}</td>
+                  <td style={{ textAlign: "right" }}>{b.tax_rate != null ? b.tax_rate : "–"}</td>
+                  <td style={{ textAlign: "right" }}>{fmtEur(b.net_amount)}</td>
+                  <td style={{ textAlign: "right" }}>{fmtEur(b.tax_amount)}</td>
+                  <td style={{ textAlign: "right" }}>{fmtEur(b.gross_amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="count">
+          {inv.invoice_number
+            ? "Noch keine Buchungszeilen erzeugt (nächster automatischer Lauf oder pnpm invoice:booking --id=…)."
+            : "Rechnung noch nicht festgeschrieben (keine Rechnungsnummer) - keine Buchung."}
+        </p>
+      )}
     </>
   );
 }
