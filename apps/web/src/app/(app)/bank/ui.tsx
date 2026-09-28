@@ -66,36 +66,42 @@ export function MatchForm({
   );
 }
 
-export const SONDER_LABEL: Record<string, string> = {
-  skonto: "Skonto",
-  doppelzahlung: "Doppelzahlung",
-  sonstige: "Sonstige (ohne Beleg)",
-};
+export type LedgerAccountOption = { value: string; label: string };
 
-/** Buchung ohne Beleg verbuchen - Skonto, Doppelzahlung oder Sonstiges. */
-export function SpecialMatchForm({ txId, remaining }: { txId: string; remaining: number }) {
+/** Buchung gegen ein Sachkonto (Skonto, Durchlaufende Posten, ...) - oder,
+ *  falls (noch) kein passendes Konto existiert, nur eine Notiz ohne Ziel.
+ *  Optional mit angehängtem Beleg (kein voller Eingangsrechnungs-Datensatz,
+ *  nur die Datei). */
+export function SpecialMatchForm({
+  txId,
+  remaining,
+  ledgerAccounts,
+}: {
+  txId: string;
+  remaining: number;
+  ledgerAccounts: LedgerAccountOption[];
+}) {
   const [state, action, pending] = useActionState(matchSpecial, empty);
 
   return (
     <form action={action} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
       <input type="hidden" name="tx_id" value={txId} />
-      <select name="kind" defaultValue="" required style={{ width: 180 }}>
-        <option value="" disabled>
-          Sonderbuchung…
-        </option>
-        {Object.entries(SONDER_LABEL).map(([k, label]) => (
-          <option key={k} value={k}>
-            {label}
+      <select name="ledger_account" defaultValue="" style={{ width: 220 }}>
+        <option value="">— kein Sachkonto (nur Notiz) —</option>
+        {ledgerAccounts.map((a) => (
+          <option key={a.value} value={a.value}>
+            {a.label}
           </option>
         ))}
       </select>
-      <input name="note" placeholder="Notiz (optional)" style={{ width: 200 }} />
+      <input name="note" placeholder="Notiz (optional)" style={{ width: 180 }} />
       <input
         name="alloc_amount"
         inputMode="decimal"
         placeholder={`Betrag (Rest ${remaining.toFixed(2)})`}
         style={{ width: 150 }}
       />
+      <input type="file" name="file" accept="application/pdf,image/*" style={{ width: 180 }} />
       <button type="submit" disabled={pending}>
         {pending ? "…" : "verbuchen"}
       </button>

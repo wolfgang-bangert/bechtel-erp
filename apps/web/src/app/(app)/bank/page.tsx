@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { signedGetUrl } from "@/lib/storage";
 import { fmtDate, fmtEur } from "@/lib/format";
-import { MatchForm, SpecialMatchForm, BelegUploadForm, InvoiceDatalist, SONDER_LABEL, type Candidate } from "./ui";
+import { MatchForm, SpecialMatchForm, BelegUploadForm, InvoiceDatalist, type Candidate } from "./ui";
 import { unmatchTransaction } from "./actions";
 import { BankSyncButton } from "./BankSyncButton";
 import { BankAvatar, BankNameEdit, TransactionRow } from "./TransactionRow";
@@ -11,6 +12,12 @@ const MATCH_STATUS_LABEL: Record<string, string> = {
   partial: "teilweise",
   matched: "zugeordnet",
   ignored: "ignoriert",
+};
+
+/** Anzeige für Buchungszeilen ohne Sachkonto (reine Notiz, z.B. "sonstige"
+ *  aus der Zeit vor der Sachkonto-Anbindung). */
+const SONDER_FALLBACK_LABEL: Record<string, string> = {
+  sonstige: "Sonstige (ohne Beleg)",
 };
 
 /** "Sparkasse" (oder Label als Fallback) + Kontonummer in Klammern - ersetzt
@@ -74,8 +81,20 @@ export default async function BankPage({
       auto: boolean;
       kind: string | null;
       note: string | null;
-      sales_invoice: { id: string; invoice_number: string | null; organization: { name: string } | null } | null;
-      incoming_document: { id: string; doc_number: string | null; supplier_name: string | null } | null;
+      ledger_account: string | null;
+      attachment_storage_key: string | null;
+      attachment_file_name: string | null;
+      sales_invoice: {
+        id: string;
+        invoice_number: string | null;
+        organization: { name: string; customer_number: string | null } | null;
+      } | null;
+      incoming_document: {
+        id: string;
+        doc_number: string | null;
+        supplier_name: string | null;
+        supplier: { supplier_number: string | null } | null;
+      } | null;
     }[];
   };
 
@@ -85,9 +104,11 @@ export default async function BankPage({
       "id, booking_date, value_date, amount, currency, counterparty_name, counterparty_iban, purpose, " +
         "end_to_end_id, bank_ref, match_status, " +
         "bank_account:bank_account_id(label, bank_name, iban), " +
-        "matches:bank_transaction_match(id, amount, auto, kind, note, " +
-        "sales_invoice:sales_invoice(id, invoice_number, organization:organization(name)), " +
-        "incoming_document:incoming_document(id, doc_number, supplier_name))",
+        "matches:bank_transaction_match(id, amount, auto, kind, note, ledger_account, " +
+        "attachment_storage_key, attachment_file_name, " +
+        "sales_invoice:sales_invoice(id, invoice_number, organization:organization(name, customer_number)), " +
+        "incoming_document:incoming_document(id, doc_number, supplier_name, " +
+        "supplier:supplier_organization_id(supplier_number)))",
       { count: "exact" },
     );
   // Nur echte Girokonten - Darlehenskonten (accountIds enthält sie nicht)
@@ -117,6 +138,29 @@ export default async function BankPage({
   const error = res.error;
   const count = res.count;
   const data = (res.data ?? []) as unknown as TxRow[];
+
+  const { data: ledgerAccountRows } = await supabase
+    .from("ledger_account")
+    .select("number, name")
+    .eq("is_active", true)
+    .order("number");
+  const ledgerAccounts = (ledgerAccountRows ?? []).map((a) => ({
+    value: a.number,
+    label: `${a.number} – ${a.name}`,
+  }));
+  const ledgerAccountName = new Map(ledgerAccounts.map((a) => [a.value, a.label]));
+
+  const attachmentUrls = new Map<string, string>(
+    await Promise.all(
+      data
+        .flatMap((t) => t.matches ?? [])
+        .filter((m) => m.attachment_storage_key)
+        .map(
+          async (m) =>
+            [m.id, (await signedGetUrl(m.attachment_storage_key as string, 1800)) ?? ""] as [string, string],
+        ),
+    ),
+  );
 
   // Gemeinsame Kandidatenlisten (einmal je Seite, von allen Zeilen genutzt).
   const alloc = (t: TxRow) =>
@@ -383,13 +427,14 @@ export default async function BankPage({
                     </dl>
 
                     <div>
-                      <h2 style={{ margin: "0 0 8px" }}>Verknüpfungen</h2>
+                      <h2 style={{ margin: "0 0 8px" }}>Buchungen</h2>
                       {matches.length > 0 ? (
                         <div className="table-scroll">
                           <table className="data">
                             <thead>
                               <tr>
                                 <th>Beleg</th>
+                                <th>Gegenkonto</th>
                                 <th style={{ textAlign: "right" }}>Betrag</th>
                                 <th></th>
                               </tr>
@@ -398,34 +443,53 @@ export default async function BankPage({
                               {matches.map((m) => {
                                 const inc = m.incoming_document;
                                 const inv = m.sales_invoice;
-                                let content: React.ReactNode;
+                                let beleg: React.ReactNode;
+                                let gegenkonto: React.ReactNode = "—";
                                 if (inc) {
-                                  content = (
+                                  beleg = (
                                     <Link href={`/eingangsrechnungen/${inc.id}`}>
                                       {inc.doc_number ?? "Eingangsbeleg"}
                                       {inc.supplier_name ? ` — ${inc.supplier_name}` : ""}
                                     </Link>
                                   );
+                                  gegenkonto = inc.supplier?.supplier_number
+                                    ? `Kreditor ${inc.supplier.supplier_number}`
+                                    : "Verbindlichkeiten";
                                 } else if (inv) {
-                                  content = (
+                                  beleg = (
                                     <Link href={`/rechnungen/${inv.id}`}>
                                       {inv.invoice_number ?? "Rechnung"}
                                       {inv.organization?.name ? ` — ${inv.organization.name}` : ""}
                                     </Link>
                                   );
+                                  gegenkonto = inv.organization?.customer_number
+                                    ? `Debitor ${inv.organization.customer_number}`
+                                    : "Forderungen";
                                 } else {
-                                  content = (
+                                  const attUrl = attachmentUrls.get(m.id);
+                                  beleg = (
                                     <span>
-                                      {SONDER_LABEL[m.kind ?? ""] ?? m.kind ?? "Sonderbuchung"}
-                                      {m.note ? ` — ${m.note}` : ""}
+                                      {m.note ?? "—"}
+                                      {attUrl && (
+                                        <>
+                                          {" "}
+                                          <a href={attUrl} target="_blank" rel="noreferrer">
+                                            📎 {m.attachment_file_name ?? "Beleg"}
+                                          </a>
+                                        </>
+                                      )}
                                     </span>
                                   );
+                                  gegenkonto = m.ledger_account
+                                    ? (ledgerAccountName.get(m.ledger_account) ?? m.ledger_account)
+                                    : (SONDER_FALLBACK_LABEL[m.kind ?? ""] ?? m.kind ?? "—");
                                 }
                                 return (
                                   <tr key={m.id}>
                                     <td>
-                                      {content} {m.auto && <span className="tag">auto</span>}
+                                      {beleg} {m.auto && <span className="tag">auto</span>}
                                     </td>
+                                    <td className="count">{gegenkonto}</td>
                                     <td style={{ textAlign: "right" }}>{fmtEur(m.amount)}</td>
                                     <td style={{ textAlign: "right" }}>
                                       <form action={unmatchTransaction}>
@@ -444,14 +508,23 @@ export default async function BankPage({
                         </div>
                       ) : (
                         <p className="count" style={{ margin: 0 }}>
-                          Noch keine Verknüpfung.
+                          Noch keine Buchung.
                         </p>
                       )}
                     </div>
 
-                    {remaining > 0.01 ? (
+                    <div
+                      className="row"
+                      style={{ justifyContent: "space-between", padding: "8px 12px", fontWeight: 600 }}
+                    >
+                      <span>Saldo</span>
+                      <span className={remaining > 0.01 ? "msg-err" : "msg-ok"} style={{ fontSize: 15 }}>
+                        {fmtEur(remaining)} {remaining <= 0.01 ? "· ausgebucht ✓" : "· offen"}
+                      </span>
+                    </div>
+
+                    {remaining > 0.01 && (
                       <div className="rows" style={{ gap: 8 }}>
-                        <span className="count">offen: {fmtEur(remaining)}</span>
                         <MatchForm
                           txId={tx.id}
                           side={side}
@@ -464,11 +537,9 @@ export default async function BankPage({
                             (side === "kreditor" ? "ER-Nr./Lieferant" : "Rg-Nr./Kunde")
                           }
                         />
-                        <SpecialMatchForm txId={tx.id} remaining={remaining} />
+                        <SpecialMatchForm txId={tx.id} remaining={remaining} ledgerAccounts={ledgerAccounts} />
                         <BelegUploadForm txId={tx.id} remaining={remaining} />
                       </div>
-                    ) : (
-                      matches.length === 0 && <span className="count">keine Zuordnung nötig</span>
                     )}
                   </div>
                 </TransactionRow>
