@@ -115,13 +115,70 @@ type PyTxn = {
 // liefern die IBAN des Gegenkontos ohne Trennzeichen direkt vor dem Namen im
 // applicant_name-Feld, applicant_iban bleibt dabei leer. Vor der Anzeige/
 // Speicherung rausziehen, statt "DE...Geiger GmbH" stehen zu lassen.
-const LEADING_IBAN_RE = /^([A-Z]{2}[0-9]{2}[A-Z0-9]{11,30})(?=[A-ZÄÖÜ])/;
-function splitLeadingIban(name: string | null): { name: string | null; iban: string | null } {
+//
+// ACHTUNG (Bugfix): eine variable Zeichenklasse {11,30} + Lookahead auf einen
+// Großbuchstaben ist ein gieriges Backtracking-Muster - bei komplett
+// großgeschriebenen Namen (bei Banken sehr üblich, z.B. "MUELLER GMBH")
+// frisst das Backtracking echte Anfangsbuchstaben des Namens in die
+// vermeintliche IBAN. Stattdessen die exakte, genormte IBAN-Gesamtlänge je
+// Länderkennung (ISO 13616) verwenden - kein Backtracking möglich, kein
+// Rätselraten. Unbekannte Länderkennungen werden bewusst NICHT angefasst
+// (lieber die geklebte IBAN stehen lassen als Namensbuchstaben verlieren).
+export const IBAN_LENGTH: Record<string, number> = {
+  AD: 24, AT: 20, BE: 16, BG: 22, CH: 21, CY: 28, CZ: 24, DE: 22, DK: 18,
+  EE: 20, ES: 24, FI: 18, FR: 27, GB: 22, GI: 23, GR: 27, HR: 21, HU: 28,
+  IE: 22, IS: 26, IT: 27, LI: 21, LT: 20, LU: 20, LV: 21, MC: 27, MT: 31,
+  NL: 18, NO: 15, PL: 28, PT: 25, RO: 24, SE: 24, SI: 19, SK: 24, SM: 27,
+};
+const IBAN_PREFIX_RE = /^[A-Z]{2}[0-9]{2}/;
+export function splitLeadingIban(name: string | null): { name: string | null; iban: string | null } {
   if (!name) return { name, iban: null };
-  const m = name.match(LEADING_IBAN_RE);
-  if (!m) return { name, iban: null };
-  const rest = name.slice(m[1].length).trim();
-  return rest ? { name: rest, iban: m[1] } : { name, iban: null };
+  const prefix = name.match(IBAN_PREFIX_RE)?.[0];
+  const len = prefix ? IBAN_LENGTH[prefix.slice(0, 2)] : undefined;
+  if (!len || name.length <= len) return { name, iban: null };
+  const candidate = name.slice(0, len);
+  if (!/^[A-Z0-9]+$/.test(candidate)) return { name, iban: null };
+  const rest = name.slice(len).trim();
+  return rest ? { name: rest, iban: candidate } : { name, iban: null };
+}
+
+/**
+ * Einmalige Korrektur für bank_transaction-Zeilen, deren counterparty_name
+ * durch den Backtracking-Bug in splitLeadingIban (vor diesem Fix) am Anfang
+ * beschädigt wurde ("MUELLER GMBH" -> "R GMBH"). iban+name wurden dabei nur
+ * an der falschen Stelle geschnitten, keine Zeichen gingen verloren - die
+ * Konkatenation beider Felder rekonstruiert den ursprünglichen String, ein
+ * erneutes Splitten mit der reparierten Logik liefert den korrekten Namen.
+ * Bei einer echten applicant_iban (kein geklebter Name) liefert das erneute
+ * Splitten exakt dieselben Werte zurück (Idempotenz) - dort passiert nichts.
+ */
+export async function fixCounterpartyNames() {
+  const { data: rows } = await supabase
+    .from("bank_transaction")
+    .select("id, counterparty_name, counterparty_iban")
+    .not("counterparty_iban", "is", null)
+    .not("counterparty_name", "is", null);
+
+  let geprueft = 0;
+  let korrigiert = 0;
+  const beispiele: { id: string; vorher: string; nachher: string }[] = [];
+  for (const r of rows ?? []) {
+    geprueft++;
+    const vorherName = r.counterparty_name as string;
+    const vorherIban = r.counterparty_iban as string;
+    const fixed = splitLeadingIban(`${vorherIban}${vorherName}`);
+    if (!fixed.iban) continue; // unbekannte Länderkennung / kein IBAN-Präfix -> nicht anfassen
+    if (fixed.name === vorherName && fixed.iban === vorherIban) continue;
+    await supabase
+      .from("bank_transaction")
+      .update({ counterparty_name: fixed.name, counterparty_iban: fixed.iban })
+      .eq("id", r.id);
+    korrigiert++;
+    if (beispiele.length < 20) {
+      beispiele.push({ id: r.id, vorher: vorherName, nachher: fixed.name ?? "" });
+    }
+  }
+  return { geprueft, korrigiert, beispiele };
 }
 
 function toCamtEntry(iban: string, t: PyTxn): CamtEntry {

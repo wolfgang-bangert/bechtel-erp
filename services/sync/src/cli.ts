@@ -31,7 +31,7 @@ import { extractIncoming } from "./extractIncoming";
 import { purgeIncoming } from "./purgeIncoming";
 import { pruneReceiptDuplicates } from "./pruneReceipts";
 import { forwardDunnings } from "./forwardDunnings";
-import { fintsSetup, fintsPull } from "./fints";
+import { fintsSetup, fintsPull, fixCounterpartyNames } from "./fints";
 import { importFracht } from "./importFracht";
 import { supabase } from "./supabase";
 
@@ -214,6 +214,10 @@ async function main() {
           1,
         ),
       );
+      break;
+    }
+    case "bank:fix-counterparty-names": {
+      console.log(JSON.stringify(await fixCounterpartyNames(), null, 1));
       break;
     }
     case "requests:process": {
