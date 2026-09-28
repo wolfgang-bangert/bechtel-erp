@@ -12,6 +12,7 @@ type Row = {
   external_id: string | null;
   invoice_number: string | null;
   invoice_date: string | null;
+  raw: Record<string, unknown> | null;
 };
 
 async function pool<T, R>(items: T[], c: number, fn: (t: T) => Promise<R>): Promise<R[]> {
@@ -28,18 +29,41 @@ async function pool<T, R>(items: T[], c: number, fn: (t: T) => Promise<R>): Prom
   return out;
 }
 
-async function fetchNinoxCePdf(recId: string): Promise<Buffer | null> {
+/**
+ * Die Rechnung selbst (Tabelle CE) hat zwar Datei-Felder, die bleiben in
+ * der Praxis leer - das eigentliche PDF hängt an einem verknüpften
+ * Dokumente-Datensatz (Tabelle LC, Feld "Dokumente" auf CE). Ein Beleg
+ * kann mehrere Dokumente verknüpft haben (z.B. Korrektur) - das nach
+ * "Datum + Uhrzeit" neueste gewinnt.
+ */
+async function fetchNinoxInvoicePdf(raw: Record<string, unknown> | null): Promise<Buffer | null> {
+  const docIds = (raw?.["Dokumente"] as number[] | undefined) ?? [];
+  if (!docIds.length) return null;
+
   const n = env.ninox;
-  const base = `${n.base()}/teams/${n.team()}/databases/${n.database()}/tables/CE/records/${recId}/files`;
+  const base = `${n.base()}/teams/${n.team()}/databases/${n.database()}`;
   const headers = { Authorization: `Bearer ${n.key()}` };
-  const list = await fetch(base, { headers });
-  if (!list.ok) return null;
-  const files = (await list.json()) as unknown;
-  const names = Array.isArray(files)
-    ? (files as string[]).filter((f) => String(f).toLowerCase().endsWith(".pdf"))
-    : [];
-  if (names.length === 0) return null;
-  const dl = await fetch(`${base}/${encodeURIComponent(names[0])}`, { headers });
+
+  const docs: { id: number; datum: string }[] = [];
+  for (const id of docIds) {
+    const res = await fetch(`${base}/tables/LC/records/${id}`, { headers });
+    if (!res.ok) continue;
+    const rec = (await res.json().catch(() => null)) as { fields?: Record<string, unknown> } | null;
+    docs.push({ id, datum: String(rec?.fields?.["Datum + Uhrzeit"] ?? "") });
+  }
+  docs.sort((a, b) => (a.datum < b.datum ? 1 : a.datum > b.datum ? -1 : 0));
+  const newest = docs[0];
+  if (!newest) return null;
+
+  const filesRes = await fetch(`${base}/tables/LC/records/${newest.id}/files`, { headers });
+  if (!filesRes.ok) return null;
+  const files = (await filesRes.json().catch(() => null)) as { name: string }[] | null;
+  if (!Array.isArray(files) || files.length === 0) return null;
+  const pdf = files.find((f) => f.name.toLowerCase().endsWith(".pdf")) ?? files[0];
+
+  const dl = await fetch(`${base}/tables/LC/records/${newest.id}/files/${encodeURIComponent(pdf.name)}`, {
+    headers,
+  });
   if (!dl.ok) return null;
   return Buffer.from(await dl.arrayBuffer());
 }
@@ -54,7 +78,7 @@ export async function syncInvoicePdfs(opts: Options = {}) {
   for (;;) {
     const { data, error } = await supabase
       .from("sales_invoice")
-      .select("id, source, external_id, invoice_number, invoice_date")
+      .select("id, source, external_id, invoice_number, invoice_date, raw")
       .in("pdf_status", ["unknown", "error"])
       .order("invoice_date", { ascending: false, nullsFirst: false })
       .range(fromRow, fromRow + pageSize - 1);
@@ -107,8 +131,7 @@ export async function syncInvoicePdfs(opts: Options = {}) {
         const klId = Number(extId.split(":").pop());
         pdf = await fetchKeylineInvoicePdf(klId);
       } else {
-        const recId = extId.split(":").pop() ?? "";
-        pdf = await fetchNinoxCePdf(recId);
+        pdf = await fetchNinoxInvoicePdf(r.raw);
       }
       if (pdf && pdf.length > 100) {
         const key = prefix.ausgangsrechnung(year, `${r.source}-${extId.replace(/[^\w.-]/g, "_")}`);

@@ -7,7 +7,14 @@ import {
   setSyncState,
 } from "./db";
 
-type Options = { dryRun?: boolean };
+type Options = { dryRun?: boolean; since?: string | null; full?: boolean };
+
+const FREIGEGEBEN_FELD = "Rechnung für Buchhaltung freigegeben";
+
+/** Jan 1 des laufenden Jahres, Default-Untergrenze ohne --full/--since. */
+function startOfThisYear(): string {
+  return `${new Date().getFullYear()}-01-01`;
+}
 
 const s = (v: unknown) => (v == null ? "" : String(v)).trim();
 const num = (v: unknown): number | null => (v == null || v === "" ? null : Number(v));
@@ -26,7 +33,8 @@ const taxRate = (v: unknown): number | null => {
 };
 
 export async function syncNinoxInvoices(opts: Options = {}) {
-  const { dryRun = false } = opts;
+  const { dryRun = false, full = false } = opts;
+  const since = full ? null : (opts.since ?? startOfThisYear());
   const startedAt = new Date();
   const firmenMap = await loadNinoxFirmenMap();
   const orderMap = await loadSalesOrderMap("ninox");
@@ -60,11 +68,23 @@ export async function syncNinoxInvoices(opts: Options = {}) {
   const itemRows: Record<string, unknown>[] = [];
   let seen = 0;
   let noOrg = 0;
+  let uebersprungen = 0;
 
   await fetchNinoxRecords("CE", async (rows, meta) => {
     for (const rec of rows) {
-      seen += 1;
       const f = rec.fields;
+      // Nur Rechnungen, die die Buchhaltung freigegeben hat (Zeitstempel
+      // gesetzt) - alles andere ist noch in Bearbeitung/Entwurf.
+      if (!f[FREIGEGEBEN_FELD]) {
+        uebersprungen += 1;
+        continue;
+      }
+      const dt0 = dateOnly(f["Datum"]);
+      if (since && dt0 && dt0 < since) {
+        uebersprungen += 1;
+        continue;
+      }
+      seen += 1;
       const fid = refId(f["Firmen"]);
       const orgId = fid ? firmenMap.get(`L:${fid}`) : undefined;
       if (!orgId) noOrg += 1;
@@ -134,7 +154,7 @@ export async function syncNinoxInvoices(opts: Options = {}) {
   process.stdout.write("\n");
 
   if (dryRun) {
-    return { seen, invoices: invRows.length, items: itemRows.length, noOrg, dryRun };
+    return { seen, invoices: invRows.length, items: itemRows.length, noOrg, uebersprungen, since, dryRun };
   }
 
   const ir = await bulkUpsertByExternalId("sales_invoice", invRows, existingInv);
@@ -161,6 +181,8 @@ export async function syncNinoxInvoices(opts: Options = {}) {
     invoicesNew: ir.inserted,
     items: it.inserted + it.updated,
     noOrg,
+    uebersprungen,
+    since,
     dryRun,
   };
 }
