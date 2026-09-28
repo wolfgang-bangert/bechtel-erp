@@ -14,6 +14,15 @@
   --due-1: #d97706;
   --due-2-4: #c2410c;
   --due-5plus: #c02626;
+
+  /* Bechtel-Markenfarben - nur für Chrome/Branding (Sidebar, Logo), nicht
+     für --err/--due-* verwenden: beide liegen farblich zu nah an
+     --brand-red/--brand-orange und würden sonst mit Fehler-/Fälligkeits-
+     Zuständen verwechselbar. */
+  --brand-anthrazit: #2b2b2a;
+  --brand-red: #bf272f;
+  --brand-orange: #f39315;
+  --font-heading: var(--font-heading-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -90,8 +99,8 @@ a:hover {
   min-height: 100dvh;
 }
 .sidebar {
-  background: var(--panel);
-  border-right: 1px solid var(--border);
+  background: var(--brand-anthrazit);
+  border-right: 1px solid var(--brand-anthrazit);
   padding: 20px 14px;
   display: flex;
   flex-direction: column;
@@ -102,12 +111,24 @@ a:hover {
   overflow-y: auto;
 }
 .sidebar .brand {
-  font-weight: 700;
-  font-size: 16px;
-  padding: 4px 8px 14px;
+  display: block;
+  padding: 4px 8px 18px;
+}
+.sidebar .brand img {
+  display: block;
+  height: 30px;
+  width: auto;
+}
+.sidebar .brand .tool-name {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9a9aa2;
 }
 .sidebar .nav-group {
-  color: var(--muted);
+  color: #9a9aa2;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -118,14 +139,22 @@ a:hover {
   display: block;
   padding: 7px 8px;
   border-radius: 6px;
-  color: var(--text);
+  color: #ececee;
 }
 .sidebar a:hover {
-  background: var(--tag-bg);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
   text-decoration: none;
 }
 .sidebar .nav-disabled {
-  color: var(--muted);
+  color: #6b6b73;
+}
+.sidebar button.ghost {
+  color: #ececee;
+  border-color: #45464c;
+}
+.sidebar button.ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 .sidebar .spacer {
   flex: 1;
@@ -140,7 +169,9 @@ a:hover {
 }
 .content h1 {
   margin: 0 0 4px;
-  font-size: 22px;
+  font-size: 23px;
+  font-family: var(--font-heading);
+  font-weight: 600;
 }
 .content h2 {
   margin: 28px 0 10px;

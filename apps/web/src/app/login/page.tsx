@@ -3,6 +3,7 @@
 import { Suspense, useActionState, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn, requestPasswordReset, type LoginState, type ResetState } from "./actions";
+import { BechtelLogo } from "./BechtelLogo";
 
 const initialLogin: LoginState = {};
 const initialReset: ResetState = {};
@@ -25,7 +26,7 @@ function LoginForm({ onVergessen }: { onVergessen: () => void }) {
 
   return (
     <form className="card" action={action}>
-      <h1>werk</h1>
+      <BechtelLogo />
       <p className="sub">Anmeldung</p>
 
       <div className="field">
@@ -57,7 +58,7 @@ function VergessenForm({ onZurueck }: { onZurueck: () => void }) {
   if (state.ok) {
     return (
       <div className="card">
-        <h1>werk</h1>
+        <BechtelLogo />
         <p className="sub">Passwort vergessen</p>
         <p className="msg-ok">
           Falls diese Adresse bei uns hinterlegt ist, kommt gleich eine E-Mail mit einem Link zum Setzen eines neuen
@@ -72,7 +73,7 @@ function VergessenForm({ onZurueck }: { onZurueck: () => void }) {
 
   return (
     <form className="card" action={action}>
-      <h1>werk</h1>
+      <BechtelLogo />
       <p className="sub">Passwort vergessen</p>
 
       <div className="field">
