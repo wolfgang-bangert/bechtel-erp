@@ -146,10 +146,17 @@ async function main() {
       break;
     }
     case "ninox:invoices": {
-      console.log(`Ninox -> Supabase: Rechnungen${dryRun ? "  (DRY RUN)" : ""}`);
-      const r = await syncNinoxInvoices({ dryRun });
+      const full = flags.has("--full");
+      const sinceArg = process.argv.find((a) => a.startsWith("--since="))?.split("=")[1];
       console.log(
-        `\nFertig. ${r.seen} Rechnungen, ${"items" in r ? r.items : 0} Positionen, ohne Org ${r.noOrg}` +
+        `Ninox -> Supabase: Rechnungen (nur für Buchhaltung freigegebene)` +
+          (full ? "  (voller Bestand)" : sinceArg ? `  (ab ${sinceArg})` : "  (dieses Jahr)") +
+          (dryRun ? "  (DRY RUN)" : ""),
+      );
+      const r = await syncNinoxInvoices({ dryRun, full, since: sinceArg });
+      console.log(
+        `\nFertig. ${r.seen} Rechnungen (${r.uebersprungen} übersprungen), ` +
+          `${"items" in r ? r.items : 0} Positionen, ohne Org ${r.noOrg}` +
           (dryRun ? "  (DRY RUN)" : ""),
       );
       break;
@@ -663,7 +670,7 @@ async function main() {
       console.log("  pnpm --filter sync keyline:invoices    [--dry-run] [--full] [--since=ISO]");
       console.log("  pnpm --filter sync keyline:invoice     --id=<keyline-id>");
       console.log("  pnpm --filter sync ninox:orders        [--dry-run]");
-      console.log("  pnpm --filter sync ninox:invoices      [--dry-run]");
+      console.log("  pnpm --filter sync ninox:invoices      [--dry-run] [--full] [--since=YYYY-MM-DD]");
       console.log("  pnpm --filter sync mail:fetch          [--dry-run] [--limit=N] [--since=DAYS] [--all]");
       console.log("  pnpm --filter sync incoming:extract    [--dry-run] [--limit=N]");
       console.log("  pnpm --filter sync incoming:purge      --from=<absender> [--dry-run]");

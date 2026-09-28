@@ -8,6 +8,10 @@
 # Keyline-Abgleich Aufträge + Rechnungen (war alle 30 min)
 */30 * * * *  cd /app/services/sync && pnpm keyline:orders && pnpm keyline:invoices
 
+# Ninox-Rechnungen (Kalender-Vertrieb) - nur für Buchhaltung freigegebene,
+# per Default seit Jahresbeginn (siehe syncNinoxInvoices) - + PDFs dazu
+*/30 * * * *  cd /app/services/sync && pnpm ninox:invoices && pnpm pdf:invoices
+
 # Eingangsrechnungen aus dem Postfach + KI-Vorerfassung (war stündlich)
 15 * * * *   cd /app/services/sync && pnpm mail:fetch --since=7 && pnpm incoming:extract --limit=100
 
