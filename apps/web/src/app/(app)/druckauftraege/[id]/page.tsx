@@ -190,6 +190,7 @@ export default async function DruckauftragPage({
     printDataPart: 1,
     jobSheet: 2,
     thumbnail: 3,
+    partThumbnail: 4,
   };
   const fileLinks = await Promise.all(
     (data.files ?? [])
@@ -323,7 +324,9 @@ export default async function DruckauftragPage({
     gruppenName = gruppeRow?.name ?? null;
   }
   const produktBeschreibung = gruppenName ?? data.description;
-  const thumbnailUrl = fileLinks.find((f) => f.typ === "thumbnail")?.viewUrl ?? null;
+  const partThumbnails = fileLinks.filter((f) => f.typ === "partThumbnail" && f.viewUrl);
+  const thumbnailUrl =
+    partThumbnails.length === 0 ? fileLinks.find((f) => f.typ === "thumbnail")?.viewUrl ?? null : null;
 
   const counts: Partial<Record<TabKey, number>> = {
     positionen: items.length,
@@ -376,6 +379,19 @@ export default async function DruckauftragPage({
             alt="Vorschau"
             style={{ width: 160, borderRadius: 6, border: "1px solid var(--border)" }}
           />
+        )}
+        {partThumbnails.length > 0 && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", maxWidth: 340 }}>
+            {partThumbnails.map((f) => (
+              <img
+                key={f.id}
+                src={f.viewUrl ?? ""}
+                alt={f.filename ?? "Vorschau"}
+                title={f.filename ?? undefined}
+                style={{ width: 100, borderRadius: 6, border: "1px solid var(--border)" }}
+              />
+            ))}
+          </div>
         )}
       </div>
 

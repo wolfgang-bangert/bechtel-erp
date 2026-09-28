@@ -52,6 +52,8 @@ export type LaufzettelInput = {
   arbeitsvorgaenge: LaufzettelVorgang[];
   /** je teilung ("3:1"/"2:1") aufsteigend nach mm sortiert. */
   durchmesserSkala: Record<string, LaufzettelDurchmesserStufe[]>;
+  /** Vorschaubilder (JPEG) - eins je Druckdaten-Teil, sonst die eine Portal-Vorschau. */
+  vorschauBilder?: Uint8Array[];
 };
 
 function hexToRgb(hex: string) {
@@ -108,6 +110,21 @@ export async function erzeugeLaufzettelPdf(input: LaufzettelInput): Promise<Uint
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const L = new Layout(doc, font, bold);
+
+  // ---- Vorschaubilder oben rechts (eins je Druckdaten-Teil) -----------------
+  const THUMB_H = 60;
+  let thumbX = PAGE_W - MARGIN;
+  for (const bytes of input.vorschauBilder ?? []) {
+    try {
+      const img = await doc.embedJpg(bytes);
+      const w = (img.width / img.height) * THUMB_H;
+      thumbX -= w;
+      L.page.drawImage(img, { x: thumbX, y: PAGE_H - MARGIN - THUMB_H, width: w, height: THUMB_H });
+      thumbX -= 6;
+    } catch (err) {
+      void err;
+    }
+  }
 
   // ---- Kopf: die Kernangaben groß und fett ---------------------------------
   L.text(`Laufzettel ${input.auftrag.referenz}`, MARGIN, 20, { bold: true });
