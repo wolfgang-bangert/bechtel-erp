@@ -5,12 +5,16 @@
 # Druckaufträge aus den Kundenportalen holen + auflösen + bejobben (war 05:30)
 30 5 * * *   cd /app/services/sync && pnpm portal:pull --portal=onlineprinters
 
-# Keyline-Abgleich Aufträge + Rechnungen (war alle 30 min)
-*/30 * * * *  cd /app/services/sync && pnpm keyline:orders && pnpm keyline:invoices
+# Keyline-Abgleich Aufträge + Rechnungen (war alle 30 min) - bank:match
+# danach, damit neu eingespielte Rechnungen sofort gegen bereits
+# vorhandene offene Bankbuchungen abgeglichen werden (sonst erst beim
+# nächsten Bank-Abruf, der Abgleich läuft sonst nur dort automatisch).
+*/30 * * * *  cd /app/services/sync && pnpm keyline:orders && pnpm keyline:invoices && pnpm bank:match
 
 # Ninox-Rechnungen (Kalender-Vertrieb) - nur für Buchhaltung freigegebene,
-# per Default seit Jahresbeginn (siehe syncNinoxInvoices) - + PDFs dazu
-*/30 * * * *  cd /app/services/sync && pnpm ninox:invoices && pnpm pdf:invoices
+# per Default seit Jahresbeginn (siehe syncNinoxInvoices) - + PDFs dazu,
+# gleicher Grund für bank:match danach wie bei Keyline oben
+*/30 * * * *  cd /app/services/sync && pnpm ninox:invoices && pnpm pdf:invoices && pnpm bank:match
 
 # Eingangsrechnungen aus dem Postfach + KI-Vorerfassung (war stündlich)
 15 * * * *   cd /app/services/sync && pnpm mail:fetch --since=7 && pnpm incoming:extract --limit=100
