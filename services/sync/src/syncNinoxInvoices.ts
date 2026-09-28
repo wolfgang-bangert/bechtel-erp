@@ -10,6 +10,11 @@ import {
 type Options = { dryRun?: boolean; since?: string | null; full?: boolean };
 
 const FREIGEGEBEN_FELD = "Rechnung für Buchhaltung freigegeben";
+// "Steuersatz in %" wird in Ninox so gut wie nie gepflegt (nur 5 von
+// ~12.000 Positionen) - Kalender sind nach UStG Anlage 2 explizit von der
+// ermäßigten 7% ausgenommen, daher als Default 19% ansetzen statt die USt
+// unbeziffert zu lassen.
+const DEFAULT_TAX_RATE = 19;
 
 /** Jan 1 des laufenden Jahres, Default-Untergrenze ohne --full/--since. */
 function startOfThisYear(): string {
@@ -98,10 +103,15 @@ export async function syncNinoxInvoices(opts: Options = {}) {
         const g = it.fields;
         const qty = num(g["Anzahl"]) ?? 0;
         const unit = num(g["Preis pro Einheit"]) ?? 0;
-        const line = qty * unit;
+        // "Preis pro Einheit" ist der Preis je "Einheit" Stück (Mengenrabatt-
+        // Staffel, z.B. 96 € je 1000 Stück statt je einzelnem Stück) - ohne
+        // Division durch Einheit wird die Summe um den Faktor "Einheit" zu
+        // hoch (bei Einheit=1 unauffällig, sonst z.B. 1000x zu viel).
+        const einheit = num(g["Einheit"]) || 1;
+        const line = (qty / einheit) * unit;
         net += line;
-        const rate = taxRate(g["Steuersatz in %"]);
-        if (rate) tax += (line * rate) / 100;
+        const rate = taxRate(g["Steuersatz in %"]) ?? DEFAULT_TAX_RATE;
+        tax += (line * rate) / 100;
       }
       net = round2(net);
       tax = round2(tax);
@@ -135,6 +145,10 @@ export async function syncNinoxInvoices(opts: Options = {}) {
         const g = it.fields;
         const qty = num(g["Anzahl"]);
         const unit = num(g["Preis pro Einheit"]);
+        const einheit = num(g["Einheit"]) || 1;
+        // Preis je Stück statt je "Einheit" (s.o.) - damit quantity * unit_price
+        // wieder net_amount ergibt, egal welche Staffel Ninox hinterlegt hat.
+        const pricePerStueck = unit != null ? Math.round((unit / einheit) * 10000) / 10000 : null;
         itemRows.push({
           _inv_ext: extId,
           source: "ninox",
@@ -142,9 +156,9 @@ export async function syncNinoxInvoices(opts: Options = {}) {
           position: num(g["Pos."]),
           description: s(g["Artikel Beschreibung"]) || null,
           quantity: qty,
-          unit_price: unit,
-          tax_rate: taxRate(g["Steuersatz in %"]),
-          net_amount: qty != null && unit != null ? round2(qty * unit) : null,
+          unit_price: pricePerStueck,
+          tax_rate: taxRate(g["Steuersatz in %"]) ?? DEFAULT_TAX_RATE,
+          net_amount: qty != null && pricePerStueck != null ? round2(qty * pricePerStueck) : null,
           raw: g,
         });
       });
