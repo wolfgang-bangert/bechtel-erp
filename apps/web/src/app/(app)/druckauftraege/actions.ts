@@ -447,6 +447,22 @@ export async function erzeugeLaufzettelAction(orderId: string): Promise<Laufzett
     }
   }
 
+  const { data: thumbRows } = await supabase
+    .from("portal_order_file")
+    .select("typ, storage_key")
+    .eq("portal_order_id", orderId)
+    .in("typ", ["partThumbnail", "thumbnail"])
+    .not("storage_key", "is", null);
+  const partThumbs = (thumbRows ?? []).filter((f) => f.typ === "partThumbnail");
+  const thumbKeys = (
+    partThumbs.length > 0 ? partThumbs : (thumbRows ?? []).filter((f) => f.typ === "thumbnail")
+  )
+    .map((f) => f.storage_key)
+    .filter((k): k is string => !!k);
+  const vorschauBilder = (
+    await Promise.all(thumbKeys.map((k) => getObjectBytes(k).catch(() => null)))
+  ).filter((b): b is Buffer => !!b);
+
   const input: LaufzettelInput = {
     auftrag: {
       referenz: order.external_reference ?? orderId.slice(0, 8),
@@ -454,6 +470,7 @@ export async function erzeugeLaufzettelAction(orderId: string): Promise<Laufzett
       menge: order.quantity != null ? Number(order.quantity) : null,
       liefertermin: order.deliver_date,
     },
+    vorschauBilder,
     materialliste: (r?.materialliste ?? [])
       .filter((m) => !m.ungeloest && (m.material || m.material_kurz))
       .map((m) => {

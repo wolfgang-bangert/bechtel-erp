@@ -1,8 +1,36 @@
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import JSZip from "jszip";
 import { env } from "./env";
 import { supabase } from "./supabase";
 import { putObject, objectExists, getObjectBytes } from "./storage";
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * Erste Seite eines PDFs als JPEG rendern (poppler/pdftoppm - im Sync-Image
+ * per apk installiert). Für die Vorschaubilder der einzelnen Druckdaten-Teile
+ * gedacht, wo pdf-lib mangels Rasterisierung nicht ausreicht.
+ */
+async function renderFirstPageJpeg(pdfBytes: Buffer): Promise<Buffer | null> {
+  const dir = await mkdtemp(join(tmpdir(), "thumb-"));
+  const src = join(dir, "in.pdf");
+  const outBase = join(dir, "out");
+  try {
+    await writeFile(src, pdfBytes);
+    await execFileAsync("pdftoppm", ["-jpeg", "-f", "1", "-l", "1", "-r", "100", "-singlefile", src, outBase]);
+    return await readFile(`${outBase}.jpg`);
+  } catch (err) {
+    void err;
+    return null;
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
 
 // ---------------------------------------------------------------- Typen
 type OpAddress = {
@@ -543,6 +571,35 @@ async function extractZipParts(
     if (ex) await supabase.from("portal_order_file").update(row).eq("id", ex.id);
     else await supabase.from("portal_order_file").insert(row);
     n++;
+
+    // Eigene Vorschau je Teil (Portal liefert nur eine Vorschau vom
+    // Gesamtauftrag) - teilt sich den filename mit dem printDataPart oben.
+    const thumbKey = `${s3prefix}/${ref}/partThumbnail-${safe}.jpg`;
+    if (!(await objectExists(thumbKey))) {
+      const jpeg = await renderFirstPageJpeg(bytes);
+      if (jpeg) {
+        await putObject(thumbKey, jpeg, "image/jpeg");
+        const thumbRow = {
+          portal_order_id: orderId,
+          typ: "partThumbnail",
+          source_url: null as string | null,
+          storage_key: thumbKey,
+          filename: entry.name,
+          bytes: jpeg.length,
+          is_zip: false,
+          fetched_at: new Date().toISOString(),
+        };
+        const { data: exThumb } = await supabase
+          .from("portal_order_file")
+          .select("id")
+          .eq("portal_order_id", orderId)
+          .eq("typ", "partThumbnail")
+          .eq("filename", entry.name)
+          .maybeSingle();
+        if (exThumb) await supabase.from("portal_order_file").update(thumbRow).eq("id", exThumb.id);
+        else await supabase.from("portal_order_file").insert(thumbRow);
+      }
+    }
   }
   return n;
 }

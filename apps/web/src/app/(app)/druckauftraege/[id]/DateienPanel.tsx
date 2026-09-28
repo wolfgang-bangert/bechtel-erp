@@ -18,9 +18,12 @@ const TYP_LABEL: Record<string, string> = {
   printDataPart: "Druckdaten-Teil",
   jobSheet: "Jobsheet",
   thumbnail: "Vorschau",
+  partThumbnail: "Vorschau (Teil)",
   deliveryNoteLabel: "Lieferschein-Label",
   shippingLabel: "Versand-Label",
 };
+
+const isBildTyp = (typ: string) => typ === "thumbnail" || typ === "partThumbnail";
 
 function kb(b: number | null) {
   if (b == null) return "—";
@@ -54,7 +57,7 @@ export function DateienPanel({ files }: { files: DateiRow[] }) {
           </thead>
           <tbody>
             {files.map((f) => {
-              const isImg = f.typ === "thumbnail";
+              const isImg = isBildTyp(f.typ);
               return (
                 <tr key={f.id} style={{ opacity: f.viewUrl ? 1 : 0.55 }}>
                   <td>
@@ -146,7 +149,7 @@ export function DateienPanel({ files }: { files: DateiRow[] }) {
               </strong>
               <div className="toolbar" style={{ gap: 8 }}>
                 <a className="ghost" href={open.viewUrl ?? "#"} target="_blank" rel="noreferrer" style={{ padding: "5px 10px" }}>
-                  {open.typ === "thumbnail" ? "Öffnen" : "Öffnen / Drucken"}
+                  {isBildTyp(open.typ) ? "Öffnen" : "Öffnen / Drucken"}
                 </a>
                 {open.downloadUrl && (
                   <a className="ghost" href={open.downloadUrl} style={{ padding: "5px 10px" }}>
@@ -159,7 +162,7 @@ export function DateienPanel({ files }: { files: DateiRow[] }) {
               </div>
             </div>
             <div style={{ flex: 1, background: "var(--bg)" }}>
-              {open.typ === "thumbnail" ? (
+              {isBildTyp(open.typ) ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={open.viewUrl ?? ""}

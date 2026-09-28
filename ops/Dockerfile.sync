@@ -20,7 +20,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 
 FROM base AS runner
 ENV NODE_ENV=production
-RUN apk add --no-cache python3 py3-pip tini
+RUN apk add --no-cache python3 py3-pip tini poppler-utils
 
 # supercronic: container-taugliches cron (Logs nach stdout, respektiert ENV)
 ARG SUPERCRONIC_VERSION=v0.2.33
