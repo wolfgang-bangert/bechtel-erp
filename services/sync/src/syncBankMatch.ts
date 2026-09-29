@@ -18,6 +18,11 @@ export function candidateTokens(purpose: string): string[] {
   for (const m of purpose.matchAll(/\d{5,12}/g)) add(m[0]);
   for (const m of purpose.matchAll(/\b\d{2}[A-Za-z]{1,4}\d{2,8}\b/g)) add(m[0]);
   for (const m of purpose.matchAll(/\b[A-Za-z]{1,5}[- /]?\d[\dA-Za-z-]{3,12}\b/g)) add(m[0]);
+  // "NNNN-NNNN" (z.B. "R-Nr. 2608-2456") - der Bindestrich trennt die beiden
+  // 4er-Blöcke, dadurch griff bisher keines der obigen Muster (weder
+  // \d{5,12} noch die Buchstaben-Präfix-Muster, wegen ". " zwischen "Nr"
+  // und der Nummer).
+  for (const m of purpose.matchAll(/\b\d{4}-\d{4}\b/g)) add(m[0]);
   return [...t];
 }
 
