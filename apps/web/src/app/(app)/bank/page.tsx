@@ -62,6 +62,23 @@ export default async function BankPage({
   const totalBalance = accountsWithBalance.reduce((s, a) => s + Number(a.balance), 0);
   const accountIds = new Set(accounts.map((a) => a.id));
 
+  // Kontenabgleich: je Konto zählen statt einer ungepaginierten Liste zu
+  // holen (Supabase kappt sonst bei 1000 Zeilen) - eine kleine Count-Abfrage
+  // pro Konto, Anzahl Bankkonten ist überschaubar.
+  const openCounts = new Map(
+    await Promise.all(
+      accounts.map(async (a) => {
+        const { count } = await supabase
+          .from("bank_transaction")
+          .select("id", { count: "exact", head: true })
+          .eq("bank_account_id", a.id)
+          .in("match_status", ["unmatched", "partial"]);
+        return [a.id, count ?? 0] as const;
+      }),
+    ),
+  );
+  const totalOpen = [...openCounts.values()].reduce((s, n) => s + n, 0);
+
   const { data: lastSync } = await supabase
     .from("sync_request")
     .select("status, requested_at, finished_at, error")
@@ -500,33 +517,46 @@ export default async function BankPage({
                 <th>Konto</th>
                 <th style={{ textAlign: "right" }}>Kontostand</th>
                 <th>Stand</th>
+                <th style={{ textAlign: "right" }}>offene Umsätze</th>
               </tr>
             </thead>
             <tbody>
-              {(accounts ?? []).map((a) => (
-                <tr key={a.id}>
-                  <td>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                      <BankAvatar name={a.bank_name || a.label} />
-                      <Link href={`/bank?account=${a.id}`}>{kontoLabel(a)}</Link>
-                      <BankNameEdit accountId={a.id} bankName={a.bank_name} />
-                    </span>
-                  </td>
-                  <td
-                    style={{ textAlign: "right", fontWeight: 600 }}
-                    className={a.balance != null && Number(a.balance) < 0 ? "msg-err" : ""}
-                  >
-                    {a.balance != null ? fmtEur(Number(a.balance)) : "—"}
-                  </td>
-                  <td className="count">
-                    {a.balance_date
-                      ? fmtDate(a.balance_date)
-                      : a.balance == null
-                        ? "beim nächsten Abruf"
-                        : "—"}
-                  </td>
-                </tr>
-              ))}
+              {(accounts ?? []).map((a) => {
+                const open = openCounts.get(a.id) ?? 0;
+                return (
+                  <tr key={a.id}>
+                    <td>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                        <BankAvatar name={a.bank_name || a.label} />
+                        <Link href={`/bank?account=${a.id}`}>{kontoLabel(a)}</Link>
+                        <BankNameEdit accountId={a.id} bankName={a.bank_name} />
+                      </span>
+                    </td>
+                    <td
+                      style={{ textAlign: "right", fontWeight: 600 }}
+                      className={a.balance != null && Number(a.balance) < 0 ? "msg-err" : ""}
+                    >
+                      {a.balance != null ? fmtEur(Number(a.balance)) : "—"}
+                    </td>
+                    <td className="count">
+                      {a.balance_date
+                        ? fmtDate(a.balance_date)
+                        : a.balance == null
+                          ? "beim nächsten Abruf"
+                          : "—"}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      {open > 0 ? (
+                        <Link className="msg-err" href={`/bank?account=${a.id}&hide_matched=1`}>
+                          {open} offen
+                        </Link>
+                      ) : (
+                        <span className="msg-ok">alle zugeordnet ✓</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
               {accountsWithBalance.length > 1 && (
                 <tr>
                   <td style={{ fontWeight: 700 }}>Summe</td>
@@ -537,6 +567,9 @@ export default async function BankPage({
                     {fmtEur(totalBalance)}
                   </td>
                   <td />
+                  <td style={{ textAlign: "right", fontWeight: 700 }} className={totalOpen > 0 ? "msg-err" : "msg-ok"}>
+                    {totalOpen > 0 ? `${totalOpen} offen` : "alle zugeordnet ✓"}
+                  </td>
                 </tr>
               )}
             </tbody>

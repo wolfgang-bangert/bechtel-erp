@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { matchTransaction, matchSpecial, uploadBeleg, type MatchState, type UploadState } from "./actions";
+import { AccountPicker } from "../_shared/AccountPicker";
 
 const empty: MatchState = {};
 
@@ -130,23 +131,20 @@ export function SpecialMatchForm({
   suggestion?: { ledger_account: string; sample_postingtext: string | null };
 }) {
   const [state, action, pending] = useActionState(matchSpecial, empty);
+  const [ledgerAccount, setLedgerAccount] = useState(suggestion?.ledger_account ?? "");
 
   return (
     <form action={action} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
       <input type="hidden" name="tx_id" value={txId} />
-      <select
-        name="ledger_account"
-        defaultValue={suggestion?.ledger_account ?? ""}
-        style={{ width: 220, ...(suggestion ? { borderColor: "#3a7" } : {}) }}
-        title={suggestion ? `Vorschlag aus BuchhaltungsButler-Historie` : undefined}
-      >
-        <option value="">— kein Sachkonto (nur Notiz) —</option>
-        {ledgerAccounts.map((a) => (
-          <option key={a.value} value={a.value}>
-            {a.label}
-          </option>
-        ))}
-      </select>
+      <div style={{ width: 220 }} title={suggestion ? "Vorschlag aus BuchhaltungsButler-Historie" : undefined}>
+        <AccountPicker
+          name="ledger_account"
+          value={ledgerAccount}
+          onChange={setLedgerAccount}
+          accounts={ledgerAccounts}
+          placeholder="— kein Sachkonto (nur Notiz) —"
+        />
+      </div>
       <input
         name="note"
         placeholder={suggestion?.sample_postingtext ?? "Notiz (optional)"}
