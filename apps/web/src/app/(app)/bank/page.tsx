@@ -232,20 +232,21 @@ export default async function BankPage({
   if (hasDebits) {
     const { data: inc } = await supabase
       .from("incoming_document")
-      .select("doc_number, gross_amount, supplier_name")
+      .select("doc_number, open_amount, supplier_name")
       .in("doc_type", ["invoice", "credit_note"])
-      .eq("payment_status", "open")
+      .in("payment_status", ["open", "partly_paid"])
+      .gt("open_amount", 0)
       .not("doc_number", "is", null)
       .order("doc_date", { ascending: false })
       .limit(800);
     const rows = ((inc ?? []) as unknown as {
       doc_number: string;
-      gross_amount: number | null;
+      open_amount: number | null;
       supplier_name: string | null;
     }[]).map((i) => ({
       number: i.doc_number,
-      amount: i.gross_amount,
-      label: `${i.doc_number} — ${i.supplier_name ?? "?"} — ${fmtEur(i.gross_amount)}`,
+      amount: i.open_amount,
+      label: `${i.doc_number} — ${i.supplier_name ?? "?"} — ${fmtEur(i.open_amount)}`,
     }));
     erCandidates = rows.map(({ number, label }) => ({ number, label }));
     erPrefill = uniqueByAmount(rows.map((r) => ({ c: cents(r.amount), label: r.label })));

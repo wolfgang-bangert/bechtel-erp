@@ -88,7 +88,10 @@ export async function skontoApply(opts: Options = {}) {
   }>(
     "incoming_document",
     "id, doc_number, doc_date, gross_amount, net_amount, tax_amount, discount_amount, discount_percent, payment_status",
-    ["payment_status", "open"],
+    // wie auf der Debitorenseite: nur Belege mit schon erfasster Teilzahlung
+    // sind Skonto-Kandidaten (payment_status jetzt 4-wertig, siehe
+    // 20260929140000_incoming_paid_total.sql).
+    ["payment_status", "partly_paid"],
   );
 
   type Hit = { id: string; gap: number; rate: number; txId: string; label: string };

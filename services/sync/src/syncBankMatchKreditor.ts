@@ -29,6 +29,7 @@ type Doc = {
   advice_debit_date: string | null;
   status: string;
   payment_status: string;
+  open_amount: number | null;
 };
 
 type Txn = {
@@ -54,17 +55,22 @@ export async function syncBankMatchKreditor(opts: Options = {}) {
   const docsAll = await pagedSelect<Doc>(
     "incoming_document",
     "id, doc_type, doc_number, gross_amount, discount_amount, supplier_iban, payee_iban, " +
-      "supplier_organization_id, supplier_name, advice_reference, advice_debit_date, status, payment_status",
+      "supplier_organization_id, supplier_name, advice_reference, advice_debit_date, status, payment_status, open_amount",
   );
   const orgs = await pagedSelect<{ id: string; name: string }>("organization", "id, name");
   const orgName = new Map(orgs.map((o) => [o.id, o.name]));
 
+  // open_amount (nicht payment_status) ist die Quelle der Wahrheit für "hat
+  // diese Rechnung noch einen unbezahlten Rest" - eine bereits teilweise
+  // (auch fälschlich) zugeordnete Rechnung bleibt sonst mit vollem
+  // gross_amount als Kandidat stehen und kann eine zweite, unverwandte
+  // Bankzeile abbekommen (siehe amountFits unten, das jetzt gegen
+  // open_amount statt gross_amount prüft).
   const open = docsAll.filter(
     (d) =>
-      d.payment_status === "open" &&
       ["invoice", "credit_note"].includes(d.doc_type) &&
       d.status !== "rejected" &&
-      (d.gross_amount ?? 0) > 0,
+      (d.open_amount ?? 0) > 0.005,
   );
   const advices = docsAll.filter((d) => d.doc_type === "payment_advice");
 
@@ -81,8 +87,11 @@ export async function syncBankMatchKreditor(opts: Options = {}) {
     ["match_status", "unmatched"],
   );
 
+  // Gegen den noch offenen Rest prüfen, nicht gegen den vollen Rechnungsbetrag
+  // - sonst passt eine zweite Zahlung rechnerisch noch auf eine Rechnung, die
+  // schon (ganz oder teilweise) beglichen ist.
   const amountFits = (paid: number, d: Doc) => {
-    const g = r2(d.gross_amount ?? 0);
+    const g = r2(d.open_amount ?? d.gross_amount ?? 0);
     if (Math.abs(paid - g) <= 0.02) return true;
     const net = r2(g - (d.discount_amount ?? 0));
     if ((d.discount_amount ?? 0) > 0 && Math.abs(paid - net) <= 0.02) return true;
@@ -153,10 +162,10 @@ export async function syncBankMatchKreditor(opts: Options = {}) {
         if (usedDocs.has(d.id) || !d.doc_number) return false;
         return refs.has(d.doc_number.trim()) || refs.has(d.doc_number.replace(/[^A-Za-z0-9]/g, ""));
       });
-      const sum = r2(target.reduce((s, d) => s + (d.gross_amount ?? 0), 0));
+      const sum = r2(target.reduce((s, d) => s + (d.open_amount ?? d.gross_amount ?? 0), 0));
       if (target.length && Math.abs(sum - paid) <= Math.max(0.05, paid * 0.05)) {
         for (const d of target) {
-          const share = target.length === 1 ? tx.amount : -r2((d.gross_amount ?? 0));
+          const share = target.length === 1 ? tx.amount : -r2(d.open_amount ?? d.gross_amount ?? 0);
           rows.push({ bank_transaction_id: tx.id, incoming_document_id: d.id, amount: share });
           usedDocs.add(d.id);
         }
