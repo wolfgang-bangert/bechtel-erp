@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
-import { LinkBookingForm } from "../ui";
+import { LinkBookingForm, GroupLinkForm } from "../ui";
 
 export const dynamic = "force-dynamic";
 
@@ -53,25 +53,36 @@ export default async function LohnImportDetail({
     bank_transaction_id: string;
     bank_transaction: { booking_date: string; amount: number; counterparty_name: string | null } | null;
   };
-  const linkedByBooking = new Map(
-    (existingMatches ?? []).map((m) => {
-      const row = m as unknown as {
-        payroll_booking_id: string | null;
-        bank_transaction_id: string;
-        bank_transaction: LinkedMatch["bank_transaction"] | LinkedMatch["bank_transaction"][];
-      };
-      const bt = Array.isArray(row.bank_transaction) ? (row.bank_transaction[0] ?? null) : row.bank_transaction;
-      return [row.payroll_booking_id as string, { ...row, bank_transaction: bt } satisfies LinkedMatch] as const;
-    }),
-  );
+  // Eine Lohnbuchung (z.B. Sammelzeile "Abzuführende SV-Beiträge") kann jetzt
+  // an mehrere Bankzeilen hängen (je Krankenkasse eine) - daher Array, nicht
+  // nur der letzte Treffer.
+  const linkedByBooking = new Map<string, LinkedMatch[]>();
+  for (const m of existingMatches ?? []) {
+    const row = m as unknown as {
+      payroll_booking_id: string | null;
+      bank_transaction_id: string;
+      bank_transaction: LinkedMatch["bank_transaction"] | LinkedMatch["bank_transaction"][];
+    };
+    if (!row.payroll_booking_id) continue;
+    const bt = Array.isArray(row.bank_transaction) ? (row.bank_transaction[0] ?? null) : row.bank_transaction;
+    const arr = linkedByBooking.get(row.payroll_booking_id) ?? [];
+    arr.push({ ...row, bank_transaction: bt });
+    linkedByBooking.set(row.payroll_booking_id, arr);
+  }
 
-  const unlinked = bankRelevant.filter((b) => !linkedByBooking.has(b.id));
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const linkedSum = (id: string) =>
+    r2((linkedByBooking.get(id) ?? []).reduce((s, m) => s + Math.abs(m.bank_transaction?.amount ?? 0), 0));
+  const isFullyLinked = (b: (typeof bankRelevant)[number]) => Math.abs(b.amount - linkedSum(b.id)) <= 0.02;
+
+  const openRows = bankRelevant.filter((b) => !isFullyLinked(b));
   const from = imp.period_start ? new Date(imp.period_start) : null;
   const to = imp.period_end ? new Date(imp.period_end) : null;
   if (from) from.setDate(from.getDate() - 5);
   if (to) to.setDate(to.getDate() + 20);
 
-  const { data: candidateTxns } = unlinked.length
+  const linkedTxIds = new Set((existingMatches ?? []).map((m) => (m as { bank_transaction_id: string }).bank_transaction_id));
+  const { data: candidateTxns } = openRows.length
     ? await supabase
         .from("bank_transaction")
         .select("id, booking_date, amount, counterparty_name, purpose")
@@ -80,9 +91,10 @@ export default async function LohnImportDetail({
         .gte("booking_date", from ? from.toISOString().slice(0, 10) : "2000-01-01")
         .lte("booking_date", to ? to.toISOString().slice(0, 10) : "2100-01-01")
     : { data: [] as { id: string; booking_date: string; amount: number; counterparty_name: string | null; purpose: string | null }[] };
+  const openCandidates = (candidateTxns ?? []).filter((t) => !linkedTxIds.has(t.id));
 
   const suggestionFor = (amount: number, belegDatum: string | null) => {
-    const hits = (candidateTxns ?? []).filter((t) => Math.abs(Math.abs(t.amount) - amount) <= 0.02);
+    const hits = openCandidates.filter((t) => Math.abs(Math.abs(t.amount) - amount) <= 0.02);
     if (!hits.length) return null;
     if (!belegDatum) return hits[0];
     const target = new Date(belegDatum).getTime();
@@ -121,8 +133,10 @@ export default async function LohnImportDetail({
           </thead>
           <tbody>
             {bankRelevant.map((b) => {
-              const linked = linkedByBooking.get(b.id);
-              const suggestion = !linked ? suggestionFor(b.amount, b.beleg_datum) : null;
+              const links = linkedByBooking.get(b.id) ?? [];
+              const fullyLinked = isFullyLinked(b);
+              const remaining = r2(b.amount - linkedSum(b.id));
+              const suggestion = !fullyLinked ? suggestionFor(remaining, b.beleg_datum) : null;
               return (
                 <tr key={b.id}>
                   <td>{b.beleg_datum ? fmtDate(b.beleg_datum) : "–"}</td>
@@ -130,20 +144,50 @@ export default async function LohnImportDetail({
                   <td className="wrap">{b.buchungstext ?? "–"}</td>
                   <td style={{ textAlign: "right" }}>{fmtEur(b.amount)}</td>
                   <td>
-                    {linked ? (
-                      <span className="msg-ok">
-                        ✓ {linked.bank_transaction?.booking_date ? fmtDate(linked.bank_transaction.booking_date) : ""} ·{" "}
-                        {linked.bank_transaction?.counterparty_name ?? ""}
-                      </span>
-                    ) : suggestion ? (
-                      <LinkBookingForm
-                        bookingId={b.id}
-                        txId={suggestion.id}
-                        label={`${fmtDate(suggestion.booking_date)} · ${fmtEur(suggestion.amount)} · ${suggestion.counterparty_name ?? suggestion.purpose ?? ""}`}
-                      />
-                    ) : (
-                      <span className="count">kein Vorschlag</span>
-                    )}
+                    <div className="rows" style={{ gap: 4 }}>
+                      {links.map((l) => (
+                        <span key={l.bank_transaction_id} className="msg-ok" style={{ fontSize: 12 }}>
+                          ✓ {l.bank_transaction?.booking_date ? fmtDate(l.bank_transaction.booking_date) : ""} ·{" "}
+                          {fmtEur(l.bank_transaction?.amount ?? 0)} · {l.bank_transaction?.counterparty_name ?? ""}
+                        </span>
+                      ))}
+                      {fullyLinked ? (
+                        links.length > 1 && (
+                          <span className="count" style={{ fontSize: 12 }}>
+                            Summe passt ✓
+                          </span>
+                        )
+                      ) : (
+                        <>
+                          {links.length > 0 && (
+                            <span className="count" style={{ fontSize: 12 }}>
+                              noch offen: {fmtEur(remaining)}
+                            </span>
+                          )}
+                          {suggestion && (
+                            <LinkBookingForm
+                              bookingId={b.id}
+                              txId={suggestion.id}
+                              label={`${fmtDate(suggestion.booking_date)} · ${fmtEur(suggestion.amount)} · ${suggestion.counterparty_name ?? suggestion.purpose ?? ""}`}
+                            />
+                          )}
+                          <GroupLinkForm
+                            bookingId={b.id}
+                            targetAmount={remaining}
+                            candidates={openCandidates.map((c) => ({
+                              id: c.id,
+                              label: `${fmtDate(c.booking_date)} · ${fmtEur(c.amount)} · ${c.counterparty_name ?? c.purpose ?? ""}`,
+                              amount: c.amount,
+                            }))}
+                          />
+                          {!suggestion && links.length === 0 && (
+                            <span className="count" style={{ fontSize: 12 }}>
+                              kein Vorschlag
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
