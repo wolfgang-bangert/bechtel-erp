@@ -23,6 +23,7 @@ import { syncBankImport } from "./syncBankImport";
 import { syncBankMatch } from "./syncBankMatch";
 import { syncBankMatchKreditor } from "./syncBankMatchKreditor";
 import { exportDatevExtf } from "./datevExtf";
+import { syncInvoiceBookings, generateInvoiceBooking } from "./syncInvoiceBookings";
 import { exportDatevKreditor } from "./datevExtfKreditor";
 import { exportDatevZahlungen } from "./datevExtfZahlungen";
 import { skontoApply } from "./skontoApply";
@@ -227,6 +228,20 @@ async function main() {
       console.log(JSON.stringify(await fixCounterpartyNames(), null, 1));
       break;
     }
+    case "invoice:bookings": {
+      console.log(`Rechnungs-Buchungszeilen (Debitor an Erlöskonto) nachziehen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await syncInvoiceBookings({ dryRun }), null, 1));
+      break;
+    }
+    case "invoice:booking": {
+      const idArg = process.argv.find((a) => a.startsWith("--id="));
+      if (!idArg) {
+        console.log("  pnpm --filter sync invoice:booking --id=<sales_invoice-id>");
+        process.exit(1);
+      }
+      console.log(JSON.stringify(await generateInvoiceBooking(idArg.split("=")[1]), null, 1));
+      break;
+    }
     case "requests:process": {
       const { processSyncRequests } = await import("./syncRequests");
       console.log(JSON.stringify(await processSyncRequests(), null, 1));
@@ -250,7 +265,8 @@ async function main() {
       );
       console.log(
         `übersprungen ${r.skipped}: ${r.skips.noNumber} ohne Rechnungsnummer (Entwurf), ` +
-          `${r.skips.noDebitor} ohne Debitorennummer, ${r.skips.badDebitor} ungültige Debitorennummer`,
+          `${r.skips.noDebitor} ohne Debitorennummer, ${r.skips.badDebitor} ungültige Debitorennummer, ` +
+          `${r.skips.noBooking} ohne Buchungszeilen`,
       );
       console.log(`Summe (Rg − GS): ${r.grossTotal.toLocaleString("de-DE")} EUR`);
       console.log(`Datei: ${r.file}`);

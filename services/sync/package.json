@@ -28,6 +28,8 @@
     "ninox:orders": "tsx src/cli.ts ninox:orders",
     "ninox:invoices": "tsx src/cli.ts ninox:invoices",
     "datev:extf": "tsx src/cli.ts datev:extf",
+    "invoice:bookings": "tsx src/cli.ts invoice:bookings",
+    "invoice:booking": "tsx src/cli.ts invoice:booking",
     "datev:kreditor": "tsx src/cli.ts datev:kreditor",
     "datev:zahlungen": "tsx src/cli.ts datev:zahlungen",
     "skonto:apply": "tsx src/cli.ts skonto:apply",
