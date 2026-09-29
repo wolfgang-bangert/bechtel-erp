@@ -64,6 +64,21 @@ export default async function IncomingDetail({
   if (error) return <div className="banner-err">Fehler: {error.message}</div>;
   if (!doc) notFound();
 
+  // Gelernte/von Hand gesetzte Vorkontierung für den Lieferanten (siehe
+  // /einstellungen/vorkontierung) - nur ein Vorschlag fürs Formular, greift
+  // dort nur wenn das Dokument noch kein eigenes Aufwandskonto hat.
+  const { data: postingRule } = doc.supplier_organization_id
+    ? await supabase
+        .from("posting_rule")
+        .select("expense_account, tax_code_id, is_active")
+        .eq("organization_id", doc.supplier_organization_id)
+        .maybeSingle()
+    : { data: null };
+  const suggestion =
+    postingRule?.is_active && postingRule.expense_account
+      ? { ledger_account: postingRule.expense_account, tax_code_id: postingRule.tax_code_id }
+      : null;
+
   const pdfUrl = doc.pdf_storage_key ? await signedGetUrl(doc.pdf_storage_key, 1800) : null;
   const isAdvice = doc.doc_type === "payment_advice" || doc.status === "advice";
   const isDunning = doc.doc_type === "dunning" || doc.status === "dunning";
@@ -216,6 +231,7 @@ export default async function IncomingDetail({
                 value: a.number,
                 label: `${a.number} – ${a.name}`,
               }))}
+              suggestion={suggestion}
             />
           </div>
         )}

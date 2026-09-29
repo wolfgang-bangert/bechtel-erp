@@ -45,17 +45,25 @@ export function ReviewForm({
   taxCodes,
   costCenters,
   ledgerAccounts,
+  suggestion,
 }: {
   doc: Record<string, unknown>;
   items: Pos[];
   taxCodes: Opt[];
   costCenters: Opt[];
   ledgerAccounts: { value: string; label: string }[];
+  /** Aus der BuchhaltungsButler-Historie gelernte oder von Hand gesetzte
+   *  Vorkontierung für den Lieferanten (siehe /einstellungen/vorkontierung)
+   *  - nur eine Vorbelegung, greift nur wenn noch kein eigenes Konto gesetzt. */
+  suggestion?: { ledger_account: string; tax_code_id: string | null } | null;
 }) {
   const [state, action, pending] = useActionState(saveIncoming, empty);
   const v = (k: string) => (doc[k] == null ? "" : String(doc[k]));
 
-  const [defaultLedgerAccount, setDefaultLedgerAccount] = useState(v("ledger_account"));
+  const usingSuggestion = !v("ledger_account") && !!suggestion?.ledger_account;
+  const [defaultLedgerAccount, setDefaultLedgerAccount] = useState(
+    v("ledger_account") || suggestion?.ledger_account || "",
+  );
   const [positions, setPositions] = useState<Pos[]>(
     items.length
       ? items
@@ -208,6 +216,15 @@ export function ReviewForm({
       <h2>Kontierung (Vorgabe)</h2>
       <p className="lead" style={{ marginTop: -6 }}>
         Gilt für alle Positionen ohne eigene Angabe.
+        {usingSuggestion && (
+          <>
+            {" "}
+            <span className="msg-ok">
+              Vorschlag aus <a href="/einstellungen/vorkontierung">Vorkontierung</a> übernommen — prüfen
+              und speichern.
+            </span>
+          </>
+        )}
       </p>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         <div className="field" style={{ width: 300 }}>
@@ -221,7 +238,11 @@ export function ReviewForm({
         </div>
         <div className="field" style={{ width: 220 }}>
           <label htmlFor="tax_code_id">Steuerschlüssel</label>
-          <select id="tax_code_id" name="tax_code_id" defaultValue={v("tax_code_id")}>
+          <select
+            id="tax_code_id"
+            name="tax_code_id"
+            defaultValue={v("tax_code_id") || suggestion?.tax_code_id || ""}
+          >
             <option value="">–</option>
             {taxCodes.map((t) => (
               <option key={t.id} value={t.id}>{t.label}</option>
