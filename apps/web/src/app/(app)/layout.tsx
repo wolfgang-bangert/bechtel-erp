@@ -66,6 +66,7 @@ export default async function AppLayout({
         <Link href="/einstellungen/steuerschluessel">Steuerschlüssel</Link>
         <Link href="/einstellungen/kostenstellen">Kostenstellen</Link>
         <Link href="/einstellungen/bank-regeln">Bank-Sachkonto-Regeln</Link>
+        <Link href="/einstellungen/vorkontierung">Vorkontierung</Link>
         <Link href="/einstellungen/formate">Formate & Bögen</Link>
         <Link href="/einstellungen/maschinen">Maschinen</Link>
         <Link href="/einstellungen/faehigkeiten">Fähigkeiten</Link>
