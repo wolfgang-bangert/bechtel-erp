@@ -99,8 +99,12 @@ export async function syncInvoiceBookings(opts: Options = {}) {
     fromRow += size;
   }
 
-  const { data: existing } = await supabase.from("sales_invoice_booking").select("sales_invoice_id");
-  const done = new Set((existing ?? []).map((r) => r.sales_invoice_id as string));
+  // Ohne pagedSelect kappt PostgREST hier bei 1000 Zeilen (Supabase-Default) -
+  // bei mehr bereits erzeugten Buchungen gälten alle weiteren fälschlich als
+  // "offen" und würden bei jedem Cron-Lauf erneut erzeugt (Dauerschleife,
+  // die bank:match/skonto:apply in derselben Kette dauerhaft blockiert).
+  const existing = await pagedSelect<{ sales_invoice_id: string }>("sales_invoice_booking", "sales_invoice_id");
+  const done = new Set(existing.map((r) => r.sales_invoice_id));
   const pending = invoices.filter((i) => !done.has(i.id));
 
   if (dryRun) return { gesamt: invoices.length, offen: pending.length, dryRun };
