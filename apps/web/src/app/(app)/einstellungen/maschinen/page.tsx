@@ -1,60 +1,43 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { fluxCatalog } from "@/lib/flux/catalog";
-import { MaschinenTable, type Maschine } from "./ui";
-import type { Faehigkeit } from "./FaehigkeitenEditor";
+import { MaschinenListTable, type Maschine } from "./ui";
 import { FluxRefreshButton } from "@/lib/flux/FluxRefreshButton";
 
 export const dynamic = "force-dynamic";
 
 export default async function MaschinenPage() {
   const supabase = await createClient();
-  const [{ data, error }, cat, { data: faeh }, { data: mfRows }] = await Promise.all([
+  const [{ data, error }, { data: costCenters }] = await Promise.all([
     supabase
       .from("maschine")
       .select(
-        "id, name, typ, flux_printer_name, farbe, kapazitaet_bogen_h, sortierung, aktiv, " +
-          "druckverfahren, max_farben, formate, geladen",
+        "id, name, typ, nummer, cost_center_id, flux_printer_name, farbe, kapazitaet_bogen_h, sortierung, aktiv, druckverfahren, max_farben, formate, geladen",
       )
       .order("sortierung")
       .order("name"),
-    fluxCatalog(),
-    supabase
-      .from("faehigkeit")
-      .select("key, label, taetigkeit, art, einheit, optionen")
-      .order("sortierung")
-      .order("label"),
-    supabase.from("maschine_faehigkeit").select("maschine_id, faehigkeit_key, wert"),
+    supabase.from("cost_center").select("id, number, name").order("number"),
   ]);
 
-  const werte: Record<string, Record<string, unknown>> = {};
-  for (const r of mfRows ?? []) {
-    const mid = r.maschine_id as string;
-    (werte[mid] ??= {})[r.faehigkeit_key as string] = r.wert;
-  }
+  const costCenterLabel = new Map((costCenters ?? []).map((c) => [c.id, `${c.number} – ${c.name}`]));
 
   return (
     <>
       <div className="toolbar" style={{ justifyContent: "space-between" }}>
         <h1 style={{ margin: 0 }}>Maschinen</h1>
-        <FluxRefreshButton />
+        <div className="toolbar" style={{ gap: 10 }}>
+          <FluxRefreshButton />
+          <Link href="/einstellungen/maschinen/neu">+ Neue Maschine</Link>
+        </div>
       </div>
       <p className="lead">
-        Stationen für die Maschinenplanung, gruppiert nach Typ. Der Rüstzustand (geladene
-        Materialien – bis zu 9 Magazine je Digitaldrucker) steht direkt am Formular; was die
-        Maschine grundsätzlich kann, pflegst du als{" "}
-        <Link href="/einstellungen/faehigkeiten">Fähigkeiten</Link> je Maschine.
+        Stationen für die Maschinenplanung, gruppiert nach Typ. Name klicken für Rüstzustand,
+        flux-Zuordnung, Kostenstelle und{" "}
+        <Link href="/einstellungen/faehigkeiten">Fähigkeiten</Link>.
       </p>
 
       {error && <div className="banner-err">Fehler beim Laden: {error.message}</div>}
 
-      <MaschinenTable
-        rows={(data ?? []) as unknown as Maschine[]}
-        printers={cat.ok ? cat.printers.map((p) => p.name) : []}
-        catalogError={cat.ok ? undefined : cat.error}
-        faehigkeiten={(faeh ?? []) as unknown as Faehigkeit[]}
-        werte={werte}
-      />
+      <MaschinenListTable rows={(data ?? []) as unknown as Maschine[]} costCenterLabel={costCenterLabel} />
     </>
   );
 }

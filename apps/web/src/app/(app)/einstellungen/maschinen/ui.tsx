@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { saveMaschine, type RowState } from "./actions";
 import { FaehigkeitenEditor, type Faehigkeit } from "./FaehigkeitenEditor";
 
@@ -8,6 +10,8 @@ export type Maschine = {
   id: string;
   name: string;
   typ: string;
+  nummer: string | null;
+  cost_center_id: string | null;
   flux_printer_name: string | null;
   farbe: string | null;
   kapazitaet_bogen_h: number | null;
@@ -19,8 +23,10 @@ export type Maschine = {
   geladen: { papier: string | null; format: string | null }[] | null;
 };
 
+export type CostCenterOption = { id: string; label: string };
+
 const empty: RowState = {};
-const TYP_LABEL: Record<string, string> = {
+export const TYP_LABEL: Record<string, string> = {
   druck: "Drucken",
   cello: "Cellophanieren",
   binden: "Binden",
@@ -45,16 +51,20 @@ function Field({ label, children, wide }: { label: string; children: React.React
   );
 }
 
-function MaschineForm({
+/** Vollständiges Formular für eine Maschine - auf der Detailseite (bestehende
+ *  Maschine) oder unter /neu (Anlage). Springt nach erfolgreicher Neuanlage
+ *  automatisch auf die Detailseite der neuen Maschine. */
+export function MaschineForm({
   row,
   printers,
-  flush,
+  costCenters,
 }: {
   row?: Maschine;
   printers: string[];
-  flush?: boolean;
+  costCenters: CostCenterOption[];
 }) {
   const [state, action, pending] = useActionState(saveMaschine, empty);
+  const router = useRouter();
   const neu = !row;
   const printerVal = row?.flux_printer_name ?? "";
   const printerListId = `flux-printers-${row?.id ?? "neu"}`;
@@ -62,15 +72,19 @@ function MaschineForm({
     .map((g) => `${g.papier ?? ""}${g.format ? ` | ${g.format}` : ""}`)
     .join("\n");
 
+  useEffect(() => {
+    if (neu && state.ok && state.id) router.push(`/einstellungen/maschinen/${state.id}`);
+  }, [neu, state.ok, state.id, router]);
+
   return (
     <form
       action={action}
       style={{
         border: "1px solid var(--border)",
-        borderRadius: flush ? "var(--radius) var(--radius) 0 0" : "var(--radius)",
+        borderRadius: "var(--radius)",
         borderLeft: `4px solid ${row?.farbe ?? "var(--accent)"}`,
         padding: 12,
-        marginBottom: flush ? 0 : 10,
+        marginBottom: 10,
         background: neu ? "var(--bg)" : "var(--panel)",
       }}
     >
@@ -90,6 +104,19 @@ function MaschineForm({
             {Object.entries(TYP_LABEL).map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Maschinen-/Gerätenummer">
+          <input name="nummer" defaultValue={row?.nummer ?? ""} placeholder="z.B. 20001" />
+        </Field>
+        <Field label="Kostenstelle">
+          <select name="cost_center_id" defaultValue={row?.cost_center_id ?? ""}>
+            <option value="">— keine —</option>
+            {costCenters.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
               </option>
             ))}
           </select>
@@ -169,57 +196,81 @@ function MaschineForm({
         <button type="submit" disabled={pending}>
           {pending ? "…" : neu ? "Maschine anlegen" : "Speichern"}
         </button>
-        {state.ok && <span className="msg-ok">✓ {neu ? "angelegt" : "gespeichert"}</span>}
+        {state.ok && !neu && <span className="msg-ok">✓ gespeichert</span>}
         {state.error && <span className="msg-err">{state.error}</span>}
       </div>
     </form>
   );
 }
 
-export function MaschinenTable({
-  rows,
+/** Detailseite: Stammdaten-Formular + Fähigkeiten der Maschine. */
+export function MaschineDetail({
+  row,
   printers,
-  catalogError,
+  costCenters,
   faehigkeiten,
   werte,
 }: {
-  rows: Maschine[];
+  row: Maschine;
   printers: string[];
-  catalogError?: string;
+  costCenters: CostCenterOption[];
   faehigkeiten: Faehigkeit[];
-  werte: Record<string, Record<string, unknown>>;
+  werte: Record<string, unknown>;
 }) {
-  const gruppen = Array.from(new Set(rows.map((r) => r.typ)));
   return (
     <div>
-      <p className="count" style={{ marginTop: -4 }}>
-        {catalogError
-          ? `flux-Drucker konnten nicht geladen werden: ${catalogError}`
-          : `${printers.length} flux-Drucker aus der API`}
-      </p>
-      {gruppen.map((g) => (
-        <section key={g} style={{ marginTop: 18 }}>
-          <h2 style={{ marginBottom: 8 }}>{TYP_LABEL[g] ?? g}</h2>
-          {rows.filter((r) => r.typ === g).map((r) => (
-            <div key={r.id}>
-              <MaschineForm row={r} printers={printers} flush />
-              <FaehigkeitenEditor
-                maschineId={r.id}
-                typ={r.typ}
-                katalog={faehigkeiten}
-                werte={werte[r.id] ?? {}}
-              />
-            </div>
+      <MaschineForm row={row} printers={printers} costCenters={costCenters} />
+      <FaehigkeitenEditor maschineId={row.id} typ={row.typ} katalog={faehigkeiten} werte={werte} />
+    </div>
+  );
+}
+
+/** Übersicht: schlanke Liste (Name, Gruppe, Nummer, Kostenstelle) - Details
+ *  und Fähigkeiten stehen auf der jeweiligen Detailseite. */
+export function MaschinenListTable({
+  rows,
+  costCenterLabel,
+}: {
+  rows: Maschine[];
+  costCenterLabel: Map<string, string>;
+}) {
+  return (
+    <div className="table-scroll">
+      <table className="data">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Gruppe</th>
+            <th>Nummer</th>
+            <th>Kostenstelle</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} style={{ opacity: r.aktiv ? 1 : 0.55 }}>
+              <td>
+                <Link href={`/einstellungen/maschinen/${r.id}`}>{r.name}</Link>
+              </td>
+              <td>{TYP_LABEL[r.typ] ?? r.typ}</td>
+              <td className="count">{r.nummer ?? "–"}</td>
+              <td className="count">
+                {r.cost_center_id ? (costCenterLabel.get(r.cost_center_id) ?? "–") : "–"}
+              </td>
+              <td>
+                <span className="tag">{r.aktiv ? "aktiv" : "inaktiv"}</span>
+              </td>
+            </tr>
           ))}
-        </section>
-      ))}
-      <section style={{ marginTop: 22 }}>
-        <h2 style={{ marginBottom: 8 }}>Neue Maschine</h2>
-        <p className="count" style={{ marginTop: -4, marginBottom: 8 }}>
-          Erst anlegen – Fähigkeiten erscheinen danach je Maschine.
-        </p>
-        <MaschineForm printers={printers} />
-      </section>
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={5} style={{ color: "var(--muted)" }}>
+                Noch keine Maschinen angelegt.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
