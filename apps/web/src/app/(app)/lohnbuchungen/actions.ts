@@ -88,15 +88,37 @@ async function remainingAmount(
 }
 
 /** Lohnbuchung (z.B. "Überweisung" gegen Verbindlichkeiten 1740) mit der
- *  Bankzeile verknüpfen, die das Geld tatsächlich bewegt hat - legt eine
- *  bank_transaction_match-Zeile mit ledger_account (das Verbindlichkeiten-
- *  Konto) + payroll_booking_id an, wie bei Rechnung/Eingangsrechnung. */
+ *  Bankzeile verknüpfen, die das Geld tatsächlich bewegt hat.
+ *
+ *  Zwei Fälle, je nachdem was im Formular steckt:
+ *  - tx_id: noch unverknüpfter Umsatz - legt eine neue bank_transaction_
+ *    match-Zeile mit ledger_account (Verbindlichkeiten-Konto) +
+ *    payroll_booking_id an, wie bei Rechnung/Eingangsrechnung.
+ *  - existing_match_id: der Umsatz wurde schon vorher über die normale
+ *    Bank-Sonderbuchung gegen dasselbe Sachkonto gebucht (payroll_booking_id
+ *    war dabei noch nicht gesetzt) - hier nur nachträglich verknüpfen statt
+ *    eine zweite, doppelt zählende Buchungszeile anzulegen. */
 export async function linkPayrollBooking(_prev: LinkState, fd: FormData): Promise<LinkState> {
   const bookingId = String(fd.get("booking_id") ?? "");
+  const existingMatchId = String(fd.get("existing_match_id") ?? "");
   const txId = String(fd.get("tx_id") ?? "");
-  if (!bookingId || !txId) return { error: "Buchung oder Umsatz fehlt." };
+  if (!bookingId) return { error: "Buchung fehlt." };
 
   const supabase = await createClient();
+
+  if (existingMatchId) {
+    const { error } = await supabase
+      .from("bank_transaction_match")
+      .update({ payroll_booking_id: bookingId })
+      .eq("id", existingMatchId)
+      .is("payroll_booking_id", null);
+    if (error) return { error: error.message };
+    revalidatePath("/lohnbuchungen");
+    revalidatePath("/bank");
+    return { ok: true };
+  }
+
+  if (!txId) return { error: "Umsatz fehlt." };
   const { data: booking, error: be } = await supabase
     .from("payroll_booking")
     .select("id, amount, gegenkonto, buchungstext")
@@ -155,34 +177,49 @@ async function refreshTxMatchStatus(supabase: Awaited<ReturnType<typeof createCl
 export async function linkPayrollBookingGroup(_prev: LinkState, fd: FormData): Promise<LinkState> {
   const bookingId = String(fd.get("booking_id") ?? "").trim();
   const txIds = fd.getAll("tx_ids").map(String).filter(Boolean);
+  const existingMatchIds = fd.getAll("existing_match_ids").map(String).filter(Boolean);
   if (!bookingId) return { error: "Lohnbuchung fehlt." };
-  if (!txIds.length) return { error: "Mindestens eine Bankzeile auswählen." };
+  if (!txIds.length && !existingMatchIds.length) return { error: "Mindestens eine Bankzeile auswählen." };
 
   const supabase = await createClient();
-  const { data: booking, error: be } = await supabase
-    .from("payroll_booking")
-    .select("id, gegenkonto, buchungstext")
-    .eq("id", bookingId)
-    .maybeSingle();
-  if (be || !booking) return { error: be?.message ?? "Lohnbuchung nicht gefunden." };
 
-  const { data: txns, error: te } = await supabase
-    .from("bank_transaction")
-    .select("id, amount")
-    .in("id", txIds);
-  if (te) return { error: te.message };
+  // Schon vorhandene Sonderbuchungen (gleiches Sachkonto, noch keine
+  // payroll_booking_id) nur nachträglich verknüpfen, nicht doppelt anlegen.
+  if (existingMatchIds.length) {
+    const { error } = await supabase
+      .from("bank_transaction_match")
+      .update({ payroll_booking_id: bookingId })
+      .in("id", existingMatchIds)
+      .is("payroll_booking_id", null);
+    if (error) return { error: error.message };
+  }
 
-  for (const tx of txns ?? []) {
-    const { error } = await supabase.from("bank_transaction_match").insert({
-      bank_transaction_id: tx.id,
-      ledger_account: booking.gegenkonto,
-      payroll_booking_id: booking.id,
-      note: booking.buchungstext,
-      amount: tx.amount,
-      auto: false,
-    });
-    if (error && error.code !== "23505") return { error: error.message };
-    await refreshTxMatchStatus(supabase, tx.id);
+  if (txIds.length) {
+    const { data: booking, error: be } = await supabase
+      .from("payroll_booking")
+      .select("id, gegenkonto, buchungstext")
+      .eq("id", bookingId)
+      .maybeSingle();
+    if (be || !booking) return { error: be?.message ?? "Lohnbuchung nicht gefunden." };
+
+    const { data: txns, error: te } = await supabase
+      .from("bank_transaction")
+      .select("id, amount")
+      .in("id", txIds);
+    if (te) return { error: te.message };
+
+    for (const tx of txns ?? []) {
+      const { error } = await supabase.from("bank_transaction_match").insert({
+        bank_transaction_id: tx.id,
+        ledger_account: booking.gegenkonto,
+        payroll_booking_id: booking.id,
+        note: booking.buchungstext,
+        amount: tx.amount,
+        auto: false,
+      });
+      if (error && error.code !== "23505") return { error: error.message };
+      await refreshTxMatchStatus(supabase, tx.id);
+    }
   }
 
   revalidatePath("/lohnbuchungen");

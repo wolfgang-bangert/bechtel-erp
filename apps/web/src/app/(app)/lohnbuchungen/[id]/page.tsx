@@ -93,6 +93,45 @@ export default async function LohnImportDetail({
     : { data: [] as { id: string; booking_date: string; amount: number; counterparty_name: string | null; purpose: string | null }[] };
   const openCandidates = (candidateTxns ?? []).filter((t) => !linkedTxIds.has(t.id));
 
+  // Zeilen, die schon vorher über die normale Bank-Sonderbuchung (nicht über
+  // diese Seite) gegen dasselbe Sachkonto gebucht wurden - Buchung existiert
+  // schon, muss nur noch nachträglich mit der Lohnbuchung verknüpft werden
+  // (payroll_booking_id nachtragen), nicht doppelt anlegen.
+  const openGegenkonten = [...new Set(openRows.map((b) => b.gegenkonto))];
+  const { data: alreadyBookedRaw } = openGegenkonten.length
+    ? await supabase
+        .from("bank_transaction_match")
+        .select(
+          "id, amount, ledger_account, bank_transaction_id, bank_transaction:bank_transaction_id(booking_date, amount, counterparty_name)",
+        )
+        .in("ledger_account", openGegenkonten)
+        .is("payroll_booking_id", null)
+    : { data: [] as unknown[] };
+  type AlreadyBooked = {
+    id: string;
+    amount: number;
+    ledger_account: string;
+    bank_transaction_id: string;
+    bank_transaction: { booking_date: string; amount: number; counterparty_name: string | null } | null;
+  };
+  const fromIso = from ? from.toISOString().slice(0, 10) : "2000-01-01";
+  const toIso = to ? to.toISOString().slice(0, 10) : "2100-01-01";
+  const alreadyBookedByGegenkonto = new Map<string, AlreadyBooked[]>();
+  for (const m of alreadyBookedRaw ?? []) {
+    const row = m as unknown as {
+      id: string;
+      amount: number;
+      ledger_account: string;
+      bank_transaction_id: string;
+      bank_transaction: AlreadyBooked["bank_transaction"] | AlreadyBooked["bank_transaction"][];
+    };
+    const bt = Array.isArray(row.bank_transaction) ? (row.bank_transaction[0] ?? null) : row.bank_transaction;
+    if (!bt || bt.booking_date < fromIso || bt.booking_date > toIso) continue;
+    const arr = alreadyBookedByGegenkonto.get(row.ledger_account) ?? [];
+    arr.push({ ...row, bank_transaction: bt });
+    alreadyBookedByGegenkonto.set(row.ledger_account, arr);
+  }
+
   const suggestionFor = (amount: number, belegDatum: string | null) => {
     const hits = openCandidates.filter((t) => Math.abs(Math.abs(t.amount) - amount) <= 0.02);
     if (!hits.length) return null;
@@ -136,7 +175,41 @@ export default async function LohnImportDetail({
               const links = linkedByBooking.get(b.id) ?? [];
               const fullyLinked = isFullyLinked(b);
               const remaining = r2(b.amount - linkedSum(b.id));
-              const suggestion = !fullyLinked ? suggestionFor(remaining, b.beleg_datum) : null;
+              const alreadyBooked = alreadyBookedByGegenkonto.get(b.gegenkonto) ?? [];
+              // Schon über die normale Sonderbuchung gebuchte Zeilen zuerst
+              // vorschlagen (ist bereits eine echte Buchung, nur die
+              // Verknüpfung fehlt noch) - sonst die noch offenen Bankzeilen.
+              const suggestion = fullyLinked
+                ? null
+                : (() => {
+                    const abHit = alreadyBooked.find((m) => Math.abs(Math.abs(m.amount) - remaining) <= 0.02);
+                    if (abHit) {
+                      return {
+                        id: abHit.bank_transaction_id,
+                        existingMatchId: abHit.id,
+                        booking_date: abHit.bank_transaction?.booking_date ?? "",
+                        amount: abHit.bank_transaction?.amount ?? abHit.amount,
+                        counterparty_name: abHit.bank_transaction?.counterparty_name ?? null,
+                        purpose: null as string | null,
+                      };
+                    }
+                    const open = suggestionFor(remaining, b.beleg_datum);
+                    return open ? { ...open, existingMatchId: undefined as string | undefined } : null;
+                  })();
+              const combinedCandidates = [
+                ...alreadyBooked.map((m) => ({
+                  id: m.bank_transaction_id,
+                  existingMatchId: m.id as string | undefined,
+                  label: `${m.bank_transaction?.booking_date ? fmtDate(m.bank_transaction.booking_date) : ""} · ${fmtEur(m.bank_transaction?.amount ?? m.amount)} · ${m.bank_transaction?.counterparty_name ?? ""} (bereits gebucht)`,
+                  amount: m.bank_transaction?.amount ?? m.amount,
+                })),
+                ...openCandidates.map((c) => ({
+                  id: c.id,
+                  existingMatchId: undefined as string | undefined,
+                  label: `${fmtDate(c.booking_date)} · ${fmtEur(c.amount)} · ${c.counterparty_name ?? c.purpose ?? ""}`,
+                  amount: c.amount,
+                })),
+              ];
               return (
                 <tr key={b.id}>
                   <td>{b.beleg_datum ? fmtDate(b.beleg_datum) : "–"}</td>
@@ -168,18 +241,11 @@ export default async function LohnImportDetail({
                             <LinkBookingForm
                               bookingId={b.id}
                               txId={suggestion.id}
-                              label={`${fmtDate(suggestion.booking_date)} · ${fmtEur(suggestion.amount)} · ${suggestion.counterparty_name ?? suggestion.purpose ?? ""}`}
+                              existingMatchId={suggestion.existingMatchId}
+                              label={`${fmtDate(suggestion.booking_date)} · ${fmtEur(suggestion.amount)} · ${suggestion.counterparty_name ?? suggestion.purpose ?? ""}${suggestion.existingMatchId ? " (bereits gebucht)" : ""}`}
                             />
                           )}
-                          <GroupLinkForm
-                            bookingId={b.id}
-                            targetAmount={remaining}
-                            candidates={openCandidates.map((c) => ({
-                              id: c.id,
-                              label: `${fmtDate(c.booking_date)} · ${fmtEur(c.amount)} · ${c.counterparty_name ?? c.purpose ?? ""}`,
-                              amount: c.amount,
-                            }))}
-                          />
+                          <GroupLinkForm bookingId={b.id} targetAmount={remaining} candidates={combinedCandidates} />
                           {!suggestion && links.length === 0 && (
                             <span className="count" style={{ fontSize: 12 }}>
                               kein Vorschlag
