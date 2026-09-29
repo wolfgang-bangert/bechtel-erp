@@ -206,7 +206,7 @@ export function BankTransactionsBody({ rows }: { rows: BankRow[] }) {
         ))}
         {rows.length === 0 && (
           <tr>
-            <td colSpan={5} style={{ color: "var(--muted)" }}>
+            <td colSpan={6} style={{ color: "var(--muted)" }}>
               Keine Umsätze.
             </td>
           </tr>

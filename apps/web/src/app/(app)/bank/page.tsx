@@ -2,7 +2,14 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { fmtDate, fmtEur } from "@/lib/format";
-import { MatchForm, SpecialMatchForm, BelegUploadForm, InvoiceDatalist, type Candidate } from "./ui";
+import {
+  MatchForm,
+  SpecialMatchForm,
+  BelegUploadForm,
+  InvoiceDatalist,
+  QuickMatchButton,
+  type Candidate,
+} from "./ui";
 import { unmatchTransaction } from "./actions";
 import { BankSyncButton } from "./BankSyncButton";
 import { BankAvatar, BankNameEdit, BankTransactionsBody, type BankRow } from "./TransactionRow";
@@ -300,6 +307,11 @@ export default async function BankPage({
         <span key="s" className="tag">
           {MATCH_STATUS_LABEL[tx.match_status] ?? tx.match_status}
         </span>,
+        remaining > 0.01 && prefill ? (
+          <QuickMatchButton key="v" txId={tx.id} side={side} suggestion={prefill} />
+        ) : (
+          <span key="v" />
+        ),
       ],
       children: (
         <div className="rows" style={{ gap: 18 }}>
@@ -570,6 +582,7 @@ export default async function BankPage({
               <th style={{ textAlign: "right" }}>Betrag</th>
               <th>Gegenseite / Verwendungszweck</th>
               <th>Status</th>
+              <th>Vorschlag</th>
             </tr>
           </thead>
           <BankTransactionsBody rows={rows} />
