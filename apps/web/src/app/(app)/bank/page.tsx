@@ -444,7 +444,6 @@ export default async function BankPage({
                                 const inc = m.incoming_document;
                                 const inv = m.sales_invoice;
                                 let beleg: React.ReactNode;
-                                let gegenkonto: React.ReactNode = "—";
                                 if (inc) {
                                   beleg = (
                                     <Link href={`/eingangsrechnungen/${inc.id}`}>
@@ -452,9 +451,6 @@ export default async function BankPage({
                                       {inc.supplier_name ? ` — ${inc.supplier_name}` : ""}
                                     </Link>
                                   );
-                                  gegenkonto = inc.supplier?.supplier_number
-                                    ? `Kreditor ${inc.supplier.supplier_number}`
-                                    : "Verbindlichkeiten";
                                 } else if (inv) {
                                   beleg = (
                                     <Link href={`/rechnungen/${inv.id}`}>
@@ -462,9 +458,6 @@ export default async function BankPage({
                                       {inv.organization?.name ? ` — ${inv.organization.name}` : ""}
                                     </Link>
                                   );
-                                  gegenkonto = inv.organization?.customer_number
-                                    ? `Debitor ${inv.organization.customer_number}`
-                                    : "Forderungen";
                                 } else {
                                   const attUrl = attachmentUrls.get(m.id);
                                   beleg = (
@@ -480,10 +473,21 @@ export default async function BankPage({
                                       )}
                                     </span>
                                   );
-                                  gegenkonto = m.ledger_account
-                                    ? (ledgerAccountName.get(m.ledger_account) ?? m.ledger_account)
-                                    : (SONDER_FALLBACK_LABEL[m.kind ?? ""] ?? m.kind ?? "—");
                                 }
+                                // Sachkonto hat Vorrang (z.B. Skonto zu einer
+                                // Rechnung: Beleg zeigt die Rechnung, Gegenkonto
+                                // trotzdem das Skontokonto, nicht "Debitor").
+                                const gegenkonto: React.ReactNode = m.ledger_account
+                                  ? (ledgerAccountName.get(m.ledger_account) ?? m.ledger_account)
+                                  : inc
+                                    ? inc.supplier?.supplier_number
+                                      ? `Kreditor ${inc.supplier.supplier_number}`
+                                      : "Verbindlichkeiten"
+                                    : inv
+                                      ? inv.organization?.customer_number
+                                        ? `Debitor ${inv.organization.customer_number}`
+                                        : "Forderungen"
+                                      : (SONDER_FALLBACK_LABEL[m.kind ?? ""] ?? m.kind ?? "—");
                                 return (
                                   <tr key={m.id}>
                                     <td>
