@@ -1,11 +1,156 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { saveIncoming, type SaveState } from "../actions";
 
 const empty: SaveState = {};
 
 type Opt = { id: string; label: string };
+
+/**
+ * Sachkonto-Auswahl als Popup statt cramped <select> - bei ~1200 SKR03-Konten
+ * im Kontenrahmen war die Inline-Dropdown auf Positionsebene kaum nutzbar.
+ * Durchsuchbare Liste (Nummer/Name), Klick auf eine Zeile wählt + schließt.
+ * `name` gesetzt: rendert zusätzlich ein hidden input fürs umschließende
+ * <form> (Vorgabe-Kontierung); ohne `name` rein kontrolliert (Positionen).
+ */
+function AccountPicker({
+  name,
+  value,
+  onChange,
+  accounts,
+  placeholder = "— Konto wählen —",
+}: {
+  name?: string;
+  value: string;
+  onChange: (v: string) => void;
+  accounts: { value: string; label: string }[];
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setQ("");
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    const t = setTimeout(() => searchRef.current?.focus(), 0);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      clearTimeout(t);
+    };
+  }, [open]);
+
+  const current = accounts.find((a) => a.value === value);
+  const needle = q.trim().toLowerCase();
+  const filtered = needle ? accounts.filter((a) => a.label.toLowerCase().includes(needle)) : accounts;
+  const shown = filtered.slice(0, 300);
+
+  const rowStyle = (selected: boolean): React.CSSProperties => ({
+    display: "block",
+    width: "100%",
+    textAlign: "left",
+    padding: "6px 10px",
+    border: "none",
+    borderRadius: 6,
+    cursor: "pointer",
+    background: selected ? "color-mix(in srgb, var(--accent) 14%, transparent)" : "transparent",
+    color: "var(--text)",
+    font: "inherit",
+  });
+
+  return (
+    <>
+      {name && <input type="hidden" name={name} value={value} />}
+      <button
+        type="button"
+        className="ghost"
+        onClick={() => setOpen(true)}
+        style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px" }}
+      >
+        {current ? current.label : value ? `${value} (nicht im Kontenrahmen)` : placeholder}
+      </button>
+      {open &&
+        createPortal(
+          <div
+            onClick={() => setOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,.55)",
+              zIndex: 200,
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "center",
+              padding: "8vh 3vw",
+              overflow: "auto",
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: "var(--panel)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius)",
+                width: "min(560px, 96vw)",
+                maxHeight: "80vh",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                className="toolbar"
+                style={{ justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid var(--border)" }}
+              >
+                <strong>Sachkonto wählen</strong>
+                <button type="button" onClick={() => setOpen(false)} style={{ padding: "5px 10px" }}>
+                  Schließen
+                </button>
+              </div>
+              <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)" }}>
+                <input
+                  ref={searchRef}
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Nummer oder Name suchen…"
+                  style={{ width: "100%" }}
+                />
+              </div>
+              <div style={{ overflow: "auto", padding: 6 }}>
+                <button type="button" onClick={() => { onChange(""); setOpen(false); }} style={rowStyle(!value)}>
+                  — kein Konto —
+                </button>
+                {shown.map((a) => (
+                  <button
+                    key={a.value}
+                    type="button"
+                    onClick={() => { onChange(a.value); setOpen(false); }}
+                    style={rowStyle(a.value === value)}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+                {filtered.length === 0 && (
+                  <p className="count" style={{ padding: 8 }}>
+                    Keine Treffer.
+                  </p>
+                )}
+                {filtered.length > shown.length && (
+                  <p className="count" style={{ padding: 8 }}>
+                    {filtered.length - shown.length} weitere Treffer — Suche eingrenzen…
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
 
 type Alloc = {
   id?: string;
@@ -54,20 +199,7 @@ export function ReviewForm({
   const [state, action, pending] = useActionState(saveIncoming, empty);
   const v = (k: string) => (doc[k] == null ? "" : String(doc[k]));
 
-  const accountOptions = (current: string) => {
-    const has = ledgerAccounts.some((a) => a.value === current);
-    return (
-      <>
-        <option value="">–</option>
-        {current && !has && <option value={current}>{current} (nicht im Kontenrahmen)</option>}
-        {ledgerAccounts.map((a) => (
-          <option key={a.value} value={a.value}>
-            {a.label}
-          </option>
-        ))}
-      </>
-    );
-  };
+  const [defaultLedgerAccount, setDefaultLedgerAccount] = useState(v("ledger_account"));
   const [positions, setPositions] = useState<Pos[]>(
     items.length
       ? items
@@ -223,10 +355,13 @@ export function ReviewForm({
       </p>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         <div className="field" style={{ width: 300 }}>
-          <label htmlFor="ledger_account">Aufwandskonto (SKR03)</label>
-          <select id="ledger_account" name="ledger_account" defaultValue={v("ledger_account")}>
-            {accountOptions(v("ledger_account"))}
-          </select>
+          <label>Aufwandskonto (SKR03)</label>
+          <AccountPicker
+            name="ledger_account"
+            value={defaultLedgerAccount}
+            onChange={setDefaultLedgerAccount}
+            accounts={ledgerAccounts}
+          />
         </div>
         <div className="field" style={{ width: 220 }}>
           <label htmlFor="tax_code_id">Steuerschlüssel</label>
@@ -310,12 +445,12 @@ export function ReviewForm({
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
               <div className="field" style={{ width: 260 }}>
                 <label>Konto (überschreibt)</label>
-                <select
+                <AccountPicker
                   value={p.ledger_account}
-                  onChange={(e) => patchPos(pi, { ledger_account: e.target.value })}
-                >
-                  {accountOptions(p.ledger_account)}
-                </select>
+                  onChange={(val) => patchPos(pi, { ledger_account: val })}
+                  accounts={ledgerAccounts}
+                  placeholder="(Vorgabe)"
+                />
               </div>
               <div className="field" style={{ width: 200 }}>
                 <label>Steuerschlüssel</label>
