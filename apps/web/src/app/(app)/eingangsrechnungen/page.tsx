@@ -21,27 +21,47 @@ const HINT = new Set(["advice", "dunning"]);
 export default async function EingangsrechnungenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string }>;
 }) {
   const sp = await searchParams;
   const status = sp.status ?? "";
+  const search = (sp.q ?? "").trim();
   const isHint = HINT.has(status);
   const isAdvice = status === "advice";
   const isDunning = status === "dunning";
+  const sort = sp.sort === "supplier" ? "supplier" : "date";
+  const dir = sp.dir === "asc" ? "asc" : "desc";
+  const ascending = dir === "asc";
 
   const supabase = await createClient();
-  let q = supabase
+  let query = supabase
     .from("incoming_document")
     .select(
       "id, file_name, doc_number, doc_date, gross_amount, status, extraction_confidence, supplier_name, email_from, advice_reference, advice_debit_date",
       { count: "exact" },
     )
-    .order("created_at", { ascending: false })
     .limit(200);
-  if (status) q = q.eq("status", status);
+  if (status) query = query.eq("status", status);
   // Ohne Filter: Hinweisbelege raus aus der Rechnungs-Prüfliste.
-  else q = q.not("status", "in", "(advice,dunning)");
-  const { data, count, error } = await q;
+  else query = query.not("status", "in", "(advice,dunning)");
+  if (search) {
+    const like = `%${search.replace(/[%,]/g, "")}%`;
+    query = query.or(`supplier_name.ilike.${like},email_from.ilike.${like}`);
+  }
+  const dateColumn = isAdvice ? "advice_debit_date" : "doc_date";
+  const sortColumn = sort === "supplier" ? "supplier_name" : dateColumn;
+  query = query.order(sortColumn, { ascending, nullsFirst: false });
+  const { data, count, error } = await query;
+
+  const sortHref = (field: "date" | "supplier") => {
+    const u = new URLSearchParams();
+    if (status) u.set("status", status);
+    if (search) u.set("q", search);
+    u.set("sort", field);
+    u.set("dir", sort === field && dir === "asc" ? "desc" : "asc");
+    return `/eingangsrechnungen?${u.toString()}`;
+  };
+  const sortIndicator = (field: "date" | "supplier") => (sort === field ? (dir === "asc" ? " ▲" : " ▼") : "");
 
   const [{ count: adviceCount }, { count: dunningCount }] = await Promise.all([
     supabase.from("incoming_document").select("id", { count: "exact", head: true }).eq("status", "advice"),
@@ -63,7 +83,11 @@ export default async function EingangsrechnungenPage({
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
+        <input name="q" defaultValue={search} placeholder="Lieferant, Absender…" style={{ minWidth: 220 }} />
+        {sort !== "date" && <input type="hidden" name="sort" value={sort} />}
+        {dir !== "desc" && <input type="hidden" name="dir" value={dir} />}
         <button type="submit">Filtern</button>
+        {(status || search) && <Link href="/eingangsrechnungen">zurücksetzen</Link>}
         <span className="count">{count ?? 0} Belege</span>
         {!isAdvice && (adviceCount ?? 0) > 0 && (
           <Link className="count" href="/eingangsrechnungen?status=advice">
@@ -98,8 +122,15 @@ export default async function EingangsrechnungenPage({
           <thead>
             <tr>
               <th>Beleg</th>
-              <th>Lieferant</th>
-              <th>{isAdvice ? "Belastung am" : "Datum"}</th>
+              <th>
+                <Link href={sortHref("supplier")}>Lieferant{sortIndicator("supplier")}</Link>
+              </th>
+              <th>
+                <Link href={sortHref("date")}>
+                  {isAdvice ? "Belastung am" : "Datum"}
+                  {sortIndicator("date")}
+                </Link>
+              </th>
               <th style={{ textAlign: "right" }}>
                 {isAdvice ? "Lastschrift" : isDunning ? "offen" : "Brutto"}
               </th>
