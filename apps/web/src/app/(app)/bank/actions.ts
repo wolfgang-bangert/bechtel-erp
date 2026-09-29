@@ -9,6 +9,27 @@ export type MatchState = { ok?: boolean; error?: string };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+type MatchRow = {
+  amount: number | null;
+  ledger_account: string | null;
+  sales_invoice_id: string | null;
+  incoming_document_id: string | null;
+};
+
+/** Summe der Match-Beträge, die tatsächlich Bankguthaben dieses Umsatzes
+ *  binden. Eine Skonto-Buchungszeile (ledger_account + Beleg-Link auf
+ *  derselben Zeile, siehe skontoApply) ist kein zusätzliches Bargeld -
+ *  sie schließt die Rechnung nur über den schon vorhandenen vollen
+ *  Zahlungs-Match hinweg und darf hier nicht mitgezählt werden, sonst
+ *  erscheint der Umsatz um genau den Skontobetrag überallokiert. */
+function sumCashMatches(rows: MatchRow[]): number {
+  return r2(
+    rows
+      .filter((m) => !(m.ledger_account && (m.sales_invoice_id || m.incoming_document_id)))
+      .reduce((s, m) => s + Math.abs(m.amount ?? 0), 0),
+  );
+}
+
 function revalidateAll() {
   revalidatePath("/bank");
   revalidatePath("/offene-posten");
@@ -41,9 +62,9 @@ export async function matchTransaction(
   // bereits zugeordneter Betrag dieser Buchung
   const { data: existing } = await supabase
     .from("bank_transaction_match")
-    .select("amount")
+    .select("amount, ledger_account, sales_invoice_id, incoming_document_id")
     .eq("bank_transaction_id", txId);
-  const allocated = r2((existing ?? []).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0));
+  const allocated = sumCashMatches(existing ?? []);
   const remaining = r2(Math.abs(tx.amount) - allocated);
   if (remaining <= 0.005) return { error: "Buchung ist bereits vollständig zugeordnet." };
 
@@ -91,9 +112,9 @@ export async function matchTransaction(
   // Status: voll oder teilweise zugeordnet?
   const { data: after } = await supabase
     .from("bank_transaction_match")
-    .select("amount")
+    .select("amount, ledger_account, sales_invoice_id, incoming_document_id")
     .eq("bank_transaction_id", txId);
-  const nowAllocated = r2((after ?? []).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0));
+  const nowAllocated = sumCashMatches(after ?? []);
   await supabase
     .from("bank_transaction")
     .update({
@@ -123,9 +144,9 @@ async function remainingAmount(
   if (te || !tx) return { error: "Umsatz nicht gefunden." };
   const { data: existing } = await supabase
     .from("bank_transaction_match")
-    .select("amount")
+    .select("amount, ledger_account, sales_invoice_id, incoming_document_id")
     .eq("bank_transaction_id", txId);
-  const allocated = r2((existing ?? []).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0));
+  const allocated = sumCashMatches(existing ?? []);
   const remaining = r2(Math.abs(tx.amount) - allocated);
   return { tx, remaining };
 }
@@ -138,9 +159,9 @@ async function refreshMatchStatus(
 ) {
   const { data: after } = await supabase
     .from("bank_transaction_match")
-    .select("amount")
+    .select("amount, ledger_account, sales_invoice_id, incoming_document_id")
     .eq("bank_transaction_id", txId);
-  const nowAllocated = r2((after ?? []).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0));
+  const nowAllocated = sumCashMatches(after ?? []);
   await supabase
     .from("bank_transaction")
     .update({ match_status: nowAllocated + 0.005 >= Math.abs(amount) ? "matched" : "partial" })
@@ -380,14 +401,14 @@ export async function unmatchTransaction(formData: FormData): Promise<void> {
   if (txId) {
     const { data: rest } = await supabase
       .from("bank_transaction_match")
-      .select("amount")
+      .select("amount, ledger_account, sales_invoice_id, incoming_document_id")
       .eq("bank_transaction_id", txId);
     const { data: tx } = await supabase
       .from("bank_transaction")
       .select("amount")
       .eq("id", txId)
       .maybeSingle();
-    const alloc = r2((rest ?? []).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0));
+    const alloc = sumCashMatches(rest ?? []);
     const status =
       alloc <= 0.005
         ? "unmatched"

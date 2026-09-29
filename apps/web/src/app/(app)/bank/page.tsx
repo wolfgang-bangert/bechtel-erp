@@ -177,9 +177,18 @@ export default async function BankPage({
     ),
   );
 
+  // Skonto-Buchungszeilen (ledger_account + Beleg-Link auf derselben Zeile,
+  // siehe skontoApply) sind kein zusätzliches Bank-Bargeld - sie hängen nur
+  // zur Übersicht am selben Umsatz, schließen aber die Rechnung über den
+  // schon vorhandenen vollen Zahlungs-Match hinweg. Für "wie viel von diesem
+  // Bankumsatz ist bereits zugeordnet" dürfen sie nicht mitgezählt werden,
+  // sonst wird der Umsatz um genau den Skontobetrag überallokiert.
+  const isCashMatch = (m: TxRow["matches"][number]) =>
+    !(m.ledger_account && (m.sales_invoice || m.incoming_document));
+
   // Gemeinsame Kandidatenlisten (einmal je Seite, von allen Zeilen genutzt).
   const alloc = (t: TxRow) =>
-    (t.matches ?? []).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0);
+    (t.matches ?? []).filter(isCashMatch).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0);
   const hasCredits = data.some((t) => t.amount > 0 && Math.abs(t.amount) - alloc(t) > 0.01);
   const hasDebits = data.some((t) => t.amount < 0 && Math.abs(t.amount) - alloc(t) > 0.01);
 
@@ -375,7 +384,8 @@ export default async function BankPage({
               const matches = tx.matches ?? [];
               const side = tx.amount > 0 ? "debitor" : "kreditor";
               const allocated =
-                Math.round(matches.reduce((s, m) => s + Math.abs(m.amount ?? 0), 0) * 100) / 100;
+                Math.round(matches.filter(isCashMatch).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0) * 100) /
+                100;
               const remaining = Math.round((Math.abs(tx.amount) - allocated) * 100) / 100;
               const prefill =
                 (side === "debitor" ? arPrefill : erPrefill).get(cents(remaining)) ?? undefined;

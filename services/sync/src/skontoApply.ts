@@ -22,15 +22,26 @@ function skontoKonto(seite: "gewaehrt" | "erhalten", rate: number): string {
   return seite === "gewaehrt" ? "8730" : "3730";
 }
 
-/** bank_transaction.match_status nach einer neuen Zuordnung neu ableiten. */
+/**
+ * bank_transaction.match_status nach einer neuen Zuordnung neu ableiten.
+ * Die gerade eingefügte Skonto-Zeile (ledger_account + Beleg-Link auf
+ * derselben Zeile) ist kein zusätzliches Bankguthaben - sie schließt die
+ * Rechnung nur über den schon vorhandenen vollen Zahlungs-Match hinweg und
+ * darf hier nicht mitgezählt werden, sonst gilt der Umsatz um genau den
+ * Skontobetrag überallokiert.
+ */
 async function refreshTxStatus(txId: string) {
   const { data: tx } = await supabase.from("bank_transaction").select("amount").eq("id", txId).maybeSingle();
   if (!tx) return;
   const { data: matches } = await supabase
     .from("bank_transaction_match")
-    .select("amount")
+    .select("amount, ledger_account, sales_invoice_id, incoming_document_id")
     .eq("bank_transaction_id", txId);
-  const allocated = r2((matches ?? []).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0));
+  const allocated = r2(
+    (matches ?? [])
+      .filter((m) => !(m.ledger_account && (m.sales_invoice_id || m.incoming_document_id)))
+      .reduce((s, m) => s + Math.abs(m.amount ?? 0), 0),
+  );
   const status = allocated + 0.005 >= Math.abs(tx.amount) ? "matched" : "partial";
   await supabase.from("bank_transaction").update({ match_status: status }).eq("id", txId);
 }
