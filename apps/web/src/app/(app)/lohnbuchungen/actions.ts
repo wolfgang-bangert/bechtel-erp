@@ -117,10 +117,19 @@ export async function linkPayrollBooking(_prev: LinkState, fd: FormData): Promis
   });
   if (error) {
     return {
-      error: error.code === "23505" ? "Diese Lohnbuchung ist schon verknüpft." : error.message,
+      error: error.code === "23505" ? "Diese Bankzeile ist schon mit dieser Lohnbuchung verknüpft." : error.message,
     };
   }
 
+  await refreshTxMatchStatus(supabase, txId);
+  revalidatePath("/lohnbuchungen");
+  revalidatePath("/bank");
+  return { ok: true };
+}
+
+async function refreshTxMatchStatus(supabase: Awaited<ReturnType<typeof createClient>>, txId: string) {
+  const { data: tx } = await supabase.from("bank_transaction").select("amount").eq("id", txId).maybeSingle();
+  if (!tx) return;
   const { data: after } = await supabase
     .from("bank_transaction_match")
     .select("amount, ledger_account, sales_invoice_id, incoming_document_id")
@@ -132,8 +141,49 @@ export async function linkPayrollBooking(_prev: LinkState, fd: FormData): Promis
   );
   await supabase
     .from("bank_transaction")
-    .update({ match_status: nowAllocated + 0.005 >= Math.abs(r.amount) ? "matched" : "partial" })
+    .update({ match_status: nowAllocated + 0.005 >= Math.abs(tx.amount) ? "matched" : "partial" })
     .eq("id", txId);
+}
+
+/** Eine Lohnbuchung (z.B. "Abzuführende SV-Beiträge" als Sammelzeile) mit
+ *  mehreren Bankzeilen auf einmal verknüpfen - typisch, wenn der Betrag im
+ *  Buchungsstapel eine Summe ist, die auf dem Konto aber als mehrere
+ *  einzelne Zahlungen erscheint (z.B. je Krankenkasse eine Überweisung).
+ *  Jede ausgewählte Bankzeile wird mit ihrem vollen eigenen Betrag verknüpft,
+ *  nicht anteilig - die Auswahl (welche Zeilen zusammengehören) trifft der
+ *  Nutzer, keine automatische Zuordnung. */
+export async function linkPayrollBookingGroup(_prev: LinkState, fd: FormData): Promise<LinkState> {
+  const bookingId = String(fd.get("booking_id") ?? "").trim();
+  const txIds = fd.getAll("tx_ids").map(String).filter(Boolean);
+  if (!bookingId) return { error: "Lohnbuchung fehlt." };
+  if (!txIds.length) return { error: "Mindestens eine Bankzeile auswählen." };
+
+  const supabase = await createClient();
+  const { data: booking, error: be } = await supabase
+    .from("payroll_booking")
+    .select("id, gegenkonto, buchungstext")
+    .eq("id", bookingId)
+    .maybeSingle();
+  if (be || !booking) return { error: be?.message ?? "Lohnbuchung nicht gefunden." };
+
+  const { data: txns, error: te } = await supabase
+    .from("bank_transaction")
+    .select("id, amount")
+    .in("id", txIds);
+  if (te) return { error: te.message };
+
+  for (const tx of txns ?? []) {
+    const { error } = await supabase.from("bank_transaction_match").insert({
+      bank_transaction_id: tx.id,
+      ledger_account: booking.gegenkonto,
+      payroll_booking_id: booking.id,
+      note: booking.buchungstext,
+      amount: tx.amount,
+      auto: false,
+    });
+    if (error && error.code !== "23505") return { error: error.message };
+    await refreshTxMatchStatus(supabase, tx.id);
+  }
 
   revalidatePath("/lohnbuchungen");
   revalidatePath("/bank");
