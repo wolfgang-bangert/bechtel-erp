@@ -83,6 +83,11 @@ export async function syncInvoiceBookings(opts: Options = {}) {
   const startedAt = new Date();
   const map = await loadRevenueAccounts();
 
+  // Ältere Jahre sind längst abgeschlossen/gebucht (DATEV) - hier nur das
+  // laufende Jahr betrachten, das hält den Datensatz klein und macht den
+  // täglichen offen/erledigt-Abgleich schnell statt über alle ~15.000
+  // historischen Rechnungen zu laufen.
+  const yearStart = `${new Date().getFullYear()}-01-01`;
   const invoices: { id: string }[] = [];
   const size = 1000;
   let fromRow = 0;
@@ -92,6 +97,7 @@ export async function syncInvoiceBookings(opts: Options = {}) {
       .select("id")
       .in("kind", ["invoice", "credit_note"])
       .not("invoice_number", "is", null)
+      .gte("invoice_date", yearStart)
       .range(fromRow, fromRow + size - 1);
     if (error) throw new Error(`sales_invoice lesen: ${error.message}`);
     invoices.push(...((data ?? []) as { id: string }[]));
@@ -99,8 +105,12 @@ export async function syncInvoiceBookings(opts: Options = {}) {
     fromRow += size;
   }
 
-  const { data: existing } = await supabase.from("sales_invoice_booking").select("sales_invoice_id");
-  const done = new Set((existing ?? []).map((r) => r.sales_invoice_id as string));
+  // Ohne pagedSelect kappt PostgREST hier bei 1000 Zeilen (Supabase-Default) -
+  // bei mehr bereits erzeugten Buchungen gälten alle weiteren fälschlich als
+  // "offen" und würden bei jedem Cron-Lauf erneut erzeugt (Dauerschleife,
+  // die bank:match/skonto:apply in derselben Kette dauerhaft blockiert).
+  const existing = await pagedSelect<{ sales_invoice_id: string }>("sales_invoice_booking", "sales_invoice_id");
+  const done = new Set(existing.map((r) => r.sales_invoice_id));
   const pending = invoices.filter((i) => !done.has(i.id));
 
   if (dryRun) return { gesamt: invoices.length, offen: pending.length, dryRun };
