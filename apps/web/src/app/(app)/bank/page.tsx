@@ -150,6 +150,21 @@ export default async function BankPage({
   }));
   const ledgerAccountName = new Map(ledgerAccounts.map((a) => [a.value, a.label]));
 
+  // Aus der BuchhaltungsButler-Historie gelernte Sachkonto-Vorschläge je
+  // Gegenseite (siehe learnBankRules.ts) - für die Sonderbuchung-Vorbelegung.
+  const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+  const counterpartyKeys = [
+    ...new Set(data.map((t) => t.counterparty_name).filter((n): n is string => !!n).map(normalize)),
+  ];
+  const { data: bankLedgerRules } = counterpartyKeys.length
+    ? await supabase
+        .from("bank_ledger_rule")
+        .select("counterparty_key, ledger_account, sample_postingtext")
+        .in("counterparty_key", counterpartyKeys)
+        .eq("is_active", true)
+    : { data: [] as { counterparty_key: string; ledger_account: string; sample_postingtext: string | null }[] };
+  const bankLedgerRuleByKey = new Map((bankLedgerRules ?? []).map((r) => [r.counterparty_key, r]));
+
   const attachmentUrls = new Map<string, string>(
     await Promise.all(
       data
@@ -541,7 +556,16 @@ export default async function BankPage({
                             (side === "kreditor" ? "ER-Nr./Lieferant" : "Rg-Nr./Kunde")
                           }
                         />
-                        <SpecialMatchForm txId={tx.id} remaining={remaining} ledgerAccounts={ledgerAccounts} />
+                        <SpecialMatchForm
+                          txId={tx.id}
+                          remaining={remaining}
+                          ledgerAccounts={ledgerAccounts}
+                          suggestion={
+                            tx.counterparty_name
+                              ? bankLedgerRuleByKey.get(normalize(tx.counterparty_name))
+                              : undefined
+                          }
+                        />
                         <BelegUploadForm txId={tx.id} remaining={remaining} />
                       </div>
                     )}

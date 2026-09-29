@@ -155,6 +155,129 @@ export async function learnVorkontierung(opts: Options = {}) {
 }
 
 /**
+ * Debitoren-Gegenstück: lernt aus imports/bb-buchungen.json je Kunde
+ * (Debitorkonto) ein abweichendes Erlöskonto (z.B. Sparkassen/Volksbanken
+ * konsequent auf 8401 statt des Standard-19%-Kontos 8400). Nur echte
+ * Ausnahmen - Kunden, die ohnehin auf dem Standardkonto (8400/8300) landen,
+ * brauchen keinen Eintrag, das übernimmt die Steuersatz-Ableitung schon
+ * (siehe packages/shared/src/buchhaltung/erloeskonten.ts). Ein Konto pro
+ * Kunde (kein Steuersatz-Bezug) - deckt die große Mehrheit der Ausnahmen ab.
+ */
+export async function learnDebitorVorkontierung(opts: Options = {}) {
+  const { dryRun = false, minCount = 2, minConfidence = 0.5 } = opts;
+  const postings = JSON.parse(readFileSync(importsPath("bb-buchungen.json"), "utf8")) as BbPosting[];
+
+  type Agg = { accounts: Map<string, number>; total: number; name: string };
+  const byDebitor = new Map<string, Agg>();
+  for (const p of postings) {
+    const deb = Number(p.debit_postingaccount_number);
+    const cred = Number(p.credit_postingaccount_number);
+    if (!(deb >= 10000 && deb < 70000 && cred >= 8000 && cred < 9000)) continue;
+    const key = String(p.debit_postingaccount_number);
+    const agg =
+      byDebitor.get(key) ?? byDebitor.set(key, { accounts: new Map(), total: 0, name: "" }).get(key)!;
+    bump(agg.accounts, String(p.credit_postingaccount_number));
+    agg.total += 1;
+    if (!agg.name) agg.name = p.receipts_assigned_counterparties || p.postingtext || "";
+  }
+
+  const orgs = await pagedSelect<{ id: string; name: string; customer_number: string | null }>(
+    "organization",
+    "id, name, customer_number",
+  );
+  const orgByCustNum = new Map(orgs.filter((o) => o.customer_number).map((o) => [o.customer_number!, o]));
+  const existingManual = new Set(
+    (
+      await pagedSelect<{ organization_id: string; source: string }>(
+        "posting_rule",
+        "organization_id, source",
+      )
+    )
+      .filter((r) => r.source === "manual")
+      .map((r) => r.organization_id),
+  );
+
+  const rows: Record<string, unknown>[] = [];
+  const upserts: Record<string, unknown>[] = [];
+  let matched = 0;
+  let skippedManual = 0;
+  let skippedStandard = 0;
+
+  for (const [custNum, agg] of byDebitor) {
+    const [account, accCount] = topOf(agg.accounts);
+    const conf = agg.total ? Math.round((accCount / agg.total) * 1000) / 1000 : 0;
+    const org = orgByCustNum.get(custNum);
+
+    rows.push({
+      debitorkonto: custNum,
+      name: agg.name,
+      org_id: org?.id ?? "",
+      org_name: org?.name ?? "(keine Org)",
+      erloeskonto: account,
+      belege: agg.total,
+      treffer: accCount,
+      konfidenz: conf,
+    });
+
+    if (!org || agg.total < minCount || conf < minConfidence) continue;
+    if (account === "8400" || account === "8300") {
+      skippedStandard += 1; // Standardkonto - die Steuersatz-Ableitung reicht schon
+      continue;
+    }
+    if (existingManual.has(org.id)) {
+      skippedManual += 1;
+      continue;
+    }
+    matched += 1;
+    upserts.push({
+      organization_id: org.id,
+      revenue_account: account,
+      source: "learned",
+      sample_count: agg.total,
+      confidence: conf,
+      is_active: true,
+    });
+  }
+
+  rows.sort((a, b) => Number(b.belege) - Number(a.belege));
+  writeFileSync(
+    importsPath("bb-vorkontierung-debitoren.csv"),
+    [
+      "debitorkonto;name;org_id;org_name;erloeskonto;belege;treffer;konfidenz",
+      ...rows.map((r) =>
+        [r.debitorkonto, r.name, r.org_id, r.org_name, r.erloeskonto, r.belege, r.treffer, r.konfidenz]
+          .map((v) => {
+            const s = v == null ? "" : String(v);
+            return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+          })
+          .join(";"),
+      ),
+    ].join("\r\n"),
+    "latin1",
+  );
+
+  if (!dryRun && upserts.length) {
+    for (let i = 0; i < upserts.length; i += 500) {
+      const { error } = await supabase
+        .from("posting_rule")
+        .upsert(upserts.slice(i, i + 500), { onConflict: "organization_id" });
+      if (error) throw new Error(`posting_rule (revenue_account) upsert: ${error.message}`);
+    }
+  }
+
+  return {
+    dryRun,
+    debitoren_mit_historie: byDebitor.size,
+    regeln_geschrieben: dryRun ? 0 : upserts.length,
+    org_zugeordnet: matched,
+    ohne_org: rows.filter((r) => !r.org_id).length,
+    standardkonto_kein_eintrag_noetig: skippedStandard,
+    manuell_beibehalten: skippedManual,
+    csv: "imports/bb-vorkontierung-debitoren.csv",
+  };
+}
+
+/**
  * Trägt den Vorkontierungs-Vorschlag in bereits erfasste Eingangsrechnungen ein,
  * die noch kein Aufwandskonto haben und noch nicht geprüft wurden.
  */
