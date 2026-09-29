@@ -48,6 +48,7 @@ export default async function AppLayout({
         <Link href="/offene-posten">Offene Posten</Link>
         <Link href="/eingangsrechnungen">Eingangsrechnungen</Link>
         <Link href="/bank">Bank</Link>
+        <Link href="/lohnbuchungen">Lohnbuchungen</Link>
         <Link href="/datev-vorschau">DATEV-Vorschau</Link>
 
         <div className="nav-group">Versand</div>
