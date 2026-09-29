@@ -13,6 +13,9 @@ type Match = {
   bank_transaction_id: string;
   sales_invoice_id: string | null;
   incoming_document_id: string | null;
+  ledger_account: string | null;
+  kind: string | null;
+  note: string | null;
 };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -21,7 +24,12 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
  * DATEV EXTF-Buchungsstapel für die Zahlungen (OP-Ausgleich):
  *  - Zahlungseingang:  Geldkonto  an  Debitor      (S/H = S)
  *  - Zahlungsausgang:  Geldkonto  an  Kreditor     (S/H = H)
- * Nur zugeordnete Bankbewegungen im Zeitraum. Skonto-Restbeträge bleiben offen.
+ * Buchungszeilen mit Sachkonto (Skonto, Durchlaufende Posten, ...) werden
+ * als eigene Geldkonto-<->Sachkonto-Zeile gebucht (Skonto zusätzlich mit
+ * Debitor/Kreditor als Gegenkonto, wenn die Zeile einen Belegbezug hat -
+ * das Sachkonto selbst steht bereits auf der Buchungszeile, keine
+ * Neuberechnung/Ableitung hier nötig). Nur zugeordnete Bankbewegungen im
+ * Zeitraum.
  */
 export async function exportDatevZahlungen(opts: Options) {
   const { from, to, dryRun = false } = opts;
@@ -31,7 +39,8 @@ export async function exportDatevZahlungen(opts: Options) {
     booking_date: string;
     bank_account_id: string;
     counterparty_name: string | null;
-  }>("bank_transaction", "id, booking_date, bank_account_id, counterparty_name", undefined);
+    amount: number;
+  }>("bank_transaction", "id, booking_date, bank_account_id, counterparty_name, amount", undefined);
   const txById = new Map(txns.map((t) => [t.id, t]));
 
   const accounts = await pagedSelect<{ id: string; ledger_account: string | null; label: string }>(
@@ -42,7 +51,7 @@ export async function exportDatevZahlungen(opts: Options) {
 
   const matches = (await pagedSelect<Match>(
     "bank_transaction_match",
-    "id, amount, bank_transaction_id, sales_invoice_id, incoming_document_id",
+    "id, amount, bank_transaction_id, sales_invoice_id, incoming_document_id, ledger_account, kind, note",
   )).filter((m) => {
     const t = txById.get(m.bank_transaction_id);
     return t && t.booking_date >= from && t.booking_date <= to;
@@ -54,23 +63,19 @@ export async function exportDatevZahlungen(opts: Options) {
   type SInv = {
     id: string;
     invoice_number: string | null;
-    skonto_amount: number;
-    tax_breakdown: Record<string, number> | null;
     organization: { name: string | null; customer_number: string | null } | null;
   };
   type IDoc = {
     id: string;
     doc_number: string | null;
     supplier_name: string | null;
-    skonto_amount: number;
-    tax_breakdown: Record<string, number> | null;
     organization: { supplier_number: string | null } | null;
   };
   const sInv = new Map<string, SInv>(
     (
       await pagedSelect<SInv>(
         "sales_invoice",
-        "id, invoice_number, skonto_amount, tax_breakdown, organization:organization(name, customer_number)",
+        "id, invoice_number, organization:organization(name, customer_number)",
       )
     )
       .filter((r) => siIds.includes(r.id))
@@ -80,29 +85,15 @@ export async function exportDatevZahlungen(opts: Options) {
     (
       await pagedSelect<IDoc>(
         "incoming_document",
-        "id, doc_number, supplier_name, skonto_amount, tax_breakdown, organization:supplier_organization_id(supplier_number)",
+        "id, doc_number, supplier_name, organization:supplier_organization_id(supplier_number)",
       )
     )
       .filter((r) => idIds.includes(r.id))
       .map((r) => [r.id, r]),
   );
 
-  const skontoCfg = (
-    (await pagedSelect<{ key: string; value: Record<string, string> }>("setting", "key, value")).find(
-      (s) => s.key === "datev.skonto_accounts",
-    )?.value ?? { received_19: "3736", received_7: "3731", granted_19: "8736", granted_7: "8731" }
-  ) as Record<string, string>;
-  const domRate = (tb: Record<string, number> | null): number => {
-    const k = Object.keys(tb ?? {});
-    if (!k.length) return 19;
-    const key = k.sort((a, b) => (tb![b] ?? 0) - (tb![a] ?? 0))[0];
-    const n = Number(key); // "0.19" (Bruch) oder "19" (Prozent)
-    return Math.round(n < 1 ? n * 100 : n);
-  };
-
   const dataLines: string[] = [];
   const sourceIds: string[] = [];
-  const skontoDone = new Set<string>();
   const skips = { noGeldkonto: 0, noPartnerNr: 0, noRgNr: 0, noTxn: 0 };
   let total = 0;
 
@@ -117,22 +108,58 @@ export async function exportDatevZahlungen(opts: Options) {
       skips.noGeldkonto += 1;
       continue;
     }
-    const isEingang = Boolean(m.sales_invoice_id); // Debitor -> Geld rein
+    // Debitor -> Geld rein; ohne Belegbezug (reine Sachkonto-Zeile, z.B.
+    // Durchlaufende Posten) nach dem Vorzeichen der Bankzeile selbst.
+    const isEingang = m.sales_invoice_id ? true : m.incoming_document_id ? false : tx.amount >= 0;
     let gegen = "";
     let rgnr = "";
     let partner = tx.counterparty_name ?? "";
 
-    if (isEingang) {
-      const inv = sInv.get(m.sales_invoice_id!);
+    if (m.sales_invoice_id) {
+      const inv = sInv.get(m.sales_invoice_id);
       gegen = inv?.organization?.customer_number?.trim() ?? "";
       rgnr = inv?.invoice_number?.trim() ?? "";
       partner = inv?.organization?.name ?? partner;
-    } else {
-      const doc = iDoc.get(m.incoming_document_id!);
+    } else if (m.incoming_document_id) {
+      const doc = iDoc.get(m.incoming_document_id);
       gegen = doc?.organization?.supplier_number?.trim() ?? "";
       rgnr = doc?.doc_number?.trim() ?? "";
       partner = doc?.supplier_name ?? partner;
     }
+
+    const betrag = Math.abs(r2(m.amount));
+    if (betrag < 0.005) continue;
+    const sh = isEingang ? "S" : "H"; // Konto = Geldkonto
+
+    if (m.ledger_account) {
+      // Sonderbuchung (Skonto, Durchlaufende Posten, Sonstiges): das
+      // Sachkonto steht schon auf der Buchungszeile, keine Neuableitung
+      // nötig. Mit Belegbezug (z.B. Skonto zu einer Rechnung) ist das
+      // Sachkonto "Konto" und Debitor/Kreditor "Gegenkonto" (wie schon
+      // bisher bei Skonto); ohne Belegbezug ist es Geldkonto an Sachkonto.
+      const hatBeleg = Boolean(m.sales_invoice_id || m.incoming_document_id);
+      if (hatBeleg && !/^\d{4,6}$/.test(gegen)) {
+        skips.noPartnerNr += 1;
+        continue;
+      }
+      const label =
+        m.kind === "skonto" ? "Skonto" : m.kind === "doppelzahlung" ? "Durchlaufender Posten" : (m.note ?? "Sonderbuchung");
+      const text = clean(`${label} ${rgnr} ${partner}`.trim(), 60);
+      const cells = new Array<string>(N_COLS).fill("");
+      cells[0] = raw(amount(betrag));
+      cells[1] = q(sh);
+      cells[2] = q("EUR");
+      cells[6] = raw(hatBeleg ? m.ledger_account : konto);
+      cells[7] = raw(hatBeleg ? gegen : m.ledger_account);
+      cells[9] = raw(ddmm(tx.booking_date));
+      cells[10] = q(clean(rgnr, 36));
+      cells[13] = q(text);
+      dataLines.push(cells.join(";"));
+      sourceIds.push(m.id);
+      total += isEingang ? betrag : -betrag;
+      continue;
+    }
+
     if (!/^\d{4,6}$/.test(gegen)) {
       skips.noPartnerNr += 1;
       continue;
@@ -141,15 +168,7 @@ export async function exportDatevZahlungen(opts: Options) {
       skips.noRgNr += 1;
       continue;
     }
-
-    const betrag = Math.abs(r2(m.amount));
-    if (betrag < 0.005) continue;
-    const sh = isEingang ? "S" : "H"; // Konto = Geldkonto
-    const text = clean(
-      `${isEingang ? "Zahlungseingang" : "Zahlungsausgang"} ${rgnr} ${partner}`,
-      60,
-    );
-
+    const text = clean(`${isEingang ? "Zahlungseingang" : "Zahlungsausgang"} ${rgnr} ${partner}`, 60);
     const cells = new Array<string>(N_COLS).fill("");
     cells[0] = raw(amount(betrag));
     cells[1] = q(sh);
@@ -162,30 +181,6 @@ export async function exportDatevZahlungen(opts: Options) {
     dataLines.push(cells.join(";"));
     sourceIds.push(m.id);
     total += isEingang ? betrag : -betrag;
-
-    // Skonto-Zeile (einmal je Beleg): Debitor: 87xx an Debitor (S);
-    // Kreditor: Kreditor an 37xx (H). Belegdatum = letzte Zahlung.
-    const inv = isEingang ? sInv.get(m.sales_invoice_id!) : undefined;
-    const doc = isEingang ? undefined : iDoc.get(m.incoming_document_id!);
-    const skonto = r2((inv?.skonto_amount ?? doc?.skonto_amount ?? 0));
-    const key = isEingang ? `si:${m.sales_invoice_id}` : `id:${m.incoming_document_id}`;
-    if (skonto > 0.005 && !skontoDone.has(key)) {
-      skontoDone.add(key);
-      const rate = domRate((inv?.tax_breakdown ?? doc?.tax_breakdown) ?? null);
-      const kontoSk = isEingang
-        ? (rate >= 8 ? skontoCfg.granted_19 : skontoCfg.granted_7)
-        : (rate >= 8 ? skontoCfg.received_19 : skontoCfg.received_7);
-      const sc = new Array<string>(N_COLS).fill("");
-      sc[0] = raw(amount(skonto));
-      sc[1] = q(isEingang ? "S" : "H"); // Konto = Skontokonto
-      sc[2] = q("EUR");
-      sc[6] = raw(kontoSk);
-      sc[7] = raw(gegen);
-      sc[9] = raw(ddmm(tx.booking_date));
-      sc[10] = q(clean(rgnr, 36));
-      sc[13] = q(clean(`Skonto ${rgnr} ${partner}`, 60));
-      dataLines.push(sc.join(";"));
-    }
   }
 
   const skipped = skips.noGeldkonto + skips.noPartnerNr + skips.noRgNr + skips.noTxn;
