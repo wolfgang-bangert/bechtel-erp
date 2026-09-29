@@ -5,7 +5,7 @@ import { fmtDate, fmtEur } from "@/lib/format";
 import { MatchForm, SpecialMatchForm, BelegUploadForm, InvoiceDatalist, type Candidate } from "./ui";
 import { unmatchTransaction } from "./actions";
 import { BankSyncButton } from "./BankSyncButton";
-import { BankAvatar, BankNameEdit, TransactionRow } from "./TransactionRow";
+import { BankAvatar, BankNameEdit, BankTransactionsBody, type BankRow } from "./TransactionRow";
 
 const MATCH_STATUS_LABEL: Record<string, string> = {
   unmatched: "offen",
@@ -28,7 +28,7 @@ const kontoLabel = (a: { label: string; bank_name: string | null; iban: string }
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 100;
-type Search = { account?: string; status?: string; q?: string; page?: string };
+type Search = { account?: string; hide_matched?: string; q?: string; page?: string };
 
 export default async function BankPage({
   searchParams,
@@ -37,7 +37,8 @@ export default async function BankPage({
 }) {
   const sp = await searchParams;
   const account = sp.account ?? "";
-  const status = sp.status ?? "unmatched";
+  // Immer alle Status zeigen, nur "zugeordnete ausblenden" als einziger Schalter.
+  const hideMatched = sp.hide_matched === "1";
   const q = (sp.q ?? "").trim();
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
   const fromRow = (page - 1) * PAGE_SIZE;
@@ -115,10 +116,7 @@ export default async function BankPage({
   // dürfen auch über einen von Hand gebauten ?account=-Link nicht auftauchen.
   if (account && accountIds.has(account)) query = query.eq("bank_account_id", account);
   else query = query.in("bank_account_id", [...accountIds]);
-  // "offen" zeigt auch teilweise zugeordnete (Sammelzahlungen), damit man
-  // dort weitere Rechnungen anhängen kann.
-  if (status === "unmatched") query = query.in("match_status", ["unmatched", "partial"]);
-  else if (status) query = query.eq("match_status", status);
+  if (hideMatched) query = query.neq("match_status", "matched");
   if (q) {
     const like = `%${q.replace(/[%,]/g, "")}%`;
     const filters = [`counterparty_name.ilike.${like}`, `purpose.ilike.${like}`];
@@ -257,12 +255,211 @@ export default async function BankPage({
   const href = (p: number) => {
     const u = new URLSearchParams();
     if (account) u.set("account", account);
-    if (status) u.set("status", status);
+    if (hideMatched) u.set("hide_matched", "1");
     if (q) u.set("q", q);
     if (p > 1) u.set("page", String(p));
     const s = u.toString();
     return s ? `/bank?${s}` : "/bank";
   };
+
+  const rows: BankRow[] = data.map((tx) => {
+    const matches = tx.matches ?? [];
+    const side = tx.amount > 0 ? "debitor" : "kreditor";
+    const allocated =
+      Math.round(matches.filter(isCashMatch).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0) * 100) / 100;
+    const remaining = Math.round((Math.abs(tx.amount) - allocated) * 100) / 100;
+    const prefill = (side === "debitor" ? arPrefill : erPrefill).get(cents(remaining)) ?? undefined;
+    const bankName = tx.bank_account?.bank_name || tx.bank_account?.label || "?";
+
+    return {
+      key: tx.id,
+      title: `${fmtDate(tx.booking_date)} · ${fmtEur(tx.amount)} · ${tx.counterparty_name ?? "–"}`,
+      cols: [
+        <BankAvatar key="a" name={bankName} />,
+        fmtDate(tx.booking_date),
+        <span key="b" className={tx.amount < 0 ? "msg-err" : ""}>
+          {fmtEur(tx.amount)}
+        </span>,
+        <div key="g" style={{ maxWidth: 320 }}>
+          <div className="wrap" style={{ fontSize: 14, fontWeight: 600 }}>
+            {tx.counterparty_name ?? "–"}
+          </div>
+          <div
+            className="count"
+            style={{
+              marginTop: 2,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+            title={tx.purpose ?? undefined}
+          >
+            {tx.purpose ?? "–"}
+          </div>
+        </div>,
+        <span key="s" className="tag">
+          {MATCH_STATUS_LABEL[tx.match_status] ?? tx.match_status}
+        </span>,
+      ],
+      children: (
+        <div className="rows" style={{ gap: 18 }}>
+          <dl className="kv">
+            <dt>Buchungsdatum</dt>
+            <dd>{fmtDate(tx.booking_date)}</dd>
+            <dt>Wertstellung</dt>
+            <dd>{tx.value_date ? fmtDate(tx.value_date) : "—"}</dd>
+            <dt>Betrag</dt>
+            <dd className={tx.amount < 0 ? "msg-err" : ""} style={{ fontWeight: 600 }}>
+              {fmtEur(tx.amount)} {tx.currency}
+            </dd>
+            <dt>Konto</dt>
+            <dd>{bankName}</dd>
+            <dt>Gegenseite</dt>
+            <dd>{tx.counterparty_name ?? "—"}</dd>
+            <dt>IBAN Gegenseite</dt>
+            <dd>{tx.counterparty_iban ?? "—"}</dd>
+            <dt>Verwendungszweck</dt>
+            <dd className="wrap">{tx.purpose ?? "—"}</dd>
+            <dt>End-to-End-Referenz</dt>
+            <dd>{tx.end_to_end_id ?? "—"}</dd>
+            <dt>Bankreferenz</dt>
+            <dd>{tx.bank_ref ?? "—"}</dd>
+            <dt>Status</dt>
+            <dd>
+              <span className="tag">{MATCH_STATUS_LABEL[tx.match_status] ?? tx.match_status}</span>
+            </dd>
+          </dl>
+
+          <div>
+            <h2 style={{ margin: "0 0 8px" }}>Buchungen</h2>
+            {matches.length > 0 ? (
+              <div className="table-scroll">
+                <table className="data">
+                  <thead>
+                    <tr>
+                      <th>Beleg</th>
+                      <th>Gegenkonto</th>
+                      <th style={{ textAlign: "right" }}>Betrag</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matches.map((m) => {
+                      const inc = m.incoming_document;
+                      const inv = m.sales_invoice;
+                      let beleg: React.ReactNode;
+                      if (inc) {
+                        beleg = (
+                          <Link href={`/eingangsrechnungen/${inc.id}`}>
+                            {inc.doc_number ?? "Eingangsbeleg"}
+                            {inc.supplier_name ? ` — ${inc.supplier_name}` : ""}
+                          </Link>
+                        );
+                      } else if (inv) {
+                        beleg = (
+                          <Link href={`/rechnungen/${inv.id}`}>
+                            {inv.invoice_number ?? "Rechnung"}
+                            {inv.organization?.name ? ` — ${inv.organization.name}` : ""}
+                          </Link>
+                        );
+                      } else {
+                        const attUrl = attachmentUrls.get(m.id);
+                        beleg = (
+                          <span>
+                            {m.note ?? "—"}
+                            {attUrl && (
+                              <>
+                                {" "}
+                                <a href={attUrl} target="_blank" rel="noreferrer">
+                                  📎 {m.attachment_file_name ?? "Beleg"}
+                                </a>
+                              </>
+                            )}
+                          </span>
+                        );
+                      }
+                      // Sachkonto hat Vorrang (z.B. Skonto zu einer
+                      // Rechnung: Beleg zeigt die Rechnung, Gegenkonto
+                      // trotzdem das Skontokonto, nicht "Debitor").
+                      const gegenkonto: React.ReactNode = m.ledger_account
+                        ? (ledgerAccountName.get(m.ledger_account) ?? m.ledger_account)
+                        : inc
+                          ? inc.supplier?.supplier_number
+                            ? `Kreditor ${inc.supplier.supplier_number}`
+                            : "Verbindlichkeiten"
+                          : inv
+                            ? inv.organization?.customer_number
+                              ? `Debitor ${inv.organization.customer_number}`
+                              : "Forderungen"
+                            : (SONDER_FALLBACK_LABEL[m.kind ?? ""] ?? m.kind ?? "—");
+                      return (
+                        <tr key={m.id}>
+                          <td>
+                            {beleg} {m.auto && <span className="tag">auto</span>}
+                          </td>
+                          <td className="count">{gegenkonto}</td>
+                          <td style={{ textAlign: "right" }}>{fmtEur(m.amount)}</td>
+                          <td style={{ textAlign: "right" }}>
+                            <form action={unmatchTransaction}>
+                              <input type="hidden" name="match_id" value={m.id} />
+                              <input type="hidden" name="tx_id" value={tx.id} />
+                              <button className="ghost" style={{ padding: "2px 8px" }}>
+                                aufheben
+                              </button>
+                            </form>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="count" style={{ margin: 0 }}>
+                Noch keine Buchung.
+              </p>
+            )}
+          </div>
+
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", padding: "8px 12px", fontWeight: 600 }}
+          >
+            <span>Saldo</span>
+            <span className={remaining > 0.01 ? "msg-err" : "msg-ok"} style={{ fontSize: 15 }}>
+              {fmtEur(remaining)} {remaining <= 0.01 ? "· ausgebucht ✓" : "· offen"}
+            </span>
+          </div>
+
+          {remaining > 0.01 && (
+            <div className="rows" style={{ gap: 8 }}>
+              <MatchForm
+                txId={tx.id}
+                side={side}
+                listId={side === "kreditor" ? "er-list" : "ar-list"}
+                defaultValue={prefill}
+                showAmount
+                remaining={remaining}
+                hint={
+                  `${tx.counterparty_name ?? ""} — ` +
+                  (side === "kreditor" ? "ER-Nr./Lieferant" : "Rg-Nr./Kunde")
+                }
+              />
+              <SpecialMatchForm
+                txId={tx.id}
+                remaining={remaining}
+                ledgerAccounts={ledgerAccounts}
+                suggestion={
+                  tx.counterparty_name ? bankLedgerRuleByKey.get(normalize(tx.counterparty_name)) : undefined
+                }
+              />
+              <BelegUploadForm txId={tx.id} remaining={remaining} />
+            </div>
+          )}
+        </div>
+      ),
+    };
+  });
 
   return (
     <>
@@ -344,23 +541,18 @@ export default async function BankPage({
             </option>
           ))}
         </select>
-        <select name="status" defaultValue={status}>
-          <option value="">alle</option>
-          <option value="unmatched">offen (inkl. teilweise)</option>
-          <option value="partial">nur teilweise</option>
-          <option value="matched">zugeordnet</option>
-          <option value="ignored">ignoriert</option>
-        </select>
         <input
           name="q"
           defaultValue={q}
           placeholder="Gegenseite, Verwendungszweck, Betrag…"
           style={{ minWidth: 260 }}
         />
+        <label className="chk">
+          <input type="checkbox" name="hide_matched" value="1" defaultChecked={hideMatched} /> zugeordnete
+          ausblenden
+        </label>
         <button type="submit">Anzeigen</button>
-        {(account || (status && status !== "unmatched") || q) && (
-          <Link href="/bank">zurücksetzen</Link>
-        )}
+        {(account || hideMatched || q) && <Link href="/bank">zurücksetzen</Link>}
         <span className="count">{total.toLocaleString("de-DE")} Umsätze</span>
       </form>
 
@@ -380,216 +572,7 @@ export default async function BankPage({
               <th>Status</th>
             </tr>
           </thead>
-          <tbody>
-            {data.map((tx) => {
-              const matches = tx.matches ?? [];
-              const side = tx.amount > 0 ? "debitor" : "kreditor";
-              const allocated =
-                Math.round(matches.filter(isCashMatch).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0) * 100) /
-                100;
-              const remaining = Math.round((Math.abs(tx.amount) - allocated) * 100) / 100;
-              const prefill =
-                (side === "debitor" ? arPrefill : erPrefill).get(cents(remaining)) ?? undefined;
-              const bankName = tx.bank_account?.bank_name || tx.bank_account?.label || "?";
-
-              return (
-                <TransactionRow
-                  key={tx.id}
-                  title={`${fmtDate(tx.booking_date)} · ${fmtEur(tx.amount)} · ${tx.counterparty_name ?? "–"}`}
-                  cols={[
-                    <BankAvatar key="a" name={bankName} />,
-                    fmtDate(tx.booking_date),
-                    <span key="b" className={tx.amount < 0 ? "msg-err" : ""}>
-                      {fmtEur(tx.amount)}
-                    </span>,
-                    <div key="g" style={{ maxWidth: 320 }}>
-                      <div className="wrap" style={{ fontSize: 14, fontWeight: 600 }}>
-                        {tx.counterparty_name ?? "–"}
-                      </div>
-                      <div
-                        className="count"
-                        style={{
-                          marginTop: 2,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                        title={tx.purpose ?? undefined}
-                      >
-                        {tx.purpose ?? "–"}
-                      </div>
-                    </div>,
-                    <span key="s" className="tag">
-                      {MATCH_STATUS_LABEL[tx.match_status] ?? tx.match_status}
-                    </span>,
-                  ]}
-                >
-                  <div className="rows" style={{ gap: 18 }}>
-                    <dl className="kv">
-                      <dt>Buchungsdatum</dt>
-                      <dd>{fmtDate(tx.booking_date)}</dd>
-                      <dt>Wertstellung</dt>
-                      <dd>{tx.value_date ? fmtDate(tx.value_date) : "—"}</dd>
-                      <dt>Betrag</dt>
-                      <dd className={tx.amount < 0 ? "msg-err" : ""} style={{ fontWeight: 600 }}>
-                        {fmtEur(tx.amount)} {tx.currency}
-                      </dd>
-                      <dt>Konto</dt>
-                      <dd>{bankName}</dd>
-                      <dt>Gegenseite</dt>
-                      <dd>{tx.counterparty_name ?? "—"}</dd>
-                      <dt>IBAN Gegenseite</dt>
-                      <dd>{tx.counterparty_iban ?? "—"}</dd>
-                      <dt>Verwendungszweck</dt>
-                      <dd className="wrap">{tx.purpose ?? "—"}</dd>
-                      <dt>End-to-End-Referenz</dt>
-                      <dd>{tx.end_to_end_id ?? "—"}</dd>
-                      <dt>Bankreferenz</dt>
-                      <dd>{tx.bank_ref ?? "—"}</dd>
-                      <dt>Status</dt>
-                      <dd>
-                        <span className="tag">{MATCH_STATUS_LABEL[tx.match_status] ?? tx.match_status}</span>
-                      </dd>
-                    </dl>
-
-                    <div>
-                      <h2 style={{ margin: "0 0 8px" }}>Buchungen</h2>
-                      {matches.length > 0 ? (
-                        <div className="table-scroll">
-                          <table className="data">
-                            <thead>
-                              <tr>
-                                <th>Beleg</th>
-                                <th>Gegenkonto</th>
-                                <th style={{ textAlign: "right" }}>Betrag</th>
-                                <th></th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {matches.map((m) => {
-                                const inc = m.incoming_document;
-                                const inv = m.sales_invoice;
-                                let beleg: React.ReactNode;
-                                if (inc) {
-                                  beleg = (
-                                    <Link href={`/eingangsrechnungen/${inc.id}`}>
-                                      {inc.doc_number ?? "Eingangsbeleg"}
-                                      {inc.supplier_name ? ` — ${inc.supplier_name}` : ""}
-                                    </Link>
-                                  );
-                                } else if (inv) {
-                                  beleg = (
-                                    <Link href={`/rechnungen/${inv.id}`}>
-                                      {inv.invoice_number ?? "Rechnung"}
-                                      {inv.organization?.name ? ` — ${inv.organization.name}` : ""}
-                                    </Link>
-                                  );
-                                } else {
-                                  const attUrl = attachmentUrls.get(m.id);
-                                  beleg = (
-                                    <span>
-                                      {m.note ?? "—"}
-                                      {attUrl && (
-                                        <>
-                                          {" "}
-                                          <a href={attUrl} target="_blank" rel="noreferrer">
-                                            📎 {m.attachment_file_name ?? "Beleg"}
-                                          </a>
-                                        </>
-                                      )}
-                                    </span>
-                                  );
-                                }
-                                // Sachkonto hat Vorrang (z.B. Skonto zu einer
-                                // Rechnung: Beleg zeigt die Rechnung, Gegenkonto
-                                // trotzdem das Skontokonto, nicht "Debitor").
-                                const gegenkonto: React.ReactNode = m.ledger_account
-                                  ? (ledgerAccountName.get(m.ledger_account) ?? m.ledger_account)
-                                  : inc
-                                    ? inc.supplier?.supplier_number
-                                      ? `Kreditor ${inc.supplier.supplier_number}`
-                                      : "Verbindlichkeiten"
-                                    : inv
-                                      ? inv.organization?.customer_number
-                                        ? `Debitor ${inv.organization.customer_number}`
-                                        : "Forderungen"
-                                      : (SONDER_FALLBACK_LABEL[m.kind ?? ""] ?? m.kind ?? "—");
-                                return (
-                                  <tr key={m.id}>
-                                    <td>
-                                      {beleg} {m.auto && <span className="tag">auto</span>}
-                                    </td>
-                                    <td className="count">{gegenkonto}</td>
-                                    <td style={{ textAlign: "right" }}>{fmtEur(m.amount)}</td>
-                                    <td style={{ textAlign: "right" }}>
-                                      <form action={unmatchTransaction}>
-                                        <input type="hidden" name="match_id" value={m.id} />
-                                        <input type="hidden" name="tx_id" value={tx.id} />
-                                        <button className="ghost" style={{ padding: "2px 8px" }}>
-                                          aufheben
-                                        </button>
-                                      </form>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        <p className="count" style={{ margin: 0 }}>
-                          Noch keine Buchung.
-                        </p>
-                      )}
-                    </div>
-
-                    <div
-                      className="row"
-                      style={{ justifyContent: "space-between", padding: "8px 12px", fontWeight: 600 }}
-                    >
-                      <span>Saldo</span>
-                      <span className={remaining > 0.01 ? "msg-err" : "msg-ok"} style={{ fontSize: 15 }}>
-                        {fmtEur(remaining)} {remaining <= 0.01 ? "· ausgebucht ✓" : "· offen"}
-                      </span>
-                    </div>
-
-                    {remaining > 0.01 && (
-                      <div className="rows" style={{ gap: 8 }}>
-                        <MatchForm
-                          txId={tx.id}
-                          side={side}
-                          listId={side === "kreditor" ? "er-list" : "ar-list"}
-                          defaultValue={prefill}
-                          showAmount
-                          remaining={remaining}
-                          hint={
-                            `${tx.counterparty_name ?? ""} — ` +
-                            (side === "kreditor" ? "ER-Nr./Lieferant" : "Rg-Nr./Kunde")
-                          }
-                        />
-                        <SpecialMatchForm
-                          txId={tx.id}
-                          remaining={remaining}
-                          ledgerAccounts={ledgerAccounts}
-                          suggestion={
-                            tx.counterparty_name
-                              ? bankLedgerRuleByKey.get(normalize(tx.counterparty_name))
-                              : undefined
-                          }
-                        />
-                        <BelegUploadForm txId={tx.id} remaining={remaining} />
-                      </div>
-                    )}
-                  </div>
-                </TransactionRow>
-              );
-            })}
-            {data.length === 0 && (
-              <tr>
-                <td colSpan={5} style={{ color: "var(--muted)" }}>Keine Umsätze.</td>
-              </tr>
-            )}
-          </tbody>
+          <BankTransactionsBody rows={rows} />
         </table>
       </div>
 

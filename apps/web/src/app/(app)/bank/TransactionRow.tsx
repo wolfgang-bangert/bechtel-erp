@@ -166,3 +166,117 @@ export function TransactionRow({
     </>
   );
 }
+
+export type BankRow = {
+  key: string;
+  cols: React.ReactNode[];
+  title: string;
+  children: React.ReactNode;
+};
+
+/** Wie TransactionRow, aber alle Zeilen teilen sich ein Popup mit einem
+ *  gemeinsamen "welche Zeile ist offen"-Index - dadurch kann man aus der
+ *  Detailansicht heraus zur nächsten/vorherigen Zeile weiterblättern statt
+ *  schließen + die nächste Zeile erneut anklicken zu müssen. */
+export function BankTransactionsBody({ rows }: { rows: BankRow[] }) {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (openIndex == null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenIndex(null);
+      else if (e.key === "ArrowRight") setOpenIndex((i) => (i != null && i < rows.length - 1 ? i + 1 : i));
+      else if (e.key === "ArrowLeft") setOpenIndex((i) => (i != null && i > 0 ? i - 1 : i));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openIndex, rows.length]);
+
+  const current = openIndex != null ? rows[openIndex] : null;
+
+  return (
+    <>
+      <tbody>
+        {rows.map((r, i) => (
+          <tr key={r.key} onClick={() => setOpenIndex(i)} style={{ cursor: "pointer" }}>
+            {r.cols.map((c, ci) => (
+              <td key={ci}>{c}</td>
+            ))}
+          </tr>
+        ))}
+        {rows.length === 0 && (
+          <tr>
+            <td colSpan={5} style={{ color: "var(--muted)" }}>
+              Keine Umsätze.
+            </td>
+          </tr>
+        )}
+      </tbody>
+      {current &&
+        openIndex != null &&
+        createPortal(
+          <div
+            onClick={() => setOpenIndex(null)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,.55)",
+              zIndex: 100,
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "center",
+              padding: "8vh 3vw",
+              overflow: "auto",
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: "var(--panel)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius)",
+                width: "min(860px, 96vw)",
+                maxHeight: "90vh",
+                overflow: "auto",
+              }}
+            >
+              <div
+                className="toolbar"
+                style={{ justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid var(--border)" }}
+              >
+                <strong>{current.title}</strong>
+                <div className="toolbar" style={{ gap: 8 }}>
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={openIndex === 0}
+                    onClick={() => setOpenIndex((i) => (i != null ? i - 1 : i))}
+                    style={{ padding: "5px 10px" }}
+                  >
+                    ← vorherige
+                  </button>
+                  <span className="count">
+                    {openIndex + 1} / {rows.length}
+                  </span>
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={openIndex === rows.length - 1}
+                    onClick={() => setOpenIndex((i) => (i != null ? i + 1 : i))}
+                    style={{ padding: "5px 10px" }}
+                  >
+                    nächste →
+                  </button>
+                  <button type="button" onClick={() => setOpenIndex(null)} style={{ padding: "5px 10px" }}>
+                    Schließen
+                  </button>
+                </div>
+              </div>
+              <div style={{ padding: 14 }}>{current.children}</div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
