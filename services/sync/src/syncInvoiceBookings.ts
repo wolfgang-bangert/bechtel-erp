@@ -26,7 +26,7 @@ export async function generateInvoiceBooking(invoiceId: string, map?: ErloesKont
   const revenueAccounts = map ?? (await loadRevenueAccounts());
   const { data: inv, error: ie } = await supabase
     .from("sales_invoice")
-    .select("net_total, tax_total, gross_total, organization:organization(tax_country)")
+    .select("organization_id, net_total, tax_total, gross_total, organization:organization(tax_country)")
     .eq("id", invoiceId)
     .maybeSingle();
   if (ie || !inv) throw new Error(ie?.message ?? "Rechnung nicht gefunden");
@@ -36,11 +36,22 @@ export async function generateInvoiceBooking(invoiceId: string, map?: ErloesKont
     .select("tax_rate, net_amount")
     .eq("sales_invoice_id", invoiceId);
 
+  let revenueOverride: string | null = null;
+  if (inv.organization_id) {
+    const { data: rule } = await supabase
+      .from("posting_rule")
+      .select("revenue_account, is_active")
+      .eq("organization_id", inv.organization_id)
+      .maybeSingle();
+    if (rule?.is_active && rule.revenue_account) revenueOverride = rule.revenue_account;
+  }
+
   const org = inv.organization as unknown as { tax_country: string | null } | null;
   const zeilen = berechneRechnungsBuchungszeilen(
     { net_total: inv.net_total, tax_total: inv.tax_total, tax_country: org?.tax_country },
     (items ?? []) as RechnungsPosition[],
     revenueAccounts,
+    revenueOverride,
   );
 
   await supabase.from("sales_invoice_booking").delete().eq("sales_invoice_id", invoiceId);

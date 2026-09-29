@@ -13,7 +13,8 @@ import {
   bbPing,
 } from "./syncBButler";
 import { importBbAccounts, importBbParties, applyBbParties, createBbSuppliers } from "./bbImport";
-import { learnVorkontierung } from "./learnVorkontierung";
+import { learnVorkontierung, learnDebitorVorkontierung } from "./learnVorkontierung";
+import { learnBankLedgerRules } from "./learnBankRules";
 import { syncNinoxOrders } from "./syncNinoxOrders";
 import { syncNinoxInvoices } from "./syncNinoxInvoices";
 import { dedupeReport } from "./dedupeReport";
@@ -634,8 +635,18 @@ async function main() {
       break;
     }
     case "bb:learn-vorkontierung": {
-      console.log(`Vorkontierung aus BB-Historie lernen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(`Vorkontierung aus BB-Historie lernen (Kreditoren)${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await learnVorkontierung({ dryRun }), null, 1));
+      break;
+    }
+    case "bb:learn-vorkontierung-debitoren": {
+      console.log(`Erlöskonto-Ausnahmen aus BB-Historie lernen (Debitoren)${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await learnDebitorVorkontierung({ dryRun }), null, 1));
+      break;
+    }
+    case "bb:learn-bankregeln": {
+      console.log(`Sachkonto-Regeln für beleglose Bankbuchungen aus BB-Historie lernen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await learnBankLedgerRules({ dryRun }), null, 1));
       break;
     }
     case "incoming:prune-receipts": {

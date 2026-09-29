@@ -101,22 +101,38 @@ export function berechneRechnungsBuchungszeilen(
   kopf: { net_total: number | null; tax_total: number | null; tax_country?: string | null },
   positionen: RechnungsPosition[],
   map: ErloesKontenMap,
+  /**
+   * Aus der BuchhaltungsButler-Historie gelerntes, kundenspezifisches
+   * Erlöskonto (siehe learnDebitorVorkontierung) - ersetzt pauschal das
+   * Inlands-Automatikkonto (Standard 19 %/7 %), lässt EU/Drittland/
+   * steuerfreie Zeilen unangetastet (andere Fälle, kein gelernter Bezug).
+   */
+  revenueAccountOverride?: string | null,
 ): RechnungsBuchungszeile[] {
-  if (positionen.length > 0) {
-    return buchungszeilenAusPositionen(positionen, kopf.tax_country ?? null, map);
-  }
-  const net = r2(kopf.net_total ?? 0);
-  if (Math.abs(net) < 0.005) return [];
-  const rate =
-    net !== 0 && (kopf.tax_total ?? 0) !== 0 ? r2(((kopf.tax_total ?? 0) / net) * 100) : 0;
-  const tax = r2(net * (rate / 100));
-  return [
-    {
-      ledger_account: revenueAccount(rate, kopf.tax_country ?? "DE", map),
-      tax_rate: rate,
-      net_amount: net,
-      tax_amount: tax,
-      gross_amount: r2(net + tax),
-    },
-  ];
+  const zeilen =
+    positionen.length > 0
+      ? buchungszeilenAusPositionen(positionen, kopf.tax_country ?? null, map)
+      : (() => {
+          const net = r2(kopf.net_total ?? 0);
+          if (Math.abs(net) < 0.005) return [];
+          const rate =
+            net !== 0 && (kopf.tax_total ?? 0) !== 0 ? r2(((kopf.tax_total ?? 0) / net) * 100) : 0;
+          const tax = r2(net * (rate / 100));
+          return [
+            {
+              ledger_account: revenueAccount(rate, kopf.tax_country ?? "DE", map),
+              tax_rate: rate,
+              net_amount: net,
+              tax_amount: tax,
+              gross_amount: r2(net + tax),
+            },
+          ];
+        })();
+
+  if (!revenueAccountOverride) return zeilen;
+  return zeilen.map((z) =>
+    z.ledger_account === map.standard_19 || z.ledger_account === map.standard_7
+      ? { ...z, ledger_account: revenueAccountOverride }
+      : z,
+  );
 }

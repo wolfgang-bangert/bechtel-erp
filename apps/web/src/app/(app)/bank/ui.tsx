@@ -76,17 +76,26 @@ export function SpecialMatchForm({
   txId,
   remaining,
   ledgerAccounts,
+  suggestion,
 }: {
   txId: string;
   remaining: number;
   ledgerAccounts: LedgerAccountOption[];
+  /** Aus der BuchhaltungsButler-Historie gelernter Vorschlag für diese
+   *  Gegenseite (siehe learnBankRules.ts) - vorbelegt, aber änderbar. */
+  suggestion?: { ledger_account: string; sample_postingtext: string | null };
 }) {
   const [state, action, pending] = useActionState(matchSpecial, empty);
 
   return (
     <form action={action} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
       <input type="hidden" name="tx_id" value={txId} />
-      <select name="ledger_account" defaultValue="" style={{ width: 220 }}>
+      <select
+        name="ledger_account"
+        defaultValue={suggestion?.ledger_account ?? ""}
+        style={{ width: 220, ...(suggestion ? { borderColor: "#3a7" } : {}) }}
+        title={suggestion ? `Vorschlag aus BuchhaltungsButler-Historie` : undefined}
+      >
         <option value="">— kein Sachkonto (nur Notiz) —</option>
         {ledgerAccounts.map((a) => (
           <option key={a.value} value={a.value}>
@@ -94,7 +103,11 @@ export function SpecialMatchForm({
           </option>
         ))}
       </select>
-      <input name="note" placeholder="Notiz (optional)" style={{ width: 180 }} />
+      <input
+        name="note"
+        placeholder={suggestion?.sample_postingtext ?? "Notiz (optional)"}
+        style={{ width: 180 }}
+      />
       <input
         name="alloc_amount"
         inputMode="decimal"
