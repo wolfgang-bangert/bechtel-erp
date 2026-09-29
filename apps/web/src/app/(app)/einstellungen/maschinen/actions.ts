@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-export type RowState = { ok?: boolean; error?: string };
+export type RowState = { ok?: boolean; error?: string; id?: string };
 
 const TYPEN = ["druck", "cello", "binden", "konfektion", "sonstige"];
 
@@ -11,6 +11,8 @@ export async function saveMaschine(_prev: RowState, fd: FormData): Promise<RowSt
   const id = (fd.get("id") as string) || null;
   const name = String(fd.get("name") ?? "").trim();
   const typ = String(fd.get("typ") ?? "").trim();
+  const nummer = String(fd.get("nummer") ?? "").trim() || null;
+  const cost_center_id = String(fd.get("cost_center_id") ?? "").trim() || null;
   const flux_printer_name = String(fd.get("flux_printer_name") ?? "").trim() || null;
   const farbe = String(fd.get("farbe") ?? "").trim() || null;
   const kapRaw = String(fd.get("kapazitaet_bogen_h") ?? "").trim();
@@ -49,6 +51,8 @@ export async function saveMaschine(_prev: RowState, fd: FormData): Promise<RowSt
   const payload = {
     name,
     typ,
+    nummer,
+    cost_center_id,
     flux_printer_name,
     farbe,
     kapazitaet_bogen_h,
@@ -59,17 +63,18 @@ export async function saveMaschine(_prev: RowState, fd: FormData): Promise<RowSt
     formate,
     geladen,
   };
-  const { error } = id
-    ? await supabase.from("maschine").update(payload).eq("id", id)
-    : await supabase.from("maschine").insert(payload);
+  const { data: saved, error } = id
+    ? await supabase.from("maschine").update(payload).eq("id", id).select("id").maybeSingle()
+    : await supabase.from("maschine").insert(payload).select("id").maybeSingle();
 
   if (error) {
-    if (error.code === "23505") return { error: `Maschine „${name}" existiert bereits.` };
+    if (error.code === "23505")
+      return { error: `Maschine „${name}" oder Nummer „${nummer}" existiert bereits.` };
     return { error: error.message };
   }
   revalidatePath("/einstellungen/maschinen");
   revalidatePath("/druck/plan");
-  return { ok: true };
+  return { ok: true, id: saved?.id };
 }
 
 /** Fähigkeits-Werte einer Maschine speichern (Upsert bzw. Löschen bei leer). */
