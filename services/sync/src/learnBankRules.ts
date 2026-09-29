@@ -17,6 +17,24 @@ const isBankSeite = (n: number) => n >= 1200 && n < 1300; // SKR03 Bank-/Kassenk
 const isPersonenkonto = (n: number) => n >= 10000 && n < 100000;
 const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
+/** In BuchhaltungsButler wurden Privatentnahmen (Nutzer-Vorgabe) auf 1900
+ *  gebucht statt auf das korrekte Konto 1800 - beim Lernen korrigieren,
+ *  nicht den Fehler übernehmen. */
+const ACCOUNT_REMAP: Record<string, string> = { "1900": "1800" };
+
+/** BuchhaltungsButler liefert bei manchen Zahlungsdienstleistern die
+ *  Gegenseite inkl. angehängter Adresse (z.B. SEPA-Creditor-Name von Tesla-
+ *  Ladevorgängen: "Tesla?DE?Supercharger Simon Carmiggeltstraat 1011 DJ
+ *  AMSTERDAM 6-50", in mehreren leicht unterschiedlichen Schreibweisen) -
+ *  das passt nie exakt zum schlanken counterparty_name aus dem echten
+ *  Kontoauszug ("Tesla DE Supercharger"). Bekannte Fälle auf den echten
+ *  Namen normalisieren, damit die gelernte Regel später auch greift. */
+const COUNTERPARTY_ALIASES: [RegExp, string][] = [[/tesla/i, "Tesla DE Supercharger"]];
+function canonicalizeCounterparty(raw: string): string {
+  for (const [re, canonical] of COUNTERPARTY_ALIASES) if (re.test(raw)) return canonical;
+  return raw;
+}
+
 /** Gegenseite aus receipts_assigned_counterparties oder - falls leer, z.B.
  *  bei generischen Bankgebühren-Buchungen - aus dem "... - Gegenseite"-
  *  Suffix des Buchungstexts ableiten. */
@@ -56,10 +74,12 @@ export async function learnBankLedgerRules(opts: Options = {}) {
     const debIsBank = isBankSeite(deb);
     const credIsBank = isBankSeite(cred);
     if (debIsBank === credIsBank) continue; // beide oder keine Bankseite -> nicht eindeutig zuzuordnen
-    const target = debIsBank ? p.credit_postingaccount_number : p.debit_postingaccount_number;
-    if (!target) continue;
-    const partner = counterpartyOf(p);
-    if (!partner) continue;
+    const rawTarget = debIsBank ? p.credit_postingaccount_number : p.debit_postingaccount_number;
+    if (!rawTarget) continue;
+    const target = ACCOUNT_REMAP[rawTarget] ?? rawTarget;
+    const partnerRaw = counterpartyOf(p);
+    if (!partnerRaw) continue;
+    const partner = canonicalizeCounterparty(partnerRaw);
     const key = normalize(partner);
     const agg =
       byCounterparty.get(key) ??
