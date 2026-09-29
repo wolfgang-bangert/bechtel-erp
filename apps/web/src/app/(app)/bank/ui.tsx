@@ -66,6 +66,50 @@ export function MatchForm({
   );
 }
 
+/** Ein-Klick-Zuordnung direkt in der Bank-Liste für den Fall, dass der
+ *  Betrag eindeutig genau eine offene Rechnung trifft (derselbe Vorschlag,
+ *  der sonst nur als Autocomplete im Detail-Popup steckt) - erspart das
+ *  Öffnen des Popups beim schnellen Durchklicken mehrerer Umsätze.
+ *  stopPropagation, damit der Klick nicht zusätzlich die Zeile (Popup)
+ *  öffnet, die Zeile selbst hat einen eigenen onClick. */
+export function QuickMatchButton({
+  txId,
+  side,
+  suggestion,
+}: {
+  txId: string;
+  side: "debitor" | "kreditor";
+  suggestion: string;
+}) {
+  const [state, action, pending] = useActionState(matchTransaction, empty);
+
+  return (
+    <form
+      action={action}
+      onClick={(e) => e.stopPropagation()}
+      style={{ display: "flex", gap: 6, alignItems: "center" }}
+    >
+      <input type="hidden" name="tx_id" value={txId} />
+      <input type="hidden" name="side" value={side} />
+      <input type="hidden" name="invoice_number_manual" value={suggestion} />
+      <button
+        type="submit"
+        className="ghost"
+        disabled={pending}
+        title={`Vorschlag übernehmen: ${suggestion}`}
+        style={{ padding: "3px 8px", fontSize: 12, borderColor: "#3a7", color: "#3a7" }}
+      >
+        {pending ? "…" : `✓ ${suggestion}`}
+      </button>
+      {state.error && (
+        <span className="msg-err" style={{ fontSize: 11 }}>
+          {state.error}
+        </span>
+      )}
+    </form>
+  );
+}
+
 export type LedgerAccountOption = { value: string; label: string };
 
 /** Buchung gegen ein Sachkonto (Skonto, Durchlaufende Posten, ...) - oder,
