@@ -39,10 +39,14 @@ const emptyLink: LinkState = {};
 export function LinkBookingForm({
   bookingId,
   txId,
+  existingMatchId,
   label,
 }: {
   bookingId: string;
   txId: string;
+  /** Gesetzt, wenn der Umsatz schon über die normale Bank-Sonderbuchung
+   *  gebucht wurde - dann nur nachträglich verknüpfen statt neu anlegen. */
+  existingMatchId?: string;
   label: string;
 }) {
   const [state, action, pending] = useActionState(linkPayrollBooking, emptyLink);
@@ -50,7 +54,11 @@ export function LinkBookingForm({
   return (
     <form action={action} style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
       <input type="hidden" name="booking_id" value={bookingId} />
-      <input type="hidden" name="tx_id" value={txId} />
+      {existingMatchId ? (
+        <input type="hidden" name="existing_match_id" value={existingMatchId} />
+      ) : (
+        <input type="hidden" name="tx_id" value={txId} />
+      )}
       <button type="submit" className="ghost" disabled={pending} style={{ padding: "3px 8px", fontSize: 12 }}>
         {pending ? "…" : `✓ ${label}`}
       </button>
@@ -77,7 +85,7 @@ export function GroupLinkForm({
 }: {
   bookingId: string;
   targetAmount: number;
-  candidates: { id: string; label: string; amount: number }[];
+  candidates: { id: string; existingMatchId?: string; label: string; amount: number }[];
 }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -111,9 +119,16 @@ export function GroupLinkForm({
   return (
     <form action={action} style={{ display: "block" }}>
       <input type="hidden" name="booking_id" value={bookingId} />
-      {[...selected].map((id) => (
-        <input key={id} type="hidden" name="tx_ids" value={id} />
-      ))}
+      {candidates
+        .filter((c) => selected.has(c.id) && !c.existingMatchId)
+        .map((c) => (
+          <input key={c.id} type="hidden" name="tx_ids" value={c.id} />
+        ))}
+      {candidates
+        .filter((c) => selected.has(c.id) && c.existingMatchId)
+        .map((c) => (
+          <input key={c.id} type="hidden" name="existing_match_ids" value={c.existingMatchId} />
+        ))}
       <div
         style={{
           border: "1px solid var(--border)",
