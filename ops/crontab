@@ -6,17 +6,18 @@
 30 5 * * *   cd /app/services/sync && pnpm portal:pull --portal=onlineprinters
 
 # Keyline-Abgleich Aufträge + Rechnungen (war alle 30 min) - danach
-# invoice:bookings (Debitor an Erlöskonto je neu eingespielter Rechnung)
-# und bank:match, damit neu eingespielte Rechnungen sofort gebucht und
-# gegen bereits vorhandene offene Bankbuchungen abgeglichen werden (sonst
-# erst beim nächsten Bank-Abruf, der Abgleich läuft sonst nur dort
-# automatisch).
-*/30 * * * *  cd /app/services/sync && pnpm keyline:orders && pnpm keyline:invoices && pnpm invoice:bookings && pnpm bank:match
+# invoice:bookings (Debitor an Erlöskonto je neu eingespielter Rechnung),
+# bank:match (gegen bereits vorhandene offene Bankbuchungen, sonst erst
+# beim nächsten Bank-Abruf) und skonto:apply (Skonto-Restbeträge als
+# eigene Buchungszeile ausbuchen - erst sinnvoll nachdem bank:match die
+# Zahlungen zugeordnet hat).
+*/30 * * * *  cd /app/services/sync && pnpm keyline:orders && pnpm keyline:invoices && pnpm invoice:bookings && pnpm bank:match && pnpm skonto:apply
 
 # Ninox-Rechnungen (Kalender-Vertrieb) - nur für Buchhaltung freigegebene,
 # per Default seit Jahresbeginn (siehe syncNinoxInvoices) - + PDFs dazu,
-# gleicher Grund für invoice:bookings/bank:match danach wie bei Keyline oben
-*/30 * * * *  cd /app/services/sync && pnpm ninox:invoices && pnpm pdf:invoices && pnpm invoice:bookings && pnpm bank:match
+# gleicher Grund für invoice:bookings/bank:match/skonto:apply danach wie
+# bei Keyline oben
+*/30 * * * *  cd /app/services/sync && pnpm ninox:invoices && pnpm pdf:invoices && pnpm invoice:bookings && pnpm bank:match && pnpm skonto:apply
 
 # Eingangsrechnungen aus dem Postfach + KI-Vorerfassung (war stündlich)
 15 * * * *   cd /app/services/sync && pnpm mail:fetch --since=7 && pnpm incoming:extract --limit=100
