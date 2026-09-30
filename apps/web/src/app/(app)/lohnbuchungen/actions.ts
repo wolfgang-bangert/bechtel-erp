@@ -121,7 +121,7 @@ export async function linkPayrollBooking(_prev: LinkState, fd: FormData): Promis
   if (!txId) return { error: "Umsatz fehlt." };
   const { data: booking, error: be } = await supabase
     .from("payroll_booking")
-    .select("id, amount, gegenkonto, buchungstext")
+    .select("id, gegenkonto, buchungstext")
     .eq("id", bookingId)
     .maybeSingle();
   if (be || !booking) return { error: be?.message ?? "Lohnbuchung nicht gefunden." };
@@ -134,7 +134,11 @@ export async function linkPayrollBooking(_prev: LinkState, fd: FormData): Promis
     ledger_account: booking.gegenkonto,
     payroll_booking_id: booking.id,
     note: booking.buchungstext,
-    amount: r.amount < 0 ? -booking.amount : booking.amount,
+    // Der tatsächliche Bankbetrag, nicht booking.amount - bei einer
+    // Gegenkonto-Gruppe (mehrere Buchungszeilen zusammengefasst, siehe
+    // page.tsx) ist der Zielbetrag der saldierten Gruppe oft ungleich der
+    // rohen Einzelzeile, an die hier nur zwecks FK "angedockt" wird.
+    amount: r.amount,
     auto: false,
   });
   if (error) {
