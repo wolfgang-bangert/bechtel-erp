@@ -18,6 +18,7 @@ Extrahiere die Daten und antworte ausschließlich mit JSON, ohne Markdown, in ge
 {
   "doc_type": "invoice" | "credit_note" | "receipt" | "payment_advice" | "dunning" | "unknown",
   "supplier": { "name": string|null, "vat_id": string|null, "iban": string|null, "address": string|null },
+  "marketplace": string|null,   // siehe Regel zu Marktplatz-Rechnungen unten
   "doc_number": string|null,
   "doc_date": "YYYY-MM-DD"|null,
   "service_date": "YYYY-MM-DD"|null,
@@ -99,7 +100,15 @@ Regeln:
 - "payee.differs" = true bei Hinweisen wie "Zahlung ausschließlich an …",
   "Insolvenzverwalter", "Forderung wurde abgetreten an …", "Factoring", "RatePay"/
   "Ratepay", "Inkasso", oder wenn der Kontoinhaber vom Lieferantennamen abweicht.
-  Dann "payee.name"/"payee.iban"/"payee.reason" füllen. Sonst differs=false.`;
+  Dann "payee.name"/"payee.iban"/"payee.reason" füllen. Sonst differs=false.
+- "marketplace": Rechnungssteller (supplier) ist rechtlich der eigentliche
+  Verkäufer/Kreditor - bei manchen Bestellportalen (z.B. Amazon Marketplace,
+  eBay) tritt aber die Plattform als reiner Vermittler auf, erkennbar z.B. an
+  "Verkauft von <Drittanbieter>" bei gleichzeitigem Hinweis auf die Plattform
+  (Kundenservice-Link wie amazon.de/contact-us, Layout/Bestellnummernformat,
+  Domain in Absenderadresse). Dann marketplace = Name der Plattform (z.B.
+  "Amazon") - der Drittanbieter bleibt trotzdem der eigentliche supplier.name
+  (Kreditor für die Buchhaltung). Sonst marketplace = null.`;
 
 function parseJson(text: string): unknown {
   const start = text.indexOf("{");
@@ -166,6 +175,7 @@ function repairTruncatedJson(s: string): string {
 type Extracted = {
   doc_type?: string;
   supplier?: { name?: string | null; vat_id?: string | null; iban?: string | null };
+  marketplace?: string | null;
   doc_number?: string | null;
   doc_date?: string | null;
   service_date?: string | null;
@@ -254,12 +264,13 @@ async function trySplitMultiInvoice(
   doc: CapturedDoc,
   ranges: [number, number][],
   pdf: Buffer,
-): Promise<boolean> {
+): Promise<CapturedDoc[] | false> {
   const pageCount = await seitenzahl(pdf);
   if (!validSplitRanges(ranges, pageCount)) return false;
 
   const year = (doc.email_date ? new Date(doc.email_date) : new Date()).getFullYear().toString();
   const uploaded: string[] = [];
+  const children: CapturedDoc[] = [];
   try {
     for (let i = 0; i < ranges.length; i++) {
       const [start, end] = ranges[i];
@@ -272,18 +283,35 @@ async function trySplitMultiInvoice(
       await putObject(key, Buffer.from(bytes), "application/pdf");
       uploaded.push(key);
 
-      const { error } = await supabase.from("incoming_document").insert({
+      const fileName = `${doc.file_name ?? "beleg.pdf"} (Teil ${i + 1}/${ranges.length})`;
+      const dedupKey = `${doc.dedup_key}#${i + 1}`;
+      const { data: inserted, error } = await supabase
+        .from("incoming_document")
+        .insert({
+          source: doc.source,
+          email_message_id: doc.email_message_id,
+          email_from: doc.email_from,
+          email_subject: doc.email_subject,
+          email_date: doc.email_date,
+          file_name: fileName,
+          pdf_storage_key: key,
+          file_sha256: createHash("sha256").update(bytes).digest("hex"),
+          dedup_key: dedupKey,
+        })
+        .select("id")
+        .single();
+      if (error || !inserted) throw new Error(error?.message ?? "Teil-Dokument konnte nicht angelegt werden.");
+      children.push({
+        id: inserted.id,
+        pdf_storage_key: key,
+        file_name: fileName,
+        email_subject: doc.email_subject,
         source: doc.source,
         email_message_id: doc.email_message_id,
         email_from: doc.email_from,
-        email_subject: doc.email_subject,
         email_date: doc.email_date,
-        file_name: `${doc.file_name ?? "beleg.pdf"} (Teil ${i + 1}/${ranges.length})`,
-        pdf_storage_key: key,
-        file_sha256: createHash("sha256").update(bytes).digest("hex"),
-        dedup_key: `${doc.dedup_key}#${i + 1}`,
+        dedup_key: dedupKey,
       });
-      if (error) throw new Error(error.message);
     }
   } catch (err) {
     await Promise.all(uploaded.map((k) => deleteObject(k).catch(() => {})));
@@ -292,7 +320,7 @@ async function trySplitMultiInvoice(
 
   await supabase.from("incoming_document").delete().eq("id", doc.id);
   if (doc.pdf_storage_key) await deleteObject(doc.pdf_storage_key).catch(() => {});
-  return true;
+  return children;
 }
 
 /** Datum + n Tage → "YYYY-MM-DD". */
@@ -468,9 +496,12 @@ export async function extractIncoming(opts: Options = {}) {
       // in Einzel-PDFs pro Rechnung aufteilen, jede als eigenes "captured"-
       // Dokument neu anlegen (übernimmt Quelle/E-Mail-Metadaten vom Original)
       // und das Sammel-Dokument entfernen. Die neuen Teil-Dokumente werden
-      // beim nächsten Lauf ganz normal (einzeln) extrahiert - kein Rekursions-
-      // Risiko, da ein einzelnes Split-Ergebnis nie wieder split_pages liefern
-      // sollte (jede Teil-PDF enthält nur noch eine Rechnung).
+      // direkt an die Verarbeitungsliste angehängt (for...of läuft über die
+      // Länge zum jeweiligen Iterationszeitpunkt, sieht also Push während
+      // des Laufs) - keine Wartezeit bis zum nächsten Cron-Tick. Kein
+      // Rekursions-Risiko, da ein einzelnes Split-Ergebnis nie wieder
+      // split_pages liefern sollte (jede Teil-PDF enthält nur noch eine
+      // Rechnung).
       if (e.split_pages && (await seitenzahl(pdf).then((n) => validSplitRanges(e.split_pages!, n)))) {
         if (dryRun) {
           console.log(
@@ -479,7 +510,8 @@ export async function extractIncoming(opts: Options = {}) {
               .join(", ")})`,
           );
         } else {
-          await trySplitMultiInvoice(doc, e.split_pages, pdf);
+          const children = await trySplitMultiInvoice(doc, e.split_pages, pdf);
+          if (children) docs.push(...children);
         }
         ok += 1;
         continue;
@@ -524,6 +556,18 @@ export async function extractIncoming(opts: Options = {}) {
       const supplierId = await findSupplier(e);
       const rule = !isHint && supplierId ? rules.get(supplierId) : undefined;
 
+      // Marktplatz-Rechnungen (z.B. Amazon-Marktplatz-Verkäufer): Suche nach
+      // "amazon" soll den Beleg auch dann finden, wenn der eigentliche
+      // Rechnungssteller (Kreditor) ein Drittanbieter ist - Zuordnung/
+      // Kontierung bleibt am echten Lieferantennamen, nur die Anzeige/Suche
+      // bekommt die Plattform angehängt.
+      const marketplace = !isHint ? e.marketplace?.trim() || null : null;
+      const supplierNameDisplay = e.supplier?.name
+        ? marketplace
+          ? `${e.supplier.name} (${marketplace})`
+          : e.supplier.name
+        : null;
+
       // Zahlungsziele: Datum bevorzugen, sonst aus Belegdatum + Tagen rechnen.
       const docDate = date(e.doc_date);
       const t = e.payment_terms ?? {};
@@ -560,7 +604,7 @@ export async function extractIncoming(opts: Options = {}) {
               ? "dunning"
               : (e.doc_type ?? "invoice"),
           supplier_organization_id: supplierId,
-          supplier_name: e.supplier?.name ?? null,
+          supplier_name: supplierNameDisplay,
           supplier_vat_id: e.supplier?.vat_id ?? null,
           supplier_iban: e.supplier?.iban ?? null,
           doc_number: e.doc_number ?? null,
