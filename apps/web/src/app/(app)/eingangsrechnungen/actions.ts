@@ -1,7 +1,9 @@
 "use server";
 
+import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { putObject } from "@/lib/storage";
 
 export type SaveState = { ok?: boolean; error?: string; note?: string };
 
@@ -166,6 +168,60 @@ export async function saveIncoming(
     ok: true,
     note: unresolved ? `${unresolved} Auftragsnummer(n) nicht gefunden` : undefined,
   };
+}
+
+export type UploadIncomingState = { ok?: boolean; error?: string; count?: number };
+
+/**
+ * Manueller Beleg-Upload - macht denselben ersten Schritt wie der Mailabruf
+ * (mail:fetch): PDF ablegen + "captured"-Zeile anlegen, keine eigene
+ * Extraktion hier (läuft nur im sync-Container). Stößt die KI-Extraktion
+ * stattdessen über sync_request an (wie "Banken aktualisieren" auf /bank),
+ * dort übernimmt incoming:extract auch die Erkennung/Aufteilung von
+ * Sammel-PDFs mit mehreren Rechnungen (z.B. Amazon-Marktplatz-Sammelbeleg).
+ * Ein Formular-Feld "file" kann mehrere Dateien enthalten (multiple).
+ */
+export async function uploadIncoming(
+  _prev: UploadIncomingState,
+  fd: FormData,
+): Promise<UploadIncomingState> {
+  const files = fd.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
+  if (!files.length) return { error: "Datei wählen." };
+
+  const supabase = await createClient();
+  let count = 0;
+  for (const file of files) {
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    const dedupKey = `upload:${sha256}`;
+
+    const { data: exists } = await supabase
+      .from("incoming_document")
+      .select("id")
+      .eq("dedup_key", dedupKey)
+      .maybeSingle();
+    if (exists) continue; // identischer Beleg schon erfasst
+
+    const year = new Date().getFullYear();
+    const key = `eingangsrechnungen/${year}/${randomUUID()}.pdf`;
+    await putObject(key, bytes, file.type || "application/pdf");
+
+    const { error } = await supabase.from("incoming_document").insert({
+      source: "upload",
+      file_name: file.name,
+      pdf_storage_key: key,
+      file_sha256: sha256,
+      dedup_key: dedupKey,
+    });
+    if (error) return { error: error.message };
+    count += 1;
+  }
+
+  if (count > 0) {
+    await supabase.from("sync_request").insert({ job: "incoming:extract", params: {} });
+  }
+  revalidatePath("/eingangsrechnungen");
+  return { ok: true, count };
 }
 
 export async function setIncomingStatus(fd: FormData): Promise<void> {

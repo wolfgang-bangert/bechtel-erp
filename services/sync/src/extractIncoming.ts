@@ -1,7 +1,9 @@
+import { createHash, randomUUID } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
+import { seitenNeuZusammenstellen, seitenzahl } from "@werk/shared/pdf/seiten";
 import { env } from "./env";
 import { supabase } from "./supabase";
-import { getObjectBytes } from "./storage";
+import { getObjectBytes, putObject, deleteObject, prefix } from "./storage";
 import { pagedSelect } from "./db";
 import { pruneReceiptDuplicates } from "./pruneReceipts";
 import { forwardDunnings } from "./forwardDunnings";
@@ -57,10 +59,23 @@ Extrahiere die Daten und antworte ausschließlich mit JSON, ohne Markdown, in ge
     "dunning_fee": number|null,             // Mahngebühr / Verzugskosten
     "deadline": "YYYY-MM-DD"|null           // neue Zahlungsfrist
   },
-  "confidence": number          // 0..1, wie sicher die Extraktion insgesamt ist
+  "confidence": number,         // 0..1, wie sicher die Extraktion insgesamt ist
+  "split_pages": [[number, number]] | null   // siehe Regel zu Sammel-PDFs unten
 }
 
 Regeln:
+- "split_pages": NUR setzen, wenn dieses PDF MEHRERE eigenständige, voneinander
+  unabhängige Rechnungen/Gutschriften enthält (typisch: Sammel-PDF aus einem
+  Bestellportal mit mehreren Marktplatz-Verkäufern, erkennbar an mehreren
+  unterschiedlichen Rechnungsnummern und/oder Verkäufern/Lieferanten, oft auch
+  je eigenem "Seite 1 von 1"-Vermerk). Dann ein Eintrag [Startseite, Endseite]
+  (1-indiziert, inklusive) PRO Rechnung, in Reihenfolge, alle Seiten des PDFs
+  müssen genau einem Eintrag zugeordnet sein. Die restlichen Felder oben
+  (supplier, doc_number, Beträge, line_items, ...) dürfen dann leer/null
+  bleiben - sie werden bei Erkennung von split_pages verworfen und jede
+  Teil-Rechnung separat neu extrahiert. Bei einer normalen Rechnung (auch mit
+  mehreren Seiten, die zusammengehören, z.B. mit Positionsliste auf Seite 2):
+  split_pages = null, restliche Felder wie gewohnt füllen.
 - Beträge als Zahl mit Punkt als Dezimaltrenner, ohne Währungssymbol.
 - Unbekannte Felder = null. Wenn es keine Positionsaufstellung gibt, line_items = [].
 - doc_type "payment_advice" NUR für ein Zahlungs-/Lastschriftavis: Titel/Text wie
@@ -197,7 +212,88 @@ type Extracted = {
     reason?: string | null;
   } | null;
   confidence?: number;
+  split_pages?: [number, number][] | null;
 };
+
+/** Prüft, ob die vom Modell gelieferten Seitenbereiche gültig sind: sortiert,
+ *  lückenlos, deckt genau 1..pageCount ab. Bei Zweifel lieber ablehnen (dann
+ *  läuft die normale Einzelrechnungs-Extraktion weiter) als einen kaputten
+ *  Split zu erzeugen. */
+function validSplitRanges(ranges: [number, number][], pageCount: number): boolean {
+  if (ranges.length < 2) return false;
+  const sorted = [...ranges].sort((a, b) => a[0] - b[0]);
+  let next = 1;
+  for (const [start, end] of sorted) {
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start > end || start !== next) return false;
+    next = end + 1;
+  }
+  return next - 1 === pageCount;
+}
+
+type CapturedDoc = {
+  id: string;
+  pdf_storage_key: string | null;
+  file_name: string | null;
+  email_subject: string | null;
+  source: string;
+  email_message_id: string | null;
+  email_from: string | null;
+  email_date: string | null;
+  dedup_key: string;
+};
+
+/**
+ * Teilt ein Sammel-PDF mit mehreren eigenständigen Rechnungen (laut KI-
+ * erkannten Seitenbereichen) in eigene Teil-PDFs auf, legt je eine neue
+ * "captured"-Zeile an (übernimmt Quelle/E-Mail-Metadaten vom Original) und
+ * entfernt das Sammel-Dokument. Gibt false zurück (kein Split durchgeführt),
+ * wenn die Seitenbereiche ungültig sind - dann läuft die normale
+ * Einzelrechnungs-Extraktion für dieses Dokument einfach weiter.
+ */
+async function trySplitMultiInvoice(
+  doc: CapturedDoc,
+  ranges: [number, number][],
+  pdf: Buffer,
+): Promise<boolean> {
+  const pageCount = await seitenzahl(pdf);
+  if (!validSplitRanges(ranges, pageCount)) return false;
+
+  const year = (doc.email_date ? new Date(doc.email_date) : new Date()).getFullYear().toString();
+  const uploaded: string[] = [];
+  try {
+    for (let i = 0; i < ranges.length; i++) {
+      const [start, end] = ranges[i];
+      const reihenfolge = Array.from({ length: end - start + 1 }, (_, j) => ({
+        dateiIndex: 0,
+        seite: start + j,
+      }));
+      const bytes = await seitenNeuZusammenstellen([pdf], reihenfolge);
+      const key = prefix.eingangsrechnung(year, randomUUID());
+      await putObject(key, Buffer.from(bytes), "application/pdf");
+      uploaded.push(key);
+
+      const { error } = await supabase.from("incoming_document").insert({
+        source: doc.source,
+        email_message_id: doc.email_message_id,
+        email_from: doc.email_from,
+        email_subject: doc.email_subject,
+        email_date: doc.email_date,
+        file_name: `${doc.file_name ?? "beleg.pdf"} (Teil ${i + 1}/${ranges.length})`,
+        pdf_storage_key: key,
+        file_sha256: createHash("sha256").update(bytes).digest("hex"),
+        dedup_key: `${doc.dedup_key}#${i + 1}`,
+      });
+      if (error) throw new Error(error.message);
+    }
+  } catch (err) {
+    await Promise.all(uploaded.map((k) => deleteObject(k).catch(() => {})));
+    throw err;
+  }
+
+  await supabase.from("incoming_document").delete().eq("id", doc.id);
+  if (doc.pdf_storage_key) await deleteObject(doc.pdf_storage_key).catch(() => {});
+  return true;
+}
 
 /** Datum + n Tage → "YYYY-MM-DD". */
 function addDays(iso: string | null, days: number | null | undefined): string | null {
@@ -277,9 +373,14 @@ export async function extractIncoming(opts: Options = {}) {
       pdf_storage_key: string | null;
       file_name: string | null;
       email_subject: string | null;
+      source: string;
+      email_message_id: string | null;
+      email_from: string | null;
+      email_date: string | null;
+      dedup_key: string;
     }>(
       "incoming_document",
-      "id, pdf_storage_key, file_name, email_subject",
+      "id, pdf_storage_key, file_name, email_subject, source, email_message_id, email_from, email_date, dedup_key",
       ["status", "captured"],
     )
   ).slice(0, limit);
@@ -361,6 +462,28 @@ export async function extractIncoming(opts: Options = {}) {
       });
       const textPart = res.content.find((c) => c.type === "text");
       const e = parseJson(textPart && "text" in textPart ? textPart.text : "") as Extracted;
+
+      // Sammel-PDF mit mehreren eigenständigen Rechnungen (z.B. Amazon-
+      // Marktplatz-Sammelbeleg mit mehreren Verkäufern in einer Datei):
+      // in Einzel-PDFs pro Rechnung aufteilen, jede als eigenes "captured"-
+      // Dokument neu anlegen (übernimmt Quelle/E-Mail-Metadaten vom Original)
+      // und das Sammel-Dokument entfernen. Die neuen Teil-Dokumente werden
+      // beim nächsten Lauf ganz normal (einzeln) extrahiert - kein Rekursions-
+      // Risiko, da ein einzelnes Split-Ergebnis nie wieder split_pages liefern
+      // sollte (jede Teil-PDF enthält nur noch eine Rechnung).
+      if (e.split_pages && (await seitenzahl(pdf).then((n) => validSplitRanges(e.split_pages!, n)))) {
+        if (dryRun) {
+          console.log(
+            `  ${doc.file_name}: SAMMEL-PDF → ${e.split_pages.length} Rechnungen (Seiten ${e.split_pages
+              .map(([a, b]) => `${a}-${b}`)
+              .join(", ")})`,
+          );
+        } else {
+          await trySplitMultiInvoice(doc, e.split_pages, pdf);
+        }
+        ok += 1;
+        continue;
+      }
 
       // Hinweisbelege (Avis / Mahnung) erkennen — KI-Klassifikation, mit
       // Betreff/Dateiname als Fallback. Beide landen nicht in der Kreditoren-

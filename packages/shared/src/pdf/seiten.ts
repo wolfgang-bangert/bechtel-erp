@@ -15,6 +15,11 @@ import { PDFDocument, StandardFonts, degrees } from "pdf-lib";
  *  basiert), seite = Seitenzahl innerhalb dieser Datei (1-basiert, wie im UI). */
 export type SeitenRef = { dateiIndex: number; seite: number };
 
+/** Seitenzahl eines PDFs (für Validierung von Seitenbereichen vor dem Split). */
+export async function seitenzahl(pdfBytes: Uint8Array): Promise<number> {
+  return (await PDFDocument.load(pdfBytes)).getPageCount();
+}
+
 export async function seitenNeuZusammenstellen(
   dateien: Uint8Array[],
   reihenfolge: SeitenRef[],
