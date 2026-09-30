@@ -8,6 +8,7 @@ import {
   BelegUploadForm,
   InvoiceDatalist,
   QuickMatchButton,
+  QuickSpecialMatchButton,
   GroupMatchIncomingForm,
   type Candidate,
 } from "./ui";
@@ -176,6 +177,7 @@ export default async function BankPage({
   // Aus der BuchhaltungsButler-Historie gelernte Sachkonto-Vorschläge je
   // Gegenseite (siehe learnBankRules.ts) - für die Sonderbuchung-Vorbelegung.
   const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+  const stripLegalForm = (s: string) => s.replace(/\b(gmbh|ag|kg|co|mbh|ug|e\.?k\.?|ohg)\b/g, "").trim();
   const counterpartyKeys = [
     ...new Set(data.map((t) => t.counterparty_name).filter((n): n is string => !!n).map(normalize)),
   ];
@@ -187,6 +189,34 @@ export default async function BankPage({
         .eq("is_active", true)
     : { data: [] as { counterparty_key: string; ledger_account: string; sample_postingtext: string | null }[] };
   const bankLedgerRuleByKey = new Map((bankLedgerRules ?? []).map((r) => [r.counterparty_key, r]));
+
+  // Bankgebühren/Zinsen (Sollzinsen, Kontoauszugs-/EBICS-Gebühren, Abschluss-
+  // Abrechnungen, ...) tragen im Kontoauszug oft gar keine Gegenseite - die
+  // Buchung lief historisch in BuchhaltungsButler trotzdem unter dem Namen
+  // der eigenen Bank selbst (z.B. "Oberbank AG"). Fallback: fehlt die
+  // Gegenseite, wird stattdessen (großzügig, ohne Rechtsform) gegen den
+  // Banknamen des Kontos selbst geprüft.
+  const bankNameKeys = [
+    ...new Set(accounts.map((a) => stripLegalForm(normalize(a.bank_name || a.label))).filter((s) => s.length >= 4)),
+  ];
+  const { data: bankNameRules } = bankNameKeys.length
+    ? await supabase
+        .from("bank_ledger_rule")
+        .select("counterparty_key, ledger_account, sample_postingtext")
+        .eq("is_active", true)
+    : { data: [] as { counterparty_key: string; ledger_account: string; sample_postingtext: string | null }[] };
+  const bankNameRuleCache = new Map<string, { ledger_account: string; sample_postingtext: string | null } | null>();
+  const ruleForBankName = (name: string | null | undefined) => {
+    const key = stripLegalForm(normalize(name ?? ""));
+    if (key.length < 4) return undefined;
+    if (bankNameRuleCache.has(key)) return bankNameRuleCache.get(key) ?? undefined;
+    // Exakte Übereinstimmung nach Rechtsform-Entfernung, nicht "enthält" -
+    // sonst trifft z.B. der Bankname "Oberbank" auch auf einen völlig
+    // anderen Kreditor wie "Oberbank Leasing GmbH Bayern".
+    const hit = (bankNameRules ?? []).find((r) => stripLegalForm(r.counterparty_key) === key);
+    bankNameRuleCache.set(key, hit ?? null);
+    return hit;
+  };
 
   const attachmentUrls = new Map<string, string>(
     await Promise.all(
@@ -316,7 +346,14 @@ export default async function BankPage({
       Math.round(matches.filter(isCashMatch).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0) * 100) / 100;
     const remaining = Math.round((Math.abs(tx.amount) - allocated) * 100) / 100;
     const prefill = (side === "debitor" ? arPrefill : erPrefill).get(cents(remaining)) ?? undefined;
+    // Für wiederkehrende Sachkonto-Buchungen ohne Rechnung (Leasing, Miete,
+    // Bankgebühren, ...): aus der BuchhaltungsButler-Historie gelernter
+    // Sachkonto-Vorschlag direkt als Ein-Klick-Button in der Liste, wie bei
+    // Rechnungsnummern - sonst blieb der Vorschlag im Detail-Popup versteckt.
     const bankName = tx.bank_account?.bank_name || tx.bank_account?.label || "?";
+    const ledgerRule = tx.counterparty_name
+      ? bankLedgerRuleByKey.get(normalize(tx.counterparty_name))
+      : ruleForBankName(bankName);
 
     return {
       key: tx.id,
@@ -349,6 +386,15 @@ export default async function BankPage({
         </span>,
         remaining > 0.01 && prefill ? (
           <QuickMatchButton key="v" txId={tx.id} side={side} suggestion={prefill} />
+        ) : remaining > 0.01 && ledgerRule ? (
+          <QuickSpecialMatchButton
+            key="v"
+            txId={tx.id}
+            ledgerAccount={ledgerRule.ledger_account}
+            ledgerLabel={ledgerAccountName.get(ledgerRule.ledger_account) ?? ledgerRule.ledger_account}
+            amount={remaining}
+            note={ledgerRule.sample_postingtext}
+          />
         ) : (
           <span key="v" />
         ),
@@ -504,9 +550,7 @@ export default async function BankPage({
                 txId={tx.id}
                 remaining={remaining}
                 ledgerAccounts={ledgerAccounts}
-                suggestion={
-                  tx.counterparty_name ? bankLedgerRuleByKey.get(normalize(tx.counterparty_name)) : undefined
-                }
+                suggestion={ledgerRule}
               />
               <BelegUploadForm txId={tx.id} remaining={remaining} />
             </div>
@@ -641,7 +685,7 @@ export default async function BankPage({
               <th style={{ textAlign: "right" }}>Betrag</th>
               <th>Gegenseite / Verwendungszweck</th>
               <th>Status</th>
-              <th>Vorschlag</th>
+              <th style={{ minWidth: 220 }}>Vorschlag</th>
             </tr>
           </thead>
           <BankTransactionsBody rows={rows} />
