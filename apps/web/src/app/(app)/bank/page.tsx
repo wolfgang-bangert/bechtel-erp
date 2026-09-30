@@ -8,6 +8,7 @@ import {
   BelegUploadForm,
   InvoiceDatalist,
   QuickMatchButton,
+  GroupMatchIncomingForm,
   type Candidate,
 } from "./ui";
 import { unmatchTransaction } from "./actions";
@@ -274,6 +275,28 @@ export default async function BankPage({
     erPrefill = uniqueByAmount(rows.map((r) => ({ c: cents(r.amount), label: r.label })));
   }
 
+  // Kreditkarten-/PayPal-Belege: landen nicht einzeln auf dem Kontoauszug,
+  // sondern gebündelt in einer Sammelabrechnung - eigene Kandidatenliste für
+  // das gruppierte Zuordnen (mehrere Belege gegen eine Bankzeile).
+  let cardCandidates: { id: string; label: string; amount: number }[] = [];
+  if (hasDebits) {
+    const { data: cc } = await supabase
+      .from("incoming_document")
+      .select("id, doc_number, doc_date, open_amount, supplier_name, payment_method")
+      .in("payment_method", ["card", "paypal"])
+      .in("payment_status", ["open", "partly_paid"])
+      .gt("open_amount", 0)
+      .order("doc_date", { ascending: false })
+      .limit(300);
+    cardCandidates = (cc ?? []).map((d) => ({
+      id: d.id,
+      amount: d.open_amount ?? 0,
+      label:
+        `${d.payment_method === "card" ? "💳" : "🅿️"} ${fmtDate(d.doc_date)} · ` +
+        `${d.doc_number ?? "?"} — ${d.supplier_name ?? "?"} — ${fmtEur(d.open_amount)}`,
+    }));
+  }
+
   const total = count ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const href = (p: number) => {
@@ -474,6 +497,9 @@ export default async function BankPage({
                   (side === "kreditor" ? "ER-Nr./Lieferant" : "Rg-Nr./Kunde")
                 }
               />
+              {side === "kreditor" && cardCandidates.length > 0 && (
+                <GroupMatchIncomingForm txId={tx.id} targetAmount={remaining} candidates={cardCandidates} />
+              )}
               <SpecialMatchForm
                 txId={tx.id}
                 remaining={remaining}

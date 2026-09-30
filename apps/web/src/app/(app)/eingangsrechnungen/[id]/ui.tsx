@@ -198,6 +198,14 @@ export function ReviewForm({
         <F name="doc_number" label="Belegnummer" w={200} />
         <F name="doc_date" label="Belegdatum" type="date" w={160} />
         <F name="service_date" label="Leistungsdatum" type="date" w={160} />
+        <div className="field" style={{ width: 150 }}>
+          <label htmlFor="payment_method">Zahlart</label>
+          <select id="payment_method" name="payment_method" defaultValue={v("payment_method") || ""}>
+            <option value="">Überweisung/Lastschrift</option>
+            <option value="card">Kreditkarte</option>
+            <option value="paypal">PayPal</option>
+          </select>
+        </div>
       </div>
       <div style={{ display: "flex", gap: 12 }}>
         <F name="net_amount" label="Netto" w={140} />
