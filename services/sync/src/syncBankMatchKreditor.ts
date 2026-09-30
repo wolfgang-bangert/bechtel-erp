@@ -102,7 +102,7 @@ export async function syncBankMatchKreditor(opts: Options = {}) {
   const rows: Row[] = [];
   const matchedTxn = new Set<string>();
   const usedDocs = new Set<string>();
-  const stats = { number: 0, supplier: 0, advice: 0 };
+  const stats = { number: 0, supplier: 0, advice: 0, verrechnung: 0 };
 
   for (const tx of txns) {
     if (tx.amount >= 0) continue; // nur Abgänge
@@ -172,6 +172,63 @@ export async function syncBankMatchKreditor(opts: Options = {}) {
         matchedTxn.add(tx.id);
         stats.advice += 1;
       }
+    }
+  }
+
+  // Tier 4: eingehende Verrechnungs-/Rückzahlung - manche Lieferanten stellen
+  // pro Vorgang sowohl eine Rechnung (z.B. Abholung) als auch eine Gutschrift
+  // (z.B. Rohstoffwert) und überweisen nur die Differenz zu unseren Gunsten
+  // (Beispiel: Degenkolbe Recycling - Abholrechnung + Altpapier-Gutschrift).
+  // Offene Rechnungen+Gutschriften desselben Lieferanten werden dafür
+  // gruppiert; passt die Summe (Gutschriften minus Rechnungen) exakt zu einer
+  // eingehenden Zahlung dieses Lieferanten, werden alle gemeinsam verbucht.
+  const groupKey = (d: Doc) => d.supplier_organization_id ?? `name:${normName(d.supplier_name)}`;
+  const openGroups = new Map<string, Doc[]>();
+  for (const d of open) {
+    if (usedDocs.has(d.id)) continue;
+    const k = groupKey(d);
+    const arr = openGroups.get(k);
+    if (arr) arr.push(d);
+    else openGroups.set(k, [d]);
+  }
+  const supplierNameOf = (d: Doc) =>
+    normName(d.supplier_name) || normName(orgName.get(d.supplier_organization_id ?? "") ?? "");
+
+  for (const tx of txns) {
+    if (tx.amount <= 0 || matchedTxn.has(tx.id)) continue; // nur eingehende, noch unzugeordnete Zahlungen
+    const received = r2(tx.amount);
+    const cpIban = normIban(tx.counterparty_iban);
+    const cpName = normName(tx.counterparty_name);
+
+    for (const group of openGroups.values()) {
+      if (group.some((d) => usedDocs.has(d.id))) continue;
+      const matchesSupplier = group.some((d) => {
+        if (cpIban && (normIban(d.supplier_iban) === cpIban || normIban(d.payee_iban) === cpIban)) return true;
+        const dn = supplierNameOf(d);
+        return cpName.length >= 5 && dn.length >= 5 && (dn.includes(cpName) || cpName.includes(dn));
+      });
+      if (!matchesSupplier) continue;
+
+      const net = r2(
+        group.reduce(
+          (s, d) => s + (d.doc_type === "credit_note" ? 1 : -1) * (d.open_amount ?? d.gross_amount ?? 0),
+          0,
+        ),
+      );
+      if (net <= 0 || Math.abs(net - received) > 0.02) continue;
+
+      for (const d of group) {
+        const amt = d.open_amount ?? d.gross_amount ?? 0;
+        rows.push({
+          bank_transaction_id: tx.id,
+          incoming_document_id: d.id,
+          amount: r2(d.doc_type === "credit_note" ? amt : -amt),
+        });
+        usedDocs.add(d.id);
+      }
+      matchedTxn.add(tx.id);
+      stats.verrechnung += 1;
+      break;
     }
   }
 
