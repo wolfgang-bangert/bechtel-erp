@@ -8,6 +8,7 @@
  */
 import { supabase } from "./supabase";
 import { fintsPull } from "./fints";
+import { extractIncoming } from "./extractIncoming";
 
 /** Gleiche Kette wie CLI "portal:pull": neue Aufträge holen, offene
  *  aktualisieren (Status inkl. FINISHED), dann auflösen + Jobs erzeugen. */
@@ -59,6 +60,11 @@ export async function processSyncRequests() {
           break;
         case "portal:pull":
           result = await portalPullFull();
+          break;
+        case "incoming:extract":
+          // Manueller Beleg-Upload auf /eingangsrechnungen (params.limit
+          // deckt auch mehrere per Split neu entstandene Teil-Dokumente ab).
+          result = await extractIncoming({ limit: (req.params as { limit?: number }).limit ?? 50 });
           break;
         default:
           throw new Error(`unbekannter job: ${req.job}`);

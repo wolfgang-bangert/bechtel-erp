@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
+import { UploadForm } from "./UploadForm";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,10 @@ export default async function EingangsrechnungenPage({
         Aus dem Postfach <code>rechnungen@bechtel-druck.de</code>, per KI
         vorerfasst. Prüfen → kontieren → für DATEV freigeben.
       </p>
+
+      <div className="toolbar" style={{ marginBottom: 14 }}>
+        <UploadForm />
+      </div>
 
       <form className="toolbar" method="get">
         <select name="status" defaultValue={status}>
