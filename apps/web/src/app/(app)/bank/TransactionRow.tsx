@@ -179,26 +179,32 @@ export type BankRow = {
  *  Detailansicht heraus zur nächsten/vorherigen Zeile weiterblättern statt
  *  schließen + die nächste Zeile erneut anklicken zu müssen. */
 export function BankTransactionsBody({ rows }: { rows: BankRow[] }) {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  // Nach Speichern (z.B. Verknüpfen im Popup) läuft revalidatePath("/bank")
+  // und "rows" wird neu aus dem Server geladen - verschwindet die gerade
+  // bearbeitete Zeile dabei aus der (ggf. gefilterten) Liste, verschieben
+  // sich die Indizes aller folgenden Zeilen. Ein reiner Index-State hätte
+  // danach eine andere Zeile geöffnet gehalten - daher über die stabile
+  // Transaktions-ID (key) verfolgen, nicht über die Position.
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const openIndex = openKey != null ? rows.findIndex((r) => r.key === openKey) : -1;
+  const current = openIndex >= 0 ? rows[openIndex] : null;
 
   useEffect(() => {
-    if (openIndex == null) return;
+    if (openIndex < 0) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpenIndex(null);
-      else if (e.key === "ArrowRight") setOpenIndex((i) => (i != null && i < rows.length - 1 ? i + 1 : i));
-      else if (e.key === "ArrowLeft") setOpenIndex((i) => (i != null && i > 0 ? i - 1 : i));
+      if (e.key === "Escape") setOpenKey(null);
+      else if (e.key === "ArrowRight" && openIndex < rows.length - 1) setOpenKey(rows[openIndex + 1].key);
+      else if (e.key === "ArrowLeft" && openIndex > 0) setOpenKey(rows[openIndex - 1].key);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [openIndex, rows.length]);
-
-  const current = openIndex != null ? rows[openIndex] : null;
+  }, [openIndex, rows]);
 
   return (
     <>
       <tbody>
-        {rows.map((r, i) => (
-          <tr key={r.key} onClick={() => setOpenIndex(i)} style={{ cursor: "pointer" }}>
+        {rows.map((r) => (
+          <tr key={r.key} onClick={() => setOpenKey(r.key)} style={{ cursor: "pointer" }}>
             {r.cols.map((c, ci) => (
               <td key={ci}>{c}</td>
             ))}
@@ -213,10 +219,9 @@ export function BankTransactionsBody({ rows }: { rows: BankRow[] }) {
         )}
       </tbody>
       {current &&
-        openIndex != null &&
         createPortal(
           <div
-            onClick={() => setOpenIndex(null)}
+            onClick={() => setOpenKey(null)}
             style={{
               position: "fixed",
               inset: 0,
@@ -250,7 +255,7 @@ export function BankTransactionsBody({ rows }: { rows: BankRow[] }) {
                     type="button"
                     className="ghost"
                     disabled={openIndex === 0}
-                    onClick={() => setOpenIndex((i) => (i != null ? i - 1 : i))}
+                    onClick={() => openIndex > 0 && setOpenKey(rows[openIndex - 1].key)}
                     style={{ padding: "5px 10px" }}
                   >
                     ← vorherige
@@ -262,12 +267,12 @@ export function BankTransactionsBody({ rows }: { rows: BankRow[] }) {
                     type="button"
                     className="ghost"
                     disabled={openIndex === rows.length - 1}
-                    onClick={() => setOpenIndex((i) => (i != null ? i + 1 : i))}
+                    onClick={() => openIndex < rows.length - 1 && setOpenKey(rows[openIndex + 1].key)}
                     style={{ padding: "5px 10px" }}
                   >
                     nächste →
                   </button>
-                  <button type="button" onClick={() => setOpenIndex(null)} style={{ padding: "5px 10px" }}>
+                  <button type="button" onClick={() => setOpenKey(null)} style={{ padding: "5px 10px" }}>
                     Schließen
                   </button>
                 </div>
