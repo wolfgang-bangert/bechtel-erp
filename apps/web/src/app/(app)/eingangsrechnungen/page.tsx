@@ -22,11 +22,12 @@ const HINT = new Set(["advice", "dunning"]);
 export default async function EingangsrechnungenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string; payment_method?: string }>;
 }) {
   const sp = await searchParams;
   const status = sp.status ?? "";
   const search = (sp.q ?? "").trim();
+  const paymentMethod = sp.payment_method ?? "";
   const isHint = HINT.has(status);
   const isAdvice = status === "advice";
   const isDunning = status === "dunning";
@@ -38,13 +39,14 @@ export default async function EingangsrechnungenPage({
   let query = supabase
     .from("incoming_document")
     .select(
-      "id, file_name, doc_number, doc_date, gross_amount, status, extraction_confidence, supplier_name, email_from, advice_reference, advice_debit_date",
+      "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, status, extraction_confidence, supplier_name, email_from, advice_reference, advice_debit_date",
       { count: "exact" },
     )
     .limit(200);
   if (status) query = query.eq("status", status);
   // Ohne Filter: Hinweisbelege raus aus der Rechnungs-Prüfliste.
   else query = query.not("status", "in", "(advice,dunning)");
+  if (paymentMethod) query = query.eq("payment_method", paymentMethod);
   if (search) {
     const like = `%${search.replace(/[%,]/g, "")}%`;
     query = query.or(`supplier_name.ilike.${like},email_from.ilike.${like}`);
@@ -58,6 +60,7 @@ export default async function EingangsrechnungenPage({
     const u = new URLSearchParams();
     if (status) u.set("status", status);
     if (search) u.set("q", search);
+    if (paymentMethod) u.set("payment_method", paymentMethod);
     u.set("sort", field);
     u.set("dir", sort === field && dir === "asc" ? "desc" : "asc");
     return `/eingangsrechnungen?${u.toString()}`;
@@ -89,10 +92,15 @@ export default async function EingangsrechnungenPage({
           ))}
         </select>
         <input name="q" defaultValue={search} placeholder="Lieferant, Absender…" style={{ minWidth: 220 }} />
+        <select name="payment_method" defaultValue={paymentMethod}>
+          <option value="">alle Zahlarten</option>
+          <option value="card">Kreditkarte</option>
+          <option value="paypal">PayPal</option>
+        </select>
         {sort !== "date" && <input type="hidden" name="sort" value={sort} />}
         {dir !== "desc" && <input type="hidden" name="dir" value={dir} />}
         <button type="submit">Filtern</button>
-        {(status || search) && <Link href="/eingangsrechnungen">zurücksetzen</Link>}
+        {(status || search || paymentMethod) && <Link href="/eingangsrechnungen">zurücksetzen</Link>}
         <span className="count">{count ?? 0} Belege</span>
         {!isAdvice && (adviceCount ?? 0) > 0 && (
           <Link className="count" href="/eingangsrechnungen?status=advice">
@@ -151,9 +159,19 @@ export default async function EingangsrechnungenPage({
                     {d.doc_number ?? d.file_name ?? d.id.slice(0, 8)}
                   </Link>
                 </td>
-                <td className="wrap">{d.supplier_name ?? d.email_from ?? "–"}</td>
+                <td className="wrap">
+                  {d.supplier_name ?? d.email_from ?? "–"}
+                  {d.payment_method && (
+                    <span className="count" title={d.payment_method === "card" ? "Kreditkarte" : "PayPal"}>
+                      {" "}
+                      {d.payment_method === "card" ? "💳" : "🅿️"}
+                    </span>
+                  )}
+                </td>
                 <td>{fmtDate(isAdvice ? d.advice_debit_date : d.doc_date)}</td>
-                <td style={{ textAlign: "right" }}>{fmtEur(d.gross_amount)}</td>
+                <td style={{ textAlign: "right" }} className={d.doc_type === "credit_note" ? "msg-ok" : undefined}>
+                  {fmtEur(d.doc_type === "credit_note" ? -Math.abs(d.gross_amount ?? 0) : d.gross_amount)}
+                </td>
                 <td className="wrap">
                   {isHint
                     ? (d.advice_reference ?? []).join(", ") || "–"

@@ -27,6 +27,7 @@ Extrahiere die Daten und antworte ausschließlich mit JSON, ohne Markdown, in ge
   "net_amount": number|null,    // Gesamt netto
   "tax_amount": number|null,    // Gesamt USt
   "gross_amount": number|null,  // Gesamt brutto / Zahlbetrag
+  "payment_method": "card" | "paypal" | null,  // siehe Regel unten
   "tax_breakdown": { "<satz in prozent>": <ust-betrag> },   // z.B. {"19": 12.34}
   "line_items": [
     { "position": number|null, "description": string, "quantity": number|null,
@@ -108,7 +109,14 @@ Regeln:
   (Kundenservice-Link wie amazon.de/contact-us, Layout/Bestellnummernformat,
   Domain in Absenderadresse). Dann marketplace = Name der Plattform (z.B.
   "Amazon") - der Drittanbieter bleibt trotzdem der eigentliche supplier.name
-  (Kreditor für die Buchhaltung). Sonst marketplace = null.`;
+  (Kreditor für die Buchhaltung). Sonst marketplace = null.
+- "payment_method": NUR setzen, wenn der Beleg selbst explizit eine Zahlung
+  per Kreditkarte ("Kreditkarte", "Kartenzahlung", "Visa", "Mastercard",
+  maskierte Kartennummer wie "**** 1234") oder per PayPal ("PayPal", "Bezahlt
+  mit PayPal") ausweist - dann "card" bzw. "paypal". Solche Beträge landen
+  nicht als Einzelzahlung auf dem Kontoauszug, sondern gebündelt in einer
+  Kreditkarten-/PayPal-Sammelabrechnung. Bei normaler Überweisung/Lastschrift
+  oder wenn nichts dazu erkennbar ist: payment_method = null.`;
 
 function parseJson(text: string): unknown {
   const start = text.indexOf("{");
@@ -176,6 +184,7 @@ type Extracted = {
   doc_type?: string;
   supplier?: { name?: string | null; vat_id?: string | null; iban?: string | null };
   marketplace?: string | null;
+  payment_method?: "card" | "paypal" | null;
   doc_number?: string | null;
   doc_date?: string | null;
   service_date?: string | null;
@@ -623,6 +632,7 @@ export async function extractIncoming(opts: Options = {}) {
           net_amount: isHint ? null : num(e.net_amount),
           tax_amount: isHint ? null : num(e.tax_amount),
           gross_amount: isHint ? hintAmount : num(e.gross_amount),
+          payment_method: isHint ? null : (e.payment_method ?? null),
           tax_breakdown: isHint ? null : (e.tax_breakdown ?? null),
           advice_debit_date: isAdvice ? date(e.advice?.debit_date) : null,
           advice_reference: isHint && refs.length ? refs : null,

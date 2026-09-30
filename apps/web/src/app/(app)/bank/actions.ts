@@ -419,3 +419,45 @@ export async function unmatchTransaction(formData: FormData): Promise<void> {
   }
   revalidateAll();
 }
+
+export type GroupMatchState = { ok?: boolean; error?: string };
+
+/** Mehrere Eingangsrechnungen auf einmal gegen eine Bankzeile buchen - für
+ *  Kreditkarten-/PayPal-Sammelabrechnungen: der Lieferant zahlt hier nicht
+ *  einzeln, die Bankzeile ist die Summe mehrerer Kartenbelege. Jeder
+ *  ausgewählte Beleg wird mit seinem eigenen offenen Betrag verknüpft, nicht
+ *  anteilig - welche Belege zusammengehören, wählt der Nutzer. */
+export async function matchMultipleIncoming(
+  _prev: GroupMatchState,
+  formData: FormData,
+): Promise<GroupMatchState> {
+  const txId = String(formData.get("tx_id") ?? "");
+  const docIds = formData.getAll("doc_ids").map(String).filter(Boolean);
+  if (!txId) return { error: "Umsatz fehlt." };
+  if (!docIds.length) return { error: "Mindestens einen Beleg auswählen." };
+
+  const supabase = await createClient();
+  const r = await remainingAmount(supabase, txId);
+  if ("error" in r) return r;
+
+  const { data: docs, error: de } = await supabase
+    .from("incoming_document")
+    .select("id, open_amount, gross_amount")
+    .in("id", docIds);
+  if (de) return { error: de.message };
+
+  for (const doc of docs ?? []) {
+    const amt = r2(doc.open_amount ?? doc.gross_amount ?? 0);
+    const { error: me } = await supabase.from("bank_transaction_match").insert({
+      bank_transaction_id: txId,
+      incoming_document_id: doc.id,
+      amount: amt,
+      auto: false,
+    });
+    if (me && me.code !== "23505") return { error: me.message };
+  }
+
+  await refreshMatchStatus(supabase, txId, r.tx.amount);
+  revalidateAll();
+  return { ok: true };
+}
