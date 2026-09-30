@@ -3,7 +3,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { putObject } from "@/lib/storage";
+import { putObject, signedGetUrl } from "@/lib/storage";
 
 export type SaveState = { ok?: boolean; error?: string; note?: string };
 
@@ -170,7 +170,12 @@ export async function saveIncoming(
   };
 }
 
-export type UploadIncomingState = { ok?: boolean; error?: string; count?: number };
+export type UploadIncomingState = {
+  ok?: boolean;
+  error?: string;
+  count?: number;
+  uploaded?: { file_name: string; url: string | null }[];
+};
 
 /**
  * Manueller Beleg-Upload - macht denselben ersten Schritt wie der Mailabruf
@@ -190,6 +195,7 @@ export async function uploadIncoming(
 
   const supabase = await createClient();
   let count = 0;
+  const uploaded: { file_name: string; url: string | null }[] = [];
   for (const file of files) {
     const bytes = Buffer.from(await file.arrayBuffer());
     const sha256 = createHash("sha256").update(bytes).digest("hex");
@@ -215,13 +221,17 @@ export async function uploadIncoming(
     });
     if (error) return { error: error.message };
     count += 1;
+    // Link zum Original-PDF, damit direkt nach dem Upload geprüft werden kann,
+    // ob die richtige Datei erfasst wurde - unabhängig davon, ob die KI-
+    // Extraktion (inkl. möglicher Sammel-PDF-Aufteilung) schon gelaufen ist.
+    uploaded.push({ file_name: file.name, url: await signedGetUrl(key, 1800) });
   }
 
   if (count > 0) {
     await supabase.from("sync_request").insert({ job: "incoming:extract", params: {} });
   }
   revalidatePath("/eingangsrechnungen");
-  return { ok: true, count };
+  return { ok: true, count, uploaded };
 }
 
 export async function setIncomingStatus(fd: FormData): Promise<void> {
