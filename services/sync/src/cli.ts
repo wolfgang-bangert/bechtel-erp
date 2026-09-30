@@ -23,6 +23,7 @@ import { syncInvoicePdfs } from "./syncInvoicePdfs";
 import { syncBankImport } from "./syncBankImport";
 import { syncBankMatch } from "./syncBankMatch";
 import { syncBankMatchKreditor } from "./syncBankMatchKreditor";
+import { syncEigenkontenUmbuchungen } from "./syncEigenkontenUmbuchung";
 import { exportDatevExtf } from "./datevExtf";
 import { syncInvoiceBookings, generateInvoiceBooking } from "./syncInvoiceBookings";
 import { exportDatevKreditor } from "./datevExtfKreditor";
@@ -188,6 +189,10 @@ async function main() {
       if (side === "soll" || side === "both") {
         console.log("Soll (eigene Zahlungen ↔ Eingangsrechnungen):");
         console.log(JSON.stringify(await syncBankMatchKreditor({ dryRun }), null, 1));
+      }
+      if (side === "both") {
+        console.log("Eigenkonten-Umbuchungen (Überträge zwischen eigenen Konten):");
+        console.log(JSON.stringify(await syncEigenkontenUmbuchungen({ dryRun }), null, 1));
       }
       break;
     }
