@@ -217,6 +217,53 @@ export function QuickMatchButton({
   );
 }
 
+/** Wie QuickMatchButton, aber für wiederkehrende Sachkonto-Buchungen ohne
+ *  Rechnung (Leasingraten, Miete, Bankgebühren, ...) - Vorschlag kommt aus
+ *  der BuchhaltungsButler-Historie (bank_ledger_rule) statt aus einer
+ *  Rechnungsnummer, bucht direkt gegen das gelernte Sachkonto. */
+export function QuickSpecialMatchButton({
+  txId,
+  ledgerAccount,
+  ledgerLabel,
+  amount,
+  note,
+}: {
+  txId: string;
+  ledgerAccount: string;
+  ledgerLabel: string;
+  amount: number;
+  note?: string | null;
+}) {
+  const [state, action, pending] = useActionState(matchSpecial, empty);
+
+  return (
+    <form
+      action={action}
+      onClick={(e) => e.stopPropagation()}
+      style={{ display: "flex", gap: 6, alignItems: "center" }}
+    >
+      <input type="hidden" name="tx_id" value={txId} />
+      <input type="hidden" name="ledger_account" value={ledgerAccount} />
+      <input type="hidden" name="alloc_amount" value={amount} />
+      {note && <input type="hidden" name="note" value={note} />}
+      <button
+        type="submit"
+        className="ghost"
+        disabled={pending}
+        title={`Sachkonto-Vorschlag übernehmen: ${ledgerAccount} – ${ledgerLabel}`}
+        style={{ padding: "3px 8px", fontSize: 12, borderColor: "#3a7", color: "#3a7" }}
+      >
+        {pending ? "…" : `✓ ${ledgerAccount} – ${ledgerLabel}`}
+      </button>
+      {state.error && (
+        <span className="msg-err" style={{ fontSize: 11 }}>
+          {state.error}
+        </span>
+      )}
+    </form>
+  );
+}
+
 export type LedgerAccountOption = { value: string; label: string };
 
 /** Buchung gegen ein Sachkonto (Skonto, Durchlaufende Posten, ...) - oder,
