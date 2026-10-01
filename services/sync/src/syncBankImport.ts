@@ -83,8 +83,18 @@ export async function importBankEntries(
 
   for (const iban of ibans) byIban.set(iban, await ensureBankAccount(iban, bankNames[iban]));
 
+  // Dedup nicht nur gegen bereits in der DB vorhandene Zeilen, sondern auch
+  // innerhalb dieses Laufs selbst - liefert FinTS (z.B. bei überlappenden
+  // Abruf-Zeiträumen oder einem API-Glitch) dieselbe Buchung zweimal, hätten
+  // beide identischen Inhalt und damit denselben dedup_key, was den Insert
+  // des gesamten Batches zum Absturz bringt (nicht nur die eine Zeile).
+  const seenInBatch = new Set<string>();
   const rows = entries
-    .filter((e) => !existing.has(e.dedupKey))
+    .filter((e) => {
+      if (existing.has(e.dedupKey) || seenInBatch.has(e.dedupKey)) return false;
+      seenInBatch.add(e.dedupKey);
+      return true;
+    })
     .map((e) => ({
       bank_account_id: byIban.get(normIban(e.iban))!,
       booking_date: e.bookingDate,
@@ -103,7 +113,13 @@ export async function importBankEntries(
 
   let imported = 0;
   for (const part of chunk(rows, 300)) {
-    const { error } = await supabase.from("bank_transaction").insert(part);
+    // upsert + ignoreDuplicates statt insert: zusätzliche Absicherung gegen
+    // eine Race Condition mit einem parallel laufenden Import-Lauf (der
+    // Vorab-Check gegen "existing" ist sonst nicht atomar) - ein doppelter
+    // dedup_key wird dann übersprungen statt den ganzen Batch abzubrechen.
+    const { error } = await supabase
+      .from("bank_transaction")
+      .upsert(part, { onConflict: "dedup_key", ignoreDuplicates: true });
     if (error) throw new Error(`bank_transaction insert: ${error.message}`);
     imported += part.length;
   }
