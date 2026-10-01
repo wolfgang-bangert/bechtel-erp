@@ -870,3 +870,102 @@ a.bd-stat-card:hover {
 .bd-status.t-danger .bd-status-mark {
   background: var(--bd-danger);
 }
+
+/* ---- Bechtel-Druck-Bausteine (bd-*) - Pilot: Eingangsrechnungen Detail --- */
+.bd-card {
+  background: var(--bd-paper);
+  border: 1px solid var(--bd-line);
+  border-radius: var(--bd-radius-md);
+  padding: var(--bd-space-4);
+  margin-bottom: var(--bd-space-4);
+  font-family: var(--font-bd-sans);
+}
+.bd-card h2 {
+  font-family: var(--font-bd-display);
+  font-weight: 700;
+  font-size: 15px;
+  margin: 0 0 14px;
+}
+.bd-link {
+  color: var(--bd-rot);
+  text-decoration: underline;
+  font-size: 13px;
+  display: inline-block;
+}
+.bd-hint {
+  font-size: 12.5px;
+  color: var(--bd-ink-muted);
+  background: var(--bd-surface-100);
+  border-radius: var(--bd-radius-sm);
+  padding: 8px 10px;
+  margin-top: 10px;
+}
+.bd-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--bd-ink);
+  margin-top: 12px;
+}
+
+.detail-outer {
+  display: grid;
+  grid-template-columns: 1.6fr 0.4fr;
+  gap: var(--bd-space-4);
+  align-items: start;
+}
+.detail-form {
+  min-width: 0;
+}
+.bd-full {
+  grid-column: 1 / -1;
+}
+.detail-pdf {
+  position: sticky;
+  top: 12px;
+}
+.pdf-frame {
+  background: var(--bd-surface-100);
+  border: 1px solid var(--bd-line);
+  border-radius: var(--bd-radius-md);
+  overflow: hidden;
+  height: 46vh;
+  display: flex;
+  flex-direction: column;
+}
+.pdf-toolbar {
+  padding: 7px 10px;
+  font-size: 11px;
+  color: var(--bd-ink-muted);
+  background: var(--bd-paper);
+  border-bottom: 1px solid var(--bd-line);
+  font-family: ui-monospace, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pdf-frame iframe {
+  flex: 1;
+  border: none;
+  width: 100%;
+}
+.pdf-open-link {
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  color: var(--bd-rot);
+  margin-top: 8px;
+}
+
+@media (max-width: 960px) {
+  .detail-outer {
+    grid-template-columns: 1fr;
+  }
+  .detail-pdf {
+    position: static;
+  }
+  .pdf-frame {
+    height: 60vh;
+  }
+}

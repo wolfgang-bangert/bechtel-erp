@@ -1,5 +1,6 @@
 /** Deutlich abgegrenzter Block (runde Ecken + Rahmen) für Detailseiten -
- *  einheitliches Layout-Raster für Eingangsrechnungen/Rechnungen & Co. */
+ *  einheitliches Layout-Raster für Eingangsrechnungen/Rechnungen & Co.
+ *  Stil nach dem Bechtel-Druck-Designsystem (bd-card, siehe globals.css). */
 export function Card({
   title,
   children,
@@ -10,17 +11,8 @@ export function Card({
   style?: React.CSSProperties;
 }) {
   return (
-    <div
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius)",
-        padding: 16,
-        marginBottom: 16,
-        background: "var(--panel)",
-        ...style,
-      }}
-    >
-      {title && <h2 style={{ marginTop: 0, marginBottom: 12 }}>{title}</h2>}
+    <div className="bd-card" style={style}>
+      {title && <h2>{title}</h2>}
       {children}
     </div>
   );
