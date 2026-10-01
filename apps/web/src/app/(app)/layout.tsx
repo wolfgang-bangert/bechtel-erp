@@ -1,7 +1,92 @@
-import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
 import { signOut } from "../login/actions";
 import { NotificationBanner } from "./_notifications/NotificationBanner";
+import { Sidebar, type NavGroup } from "./_shared/Sidebar";
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Stammdaten",
+    links: [
+      { href: "/organisationen", label: "Organisationen" },
+      { href: "/darlehen", label: "Darlehen" },
+      { href: "/produkte", label: "Produkte" },
+    ],
+  },
+  {
+    label: "Vertrieb",
+    links: [
+      { href: "/auftraege", label: "Aufträge" },
+      { href: "/druckauftraege", label: "Druckaufträge" },
+      { href: "/rechnungen", label: "Rechnungen" },
+    ],
+  },
+  {
+    label: "onlineprinters",
+    links: [
+      { href: "/druck", label: "Dashboard" },
+      { href: "/druck/plan", label: "Belegungs-Board" },
+      { href: "/druck/flux-log", label: "flux-Log" },
+      { href: "/druck/materialuebersicht", label: "Materialübersicht" },
+      { href: "/einstellungen/batch-gruppierung", label: "Batch-Gruppierung" },
+      { href: "/abrechnung", label: "Wochen-Abrechnung" },
+      { href: "/einstellungen/opri-produkte", label: "Produkte / Flux" },
+      { href: "/einstellungen/opri-regeln", label: "Materialregeln" },
+      { href: "/einstellungen/standbogen", label: "Standbögen" },
+      { href: "/einstellungen/materialkatalog", label: "Materialkatalog" },
+      { href: "/einstellungen/preislisten", label: "Preislisten" },
+    ],
+  },
+  {
+    label: "Buchhaltung",
+    links: [
+      { href: "/offene-posten", label: "Offene Posten" },
+      { href: "/eingangsrechnungen", label: "Eingangsrechnungen" },
+      { href: "/bank", label: "Bank" },
+      { href: "/lohnbuchungen", label: "Lohnbuchungen" },
+      { href: "/datev-vorschau", label: "DATEV-Vorschau" },
+    ],
+  },
+  {
+    label: "Versand",
+    links: [
+      { href: "/versand", label: "Sendungen" },
+      { href: "/versand/vergleich", label: "Frachtpreis-Vergleich" },
+    ],
+  },
+  {
+    label: "Werkzeuge",
+    links: [
+      { href: "/werkzeuge/pdf-kombinieren", label: "PDF: Seiten nebeneinander" },
+      { href: "/werkzeuge/pdf-seiten-verwalten", label: "PDF: Seiten verwalten" },
+      { href: "/werkzeuge/preislisten-analyse", label: "Preislisten-Analyse" },
+    ],
+  },
+  {
+    label: "Einstellungen",
+    links: [
+      { href: "/einstellungen", label: "Übersicht" },
+      { href: "/einstellungen/sachkonten", label: "Sachkonten" },
+      { href: "/einstellungen/steuerschluessel", label: "Steuerschlüssel" },
+      { href: "/einstellungen/kostenstellen", label: "Kostenstellen" },
+      { href: "/einstellungen/bank-regeln", label: "Bank-Sachkonto-Regeln" },
+      { href: "/einstellungen/vorkontierung", label: "Vorkontierung" },
+      { href: "/einstellungen/formate", label: "Formate & Bögen" },
+      { href: "/einstellungen/maschinen", label: "Maschinen" },
+      { href: "/einstellungen/faehigkeiten", label: "Fähigkeiten" },
+      { href: "/einstellungen/vernutzung", label: "Vernutzung" },
+      { href: "/einstellungen/wire-o-durchmesser", label: "Wire-O Durchmesser" },
+      { href: "/einstellungen/frachtpreise", label: "Frachtpreise" },
+      { href: "/einstellungen/versandartikel", label: "Versandartikel" },
+      { href: "/einstellungen/ip-adressen", label: "IP-Adressen" },
+      { href: "/einstellungen/flux-webhooks", label: "flux-Webhooks" },
+      { href: "/einstellungen/packmittel", label: "Kartonagen" },
+      { href: "/einstellungen/packregeln", label: "Kartonregeln" },
+      { href: "/einstellungen/nummernkreise", label: "Nummernkreise" },
+      { href: "/einstellungen/firmenprofil", label: "Firmenprofil" },
+      { href: "/einstellungen/mitarbeiter", label: "Mitarbeiter" },
+    ],
+  },
+];
 
 export default async function AppLayout({
   children,
@@ -12,89 +97,12 @@ export default async function AppLayout({
 
   return (
     <div className="shell">
-      <nav className="sidebar">
-        <div className="brand">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-bechtel-light.svg" alt="Bechtel Druck" />
-          <span className="tool-name">werk</span>
-        </div>
-
-        <Link href="/start">Start</Link>
-
-        <div className="nav-group">Stammdaten</div>
-        <Link href="/organisationen">Organisationen</Link>
-        <Link href="/darlehen">Darlehen</Link>
-        <Link href="/produkte">Produkte</Link>
-
-        <div className="nav-group">Vertrieb</div>
-        <Link href="/auftraege">Aufträge</Link>
-        <Link href="/druckauftraege">Druckaufträge</Link>
-        <Link href="/rechnungen">Rechnungen</Link>
-
-        <div className="nav-group">onlineprinters</div>
-        <Link href="/druck">Dashboard</Link>
-        <Link href="/druck/plan">Belegungs-Board</Link>
-        <Link href="/druck/flux-log">flux-Log</Link>
-        <Link href="/druck/materialuebersicht">Materialübersicht</Link>
-        <Link href="/einstellungen/batch-gruppierung">Batch-Gruppierung</Link>
-        <Link href="/abrechnung">Wochen-Abrechnung</Link>
-        <Link href="/einstellungen/opri-produkte">Produkte / Flux</Link>
-        <Link href="/einstellungen/opri-regeln">Materialregeln</Link>
-        <Link href="/einstellungen/standbogen">Standbögen</Link>
-        <Link href="/einstellungen/materialkatalog">Materialkatalog</Link>
-        <Link href="/einstellungen/preislisten">Preislisten</Link>
-
-        <div className="nav-group">Buchhaltung</div>
-        <Link href="/offene-posten">Offene Posten</Link>
-        <Link href="/eingangsrechnungen">Eingangsrechnungen</Link>
-        <Link href="/bank">Bank</Link>
-        <Link href="/lohnbuchungen">Lohnbuchungen</Link>
-        <Link href="/datev-vorschau">DATEV-Vorschau</Link>
-
-        <div className="nav-group">Versand</div>
-        <Link href="/versand">Sendungen</Link>
-        <Link href="/versand/vergleich">Frachtpreis-Vergleich</Link>
-
-        <div className="nav-group">Werkzeuge</div>
-        <Link href="/werkzeuge/pdf-kombinieren">PDF: Seiten nebeneinander</Link>
-        <Link href="/werkzeuge/pdf-seiten-verwalten">PDF: Seiten verwalten</Link>
-        <Link href="/werkzeuge/preislisten-analyse">Preislisten-Analyse</Link>
-
-        <div className="nav-group">Einstellungen</div>
-        <Link href="/einstellungen">Übersicht</Link>
-        <Link href="/einstellungen/sachkonten">Sachkonten</Link>
-        <Link href="/einstellungen/steuerschluessel">Steuerschlüssel</Link>
-        <Link href="/einstellungen/kostenstellen">Kostenstellen</Link>
-        <Link href="/einstellungen/bank-regeln">Bank-Sachkonto-Regeln</Link>
-        <Link href="/einstellungen/vorkontierung">Vorkontierung</Link>
-        <Link href="/einstellungen/formate">Formate & Bögen</Link>
-        <Link href="/einstellungen/maschinen">Maschinen</Link>
-        <Link href="/einstellungen/faehigkeiten">Fähigkeiten</Link>
-        <Link href="/einstellungen/vernutzung">Vernutzung</Link>
-        <Link href="/einstellungen/wire-o-durchmesser">Wire-O Durchmesser</Link>
-        <Link href="/einstellungen/frachtpreise">Frachtpreise</Link>
-        <Link href="/einstellungen/versandartikel">Versandartikel</Link>
-        <Link href="/einstellungen/ip-adressen">IP-Adressen</Link>
-        <Link href="/einstellungen/flux-webhooks">flux-Webhooks</Link>
-        <Link href="/einstellungen/packmittel">Kartonagen</Link>
-        <Link href="/einstellungen/packregeln">Kartonregeln</Link>
-        <Link href="/einstellungen/nummernkreise">Nummernkreise</Link>
-        <Link href="/einstellungen/firmenprofil">Firmenprofil</Link>
-        <Link href="/einstellungen/mitarbeiter">Mitarbeiter</Link>
-
-        <div className="spacer" />
-
-        <div className="nav-group">{user.email}</div>
-        <div className="nav-group" style={{ paddingTop: 0 }}>
-          {roles.join(", ") || "keine Rolle"}
-        </div>
-        <Link href="/einstellungen/passwort">Passwort ändern</Link>
-        <form action={signOut}>
-          <button className="ghost" type="submit" style={{ width: "100%" }}>
-            Abmelden
-          </button>
-        </form>
-      </nav>
+      <Sidebar
+        groups={NAV_GROUPS}
+        userEmail={user.email ?? ""}
+        roles={roles.join(", ")}
+        signOutAction={signOut}
+      />
 
       <main className="content">
         <NotificationBanner />
