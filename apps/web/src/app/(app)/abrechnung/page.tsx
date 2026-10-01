@@ -17,11 +17,14 @@ function lastCompletedIsoWeek(): { jahr: number; kw: number } {
 
 export default async function AbrechnungListe() {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("abrechnung")
-    .select("id, jahr, kw, von, bis, status, summe_netto, positionen:abrechnung_position(count)")
-    .order("jahr", { ascending: false })
-    .order("kw", { ascending: false });
+  const [{ data }, { data: portal }] = await Promise.all([
+    supabase
+      .from("abrechnung")
+      .select("id, jahr, kw, von, bis, status, summe_netto, positionen:abrechnung_position(count)")
+      .order("jahr", { ascending: false })
+      .order("kw", { ascending: false }),
+    supabase.from("portal").select("organization_id").eq("code", "onlineprinters").maybeSingle(),
+  ]);
   const rows = (data ?? []) as unknown as {
     id: string;
     jahr: number;
@@ -34,6 +37,17 @@ export default async function AbrechnungListe() {
   }[];
   const { jahr, kw } = lastCompletedIsoWeek();
 
+  const { data: offeneRechnung } = portal?.organization_id
+    ? await supabase
+        .from("invoice")
+        .select("id, net_total, positionen:invoice_item(count)")
+        .eq("organization_id", portal.organization_id)
+        .eq("status", "offen")
+        .maybeSingle()
+    : { data: null };
+  const offeneRechnungZeilen = (offeneRechnung as unknown as { positionen: { count: number }[] } | null)
+    ?.positionen?.[0]?.count ?? 0;
+
   return (
     <>
       <h1>Wochen-Abrechnung OnlinePrinters</h1>
@@ -42,6 +56,17 @@ export default async function AbrechnungListe() {
         erfasst. „Nicht berechnen" / Reklamation erscheinen als 0-€-Zeile (Betrag manuell setzbar,
         z.B. Teilschuld).
       </p>
+
+      {offeneRechnung ? (
+        <div className="banner-info">
+          Offene Sammelrechnung Onlineprinters: {offeneRechnungZeilen}{" "}
+          {offeneRechnungZeilen === 1 ? "Woche" : "Wochen"}, {Number(offeneRechnung.net_total).toFixed(2)} € netto
+          {" — "}
+          <Link href={`/abrechnung/rechnung/${offeneRechnung.id}`}>ansehen / abschließen</Link>
+        </div>
+      ) : (
+        <p className="lead">Keine offene Sammelrechnung Onlineprinters.</p>
+      )}
 
       <ErstellenForm jahr={jahr} kw={kw} />
 

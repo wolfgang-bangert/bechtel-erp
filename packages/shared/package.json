@@ -21,10 +21,14 @@
     "./produkt/kennung": "./src/produkt/kennung.ts",
     "./material/bezug": "./src/material/bezug.ts",
     "./druck/spiralfarbe": "./src/druck/spiralfarbe.ts",
-    "./buchhaltung/erloeskonten": "./src/buchhaltung/erloeskonten.ts"
+    "./buchhaltung/erloeskonten": "./src/buchhaltung/erloeskonten.ts",
+    "./pdf/rechnung": "./src/pdf/rechnung.ts",
+    "./fakturierung/zugferd": "./src/fakturierung/zugferd.ts",
+    "./fakturierung/csv": "./src/fakturierung/csv.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",
+    "node-zugferd": "^0.1.1-beta.1",
     "pdf-lib": "^1.17.1"
   }
 }

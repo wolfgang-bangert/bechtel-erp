@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { erstelleAbrechnung, abrechnungNeuSummieren } from "@/lib/abrechnung/erstellen";
+import { wochePositionHinzufuegen } from "@/lib/fakturierung/sammelrechnung";
 
 export type State = { ok?: boolean; error?: string; note?: string };
 
@@ -65,6 +66,13 @@ export async function festschreibenAction(_p: State, fd: FormData): Promise<Stat
   const id = String(fd.get("id") ?? "");
   if (!id) return { error: "id fehlt" };
   const supabase = await createClient();
+
+  try {
+    await wochePositionHinzufuegen(supabase, id);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+
   const { error } = await supabase
     .from("abrechnung")
     .update({ status: "festgeschrieben", festgeschrieben_at: new Date().toISOString() })
@@ -72,5 +80,5 @@ export async function festschreibenAction(_p: State, fd: FormData): Promise<Stat
   if (error) return { error: error.message };
   revalidatePath(`/abrechnung/${id}`);
   revalidatePath("/abrechnung");
-  return { ok: true, note: "festgeschrieben" };
+  return { ok: true, note: "festgeschrieben, Position an Sammelrechnung angehängt" };
 }
