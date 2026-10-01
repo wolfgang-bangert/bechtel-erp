@@ -68,7 +68,7 @@ export async function saveIncoming(
       discount_date: s(fd, "discount_date"),
       discount_percent: n(fd, "discount_percent"),
       discount_amount: n(fd, "discount_amount"),
-      payee_differs: fd.get("payee_differs") != null,
+      payee_differs: fd.get("payee_differs") === "on",
       payee_name: s(fd, "payee_name"),
       payee_iban: s(fd, "payee_iban"),
       payee_reason: s(fd, "payee_reason"),

@@ -46,6 +46,7 @@ export default async function IncomingDetail({
     { data: taxCodes },
     { data: costCenters },
     { data: ledgerAccounts },
+    { data: organizations },
   ] = await Promise.all([
     supabase.from("incoming_document").select("*").eq("id", id).maybeSingle(),
     supabase
@@ -59,10 +60,29 @@ export default async function IncomingDetail({
     supabase.from("tax_code").select("id, code, name").eq("direction", "input").order("code"),
     supabase.from("cost_center").select("id, number, name").eq("is_active", true).order("number"),
     supabase.from("ledger_account").select("number, name").eq("is_active", true).order("number"),
+    supabase.from("organization").select("id, name").order("name"),
   ]);
 
   if (error) return <div className="banner-err">Fehler: {error.message}</div>;
   if (!doc) notFound();
+
+  // Verknüpfte Bankzeile (falls schon zugeordnet) - für den Hinweis im
+  // Zahlung-Block, direkt mit Link zur Bank-Übersicht dieses Kontos.
+  const { data: bankMatch } = await supabase
+    .from("bank_transaction_match")
+    .select(
+      "amount, bank_transaction:bank_transaction_id(id, booking_date, amount, counterparty_name, bank_account_id)",
+    )
+    .eq("incoming_document_id", id)
+    .limit(1)
+    .maybeSingle();
+  const linkedBankTx = (
+    bankMatch?.bank_transaction as unknown as
+      | { id: string; booking_date: string; amount: number; counterparty_name: string | null; bank_account_id: string }
+      | { id: string; booking_date: string; amount: number; counterparty_name: string | null; bank_account_id: string }[]
+      | null
+  ) ?? null;
+  const bankTxInfo = Array.isArray(linkedBankTx) ? (linkedBankTx[0] ?? null) : linkedBankTx;
 
   // Gelernte/von Hand gesetzte Vorkontierung für den Lieferanten (siehe
   // /einstellungen/vorkontierung) - nur ein Vorschlag fürs Formular, greift
@@ -231,7 +251,9 @@ export default async function IncomingDetail({
                 value: a.number,
                 label: `${a.number} – ${a.name}`,
               }))}
+              organizations={(organizations ?? []).map((o) => ({ value: o.id, label: o.name }))}
               suggestion={suggestion}
+              bankTx={bankTxInfo}
             />
           </div>
         )}
