@@ -15,7 +15,7 @@ export function UploadForm() {
   const formRef = useRef<HTMLFormElement>(null);
 
   return (
-    <div className="rows" style={{ gap: 6 }}>
+    <div className="rows" style={{ gap: 6, fontFamily: "var(--font-bd-sans)" }}>
       <form
         ref={formRef}
         action={async (fd) => {
@@ -24,8 +24,16 @@ export function UploadForm() {
         }}
         style={{ display: "flex", gap: 8, alignItems: "center" }}
       >
-        <input type="file" name="file" accept="application/pdf" multiple required style={{ width: 220 }} />
-        <button type="submit" disabled={pending}>
+        <input
+          className="bd-field-input"
+          type="file"
+          name="file"
+          accept="application/pdf"
+          multiple
+          required
+          style={{ width: 220 }}
+        />
+        <button className="bd-btn bd-btn-primary" type="submit" disabled={pending}>
           {pending ? "wird hochgeladen…" : "Beleg(e) hochladen"}
         </button>
         {state.ok && (

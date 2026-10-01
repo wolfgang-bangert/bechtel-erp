@@ -23,6 +23,36 @@
   --brand-red: #bf272f;
   --brand-orange: #f39315;
   --font-heading: var(--font-heading-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* ---- Designsystem "Bechtel Druck" (bd-*) - Pilot: Sidebar, Eingangs-
+     rechnungen. Eigene Tokens/Klassen statt die bestehenden zu überschreiben,
+     damit der Rest der App unverändert bleibt. Werte/Bausteine 1:1 aus dem
+     Designsystem-Artifact (Farbe/Schrift/Abstand/Radius, Button/DataTable/
+     StatusLabel). */
+  --bd-ink: #2b2b2a;
+  --bd-rot: #bf272f;
+  --bd-rot-dark: #a0212a;
+  --bd-orange: #f39315;
+  --bd-on-orange: var(--bd-ink);
+  --bd-paper: #ffffff;
+  --bd-surface-100: #f5f4f1;
+  --bd-ink-muted: #66645f;
+  --bd-line: #d9d7d2;
+  --bd-line-strong: #949089;
+  --bd-success: #2e7d32;
+  --bd-info: #1f6f8b;
+  --bd-warning: var(--bd-orange);
+  --bd-danger: var(--bd-rot);
+  --bd-focus: var(--bd-info);
+  --bd-space-1: 4px;
+  --bd-space-2: 8px;
+  --bd-space-4: 16px;
+  --bd-space-8: 32px;
+  --bd-radius-0: 0px;
+  --bd-radius-sm: 2px;
+  --bd-radius-md: 4px;
+  --font-bd-sans: var(--font-archivo), Arial, sans-serif;
+  --font-bd-display: var(--font-archivo-narrow), "Arial Narrow", Arial, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -41,6 +71,13 @@
     --due-1: #f2a53d;
     --due-2-4: #ff8a3d;
     --due-5plus: #ff6b6b;
+
+    --bd-ink: #f1efe9;
+    --bd-paper: #242321;
+    --bd-surface-100: #2d2b27;
+    --bd-ink-muted: #aba69c;
+    --bd-line: #45423b;
+    --bd-line-strong: #5c5850;
   }
 }
 
@@ -99,55 +136,123 @@ a:hover {
   min-height: 100dvh;
 }
 .sidebar {
-  background: var(--brand-anthrazit);
-  border-right: 1px solid var(--brand-anthrazit);
-  padding: 20px 14px;
+  background: var(--bd-ink);
+  border-right: 1px solid var(--bd-ink);
   display: flex;
   flex-direction: column;
-  gap: 4px;
   position: sticky;
   top: 0;
   height: 100dvh;
   overflow-y: auto;
+  font-family: var(--font-bd-sans);
+}
+.sb-accent {
+  height: 3px;
+  flex: none;
+}
+.sb-accent-top {
+  background: var(--bd-rot);
+}
+.sb-accent-bottom {
+  background: var(--bd-orange);
 }
 .sidebar .brand {
   display: block;
-  padding: 4px 8px 18px;
+  padding: 18px 16px 14px;
 }
 .sidebar .brand img {
   display: block;
-  height: 30px;
+  height: 28px;
   width: auto;
 }
 .sidebar .brand .tool-name {
   display: block;
-  margin-top: 6px;
-  font-size: 11px;
-  letter-spacing: 0.04em;
+  margin-top: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #9a9aa2;
+  color: #b7b3aa;
 }
-.sidebar .nav-group {
-  color: #9a9aa2;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 14px 8px 4px;
+.sidebar .nav-body {
+  flex: 1;
+  padding: 4px 10px 14px;
+  overflow-y: auto;
 }
-.sidebar a,
-.sidebar .nav-disabled {
+.sidebar .nav-pinned {
   display: block;
-  padding: 7px 8px;
-  border-radius: 6px;
-  color: #ececee;
+  padding: 7px 10px;
+  border-radius: var(--bd-radius-sm);
+  color: #f1efe9;
+  font-size: 13.5px;
+  font-weight: 600;
+  margin-bottom: 2px;
 }
-.sidebar a:hover {
+.sidebar .nav-pinned.active,
+.sidebar .nav-group-link.active {
+  background: rgba(255, 255, 255, 0.12);
+}
+.sidebar .nav-pinned:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
   text-decoration: none;
 }
+.sidebar details.nav-group {
+  margin-top: 2px;
+}
+.sidebar details.nav-group > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 9px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #a8a49a;
+  border-radius: var(--bd-radius-sm);
+}
+.sidebar details.nav-group > summary::-webkit-details-marker {
+  display: none;
+}
+.sidebar details.nav-group > summary:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.sidebar .nav-chev {
+  transition: transform 0.15s;
+  color: #807c73;
+  font-size: 10px;
+  flex: none;
+}
+.sidebar details.nav-group[open] > summary .nav-chev {
+  transform: rotate(90deg);
+}
+.sidebar .nav-group-link {
+  display: block;
+  padding: 7px 10px 7px 20px;
+  border-radius: var(--bd-radius-sm);
+  color: #d8d5cd;
+  font-size: 13.5px;
+}
+.sidebar .nav-group-link:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+  text-decoration: none;
+}
 .sidebar .nav-disabled {
+  display: block;
+  padding: 7px 10px 7px 20px;
   color: #6b6b73;
+  font-size: 13.5px;
+}
+.sidebar .nav-foot {
+  padding: 10px 16px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+  color: #93908a;
 }
 .sidebar button.ghost {
   color: #ececee;
@@ -562,4 +667,206 @@ table.data td.wrap {
 }
 details[open] > summary.gruppen-zeile .gruppen-chevron {
   transform: rotate(90deg);
+}
+
+/* ---- Bechtel-Druck-Bausteine (bd-*) - Pilot: Eingangsrechnungen ---------
+   Eigene Klassen statt der bestehenden (table.data, button, .toolbar, …),
+   damit der Rest der App unverändert bleibt. Werte/Verhalten 1:1 aus dem
+   Designsystem-Artifact (Button/DataTable/StatusLabel/TextField). */
+.bd-page h1 {
+  font-family: var(--font-bd-display);
+  font-weight: 700;
+  font-size: 25px;
+  margin: 0 0 4px;
+}
+.bd-page .bd-lead {
+  color: var(--bd-ink-muted);
+  margin: 0 0 20px;
+  font-size: 14px;
+  font-family: var(--font-bd-sans);
+}
+.bd-stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--bd-space-4);
+  margin-bottom: 20px;
+}
+.bd-stat-card {
+  background: var(--bd-paper);
+  border: 1px solid var(--bd-line);
+  border-radius: var(--bd-radius-md);
+  padding: var(--bd-space-4);
+  font-family: var(--font-bd-sans);
+}
+.bd-stat-card .n {
+  font-family: var(--font-bd-display);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--bd-ink);
+}
+.bd-stat-card .l {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--bd-ink-muted);
+  font-weight: 600;
+}
+.bd-stat-card.warn .n {
+  color: var(--bd-warning);
+}
+.bd-stat-card.danger .n {
+  color: var(--bd-danger);
+}
+.bd-stat-card.ok .n {
+  color: var(--bd-success);
+}
+a.bd-stat-card:hover {
+  border-color: var(--bd-line-strong);
+  text-decoration: none;
+}
+
+.bd-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--bd-space-4);
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  font-family: var(--font-bd-sans);
+}
+.bd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bd-field-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--bd-ink-muted);
+}
+.bd-field-input {
+  font-family: var(--font-bd-sans);
+  font-size: 14px;
+  color: var(--bd-ink);
+  background: var(--bd-paper);
+  border: 1px solid var(--bd-line-strong);
+  border-radius: var(--bd-radius-sm);
+  padding: 7px 10px;
+}
+.bd-field-input:focus {
+  outline: 2px solid var(--bd-focus);
+  outline-offset: 0;
+  border-color: var(--bd-focus);
+}
+.bd-spacer {
+  flex: 1;
+}
+.bd-btn {
+  font-family: var(--font-bd-sans);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: var(--bd-radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.bd-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.bd-btn-primary {
+  background: var(--bd-rot);
+  color: var(--bd-paper);
+}
+.bd-btn-primary:hover:not(:disabled) {
+  background: var(--bd-rot-dark);
+}
+.bd-btn-secondary {
+  background: var(--bd-paper);
+  color: var(--bd-ink);
+  border-color: var(--bd-line-strong);
+}
+.bd-btn-secondary:hover:not(:disabled) {
+  background: var(--bd-surface-100);
+}
+
+.bd-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: var(--font-bd-sans);
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--bd-ink);
+  background: var(--bd-paper);
+}
+.bd-table th {
+  text-align: left;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--bd-ink-muted);
+  background: var(--bd-surface-100);
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--bd-line-strong);
+  white-space: nowrap;
+}
+.bd-table th a {
+  color: inherit;
+}
+.bd-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--bd-line);
+  vertical-align: top;
+}
+.bd-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.bd-table tbody tr:hover {
+  background: var(--bd-surface-100);
+}
+.bd-table td.wrap {
+  white-space: normal;
+}
+.bd-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bd-sub {
+  display: block;
+  color: var(--bd-ink-muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.bd-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-bd-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bd-ink);
+  background: var(--bd-surface-100);
+  padding: 4px 9px;
+  border-radius: var(--bd-radius-sm);
+  white-space: nowrap;
+}
+.bd-status-mark {
+  width: 7px;
+  height: 7px;
+  flex: none;
+}
+.bd-status.t-neutral .bd-status-mark {
+  background: var(--bd-ink-muted);
+}
+.bd-status.t-success .bd-status-mark {
+  background: var(--bd-success);
+}
+.bd-status.t-info .bd-status-mark {
+  background: var(--bd-info);
+}
+.bd-status.t-warning .bd-status-mark {
+  background: var(--bd-warning);
+}
+.bd-status.t-danger .bd-status-mark {
+  background: var(--bd-danger);
 }
