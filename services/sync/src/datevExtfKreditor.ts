@@ -24,6 +24,7 @@ type Item = {
   ledger_account: string | null;
   tax_code_id: string | null;
   cost_center_id: string | null;
+  linked_document_id: string | null;
   incoming_document_allocation: Alloc[];
 };
 type Doc = {
@@ -87,7 +88,7 @@ export async function exportDatevKreditor(opts: Options) {
         "id, doc_type, status, doc_number, doc_date, net_amount, tax_amount, gross_amount, tax_breakdown, " +
           "ledger_account, tax_code_id, cost_center_id, pdf_storage_key, file_name, supplier_name, " +
           "organization:supplier_organization_id ( supplier_number ), " +
-          "incoming_document_item ( net_amount, tax_rate, ledger_account, tax_code_id, cost_center_id, " +
+          "incoming_document_item!incoming_document_item_incoming_document_id_fkey ( net_amount, tax_rate, ledger_account, tax_code_id, cost_center_id, linked_document_id, " +
           "incoming_document_allocation ( amount, cost_center_id ) )",
       )
       .gte("doc_date", from)
@@ -132,10 +133,22 @@ export async function exportDatevKreditor(opts: Options) {
     const dTaxKey = taxKeyById.get(d.tax_code_id ?? "") ?? "";
     const dKost = kostById.get(d.cost_center_id ?? "") ?? "";
 
-    // Buchungs-Einheiten aus Positionen + Aufteilungen bilden
+    // Buchungs-Einheiten aus Positionen + Aufteilungen bilden. Mit einem
+    // anderen Beleg verknüpfte Positionen (z.B. Kreditkartenzeile, deren
+    // Originalrechnung separat gebucht wird) werden nicht nochmal gebucht -
+    // sonst doppelt. Ihr Bruttoanteil wird vom Rechnungs-Gesamtbetrag
+    // abgezogen, bevor unten der Rundungsausgleich greift.
+    const allItems = d.incoming_document_item ?? [];
+    const items = allItems.filter((it) => !it.linked_document_id);
+    let excludedGross = 0;
+    for (const it of allItems) {
+      if (!it.linked_document_id) continue;
+      const rate = it.tax_rate != null ? Math.round(Number(it.tax_rate)) : dRate;
+      excludedGross = r2(excludedGross + r2((it.net_amount ?? 0) * (1 + rate / 100)));
+    }
+
     const units: Unit[] = [];
-    const items = d.incoming_document_item ?? [];
-    if (items.length) {
+    if (allItems.length) {
       for (const it of items) {
         const konto = it.ledger_account?.trim() || dKonto;
         const rate = it.tax_rate != null ? Math.round(Number(it.tax_rate)) : dRate;
@@ -182,9 +195,10 @@ export async function exportDatevKreditor(opts: Options) {
       else agg.set(k, { ...u, gross });
     }
     let lines = [...agg.values()].filter((u) => Math.abs(u.gross) >= 0.005);
-    // Rundungsdifferenz zum Rechnungs-Brutto auf die größte Zeile
+    // Rundungsdifferenz zum Rechnungs-Brutto (abzüglich verknüpfter,
+    // anderswo gebuchter Positionen) auf die größte Zeile
     const sum = r2(lines.reduce((s, u) => s + u.gross, 0));
-    const target = d.gross_amount ?? sum;
+    const target = r2((d.gross_amount ?? sum) - excludedGross);
     if (lines.length && Math.abs(sum - target) >= 0.01) {
       lines.sort((a, b) => b.gross - a.gross);
       lines[0].gross = r2(lines[0].gross + (target - sum));

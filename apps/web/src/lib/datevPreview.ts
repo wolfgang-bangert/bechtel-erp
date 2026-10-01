@@ -45,6 +45,7 @@ type Item = {
   ledger_account: string | null;
   tax_code_id: string | null;
   cost_center_id: string | null;
+  linked_document_id: string | null;
   incoming_document_allocation: Alloc[];
 };
 type IncDoc = {
@@ -80,7 +81,7 @@ export async function kreditorPreview(from: string, to: string): Promise<Preview
         "id, doc_type, status, doc_number, doc_date, net_amount, tax_amount, gross_amount, tax_breakdown, " +
           "ledger_account, tax_code_id, cost_center_id, supplier_name, " +
           "organization:supplier_organization_id ( supplier_number ), " +
-          "incoming_document_item ( net_amount, tax_rate, ledger_account, tax_code_id, cost_center_id, " +
+          "incoming_document_item!incoming_document_item_incoming_document_id_fkey ( net_amount, tax_rate, ledger_account, tax_code_id, cost_center_id, linked_document_id, " +
           "incoming_document_allocation ( amount, cost_center_id ) )",
       )
       .gte("doc_date", from)
@@ -119,9 +120,21 @@ export async function kreditorPreview(from: string, to: string): Promise<Preview
     const dKost = kostNum.get(d.cost_center_id ?? "") ?? "";
 
     type U = { net: number; konto: string; rate: number; bu: string; kost: string };
+    // Mit einem anderen Beleg verknüpfte Positionen (z.B. Kreditkartenzeile,
+    // deren Originalrechnung separat gebucht wird) nicht nochmal buchen -
+    // sonst doppelt. Ihr Bruttoanteil wird vom Rechnungs-Gesamtbetrag
+    // abgezogen, bevor unten der Rundungsausgleich greift.
+    const allItems = d.incoming_document_item ?? [];
+    const items = allItems.filter((it) => !it.linked_document_id);
+    let excludedGross = 0;
+    for (const it of allItems) {
+      if (!it.linked_document_id) continue;
+      const rate = it.tax_rate != null ? Math.round(Number(it.tax_rate)) : dRate;
+      excludedGross = r2(excludedGross + r2((it.net_amount ?? 0) * (1 + rate / 100)));
+    }
+
     const units: U[] = [];
-    const items = d.incoming_document_item ?? [];
-    if (items.length) {
+    if (allItems.length) {
       for (const it of items) {
         const konto = it.ledger_account?.trim() || dKonto;
         const rate = it.tax_rate != null ? Math.round(Number(it.tax_rate)) : dRate;
@@ -158,7 +171,7 @@ export async function kreditorPreview(from: string, to: string): Promise<Preview
     }
     const grouped = [...agg.values()].filter((u) => Math.abs(u.gross) >= 0.005);
     const sum = r2(grouped.reduce((s, u) => s + u.gross, 0));
-    const target = d.gross_amount ?? sum;
+    const target = r2((d.gross_amount ?? sum) - excludedGross);
     if (grouped.length && Math.abs(sum - target) >= 0.01) {
       grouped.sort((a, b) => b.gross - a.gross);
       grouped[0].gross = r2(grouped[0].gross + (target - sum));

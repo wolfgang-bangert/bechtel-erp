@@ -375,10 +375,12 @@ export function ReviewForm({
                         <td className="bd-num">{p.quantity ?? "–"}</td>
                         <td className="bd-num">{p.unit_price != null ? fmtEur(p.unit_price) : "–"}</td>
                         <td className="bd-num">{p.net_amount != null ? fmtEur(p.net_amount) : "–"}</td>
-                        <td className="bd-sub">{p.ledger_account || "(Vorgabe)"}</td>
+                        <td className="bd-sub">
+                          {p.linked_document_id ? "– (verknüpft)" : p.ledger_account || "(Vorgabe)"}
+                        </td>
                         <td className="bd-sub">
                           {p.linked_document_id && (
-                            <span title="Mit einem anderen Beleg verknüpft">🔗</span>
+                            <span title="Mit einem anderen Beleg verknüpft - wird nicht separat gebucht">🔗</span>
                           )}
                         </td>
                       </tr>
@@ -556,15 +558,21 @@ function PositionModal({
               />
             </div>
             {pos.linked_document_id && (
-              <a
-                className="bd-link"
-                style={{ marginTop: 4 }}
-                href={`/eingangsrechnungen/${pos.linked_document_id}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                verknüpften Beleg öffnen →
-              </a>
+              <>
+                <a
+                  className="bd-link"
+                  style={{ marginTop: 4 }}
+                  href={`/eingangsrechnungen/${pos.linked_document_id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  verknüpften Beleg öffnen →
+                </a>
+                <div className="bd-hint">
+                  Diese Position wird für DATEV/Buchung nicht separat gezählt (Sachkonto hier ohne
+                  Wirkung) - die Buchung läuft über den verknüpften Beleg.
+                </div>
+              </>
             )}
           </div>
 
