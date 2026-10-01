@@ -6,6 +6,7 @@ import {
   matchSpecial,
   uploadBeleg,
   matchMultipleIncoming,
+  updateMatchNote,
   type MatchState,
   type UploadState,
   type GroupMatchState,
@@ -300,7 +301,9 @@ export function SpecialMatchForm({
       </div>
       <input
         name="note"
-        placeholder={suggestion?.sample_postingtext ?? "Notiz (optional)"}
+        defaultValue={suggestion?.sample_postingtext ?? ""}
+        placeholder="Buchungstext (optional)"
+        title={suggestion ? "Vorschlag aus BuchhaltungsButler-Historie - änderbar" : undefined}
         style={{ width: 180 }}
       />
       <input
@@ -351,6 +354,45 @@ export function BelegUploadForm({ txId, remaining }: { txId: string; remaining: 
         >
           Beleg öffnen &amp; bearbeiten →
         </a>
+      )}
+    </form>
+  );
+}
+
+const emptyGroupMatch: GroupMatchState = {};
+
+/** Buchungstext einer bereits verbuchten Zeile direkt inline bearbeiten -
+ *  z.B. den aus der BuchhaltungsButler-Historie übernommenen Vorschlag
+ *  ergänzen/korrigieren, ohne die Buchung aufheben und neu anlegen zu
+ *  müssen. Speichert nur bei tatsächlicher Änderung (sonst kein Submit nötig). */
+export function NoteEditForm({ matchId, note }: { matchId: string; note: string | null }) {
+  const [state, action, pending] = useActionState(updateMatchNote, emptyGroupMatch);
+  const [value, setValue] = useState(note ?? "");
+  const changed = value !== (note ?? "");
+
+  return (
+    <form
+      action={action}
+      onClick={(e) => e.stopPropagation()}
+      style={{ display: "flex", gap: 4, alignItems: "center" }}
+    >
+      <input type="hidden" name="match_id" value={matchId} />
+      <input
+        name="note"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Buchungstext…"
+        style={{ width: 180, fontSize: 13 }}
+      />
+      {changed && (
+        <button type="submit" className="ghost" disabled={pending} style={{ padding: "2px 8px", fontSize: 12 }}>
+          {pending ? "…" : "✓"}
+        </button>
+      )}
+      {state.error && (
+        <span className="msg-err" style={{ fontSize: 11 }}>
+          {state.error}
+        </span>
       )}
     </form>
   );
