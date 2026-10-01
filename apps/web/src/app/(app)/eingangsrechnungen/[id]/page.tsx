@@ -29,6 +29,7 @@ type ItemRow = {
   ledger_account: string | null;
   tax_code_id: string | null;
   material_ref: string | null;
+  linked_document_id: string | null;
   incoming_document_allocation: AllocRow[];
 };
 
@@ -52,7 +53,7 @@ export default async function IncomingDetail({
     supabase
       .from("incoming_document_item")
       .select(
-        "id, position, description, quantity, unit_price, tax_rate, net_amount, ledger_account, tax_code_id, material_ref, " +
+        "id, position, description, quantity, unit_price, tax_rate, net_amount, ledger_account, tax_code_id, material_ref, linked_document_id, " +
           "incoming_document_allocation ( id, link_type, sales_order_id, material_ref, cost_center_id, amount, note, sales_order:sales_order_id ( order_number ) )",
       )
       .eq("incoming_document_id", id)
@@ -62,6 +63,17 @@ export default async function IncomingDetail({
     supabase.from("ledger_account").select("number, name").eq("is_active", true).order("number"),
     supabase.from("organization").select("id, name").order("name"),
   ]);
+
+  // Andere Belege zum Verknüpfen von Belegzeilen (z.B. SaaS-Anbieter-Rechnung,
+  // die zusätzlich auf einer Kreditkartenabrechnung auftaucht) - Bridge statt
+  // Doppelerfassung, siehe PositionModal "Verknüpfter Beleg".
+  const { data: otherDocsRaw } = await supabase
+    .from("incoming_document")
+    .select("id, doc_number, file_name, supplier_name, gross_amount, doc_date")
+    .neq("id", id)
+    .not("status", "in", "(advice,dunning)")
+    .order("doc_date", { ascending: false, nullsFirst: false })
+    .limit(500);
 
   if (error) return <div className="banner-err">Fehler: {error.message}</div>;
   if (!doc) notFound();
@@ -117,6 +129,7 @@ export default async function IncomingDetail({
     ledger_account: it.ledger_account ?? "",
     tax_code_id: it.tax_code_id ?? "",
     material_ref: it.material_ref ?? "",
+    linked_document_id: it.linked_document_id ?? "",
     allocations: (it.incoming_document_allocation ?? []).map((a) => ({
       id: a.id,
       link_type: (a.link_type as "sales_order" | "material" | "cost_center") ?? "sales_order",
@@ -251,6 +264,12 @@ export default async function IncomingDetail({
               label: `${a.number} – ${a.name}`,
             }))}
             organizations={(organizations ?? []).map((o) => ({ value: o.id, label: o.name }))}
+            documents={(otherDocsRaw ?? []).map((d) => ({
+              value: d.id,
+              label: `${d.doc_number ?? d.file_name ?? d.id.slice(0, 8)} · ${d.supplier_name ?? "–"} · ${
+                d.gross_amount != null ? `${Number(d.gross_amount).toFixed(2)} €` : "–"
+              }${d.doc_date ? ` · ${d.doc_date}` : ""}`,
+            }))}
             suggestion={suggestion}
             bankTx={bankTxInfo}
             pdfUrl={pdfUrl}

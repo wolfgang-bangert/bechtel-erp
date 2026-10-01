@@ -16,12 +16,18 @@ export function AccountPicker({
   onChange,
   accounts,
   placeholder = "— Konto wählen —",
+  title = "Sachkonto wählen",
+  searchPlaceholder = "Nummer oder Name suchen…",
+  emptyOptionLabel = "— kein Konto —",
 }: {
   name?: string;
   value: string;
   onChange: (v: string) => void;
   accounts: { value: string; label: string }[];
   placeholder?: string;
+  title?: string;
+  searchPlaceholder?: string;
+  emptyOptionLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -100,7 +106,7 @@ export function AccountPicker({
                 className="toolbar"
                 style={{ justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid var(--border)" }}
               >
-                <strong>Sachkonto wählen</strong>
+                <strong>{title}</strong>
                 <button type="button" onClick={() => setOpen(false)} style={{ padding: "5px 10px" }}>
                   Schließen
                 </button>
@@ -110,7 +116,7 @@ export function AccountPicker({
                   ref={searchRef}
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="Nummer oder Name suchen…"
+                  placeholder={searchPlaceholder}
                   style={{ width: "100%" }}
                 />
               </div>
@@ -123,7 +129,7 @@ export function AccountPicker({
                   }}
                   style={rowStyle(!value)}
                 >
-                  — kein Konto —
+                  {emptyOptionLabel}
                 </button>
                 {shown.map((a) => (
                   <button
