@@ -239,35 +239,25 @@ export default async function IncomingDetail({
 
       {doc.notes && <div className="banner-err">{doc.notes}</div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: pdfUrl ? "1.1fr 0.9fr" : "1fr", gap: 24 }}>
-        {!isHint && (
-          <div>
-            <ReviewForm
-              doc={doc as Record<string, unknown>}
-              items={items}
-              taxCodes={(taxCodes ?? []).map((t) => ({ id: t.id, label: `${t.code} – ${t.name}` }))}
-              costCenters={(costCenters ?? []).map((c) => ({ id: c.id, label: `${c.number} – ${c.name}` }))}
-              ledgerAccounts={(ledgerAccounts ?? []).map((a) => ({
-                value: a.number,
-                label: `${a.number} – ${a.name}`,
-              }))}
-              organizations={(organizations ?? []).map((o) => ({ value: o.id, label: o.name }))}
-              suggestion={suggestion}
-              bankTx={bankTxInfo}
-            />
-          </div>
-        )}
-
-        {pdfUrl && (
-          <div>
-            <iframe
-              src={pdfUrl}
-              style={{ width: "100%", height: "85vh", border: "1px solid var(--border)", borderRadius: 6, position: "sticky", top: 12 }}
-              title="Beleg-PDF"
-            />
-          </div>
-        )}
-      </div>
+      {!isHint && (
+        <div className="content-wide">
+          <ReviewForm
+            doc={doc as Record<string, unknown>}
+            items={items}
+            taxCodes={(taxCodes ?? []).map((t) => ({ id: t.id, label: `${t.code} – ${t.name}` }))}
+            costCenters={(costCenters ?? []).map((c) => ({ id: c.id, label: `${c.number} – ${c.name}` }))}
+            ledgerAccounts={(ledgerAccounts ?? []).map((a) => ({
+              value: a.number,
+              label: `${a.number} – ${a.name}`,
+            }))}
+            organizations={(organizations ?? []).map((o) => ({ value: o.id, label: o.name }))}
+            suggestion={suggestion}
+            bankTx={bankTxInfo}
+            pdfUrl={pdfUrl}
+            pdfLabel={doc.doc_number ?? doc.file_name ?? "Beleg.pdf"}
+          />
+        </div>
+      )}
     </>
   );
 }
