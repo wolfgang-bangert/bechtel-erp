@@ -10,6 +10,7 @@ import {
   QuickMatchButton,
   QuickSpecialMatchButton,
   GroupMatchIncomingForm,
+  NoteEditForm,
   type Candidate,
 } from "./ui";
 import { unmatchTransaction } from "./actions";
@@ -436,6 +437,7 @@ export default async function BankPage({
                   <thead>
                     <tr>
                       <th>Beleg</th>
+                      <th>Buchungstext</th>
                       <th>Gegenkonto</th>
                       <th style={{ textAlign: "right" }}>Betrag</th>
                       <th></th>
@@ -462,18 +464,12 @@ export default async function BankPage({
                         );
                       } else {
                         const attUrl = attachmentUrls.get(m.id);
-                        beleg = (
-                          <span>
-                            {m.note ?? "—"}
-                            {attUrl && (
-                              <>
-                                {" "}
-                                <a href={attUrl} target="_blank" rel="noreferrer">
-                                  📎 {m.attachment_file_name ?? "Beleg"}
-                                </a>
-                              </>
-                            )}
-                          </span>
+                        beleg = attUrl ? (
+                          <a href={attUrl} target="_blank" rel="noreferrer">
+                            📎 {m.attachment_file_name ?? "Beleg"}
+                          </a>
+                        ) : (
+                          <span className="count">—</span>
                         );
                       }
                       // Sachkonto hat Vorrang (z.B. Skonto zu einer
@@ -494,6 +490,9 @@ export default async function BankPage({
                         <tr key={m.id}>
                           <td>
                             {beleg} {m.auto && <span className="tag">auto</span>}
+                          </td>
+                          <td style={{ minWidth: 200 }}>
+                            <NoteEditForm matchId={m.id} note={m.note} />
                           </td>
                           <td className="count">{gegenkonto}</td>
                           <td style={{ textAlign: "right" }}>{fmtEur(m.amount)}</td>

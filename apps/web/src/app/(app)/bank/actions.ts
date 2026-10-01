@@ -461,3 +461,19 @@ export async function matchMultipleIncoming(
   revalidateAll();
   return { ok: true };
 }
+
+/** Buchungstext einer bereits verbuchten Zeile nachträglich ergänzen/
+ *  korrigieren - z.B. den aus der BuchhaltungsButler-Historie übernommenen
+ *  Vorschlag anpassen, wenn Details (Betreff, Zeitraum) nicht ganz passen. */
+export async function updateMatchNote(_prev: GroupMatchState, formData: FormData): Promise<GroupMatchState> {
+  const matchId = String(formData.get("match_id") ?? "");
+  if (!matchId) return { error: "Buchung fehlt." };
+  const note = String(formData.get("note") ?? "").trim() || null;
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("bank_transaction_match").update({ note }).eq("id", matchId);
+  if (error) return { error: error.message };
+
+  revalidateAll();
+  return { ok: true };
+}
