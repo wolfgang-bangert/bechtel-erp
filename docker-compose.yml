@@ -4,6 +4,7 @@
 #   caddy  – TLS-Terminierung + Reverse Proxy (werk.bechtel-druck.de)
 #   web    – Next.js (apps/web), nur intern auf :3000
 #   sync   – services/sync als Cron-Container (supercronic), ersetzt launchd
+#   vokabel-web – vokabel.werk (eigenes Repo, eigenes Image), nur intern auf :3000
 #
 # web/sync werden von GitHub Actions gebaut und nach ghcr.io gepusht
 # (.github/workflows/deploy.yml) - die VM lädt nur noch fertige Images:
@@ -63,6 +64,17 @@ services:
       - ./imports:/app/imports
       - ./logs:/app/logs
       - ./reports:/app/reports
+
+  # vokabel.werk: eigenständiges Projekt (eigenes Repo/Image/Supabase), läuft nur
+  # mit auf dieser VM. Image baut + pusht dessen eigene CI (vokabel.werk-Repo).
+  # Zum Umziehen: Service + Caddy-Block entfernen, Domain umhängen.
+  vokabel-web:
+    image: ghcr.io/wolfgang-bangert/vokabel.werk:latest
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Berlin
+    expose:
+      - "3000"
 
 volumes:
   caddy_data:
