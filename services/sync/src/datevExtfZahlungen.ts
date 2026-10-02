@@ -129,6 +129,9 @@ export async function exportDatevZahlungen(opts: Options) {
 
     const betrag = Math.abs(r2(m.amount));
     if (betrag < 0.005) continue;
+    // Von Hand gepflegter Buchungstext hat bei allen Zeilenarten Vorrang,
+    // sonst der automatisch aus Beleg/Partner gebaute Standardtext.
+    const manualText = m.note?.trim() ?? "";
     const sh = isEingang ? "S" : "H"; // Konto = Geldkonto
 
     if (m.ledger_account) {
@@ -144,7 +147,7 @@ export async function exportDatevZahlungen(opts: Options) {
       }
       const label =
         m.kind === "skonto" ? "Skonto" : m.kind === "doppelzahlung" ? "Durchlaufender Posten" : (m.note ?? "Sonderbuchung");
-      const text = clean(`${label} ${rgnr} ${partner}`.trim(), 60);
+      const text = clean(manualText || `${label} ${rgnr} ${partner}`.trim(), 60);
       const cells = new Array<string>(N_COLS).fill("");
       cells[0] = raw(amount(betrag));
       cells[1] = q(sh);
@@ -168,7 +171,10 @@ export async function exportDatevZahlungen(opts: Options) {
       skips.noRgNr += 1;
       continue;
     }
-    const text = clean(`${isEingang ? "Zahlungseingang" : "Zahlungsausgang"} ${rgnr} ${partner}`, 60);
+    const text = clean(
+      manualText || `${isEingang ? "Zahlungseingang" : "Zahlungsausgang"} ${rgnr} ${partner}`,
+      60,
+    );
     const cells = new Array<string>(N_COLS).fill("");
     cells[0] = raw(amount(betrag));
     cells[1] = q(sh);
