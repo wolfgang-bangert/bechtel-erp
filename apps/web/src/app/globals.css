@@ -1172,3 +1172,46 @@ a.bd-tab:hover {
   color: var(--bd-ink-muted);
   margin: 0 0 8px;
 }
+
+.bd-acc > summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  background: var(--bd-surface-100);
+  border: 1px solid var(--bd-line);
+  border-radius: var(--bd-radius-sm);
+  font-family: var(--font-bd-sans);
+  font-size: 14px;
+  list-style: none;
+}
+.bd-acc > summary::-webkit-details-marker {
+  display: none;
+}
+.bd-acc > summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--bd-ink-muted);
+  transition: transform 0.15s;
+}
+.bd-acc[open] > summary::before {
+  transform: rotate(90deg);
+}
+.bd-acc > summary:hover {
+  border-color: var(--bd-line-strong);
+}
+.bd-acc[open] {
+  margin-bottom: 14px;
+}
+.bd-acc > .table-scroll,
+.bd-acc > p {
+  margin-left: 4px;
+}
+.bd-acc-head {
+  display: flex;
+  gap: 16px;
+  padding: 6px 12px 6px 28px;
+  font-family: var(--font-bd-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--bd-ink-muted);
+}
