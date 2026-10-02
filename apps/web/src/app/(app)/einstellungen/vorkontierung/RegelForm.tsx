@@ -9,6 +9,7 @@ export type Regel = {
   organization_id: string;
   expense_account: string | null;
   revenue_account: string | null;
+  payment_method: string | null;
   note: string | null;
   is_active: boolean;
 };
@@ -76,6 +77,17 @@ export function RegelForm({
           accounts={ledgerAccounts}
           placeholder="— kein Erlöskonto —"
         />
+      </div>
+
+      <div className="field">
+        <label htmlFor="payment_method">Zahlart (immer, z.B. "WeWeb immer Kreditkarte")</label>
+        <select id="payment_method" name="payment_method" defaultValue={regel?.payment_method ?? ""}>
+          <option value="">— keine Vorgabe —</option>
+          <option value="card">Kreditkarte</option>
+          <option value="paypal">PayPal</option>
+          <option value="transfer">Überweisung</option>
+          <option value="direct_debit">Lastschrift</option>
+        </select>
       </div>
 
       <div className="field">

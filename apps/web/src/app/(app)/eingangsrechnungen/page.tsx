@@ -30,6 +30,13 @@ const STATUS_TONE: Record<string, "neutral" | "info" | "warning" | "success" | "
 // Hinweisbelege: keine zu buchenden Rechnungen, eigener Blick.
 const HINT = new Set(["advice", "dunning"]);
 
+const PAYMENT_LABEL: Record<string, string> = {
+  card: "Kreditkarte",
+  paypal: "PayPal",
+  transfer: "Überweisung",
+  direct_debit: "Lastschrift",
+};
+
 export default async function EingangsrechnungenPage({
   searchParams,
 }: {
@@ -144,6 +151,8 @@ export default async function EingangsrechnungenPage({
           <label className="bd-field-label">Zahlart</label>
           <select className="bd-field-input" name="payment_method" defaultValue={paymentMethod}>
             <option value="">alle Zahlarten</option>
+            <option value="transfer">Überweisung</option>
+            <option value="direct_debit">Lastschrift</option>
             <option value="card">Kreditkarte</option>
             <option value="paypal">PayPal</option>
           </select>
@@ -208,8 +217,8 @@ export default async function EingangsrechnungenPage({
                   <td className="wrap">
                     {d.supplier_name ?? d.email_from ?? "–"}
                     {d.payment_method && (
-                      <span className="bd-sub" title={d.payment_method === "card" ? "Kreditkarte" : "PayPal"}>
-                        {d.payment_method === "card" ? "Kreditkarte" : "PayPal"}
+                      <span className="bd-sub" title={PAYMENT_LABEL[d.payment_method] ?? d.payment_method}>
+                        {PAYMENT_LABEL[d.payment_method] ?? d.payment_method}
                       </span>
                     )}
                   </td>

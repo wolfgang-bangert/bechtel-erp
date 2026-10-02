@@ -73,7 +73,11 @@ export function ReviewForm({
   /** Aus der BuchhaltungsButler-Historie gelernte oder von Hand gesetzte
    *  Vorkontierung für den Lieferanten (siehe /einstellungen/vorkontierung)
    *  - nur eine Vorbelegung, greift nur wenn noch kein eigenes Konto gesetzt. */
-  suggestion?: { ledger_account: string; tax_code_id: string | null } | null;
+  suggestion?: {
+    ledger_account: string | null;
+    tax_code_id: string | null;
+    payment_method: string | null;
+  } | null;
   /** Bereits mit diesem Beleg verknüpfte Bankzeile (falls vorhanden). */
   bankTx?: { id: string; booking_date: string; amount: number; counterparty_name: string | null; bank_account_id: string } | null;
   /** Signierte PDF-URL für die Vorschau rechts neben den oberen Karten. */
@@ -209,12 +213,19 @@ export function ReviewForm({
                   className="bd-field-input"
                   id="payment_method"
                   name="payment_method"
-                  defaultValue={v("payment_method") || ""}
+                  defaultValue={v("payment_method") || suggestion?.payment_method || ""}
                 >
-                  <option value="">Überweisung/Lastschrift</option>
+                  <option value="">— unbekannt —</option>
+                  <option value="transfer">Überweisung</option>
+                  <option value="direct_debit">Lastschrift</option>
                   <option value="card">Kreditkarte</option>
                   <option value="paypal">PayPal</option>
                 </select>
+                {!v("payment_method") && suggestion?.payment_method && (
+                  <div className="bd-hint">
+                    Vorschlag aus <a href="/einstellungen/vorkontierung">Vorkontierung</a> übernommen.
+                  </div>
+                )}
               </div>
               <F name="supplier_iban" label="IBAN (laut Beleg)" w={260} />
               <F name="discount_date" label="Skonto-Termin" type="date" w={150} />
@@ -269,10 +280,31 @@ export function ReviewForm({
               <F name="service_date" label="Leistungsdatum" type="date" w={160} />
             </div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
-              <F name="net_amount" label="Netto" w={140} />
-              <F name="tax_amount" label="USt" w={140} />
-              <F name="gross_amount" label="Brutto" w={140} />
+              <F name="net_amount" label="Netto (EUR)" w={140} />
+              <F name="tax_amount" label="USt (EUR)" w={140} />
+              <F name="gross_amount" label="Brutto (EUR)" w={140} />
+              <div className="bd-field" style={{ width: 90 }}>
+                <label className="bd-field-label" htmlFor="currency">Währung lt. Beleg</label>
+                <input
+                  className="bd-field-input"
+                  id="currency"
+                  name="currency"
+                  defaultValue={v("currency") || "EUR"}
+                  maxLength={3}
+                  style={{ textTransform: "uppercase" }}
+                />
+              </div>
+              {v("currency") && v("currency") !== "EUR" && (
+                <F name="fx_gross_amount" label={`Original-Brutto (${v("currency")})`} w={160} />
+              )}
             </div>
+            {v("currency") && v("currency") !== "EUR" && (
+              <p className="bd-hint">
+                Netto/USt/Brutto sind die tatsächlich in EUR gebuchten Beträge (z.B. vom
+                Kontoauszug/der Kreditkartenabrechnung) — Original-Brutto ist nur der auf dem
+                Beleg selbst ausgewiesene Fremdwährungsbetrag zur Anzeige.
+              </p>
+            )}
           </Card>
 
           <Card title="Kontierung (Vorgabe)">
