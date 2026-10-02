@@ -16,17 +16,6 @@ const STATUS: Record<string, string> = {
   dunning: "Mahnung",
 };
 
-const STATUS_TONE: Record<string, "neutral" | "info" | "warning" | "success" | "danger"> = {
-  captured: "neutral",
-  extracted: "info",
-  reviewed: "warning",
-  booked: "success",
-  exported: "success",
-  rejected: "danger",
-  advice: "info",
-  dunning: "danger",
-};
-
 // Hinweisbelege: keine zu buchenden Rechnungen, eigener Blick.
 const HINT = new Set(["advice", "dunning"]);
 
@@ -57,7 +46,7 @@ export default async function EingangsrechnungenPage({
   let query = supabase
     .from("incoming_document")
     .select(
-      "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, status, extraction_confidence, supplier_name, email_from, advice_reference, advice_debit_date",
+      "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, paid_total, status, supplier_name, email_from, advice_reference, advice_debit_date",
       { count: "exact" },
     )
     .limit(200);
@@ -200,13 +189,14 @@ export default async function EingangsrechnungenPage({
               <th className="bd-num">
                 {isAdvice ? "Lastschrift" : isDunning ? "offen" : "Brutto"}
               </th>
-              <th>{isHint ? "bezieht sich auf" : "Status"}</th>
-              <th>{isHint ? "" : "Konf."}</th>
+              <th>{isHint ? "bezieht sich auf" : "bezahlt"}</th>
+              <th>{isHint ? "" : "gebucht"}</th>
             </tr>
           </thead>
           <tbody>
             {(data ?? []).map((d) => {
-              const tone = isHint ? "info" : (STATUS_TONE[d.status] ?? "neutral");
+              const isPaid = d.payment_status === "paid" || d.payment_status === "overpaid";
+              const isBooked = d.status === "booked" || d.status === "exported";
               return (
                 <tr key={d.id}>
                   <td className="wrap">
@@ -214,14 +204,7 @@ export default async function EingangsrechnungenPage({
                       {d.doc_number ?? d.file_name ?? d.id.slice(0, 8)}
                     </Link>
                   </td>
-                  <td className="wrap">
-                    {d.supplier_name ?? d.email_from ?? "–"}
-                    {d.payment_method && (
-                      <span className="bd-sub" title={PAYMENT_LABEL[d.payment_method] ?? d.payment_method}>
-                        {PAYMENT_LABEL[d.payment_method] ?? d.payment_method}
-                      </span>
-                    )}
-                  </td>
+                  <td className="wrap">{d.supplier_name ?? d.email_from ?? "–"}</td>
                   <td>{fmtDate(isAdvice ? d.advice_debit_date : d.doc_date)}</td>
                   <td className="bd-num">
                     {fmtEur(d.doc_type === "credit_note" ? -Math.abs(d.gross_amount ?? 0) : d.gross_amount)}
@@ -229,19 +212,32 @@ export default async function EingangsrechnungenPage({
                   <td className="wrap">
                     {isHint ? (
                       (d.advice_reference ?? []).join(", ") || "–"
-                    ) : (
-                      <span className={`bd-status t-${tone}`}>
+                    ) : isPaid ? (
+                      <span className="bd-status t-success">
                         <span className="bd-status-mark" />
-                        {STATUS[d.status] ?? d.status}
+                        bezahlt
+                      </span>
+                    ) : (
+                      <span className="bd-sub">
+                        {d.payment_method
+                          ? (PAYMENT_LABEL[d.payment_method] ?? d.payment_method)
+                          : (d.paid_total ?? 0) > 0
+                            ? "–"
+                            : "Lastschrift"}
                       </span>
                     )}
                   </td>
                   <td>
-                    {isHint
-                      ? ""
-                      : d.extraction_confidence != null
-                        ? `${Math.round(d.extraction_confidence * 100)} %`
-                        : "–"}
+                    {isHint ? (
+                      ""
+                    ) : isBooked ? (
+                      <span className="bd-status t-success">
+                        <span className="bd-status-mark" />
+                        gebucht
+                      </span>
+                    ) : (
+                      "–"
+                    )}
                   </td>
                 </tr>
               );
