@@ -15,11 +15,11 @@ export function TauschUmschlagInhaltButton({ id, getauscht }: { id: string; geta
   return (
     <form action={action} style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
       <input type="hidden" name="id" value={id} />
-      <button type="submit" disabled={pending}>
+      <button type="submit" className="bd-btn bd-btn-secondary bd-btn-sm" disabled={pending}>
         {pending ? "…" : getauscht ? "Seite 1/2 zurücktauschen" : "Seite 1 ↔ 2 tauschen (Umschlag/Inhalt)"}
       </button>
-      {state.ok && <span className="msg-ok">✓ {state.note}</span>}
-      {state.error && <span className="msg-err">{state.error}</span>}
+      {state.ok && <span className="bd-ok">✓ {state.note}</span>}
+      {state.error && <span className="bd-err">{state.error}</span>}
     </form>
   );
 }

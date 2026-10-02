@@ -26,41 +26,62 @@ export function PreisPanel({
   const [preis, preisAction, preisPending] = useActionState(preisErmittelnAction, empty);
 
   return (
-    <div className="rows" style={{ maxWidth: 520 }}>
-      <dl className="kv">
-        <dt>Preis (netto)</dt>
-        <dd>
-          {preisNetto != null ? `${Number(preisNetto).toFixed(2)} €` : "—"}
-          {preisQuelle && <span className="count"> · {preisQuelle}</span>}
-        </dd>
+    <div className="bd-card" style={{ maxWidth: 560 }}>
+      <dl className="bd-facts" style={{ marginBottom: 12 }}>
+        <div>
+          <dt>Preis (netto)</dt>
+          <dd>
+            {preisNetto != null ? `${Number(preisNetto).toFixed(2)} €` : "—"}
+            {preisQuelle && <span className="bd-mute" style={{ fontWeight: 400 }}> · {preisQuelle}</span>}
+          </dd>
+        </div>
       </dl>
       <form action={preisAction} style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
         <input type="hidden" name="id" value={id} />
-        <button type="submit" disabled={preisPending}>{preisPending ? "…" : "Preis ermitteln"}</button>
-        {preis.ok && <span className="msg-ok">✓ {preis.note}</span>}
-        {preis.error && <span className="msg-err">{preis.error}</span>}
+        <button type="submit" className="bd-btn bd-btn-secondary" disabled={preisPending}>
+          {preisPending ? "…" : "Preis ermitteln"}
+        </button>
+        {preis.ok && <span className="bd-ok">✓ {preis.note}</span>}
+        {preis.error && <span className="bd-err">{preis.error}</span>}
       </form>
 
-      <form action={saveAction} className="rows" style={{ marginTop: 10 }}>
+      <form action={saveAction} className="bd-form-col" style={{ marginTop: 18 }}>
         <input type="hidden" name="id" value={id} />
-        <label className="field">
-          <span>Versanddatum (für KW-Abrechnung + Preisstand)</span>
-          <input type="date" name="versand_datum" defaultValue={versandDatum ?? ""} />
-        </label>
-        <label className="chk">
+        <div className="bd-field">
+          <label className="bd-field-label" htmlFor="versand_datum">
+            Versanddatum (für KW-Abrechnung + Preisstand)
+          </label>
+          <input
+            className="bd-field-input"
+            id="versand_datum"
+            type="date"
+            name="versand_datum"
+            defaultValue={versandDatum ?? ""}
+            style={{ width: 180 }}
+          />
+        </div>
+        <label className="bd-check" style={{ marginTop: 0 }}>
           <input type="checkbox" name="berechnet" defaultChecked={berechnet} /> wird berechnet
         </label>
-        <label className="chk">
+        <label className="bd-check" style={{ marginTop: 0 }}>
           <input type="checkbox" name="ist_rekla" defaultChecked={istRekla} /> Reklamation (nicht berechnen)
         </label>
-        <label className="field">
-          <span>Rekla-Vermerk</span>
-          <textarea name="rekla_vermerk" rows={2} defaultValue={reklaVermerk ?? ""} style={{ font: "inherit" }} />
-        </label>
-        <div>
-          <button type="submit" disabled={savePending}>{savePending ? "…" : "Speichern"}</button>
-          {save.ok && <span className="msg-ok"> ✓ {save.note}</span>}
-          {save.error && <span className="msg-err"> {save.error}</span>}
+        <div className="bd-field">
+          <label className="bd-field-label" htmlFor="rekla_vermerk">Rekla-Vermerk</label>
+          <textarea
+            className="bd-field-input"
+            id="rekla_vermerk"
+            name="rekla_vermerk"
+            rows={2}
+            defaultValue={reklaVermerk ?? ""}
+          />
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button type="submit" className="bd-btn bd-btn-primary" disabled={savePending}>
+            {savePending ? "…" : "Speichern"}
+          </button>
+          {save.ok && <span className="bd-ok">✓ {save.note}</span>}
+          {save.error && <span className="bd-err">{save.error}</span>}
         </div>
       </form>
     </div>

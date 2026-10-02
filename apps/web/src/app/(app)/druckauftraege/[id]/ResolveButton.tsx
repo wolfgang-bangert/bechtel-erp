@@ -10,11 +10,11 @@ export function ResolveButton({ id }: { id: string }) {
   return (
     <form action={action} style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
       <input type="hidden" name="id" value={id} />
-      <button type="submit" disabled={pending}>
+      <button type="submit" className="bd-btn bd-btn-secondary" disabled={pending}>
         {pending ? "…" : "neu auflösen"}
       </button>
-      {state.ok && <span className="msg-ok">✓ {state.note}</span>}
-      {state.error && <span className="msg-err">{state.error}</span>}
+      {state.ok && <span className="bd-ok">✓ {state.note}</span>}
+      {state.error && <span className="bd-err">{state.error}</span>}
     </form>
   );
 }

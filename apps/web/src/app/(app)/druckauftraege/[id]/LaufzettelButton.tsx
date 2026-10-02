@@ -15,8 +15,7 @@ export function LaufzettelButton({ orderId }: { orderId: string }) {
     <span>
       <button
         type="button"
-        className="ghost"
-        style={{ padding: "7px 12px" }}
+        className="bd-btn bd-btn-secondary"
         disabled={pending}
         onClick={() =>
           start(async () => {
@@ -31,11 +30,11 @@ export function LaufzettelButton({ orderId }: { orderId: string }) {
         {pending ? "…" : "Laufzettel erzeugen"}
       </button>
       {url && (
-        <a href={url} target="_blank" rel="noreferrer" className="ghost" style={{ padding: "7px 12px", marginLeft: 6 }}>
+        <a href={url} target="_blank" rel="noreferrer" className="bd-btn bd-btn-secondary" style={{ marginLeft: 6 }}>
           Laufzettel öffnen →
         </a>
       )}
-      {error && <span className="msg-err" style={{ marginLeft: 8 }}>{error}</span>}
+      {error && <span className="bd-err" style={{ marginLeft: 8 }}>{error}</span>}
     </span>
   );
 }

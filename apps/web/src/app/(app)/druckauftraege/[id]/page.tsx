@@ -19,9 +19,9 @@ export const dynamic = "force-dynamic";
 function AddrDetails({ label, a }: { label: string; a: Record<string, unknown> | null }) {
   if (!a) {
     return (
-      <div>
-        <h2>{label}</h2>
-        <span className="count">—</span>
+      <div className="bd-addr">
+        <span className="bd-addr-label">{label}</span>
+        <span className="bd-mute">—</span>
       </div>
     );
   }
@@ -38,11 +38,12 @@ function AddrDetails({ label, a }: { label: string; a: Record<string, unknown> |
   ].filter(Boolean);
   const [erste, ...rest] = zeilen;
   return (
-    <details>
-      <summary style={{ cursor: "pointer" }}>
-        <strong>{label}</strong>: {erste ?? "—"}
+    <details className="bd-addr">
+      <summary>
+        <span className="bd-addr-label" style={{ display: "inline", marginRight: 6 }}>{label}</span>
+        {erste ?? "—"}
       </summary>
-      {rest.length > 0 && <div style={{ whiteSpace: "pre-line", marginTop: 4 }}>{rest.join("\n")}</div>}
+      {rest.length > 0 && <div className="bd-addr-rest">{rest.join("\n")}</div>}
     </details>
   );
 }
@@ -337,123 +338,139 @@ export default async function DruckauftragPage({
   };
 
   return (
-    <>
-      <div className="toolbar" style={{ justifyContent: "space-between" }}>
-        <h1 style={{ margin: 0 }}>
-          Druckauftrag {data.external_reference}{" "}
-          <span className="tag">{data.portal_state ?? "?"}</span>
-        </h1>
-        <div className="toolbar" style={{ gap: 8 }}>
+    <div className="bd-page">
+      <div className="bd-head">
+        <div>
+          <h1>
+            Druckauftrag {data.external_reference}
+            <span className="bd-status t-neutral">
+              <span className="bd-status-mark" />
+              {data.portal_state ?? "?"}
+            </span>
+          </h1>
+          <p className="bd-lead" style={{ marginBottom: 16 }}>
+            {portal?.name ?? portal?.code} · {data.reference_type}
+          </p>
+        </div>
+        <div className="bd-actions">
           <LaufzettelButton orderId={data.id} />
-          <Link href={back.href} className="ghost" style={{ padding: "7px 12px" }}>
+          <Link href={back.href} className="bd-btn bd-btn-secondary">
             {back.label}
           </Link>
         </div>
       </div>
-      <p className="lead">{portal?.name ?? portal?.code} · {data.reference_type}</p>
 
-      <div className="row" style={{ border: "none", padding: 0, gap: 24, alignItems: "flex-start" }}>
-        <dl className="kv" style={{ flex: 1, fontSize: 15 }}>
-          <dt>opri-Nummer</dt>
-          <dd>
-            <strong>{data.external_reference}</strong>
-          </dd>
-          <dt>Produkt</dt>
-          <dd>
-            <strong>{produktBeschreibung ?? "—"}</strong>
-          </dd>
-          <dt>Menge</dt>
-          <dd>
-            <strong>{data.quantity != null ? Number(data.quantity) : "—"}</strong>
-          </dd>
-          <dt>Liefertermin</dt>
-          <dd>
-            <strong>{data.deliver_date ? fmtDate(data.deliver_date) : "—"}</strong>
-          </dd>
-          <dt>Eingang</dt>
-          <dd>{fmtDate(data.received_at)}</dd>
-        </dl>
-        {thumbnailUrl && (
-          <img
-            src={thumbnailUrl}
-            alt="Vorschau"
-            style={{ width: 160, borderRadius: 6, border: "1px solid var(--border)" }}
-          />
-        )}
-        {partThumbnails.length > 0 && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", maxWidth: 340 }}>
-            {partThumbnails.map((f) => (
-              <img
-                key={f.id}
-                src={f.viewUrl ?? ""}
-                alt={f.filename ?? "Vorschau"}
-                title={f.filename ?? undefined}
-                style={{ width: 100, borderRadius: 6, border: "1px solid var(--border)" }}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <dl className="kv" style={{ marginTop: 8 }}>
-        <dt>Betrag</dt>
-        <dd className="count">
-          {data.total_net != null ? `${Number(data.total_net).toFixed(2)} netto` : "—"}
-          {data.total_gross != null ? ` / ${Number(data.total_gross).toFixed(2)} brutto` : ""}{" "}
-          {data.currency ?? ""}
-        </dd>
-        <dt>Erkannt</dt>
-        <dd className="count">
-          {r ? (
-            <>
-              {r.gruppe ?? "—"}
-              {Object.entries(r.attribute ?? {}).length > 0 &&
-                ` · ${Object.entries(r.attribute)
-                  .map(([k, v]) => `${k}=${v}`)
-                  .join(", ")}`}
-              {r.blockstaerke_mm ? ` · Blockstärke ${r.blockstaerke_mm} mm` : ""}
-            </>
-          ) : (
-            "noch nicht aufgelöst"
+      <div className="bd-card">
+        <div className="bd-card-split">
+          <dl className="bd-facts">
+            <div>
+              <dt>opri-Nummer</dt>
+              <dd>{data.external_reference}</dd>
+            </div>
+            <div>
+              <dt>Produkt</dt>
+              <dd>{produktBeschreibung ?? "—"}</dd>
+            </div>
+            <div>
+              <dt>Menge</dt>
+              <dd>{data.quantity != null ? Number(data.quantity) : "—"}</dd>
+            </div>
+            <div>
+              <dt>Liefertermin</dt>
+              <dd>{data.deliver_date ? fmtDate(data.deliver_date) : "—"}</dd>
+            </div>
+            <div>
+              <dt>Eingang</dt>
+              <dd className="plain">{fmtDate(data.received_at)}</dd>
+            </div>
+            <div>
+              <dt>Betrag</dt>
+              <dd className="plain">
+                {data.total_net != null ? `${Number(data.total_net).toFixed(2)} netto` : "—"}
+                {data.total_gross != null ? ` / ${Number(data.total_gross).toFixed(2)} brutto` : ""}{" "}
+                {data.currency ?? ""}
+              </dd>
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <dt>Erkannt</dt>
+              <dd className="plain">
+                {r ? (
+                  <>
+                    {r.gruppe ?? "—"}
+                    {Object.entries(r.attribute ?? {}).length > 0 &&
+                      ` · ${Object.entries(r.attribute)
+                        .map(([k, v]) => `${k}=${v}`)
+                        .join(", ")}`}
+                    {r.blockstaerke_mm ? ` · Blockstärke ${r.blockstaerke_mm} mm` : ""}
+                  </>
+                ) : (
+                  "noch nicht aufgelöst"
+                )}
+              </dd>
+            </div>
+          </dl>
+          {thumbnailUrl && (
+            <div className="bd-thumbs">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={thumbnailUrl} alt="Vorschau" style={{ width: 160 }} />
+            </div>
           )}
-        </dd>
-      </dl>
-
-      <div className="row" style={{ border: "none", padding: 0, gap: 24, marginTop: 8 }}>
-        <AddrDetails label="Empfänger" a={data.ship_to as Record<string, unknown> | null} />
-        <AddrDetails label="Absender" a={data.sender as Record<string, unknown> | null} />
+          {partThumbnails.length > 0 && (
+            <div className="bd-thumbs">
+              {partThumbnails.map((f) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={f.id}
+                  src={f.viewUrl ?? ""}
+                  alt={f.filename ?? "Vorschau"}
+                  title={f.filename ?? undefined}
+                  style={{ width: 100 }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="toolbar" style={{ gap: 4, marginTop: 16, flexWrap: "wrap" }}>
+      <div className="bd-card">
+        <div className="bd-addr-row">
+          <AddrDetails label="Empfänger" a={data.ship_to as Record<string, unknown> | null} />
+          <AddrDetails label="Absender" a={data.sender as Record<string, unknown> | null} />
+        </div>
+      </div>
+
+      <nav className="bd-tabs">
         {TABS.map((t) =>
           t.key === tab ? (
-            <span key={t.key} style={{ padding: "7px 12px", fontWeight: 600 }}>
+            <span key={t.key} className="bd-tab active">
               {t.label}
-              {counts[t.key] != null ? ` (${counts[t.key]})` : ""}
+              {counts[t.key] != null && <span className="n">{counts[t.key]}</span>}
             </span>
           ) : (
-            <Link key={t.key} href={tabHref(t.key)} className="ghost" style={{ padding: "7px 12px" }}>
+            <Link key={t.key} href={tabHref(t.key)} className="bd-tab">
               {t.label}
-              {counts[t.key] != null ? ` (${counts[t.key]})` : ""}
+              {counts[t.key] != null && <span className="n">{counts[t.key]}</span>}
             </Link>
           ),
         )}
-      </div>
+      </nav>
 
       {tab === "preis" && (
         <>
-          <h2 style={{ marginTop: 12 }}>
-            Preis &amp; Abrechnung
-            {data.abrechnung && (
-              <span className="tag" style={{ marginLeft: 6 }}>
-                KW {data.abrechnung.kw}/{data.abrechnung.jahr} · {data.abrechnung.status}
-              </span>
-            )}
-          </h2>
+          <div className="bd-section-head">
+            <h2>
+              Preis &amp; Abrechnung
+              {data.abrechnung && (
+                <span className="bd-count">
+                  KW {data.abrechnung.kw}/{data.abrechnung.jahr} · {data.abrechnung.status}
+                </span>
+              )}
+            </h2>
+          </div>
           {data.abrechnung ? (
-            <p className="lead">
+            <p className="bd-mute">
               Bereits in{" "}
-              <Link href={`/abrechnung/${data.abrechnung.id}`}>
+              <Link className="bd-link" href={`/abrechnung/${data.abrechnung.id}`}>
                 Abrechnung KW {data.abrechnung.kw}/{data.abrechnung.jahr}
               </Link>{" "}
               ({data.abrechnung.status}). Änderungen dort vornehmen.
@@ -474,16 +491,18 @@ export default async function DruckauftragPage({
 
       {tab === "positionen" && (
         <>
-          <h2 style={{ marginTop: 12 }}>
-            Positionen <span className="tag">{items.length}</span>
-          </h2>
+          <div className="bd-section-head">
+            <h2>
+              Positionen <span className="bd-count">{items.length}</span>
+            </h2>
+          </div>
           <div className="table-scroll">
-            <table className="data">
+            <table className="bd-table">
               <thead>
                 <tr>
                   <th>Pos</th>
                   <th>SKU</th>
-                  <th style={{ textAlign: "right" }}>Menge</th>
+                  <th className="bd-num">Menge</th>
                   <th>Beschreibung</th>
                 </tr>
               </thead>
@@ -492,14 +511,14 @@ export default async function DruckauftragPage({
                   <tr key={i}>
                     <td>{it.position ?? "—"}</td>
                     <td>{it.sku ?? "—"}</td>
-                    <td style={{ textAlign: "right" }}>{it.quantity != null ? Number(it.quantity) : "—"}</td>
+                    <td className="bd-num">{it.quantity != null ? Number(it.quantity) : "—"}</td>
                     <td className="wrap">{it.description ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="lead" style={{ marginTop: 4 }}>
+          <p className="bd-hint">
             Welche Positionen produktionsrelevant sind, klärt die SKU-Regel-Engine (Phase 2).
           </p>
         </>
@@ -507,35 +526,48 @@ export default async function DruckauftragPage({
 
       {tab === "aufloesung" && (
         <>
-          <div className="toolbar" style={{ justifyContent: "space-between", marginTop: 12 }}>
-            <h2 style={{ margin: 0 }}>
-              Auflösung {data.resolved_at && <span className="count">zuletzt {fmtDate(data.resolved_at)}</span>}
+          <div className="bd-section-head">
+            <h2>
+              Auflösung
+              {data.resolved_at && <span className="bd-mute">zuletzt {fmtDate(data.resolved_at)}</span>}
             </h2>
             <ResolveButton id={data.id} />
           </div>
           {!r ? (
-            <p className="lead">Noch nicht aufgelöst — „neu auflösen" klicken.</p>
+            <p className="bd-mute">Noch nicht aufgelöst — „neu auflösen" klicken.</p>
           ) : (
             <>
-              <dl className="kv">
-                <dt>Produktgruppe</dt>
-                <dd>{r.gruppe ?? "—"}</dd>
-                <dt>Stammartikel erkannt</dt>
-                <dd>{r.stammartikel_id ? "ja" : "nein"}</dd>
-                <dt>Attribute</dt>
-                <dd>
-                  {Object.entries(r.attribute ?? {})
-                    .map(([k, v]) => `${k}=${v}`)
-                    .join(", ") || "—"}
-                </dd>
-                <dt>Optionen</dt>
-                <dd>{(r.optionen ?? []).map((o) => o.typ ?? o.sku).join(" · ") || "—"}</dd>
-                <dt>Blockstärke</dt>
-                <dd>{r.blockstaerke_mm ? `${r.blockstaerke_mm} mm` : "—"}</dd>
-              </dl>
+              <div className="bd-card">
+                <dl className="bd-facts">
+                  <div>
+                    <dt>Produktgruppe</dt>
+                    <dd>{r.gruppe ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt>Stammartikel erkannt</dt>
+                    <dd>{r.stammartikel_id ? "ja" : "nein"}</dd>
+                  </div>
+                  <div>
+                    <dt>Blockstärke</dt>
+                    <dd>{r.blockstaerke_mm ? `${r.blockstaerke_mm} mm` : "—"}</dd>
+                  </div>
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <dt>Attribute</dt>
+                    <dd className="plain">
+                      {Object.entries(r.attribute ?? {})
+                        .map(([k, v]) => `${k}=${v}`)
+                        .join(", ") || "—"}
+                    </dd>
+                  </div>
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <dt>Optionen</dt>
+                    <dd className="plain">{(r.optionen ?? []).map((o) => o.typ ?? o.sku).join(" · ") || "—"}</dd>
+                  </div>
+                </dl>
+              </div>
 
               {brauchtUmschlagInhaltTrennung(r.materialliste ?? []) && (
-                <div className="lead" style={{ marginTop: 8 }}>
+                <div className="bd-hint">
                   Umschlag + Inhalt kommen aus einer PDF (Standard: Seite 1 = Umschlag, Seite 2 =
                   Inhalt). Falls es bei diesem Auftrag andersrum ist:{" "}
                   <TauschUmschlagInhaltButton id={data.id} getauscht={data.pdf_seiten_tausch} />
@@ -543,7 +575,7 @@ export default async function DruckauftragPage({
               )}
 
               {(r.ungeloest?.length || r.hinweise?.length) && (
-                <p className="lead" style={{ marginTop: 8 }}>
+                <p className="bd-hint">
                   {r.ungeloest?.length ? <>Nicht zugeordnete SKUs: {r.ungeloest.join(", ")}. </> : null}
                   {(r.hinweise ?? []).join(" · ")}
                 </p>
@@ -555,18 +587,20 @@ export default async function DruckauftragPage({
 
       {tab === "material" && (
         <>
-          <h2 style={{ marginTop: 12 }}>
-            Materialliste <span className="tag">{r?.materialliste?.length ?? 0}</span>
-          </h2>
+          <div className="bd-section-head">
+            <h2>
+              Materialliste <span className="bd-count">{r?.materialliste?.length ?? 0}</span>
+            </h2>
+          </div>
           {!r ? (
-            <p className="lead">Noch nicht aufgelöst — siehe Tab „Auflösung".</p>
+            <p className="bd-mute">Noch nicht aufgelöst — siehe Tab „Auflösung".</p>
           ) : r.materialliste?.length ? (
             <div className="table-scroll">
-              <table className="data">
+              <table className="bd-table">
                 <thead>
                   <tr>
                     <th>Rolle / Verwendung</th>
-                    <th style={{ textAlign: "right" }}>Menge</th>
+                    <th className="bd-num">Menge</th>
                     <th>Material</th>
                     <th>Herleitung</th>
                     <th>Hinweis</th>
@@ -578,21 +612,21 @@ export default async function DruckauftragPage({
                     const einheit = m.druckbogen ? b.einheit.replace(` ${m.druckbogen}`, "") : b.einheit;
                     return (
                       <tr key={i}>
-                        <td>
+                        <td className="wrap">
                           {m.rolle ?? "?"}
                           {m.verwendung ? ` · ${m.verwendung}` : ""}
                           {m.seite ? ` · ${m.seite}` : ""}
                         </td>
-                        <td style={{ textAlign: "right" }}>
+                        <td className="bd-num">
                           {b.menge.toLocaleString("de-DE")} {einheit}
                         </td>
-                        <td>
+                        <td className="wrap">
                           {m.material_kurz || m.material || "—"}
                           {m.grammatur ? ` (${m.grammatur})` : ""}
                           {m.format ? ` ${m.format}` : ""}
                           {m.druckbogen ? ` ${m.druckbogen}` : ""}
                           {m.durchmesser && (
-                            <div className="count">
+                            <span className="bd-sub">
                               Ø {m.durchmesser}
                               {m.teilung ? ` · ${m.teilung}` : ""}
                               {m.schlaufen != null
@@ -603,12 +637,12 @@ export default async function DruckauftragPage({
                                   }`
                                 : ""}
                               {m.bindeseite ? ` · ${m.bindeseite}` : ""}
-                            </div>
+                            </span>
                           )}
                         </td>
-                        <td className="count">{b.herleitung ?? "—"}</td>
-                        <td className="count">
-                          {m.ungeloest ? <span className="msg-err">{m.ungeloest}</span> : m.produktionshinweis ?? ""}
+                        <td className="wrap bd-mute">{b.herleitung ?? "—"}</td>
+                        <td className="wrap bd-mute">
+                          {m.ungeloest ? <span className="bd-err">{m.ungeloest}</span> : m.produktionshinweis ?? ""}
                         </td>
                       </tr>
                     );
@@ -617,7 +651,7 @@ export default async function DruckauftragPage({
               </table>
             </div>
           ) : (
-            <p className="lead">Keine Materialregel hat gegriffen.</p>
+            <p className="bd-mute">Keine Materialregel hat gegriffen.</p>
           )}
         </>
       )}
@@ -641,14 +675,16 @@ export default async function DruckauftragPage({
 
       {tab === "fluxlog" && (
         <>
-          <h2 style={{ marginTop: 12 }}>
-            flux-Log {fluxLog.length > 0 && <span className="tag">{fluxLog.length}</span>}
-          </h2>
+          <div className="bd-section-head">
+            <h2>
+              flux-Log {fluxLog.length > 0 && <span className="bd-count">{fluxLog.length}</span>}
+            </h2>
+          </div>
           {fluxLog.length === 0 ? (
-            <p className="lead">Noch keine Statusmeldung von flux zu diesem Auftrag eingegangen.</p>
+            <p className="bd-mute">Noch keine Statusmeldung von flux zu diesem Auftrag eingegangen.</p>
           ) : (
             <div className="table-scroll">
-              <table className="data">
+              <table className="bd-table">
                 <thead>
                   <tr>
                     <th>Zeit</th>
@@ -661,7 +697,7 @@ export default async function DruckauftragPage({
                 <tbody>
                   {fluxLog.map((z) => (
                     <tr key={z.id}>
-                      <td className="count">
+                      <td className="bd-mute" style={{ whiteSpace: "nowrap" }}>
                         {new Date(z.received_at).toLocaleString("de-DE", {
                           dateStyle: "short",
                           timeStyle: "medium",
@@ -670,44 +706,38 @@ export default async function DruckauftragPage({
                       <td>{z.event ?? "—"}</td>
                       <td>{z.status ?? "—"}</td>
                       <td>{z.work_step ?? "—"}</td>
-                      <td className="wrap count">{z.message ?? ""}</td>
+                      <td className="wrap bd-mute">{z.message ?? ""}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-          <p className="count" style={{ marginTop: 4 }}>
-            <Link href="/druck/flux-log">alle flux-Logs ansehen →</Link>
+          <p style={{ marginTop: 10 }}>
+            <Link className="bd-link" href="/druck/flux-log">
+              alle flux-Logs ansehen →
+            </Link>
           </p>
         </>
       )}
 
       {tab === "dateien" && (
         <>
-          <h2 style={{ marginTop: 12 }}>Dateien</h2>
+          <div className="bd-section-head">
+            <h2>Dateien</h2>
+          </div>
           <DateienPanel files={fileLinks} />
         </>
       )}
 
       {tab === "raw" && (
         <>
-          <h2 style={{ marginTop: 12 }}>Rohdaten (Portal)</h2>
-          <pre
-            style={{
-              background: "var(--panel)",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              padding: 12,
-              overflow: "auto",
-              fontSize: 12,
-              maxHeight: 500,
-            }}
-          >
-            {JSON.stringify(data.raw, null, 2)}
-          </pre>
+          <div className="bd-section-head">
+            <h2>Rohdaten (Portal)</h2>
+          </div>
+          <pre className="bd-pre">{JSON.stringify(data.raw, null, 2)}</pre>
         </>
       )}
-    </>
+    </div>
   );
 }

@@ -45,12 +45,12 @@ export function DateienPanel({ files }: { files: DateiRow[] }) {
   return (
     <>
       <div className="table-scroll">
-        <table className="data">
+        <table className="bd-table">
           <thead>
             <tr>
               <th>Typ</th>
               <th>Datei</th>
-              <th style={{ textAlign: "right" }}>Größe</th>
+              <th className="bd-num">Größe</th>
               <th>Status</th>
               <th></th>
             </tr>
@@ -61,44 +61,44 @@ export function DateienPanel({ files }: { files: DateiRow[] }) {
               return (
                 <tr key={f.id} style={{ opacity: f.viewUrl ? 1 : 0.55 }}>
                   <td>
-                    {f.typ === "printDataPart" && <span style={{ color: "var(--muted)" }}>↳ </span>}
+                    {f.typ === "printDataPart" && <span style={{ color: "var(--bd-ink-muted)" }}>↳ </span>}
                     {TYP_LABEL[f.typ] ?? f.typ}
-                    {f.is_zip && <span className="tag" style={{ marginLeft: 4 }}>ZIP</span>}
+                    {f.is_zip && <span className="bd-count" style={{ marginLeft: 6 }}>ZIP</span>}
                   </td>
                   <td className="wrap">{f.filename ?? "—"}</td>
-                  <td style={{ textAlign: "right" }}>{kb(f.bytes)}</td>
-                  <td className="count">{f.fetched_at ? "geholt" : "nicht geholt"}</td>
+                  <td className="bd-num">{kb(f.bytes)}</td>
+                  <td className="bd-mute">{f.fetched_at ? "geholt" : "nicht geholt"}</td>
                   <td style={{ whiteSpace: "nowrap" }}>
                     {f.viewUrl ? (
                       <>
                         <button
                           type="button"
+                          className="bd-btn bd-btn-secondary bd-btn-sm"
                           onClick={() => setOpen(f)}
-                          style={{ padding: "5px 10px", marginRight: 6 }}
+                          style={{ marginRight: 6 }}
                         >
                           Vorschau
                         </button>
                         <a
-                          className="ghost"
+                          className="bd-btn bd-btn-secondary bd-btn-sm"
                           href={f.viewUrl}
                           target="_blank"
                           rel="noreferrer"
-                          style={{ padding: "5px 10px", marginRight: 6 }}
+                          style={{ marginRight: 6 }}
                         >
                           {isImg ? "Öffnen" : "Öffnen / Drucken"}
                         </a>
                         {f.downloadUrl && (
                           <a
-                            className="ghost"
+                            className="bd-btn bd-btn-secondary bd-btn-sm"
                             href={f.downloadUrl}
-                            style={{ padding: "5px 10px" }}
                           >
                             Download
                           </a>
                         )}
                       </>
                     ) : (
-                      <span className="count">wird beim nächsten Abruf geholt</span>
+                      <span className="bd-mute">wird beim nächsten Abruf geholt</span>
                     )}
                   </td>
                 </tr>
@@ -106,7 +106,7 @@ export function DateienPanel({ files }: { files: DateiRow[] }) {
             })}
             {!files.length && (
               <tr>
-                <td colSpan={5} style={{ color: "var(--muted)" }}>
+                <td colSpan={5} className="bd-mute">
                   Keine Dateien.
                 </td>
               </tr>
@@ -131,9 +131,9 @@ export function DateienPanel({ files }: { files: DateiRow[] }) {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: "var(--panel)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius)",
+              background: "var(--bd-paper)",
+              border: "1px solid var(--bd-line)",
+              borderRadius: "var(--bd-radius-md)",
               flex: 1,
               display: "flex",
               flexDirection: "column",
@@ -141,27 +141,27 @@ export function DateienPanel({ files }: { files: DateiRow[] }) {
             }}
           >
             <div
-              className="toolbar"
-              style={{ justifyContent: "space-between", padding: "8px 12px", borderBottom: "1px solid var(--border)" }}
+              className="bd-section-head"
+              style={{ padding: "8px 12px", borderBottom: "1px solid var(--bd-line)", marginBottom: 0 }}
             >
               <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {open.filename ?? TYP_LABEL[open.typ] ?? open.typ}
               </strong>
-              <div className="toolbar" style={{ gap: 8 }}>
-                <a className="ghost" href={open.viewUrl ?? "#"} target="_blank" rel="noreferrer" style={{ padding: "5px 10px" }}>
+              <div className="bd-actions">
+                <a className="bd-btn bd-btn-secondary bd-btn-sm" href={open.viewUrl ?? "#"} target="_blank" rel="noreferrer">
                   {isBildTyp(open.typ) ? "Öffnen" : "Öffnen / Drucken"}
                 </a>
                 {open.downloadUrl && (
-                  <a className="ghost" href={open.downloadUrl} style={{ padding: "5px 10px" }}>
+                  <a className="bd-btn bd-btn-secondary bd-btn-sm" href={open.downloadUrl}>
                     Download
                   </a>
                 )}
-                <button type="button" onClick={() => setOpen(null)} style={{ padding: "5px 10px" }}>
+                <button type="button" className="bd-btn bd-btn-primary bd-btn-sm" onClick={() => setOpen(null)}>
                   Schließen
                 </button>
               </div>
             </div>
-            <div style={{ flex: 1, background: "var(--bg)" }}>
+            <div style={{ flex: 1, background: "var(--bd-surface-100)" }}>
               {isBildTyp(open.typ) ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
