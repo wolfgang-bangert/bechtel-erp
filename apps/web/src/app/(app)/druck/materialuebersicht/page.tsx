@@ -95,37 +95,34 @@ export default async function MaterialuebersichtPage({
   }
 
   return (
-    <>
-      <div className="toolbar" style={{ justifyContent: "space-between" }}>
-        <h1 style={{ margin: 0 }}>Materialübersicht</h1>
-        <Link href="/druck" className="ghost" style={{ padding: "7px 12px" }}>
+    <div className="content-wide bd-page">
+      <div className="bd-head">
+        <div>
+          <h1>Materialübersicht</h1>
+          <p className="bd-lead" style={{ marginBottom: 16, maxWidth: 760 }}>
+            Materialbedarf aus den aufgelösten Aufträgen (opri:resolve), je Material aufsummiert -
+            damit klar ist, welches Material für die kommenden Aufträge gebraucht wird. Aufklappen
+            zeigt die Beiträge der einzelnen Aufträge.
+          </p>
+        </div>
+        <Link href="/druck" className="bd-btn bd-btn-secondary">
           ← Dashboard
         </Link>
       </div>
-      <p className="lead">
-        Materialbedarf aus den aufgelösten Aufträgen (opri:resolve), je Material aufsummiert -
-        damit klar ist, welches Material für die kommenden Aufträge gebraucht wird. Aufklappen
-        zeigt die Beiträge der einzelnen Aufträge.
-      </p>
 
-      <div className="toolbar" style={{ gap: 4, marginBottom: 4 }}>
+      <nav className="bd-tabs">
         {ANSICHTEN.map((a) =>
           a.key === ansicht ? (
-            <span key={a.key} style={{ padding: "7px 12px", fontWeight: 600 }}>
+            <span key={a.key} className="bd-tab active">
               {a.label}
             </span>
           ) : (
-            <Link
-              key={a.key}
-              href={`/druck/materialuebersicht?ansicht=${a.key}`}
-              className="ghost"
-              style={{ padding: "7px 12px" }}
-            >
+            <Link key={a.key} href={`/druck/materialuebersicht?ansicht=${a.key}`} className="bd-tab">
               {a.label}
             </Link>
           ),
         )}
-      </div>
+      </nav>
 
       {error && <div className="banner-err">Fehler beim Laden: {error.message}</div>}
 
@@ -142,7 +139,7 @@ export default async function MaterialuebersichtPage({
           }
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -157,23 +154,15 @@ function MonatsAnsicht({ orders, bezuegeByMaterial }: { orders: OrderRow[]; bezu
   const sortiert = [...monate.values()].sort((a, b) => b.sortKey.localeCompare(a.sortKey));
 
   if (sortiert.length === 0) {
-    return <p className="lead">Keine erledigten Aufträge mit aufgelösten Materialien.</p>;
+    return <p className="bd-mute">Keine erledigten Aufträge mit aufgelösten Materialien.</p>;
   }
 
   return (
-    <div className="rows">
+    <div>
       {sortiert.map((m) => (
-        <details key={m.sortKey} style={{ marginBottom: 10 }}>
-          <summary
-            style={{
-              cursor: "pointer",
-              padding: "8px 10px",
-              background: "var(--tag-bg)",
-              borderRadius: 6,
-              fontWeight: 600,
-            }}
-          >
-            {m.label} <span className="count" style={{ fontWeight: 400 }}>· {m.orders.length} Aufträge</span>
+        <details key={m.sortKey} className="bd-acc" style={{ marginBottom: 10 }}>
+          <summary style={{ fontWeight: 600 }}>
+            {m.label} <span className="bd-mute" style={{ fontWeight: 400 }}>· {m.orders.length} Aufträge</span>
           </summary>
           <div style={{ padding: "8px 0 4px 10px" }}>
             <MaterialGruppenListe
@@ -197,40 +186,30 @@ function MaterialGruppenListe({
   bezuegeByMaterial: BezuegeMap;
   leerText: string;
 }) {
-  if (gruppen.length === 0) return <p className="lead">{leerText}</p>;
+  if (gruppen.length === 0) return <p className="bd-mute">{leerText}</p>;
 
   return (
-    <div className="rows">
-      <div className="row head">
-        <span className="w-name">Material</span>
+    <div>
+      <div className="bd-acc-head">
+        <span style={{ flex: 1 }}>Material</span>
         <span style={{ width: 160 }}>Gesamtbedarf</span>
       </div>
       {gruppen.map((g) => {
         const bezuege = g.materialId ? bezuegeByMaterial.get(bezugSchluessel(g.materialId, g.druckbogen)) : undefined;
         const bezugGesamt = bezuege?.reduce((sum, b) => sum + b.bestand, 0) ?? 0;
         return (
-        <details key={g.schluessel} style={{ marginBottom: 6 }}>
-          <summary
-            style={{
-              cursor: "pointer",
-              display: "flex",
-              gap: 16,
-              alignItems: "center",
-              padding: "8px 10px",
-              background: "var(--tag-bg)",
-              borderRadius: 6,
-            }}
-          >
-            <span className="w-name">
+        <details key={g.schluessel} className="bd-acc" style={{ marginBottom: 6 }}>
+          <summary style={{ display: "flex", gap: 16, alignItems: "center" }}>
+            <span style={{ flex: 1 }}>
               {g.label || "—"}
-              {g.druckbogen && <span className="tag" style={{ marginLeft: 6 }}>{g.druckbogen}</span>}{" "}
-              <span className="count">· {g.beitraege.length} Aufträge</span>
+              {g.druckbogen && <span className="bd-count" style={{ marginLeft: 8 }}>{g.druckbogen}</span>}{" "}
+              <span className="bd-mute">· {g.beitraege.length} Aufträge</span>
             </span>
             <span style={{ width: 160, fontWeight: 600 }}>
               {g.gesamt.toLocaleString("de-DE")} {g.einheit}
             </span>
           </summary>
-          <p className="count" style={{ margin: "4px 0 0 10px" }}>
+          <p className="bd-hint" style={{ margin: "8px 0 0" }}>
             Materialbezug:{" "}
             {bezuege && bezuege.length > 0 ? (
               <>
@@ -249,12 +228,12 @@ function MaterialGruppenListe({
             )}
           </p>
           <div className="table-scroll" style={{ marginTop: 6 }}>
-            <table className="data">
+            <table className="bd-table">
               <thead>
                 <tr>
                   <th>Auftrag</th>
                   <th>Liefertermin</th>
-                  <th style={{ textAlign: "right" }}>Menge</th>
+                  <th className="bd-num">Menge</th>
                   <th>Herleitung</th>
                 </tr>
               </thead>
@@ -262,15 +241,15 @@ function MaterialGruppenListe({
                 {g.beitraege.map((b, i) => (
                   <tr key={i}>
                     <td>
-                      <Link href={`/druckauftraege/${b.orderId}`}>
+                      <Link className="bd-link" href={`/druckauftraege/${b.orderId}`}>
                         {b.externalReference ?? b.orderId.slice(0, 8)}
                       </Link>
                     </td>
                     <td>{b.deliverDate ? fmtDate(b.deliverDate) : "—"}</td>
-                    <td style={{ textAlign: "right" }}>
+                    <td className="bd-num">
                       {b.menge.toLocaleString("de-DE")} {b.einheit}
                     </td>
-                    <td className="count">{b.herleitung ?? "—"}</td>
+                    <td className="bd-mute">{b.herleitung ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
