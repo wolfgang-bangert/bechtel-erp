@@ -25,12 +25,12 @@ export function SortControls() {
     router.push(`/druck?${p.toString()}`);
   };
 
-  const sel: React.CSSProperties = { padding: "4px 6px" };
+  const sel: React.CSSProperties = { padding: "5px 8px" };
 
   return (
-    <div className="toolbar" style={{ gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-      <span className="count">Gruppieren</span>
-      <select style={sel} value={sp.get("group") ?? ""} onChange={(e) => set("group", e.target.value)}>
+    <div className="bd-actions" style={{ margin: "12px 0" }}>
+      <span className="bd-mute">Gruppieren</span>
+      <select className="bd-field-input" style={sel} value={sp.get("group") ?? ""} onChange={(e) => set("group", e.target.value)}>
         <option value="">– keine –</option>
         {DIMS.map(([v, l]) => (
           <option key={v} value={v}>
@@ -41,8 +41,8 @@ export function SortControls() {
 
       {sp.get("group") && (
         <>
-          <span className="count">Untergruppieren</span>
-          <select style={sel} value={sp.get("group2") ?? ""} onChange={(e) => set("group2", e.target.value)}>
+          <span className="bd-mute">Untergruppieren</span>
+          <select className="bd-field-input" style={sel} value={sp.get("group2") ?? ""} onChange={(e) => set("group2", e.target.value)}>
             <option value="">– keine –</option>
             {DIMS.filter(([v]) => v !== sp.get("group")).map(([v, l]) => (
               <option key={v} value={v}>
@@ -53,8 +53,8 @@ export function SortControls() {
         </>
       )}
 
-      <span className="count">Sortieren</span>
-      <select style={sel} value={sp.get("sort") ?? ""} onChange={(e) => set("sort", e.target.value)}>
+      <span className="bd-mute">Sortieren</span>
+      <select className="bd-field-input" style={sel} value={sp.get("sort") ?? ""} onChange={(e) => set("sort", e.target.value)}>
         <option value="">alle Kriterien</option>
         {DIMS.map(([v, l]) => (
           <option key={v} value={v}>
@@ -62,7 +62,7 @@ export function SortControls() {
           </option>
         ))}
       </select>
-      <select style={sel} value={sp.get("dir") ?? "asc"} onChange={(e) => set("dir", e.target.value)}>
+      <select className="bd-field-input" style={sel} value={sp.get("dir") ?? "asc"} onChange={(e) => set("dir", e.target.value)}>
         <option value="asc">▲ aufst.</option>
         <option value="desc">▼ abst.</option>
       </select>
