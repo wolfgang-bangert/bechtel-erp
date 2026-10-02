@@ -189,17 +189,18 @@ const chip: React.CSSProperties = {
   alignItems: "center",
   gap: 6,
   padding: "3px 9px",
-  borderRadius: 999,
-  border: "1px solid var(--border)",
-  background: "var(--panel)",
+  borderRadius: "var(--bd-radius-sm)",
+  border: "1px solid var(--bd-line)",
+  background: "var(--bd-paper)",
   fontSize: 12,
   lineHeight: 1.2,
   whiteSpace: "nowrap",
+  fontFamily: "var(--font-bd-sans)",
 };
 
 function KriteriumChip({ label, wert }: { label: string; wert: string }) {
   if (label === "Farbe Spirale") {
-    const hex = SPIRAL_HEX[wert.toLowerCase()] ?? "var(--muted)";
+    const hex = SPIRAL_HEX[wert.toLowerCase()] ?? "var(--bd-ink-muted)";
     return (
       <span style={chip}>
         <span
@@ -208,7 +209,7 @@ function KriteriumChip({ label, wert }: { label: string; wert: string }) {
             height: 13,
             borderRadius: "50%",
             background: hex,
-            border: "1px solid var(--border)",
+            border: "1px solid var(--bd-line)",
             flex: "none",
           }}
         />
@@ -228,7 +229,7 @@ function KriteriumChip({ label, wert }: { label: string; wert: string }) {
             cy={13}
             r={r}
             fill="none"
-            stroke="var(--text)"
+            stroke="var(--bd-ink)"
             strokeWidth={2}
           />
         </svg>
@@ -243,7 +244,7 @@ function KriteriumChip({ label, wert }: { label: string; wert: string }) {
           <path
             d="M2 7c2-6 6-6 8 0s6 6 8 0"
             fill="none"
-            stroke="var(--muted)"
+            stroke="var(--bd-ink-muted)"
             strokeWidth={1.6}
           />
         </svg>
@@ -253,7 +254,7 @@ function KriteriumChip({ label, wert }: { label: string; wert: string }) {
   }
   if (label === "Aufhänger") {
     return (
-      <span style={{ ...chip, color: "var(--accent)", borderColor: "var(--accent)" }}>
+      <span style={{ ...chip, color: "var(--bd-info)", borderColor: "var(--bd-info)" }}>
         <svg width={12} height={14} style={{ flex: "none" }} aria-hidden>
           <path
             d="M6 13V6M6 6c0-3-4-3-4-1M6 2a1 1 0 100-.01"
@@ -269,13 +270,13 @@ function KriteriumChip({ label, wert }: { label: string; wert: string }) {
   if (label === "Teilung") {
     return (
       <span style={chip}>
-        <span className="count">Teilung</span> {wert}
+        <span className="bd-mute">Teilung</span> {wert}
       </span>
     );
   }
   return (
     <span style={chip}>
-      <span className="count">{label}</span> {wert}
+      <span className="bd-mute">{label}</span> {wert}
     </span>
   );
 }
@@ -313,6 +314,10 @@ function alterTage(iso: string): string {
   return `${Math.floor(d)} Tage`;
 }
 
+/** Farbton des Status-Labels eines Batches/Jobs. */
+const batchTone = (st: string): "neutral" | "info" | "success" | "warning" =>
+  st === "abgeschlossen" ? "success" : ["an_flux", "im_druck", "gedruckt", "cellophaniert"].includes(st) ? "info" : "neutral";
+
 const sum = (js: Job[], f: (j: Job) => number) => js.reduce((a, j) => a + f(j), 0);
 
 /** relative Zeit für den Drucker-Status ("vor X Min/Std/Tg"). */
@@ -326,16 +331,16 @@ function vorZeit(iso: string): string {
 }
 
 const DRUCKER_STATUS_FARBE: Record<string, string> = {
-  "drucker ist bereit": "var(--ok)",
-  "druckerfehler": "var(--err)",
-  "drucker druckt": "var(--accent)",
-  "drucker wärmt auf": "var(--accent)",
-  "drucker ist offline": "var(--muted)",
-  "druckerstatus unbekannt": "var(--muted)",
-  "kein druckerstatus verfügbar": "var(--muted)",
+  "drucker ist bereit": "var(--bd-success)",
+  "druckerfehler": "var(--bd-danger)",
+  "drucker druckt": "var(--bd-info)",
+  "drucker wärmt auf": "var(--bd-info)",
+  "drucker ist offline": "var(--bd-ink-muted)",
+  "druckerstatus unbekannt": "var(--bd-ink-muted)",
+  "kein druckerstatus verfügbar": "var(--bd-ink-muted)",
 };
 const druckerFarbe = (status: string | null) =>
-  (status && DRUCKER_STATUS_FARBE[status.toLowerCase()]) || "var(--muted)";
+  (status && DRUCKER_STATUS_FARBE[status.toLowerCase()]) || "var(--bd-ink-muted)";
 
 /** Anzahl Abweichungen Auftrag ↔ Druckdaten über beliebig viele Jobs, je Auftrag einmal gezählt. */
 function abweichungenGesamt(jobs: Job[]): number {
@@ -357,7 +362,7 @@ function BatchTabelleHead() {
         <th>Kriterien</th>
         <th>Liefertermin</th>
         <th>Status</th>
-        <th style={{ textAlign: "right" }}>Jobs / Menge</th>
+        <th className="bd-num">Jobs / Menge</th>
         <th>Abw.</th>
       </tr>
     </thead>
@@ -380,7 +385,7 @@ function BatchTabelle({
 }) {
   return (
     <div className="table-scroll">
-      <table className="data">
+      <table className="bd-table">
         <BatchTabelleHead />
         <tbody>
           {batches.map((b) => (
@@ -425,7 +430,8 @@ function BatchZeile({
         <strong key="nr">{b.nummer}</strong>,
         <KriterienChips key="k" typ={b.typ} schluessel={b.schluessel} cfg={cfg} ausblenden={ausblenden} />,
         ltText ?? "—",
-        <span key="s" className="tag">
+        <span key="s" className={`bd-status t-${batchTone(b.status)}`}>
+          <span className="bd-status-mark" />
           {b.status}
         </span>,
         <span key="m" style={{ whiteSpace: "nowrap" }}>
@@ -434,7 +440,7 @@ function BatchZeile({
         abwGesamt > 0 ? (
           <span
             key="a"
-            style={{ ...chip, padding: "1px 7px", color: "var(--due-1)", borderColor: "var(--due-1)", background: "color-mix(in srgb, var(--due-1) 15%, transparent)" }}
+            style={{ ...chip, padding: "1px 7px", color: "var(--bd-warning)", borderColor: "var(--bd-warning)", background: "color-mix(in srgb, var(--bd-warning) 15%, transparent)" }}
           >
             ⚠ {abwGesamt}
           </span>
@@ -443,7 +449,7 @@ function BatchZeile({
         ),
       ]}
     >
-      <div className="count" style={{ marginBottom: 6 }}>
+      <div className="bd-mute" style={{ marginBottom: 6 }}>
         {b.flux_order_id ? `flux ${b.flux_order_id} · ` : ""}seit {alterTage(b.created_at)}
       </div>
       <div>
@@ -455,8 +461,8 @@ function BatchZeile({
               <details
                 key={j.id}
                 style={{
-                  border: "1px solid var(--border)",
-                  borderRadius: 6,
+                  border: "1px solid var(--bd-line)",
+                  borderRadius: "var(--bd-radius-sm)",
                   padding: "6px 10px",
                   marginBottom: 4,
                 }}
@@ -464,7 +470,7 @@ function BatchZeile({
                 <summary style={{ cursor: "pointer", listStyle: "none" }}>
                   <span style={{ fontWeight: 600 }}>{j.order?.external_reference ?? "—"}</span>
                   {"  ·  "}
-                  <span className="count">
+                  <span className="bd-mute">
                     {(j.order?.gruppe && (gruppeKuerzel[j.order.gruppe] ?? j.order.gruppe)) ?? "—"}
                   </span>
                   {"  ·  "}
@@ -475,11 +481,11 @@ function BatchZeile({
                   {"  ·  "}
                   {((j.auflage || 0) + (j.zuschuss || 0)).toLocaleString("de-DE")} Expl.
                   {"  ·  "}
-                  <span className="count">{j.status}</span>
+                  <span className="bd-mute">{j.status}</span>
                   {j.order?.flux_status && (
                     <>
                       {"  ·  "}
-                      <span style={{ ...chip, background: "var(--tag-bg)", padding: "1px 7px" }}>
+                      <span style={{ ...chip, background: "var(--bd-surface-100)", padding: "1px 7px" }}>
                         flux: {j.order.flux_status}
                       </span>
                     </>
@@ -488,7 +494,7 @@ function BatchZeile({
                     <>
                       {"  "}
                       <span
-                        style={{ ...chip, padding: "1px 7px", color: "var(--due-1)", borderColor: "var(--due-1)", background: "color-mix(in srgb, var(--due-1) 15%, transparent)" }}
+                        style={{ ...chip, padding: "1px 7px", color: "var(--bd-warning)", borderColor: "var(--bd-warning)", background: "color-mix(in srgb, var(--bd-warning) 15%, transparent)" }}
                         title={j.order.abweichungen.map((a) => a.text).join("\n")}
                       >
                         ⚠ {j.order.abweichungen.length}
@@ -498,7 +504,7 @@ function BatchZeile({
                 </summary>
                 <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.7 }}>
                   {j.order?.abweichungen?.length ? (
-                    <div style={{ color: "var(--due-1)", marginBottom: 4 }}>
+                    <div style={{ color: "var(--bd-warning)", marginBottom: 4 }}>
                       {j.order.abweichungen.map((a, i) => (
                         <div key={i}>⚠ {a.text}</div>
                       ))}
@@ -518,7 +524,7 @@ function BatchZeile({
                     .filter(Boolean)
                     .join("  ·  ") || "—"}
                   {j.komponenten && j.komponenten.length > 0 && (
-                    <div className="count" style={{ marginTop: 3 }}>
+                    <div className="bd-mute" style={{ marginTop: 3 }}>
                       führt zusammen:{" "}
                       {j.komponenten
                         .map(
@@ -533,7 +539,7 @@ function BatchZeile({
                     </div>
                   )}
                   <div style={{ marginTop: 6, display: "flex", gap: 6 }}>
-                    <Link href={`/druck/${j.id}`} className="ghost" style={{ padding: "4px 10px" }}>
+                    <Link href={`/druck/${j.id}`} className="bd-btn bd-btn-secondary bd-btn-sm">
                       Job-Details →
                     </Link>
                     {j.portal_order_id && (
@@ -541,8 +547,7 @@ function BatchZeile({
                         href={`/druckauftraege/${j.portal_order_id}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="ghost"
-                        style={{ padding: "4px 10px" }}
+                        className="bd-btn bd-btn-secondary bd-btn-sm"
                       >
                         Zum Auftrag →
                       </a>
@@ -564,11 +569,11 @@ function BatchZeile({
               </details>
             );
           })}
-          {!jobs.length && <div className="count">Keine Jobs.</div>}
+          {!jobs.length && <div className="bd-mute">Keine Jobs.</div>}
       </div>
 
       <details style={{ marginTop: 8 }}>
-        <summary className="count" style={{ cursor: "pointer", padding: "2px 0" }}>
+        <summary className="bd-mute" style={{ cursor: "pointer", padding: "2px 0" }}>
           Aktionen
         </summary>
         <div style={{ marginTop: 4 }}>
@@ -606,7 +611,7 @@ function LabelWert({
           fontSize: 10,
           textTransform: "uppercase",
           letterSpacing: ".03em",
-          color: "var(--muted)",
+          color: "var(--bd-ink-muted)",
           visibility: zeigeLabel ? "visible" : "hidden",
         }}
       >
@@ -624,9 +629,9 @@ function LabelWert({
 // Je Ebene ein eigener Farbton (nicht nur Graustufen), damit sich Unter-/
 // Unteruntergruppen optisch klar von der Elternzeile abheben.
 const EBENEN_BG: Record<number, string> = {
-  1: "color-mix(in srgb, var(--tag-bg) 100%, transparent)",
-  2: "color-mix(in srgb, var(--accent) 7%, var(--panel))",
-  3: "var(--panel)",
+  1: "var(--bd-surface-100)",
+  2: "color-mix(in srgb, var(--bd-orange) 8%, var(--bd-paper))",
+  3: "var(--bd-paper)",
 };
 
 function GruppenZeile({
@@ -672,8 +677,8 @@ function GruppenZeile({
           // Inline-Style überschrieben wird.
           "--row-bg": EBENEN_BG[ebene] ?? "transparent",
           background: As === "div" ? "var(--row-bg)" : undefined,
-          borderRadius: 6,
-          borderBottom: "1px solid var(--border)",
+          borderRadius: "var(--bd-radius-sm)",
+          borderBottom: "1px solid var(--bd-line)",
           cursor: As === "summary" ? "pointer" : undefined,
           listStyle: As === "summary" ? "none" : undefined,
         } as React.CSSProperties
@@ -689,7 +694,7 @@ function GruppenZeile({
       <LabelWert label="Liefertermin" wert={liefer ? `ab ${fmtDate(liefer)}` : "—"} zeigeLabel={zeigeHeader} />
       <LabelWert
         label="Abweichungen"
-        wert={abw > 0 ? <span style={{ color: "var(--due-1)" }}>{abw}</span> : "—"}
+        wert={abw > 0 ? <span style={{ color: "var(--bd-warning)" }}>{abw}</span> : "—"}
         zeigeLabel={zeigeHeader}
       />
     </As>
@@ -701,14 +706,14 @@ function JobsTabelle({ batches, gruppeKuerzel }: { batches: Batch[]; gruppeKuerz
   const jobs = batches.flatMap((b) => b.job ?? []);
   return (
     <div className="table-scroll">
-      <table className="data">
+      <table className="bd-table">
         <thead>
           <tr>
             <th>Auftrag</th>
             <th>Liefertermin</th>
             <th>Produktgruppe</th>
             <th>Bauteil</th>
-            <th style={{ textAlign: "right" }}>Menge</th>
+            <th className="bd-num">Menge</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -716,28 +721,33 @@ function JobsTabelle({ batches, gruppeKuerzel }: { batches: Batch[]; gruppeKuerz
           {jobs.map((j) => (
             <tr key={j.id}>
               <td>
-                <Link href={`/druck/${j.id}`}>
+                <Link className="bd-link" href={`/druck/${j.id}`}>
                   {j.order?.external_reference ?? j.id.slice(0, 8)}
                 </Link>
                 {j.order?.abweichungen?.length ? (
-                  <span title={j.order.abweichungen.map((a) => a.text).join("\n")} style={{ color: "var(--due-1)" }}>
+                  <span title={j.order.abweichungen.map((a) => a.text).join("\n")} style={{ color: "var(--bd-warning)" }}>
                     {" "}
                     ⚠
                   </span>
                 ) : null}
               </td>
               <td>{j.order?.deliver_date ? fmtDate(j.order.deliver_date) : "—"}</td>
-              <td className="count">
+              <td className="bd-mute">
                 {(j.order?.gruppe && (gruppeKuerzel[j.order.gruppe] ?? j.order.gruppe)) ?? "—"}
               </td>
               <td>{j.bauteil}</td>
-              <td style={{ textAlign: "right" }}>{((j.auflage || 0) + (j.zuschuss || 0)).toLocaleString("de-DE")}</td>
-              <td className="count">{j.status}</td>
+              <td className="bd-num">{((j.auflage || 0) + (j.zuschuss || 0)).toLocaleString("de-DE")}</td>
+              <td>
+                <span className={`bd-status t-${batchTone(j.status)}`}>
+                  <span className="bd-status-mark" />
+                  {j.status}
+                </span>
+              </td>
             </tr>
           ))}
           {!jobs.length && (
             <tr>
-              <td colSpan={6} style={{ color: "var(--muted)" }}>
+              <td colSpan={6} className="bd-mute">
                 Keine Jobs.
               </td>
             </tr>
@@ -933,38 +943,33 @@ export default async function DruckDashboard({
   }
 
   return (
-    <>
-      <div className="toolbar" style={{ justifyContent: "space-between" }}>
-        <h1 style={{ margin: 0 }}>Dashboard</h1>
-        <div className="toolbar" style={{ gap: 8, alignItems: "center" }}>
-          <Link href="/druck/plan" className="ghost" style={{ padding: "7px 12px" }}>
+    <div className="content-wide bd-page">
+      <div className="bd-head">
+        <h1>Dashboard</h1>
+        <div className="bd-actions">
+          <Link href="/druck/plan" className="bd-btn bd-btn-secondary">
             Belegungs-Board →
           </Link>
-          <Link href="/druck/materialuebersicht" className="ghost" style={{ padding: "7px 12px" }}>
+          <Link href="/druck/materialuebersicht" className="bd-btn bd-btn-secondary">
             Materialübersicht →
           </Link>
-          <Link href="/druckauftraege" className="ghost" style={{ padding: "7px 12px" }}>
+          <Link href="/druckauftraege" className="bd-btn bd-btn-secondary">
             Druckaufträge →
           </Link>
         </div>
       </div>
 
-      <div className="toolbar" style={{ gap: 6, marginTop: 4 }}>
+      <nav className="bd-tabs" style={{ marginTop: 14 }}>
         {ABTEILUNGEN.map((a) => {
           const href = a.key === "druck" ? "/druck" : `/druck?abteilung=${a.key}`;
           const aktiv = a.key === abteilung;
           return (
-            <Link
-              key={a.key}
-              href={href}
-              className={aktiv ? undefined : "ghost"}
-              style={{ padding: "7px 14px" }}
-            >
+            <Link key={a.key} href={href} className={aktiv ? "bd-tab active" : "bd-tab"}>
               {a.label}
             </Link>
           );
         })}
-      </div>
+      </nav>
 
       {abteilung === "druck" && druckKennzahlen && (
         <div
@@ -972,10 +977,10 @@ export default async function DruckDashboard({
             display: "grid",
             gridTemplateColumns: "2fr 1fr",
             gap: 16,
-            margin: "14px 0",
+            margin: "0 0 4px",
           }}
         >
-          <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "12px 16px" }}>
+          <div className="bd-card" style={{ margin: 0 }}>
             <div style={{ display: "flex", gap: 32 }}>
               <LabelWert label="Jobs" wert={druckKennzahlen.jobs.toLocaleString("de-DE")} />
               <LabelWert
@@ -985,7 +990,7 @@ export default async function DruckDashboard({
             </div>
             {druckKennzahlen.papier.length > 0 && (
               <div style={{ marginTop: 12 }}>
-                <div className="count" style={{ marginBottom: 4 }}>
+                <div className="bd-mute" style={{ marginBottom: 4 }}>
                   Druckbogen nach Papiersorte
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -998,12 +1003,12 @@ export default async function DruckDashboard({
               </div>
             )}
           </div>
-          <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "12px 16px" }}>
-            <div className="count" style={{ marginBottom: 6 }}>
+          <div className="bd-card" style={{ margin: 0 }}>
+            <div className="bd-mute" style={{ marginBottom: 6 }}>
               Drucker-Status
             </div>
             {drucker.length === 0 ? (
-              <p className="count">Keine aktiven Drucker hinterlegt.</p>
+              <p className="bd-mute">Keine aktiven Drucker hinterlegt.</p>
             ) : (
               drucker.map((d) => (
                 <div
@@ -1020,7 +1025,7 @@ export default async function DruckDashboard({
                     }}
                   />
                   <span style={{ flex: 1 }}>{d.name}</span>
-                  <span className="count">
+                  <span className="bd-mute">
                     {d.flux_printer_status
                       ? `${d.flux_printer_status} · ${vorZeit(d.flux_printer_status_at!)}`
                       : "—"}
@@ -1033,38 +1038,34 @@ export default async function DruckDashboard({
       )}
 
       {abteilung === "druck" && (
-        <div className="toolbar" style={{ gap: 6, margin: "10px 0", alignItems: "center" }}>
-          <span className="count">Schnellzugriff</span>
+        <div className="bd-actions" style={{ margin: "12px 0" }}>
+          <span className="bd-mute">Schnellzugriff</span>
           <Link
             href="/druck?abteilung=druck&group=faelligkeit"
-            className={group === "faelligkeit" ? undefined : "ghost"}
-            style={{ padding: "6px 12px" }}
+            className={group === "faelligkeit" ? "bd-btn bd-btn-primary bd-btn-sm" : "bd-btn bd-btn-secondary bd-btn-sm"}
           >
             Fälligkeit
           </Link>
           <Link
             href="/druck?abteilung=druck&group=durchmesser&group2=loops"
-            className={group === "durchmesser" && group2 === "loops" ? undefined : "ghost"}
-            style={{ padding: "6px 12px" }}
+            className={group === "durchmesser" && group2 === "loops" ? "bd-btn bd-btn-primary bd-btn-sm" : "bd-btn bd-btn-secondary bd-btn-sm"}
           >
             Bindung: Durchmesser + Loops
           </Link>
           <Link
             href="/druck?abteilung=druck&group=durchmesser&group2=spiralfarbe"
-            className={group === "durchmesser" && group2 === "spiralfarbe" ? undefined : "ghost"}
-            style={{ padding: "6px 12px" }}
+            className={group === "durchmesser" && group2 === "spiralfarbe" ? "bd-btn bd-btn-primary bd-btn-sm" : "bd-btn bd-btn-secondary bd-btn-sm"}
           >
             Bindung: Durchmesser + Farbe
           </Link>
           <Link
             href="/druck?abteilung=druck&group=cello"
-            className={group === "cello" ? undefined : "ghost"}
-            style={{ padding: "6px 12px" }}
+            className={group === "cello" ? "bd-btn bd-btn-primary bd-btn-sm" : "bd-btn bd-btn-secondary bd-btn-sm"}
           >
             Cello-Veredelung
           </Link>
           {(group || group2) && (
-            <Link href="/druck?abteilung=druck" className="ghost" style={{ padding: "6px 12px" }}>
+            <Link href="/druck?abteilung=druck" className="bd-btn bd-btn-secondary bd-btn-sm">
               zurücksetzen
             </Link>
           )}
@@ -1072,19 +1073,17 @@ export default async function DruckDashboard({
       )}
 
       {abteilung === "binden" ? (
-        <div className="toolbar" style={{ gap: 6, margin: "10px 0", alignItems: "center" }}>
-          <span className="count">Gruppieren nach</span>
+        <div className="bd-actions" style={{ margin: "12px 0" }}>
+          <span className="bd-mute">Gruppieren nach</span>
           <Link
             href="/druck?abteilung=binden&modus=loops"
-            className={modus === "loops" ? undefined : "ghost"}
-            style={{ padding: "6px 12px" }}
+            className={modus === "loops" ? "bd-btn bd-btn-primary bd-btn-sm" : "bd-btn bd-btn-secondary bd-btn-sm"}
           >
             Durchmesser + Anzahl Loops
           </Link>
           <Link
             href="/druck?abteilung=binden&modus=farbe"
-            className={modus === "farbe" ? undefined : "ghost"}
-            style={{ padding: "6px 12px" }}
+            className={modus === "farbe" ? "bd-btn bd-btn-primary bd-btn-sm" : "bd-btn bd-btn-secondary bd-btn-sm"}
           >
             Durchmesser + Farbe Spirale
           </Link>
@@ -1096,7 +1095,7 @@ export default async function DruckDashboard({
         </div>
       ) : null}
 
-      <p className="lead">
+      <p className="bd-lead" style={{ marginBottom: 12 }}>
         {abteilung === "druck" &&
           "Batches sammeln Arbeitsvorgänge auftragsübergreifend. Druck-Batches sind nach Anzahl Loops · Farbe Spirale · Durchmesser gruppiert (aus der Wire-O-Zeile); der flux-Versand läuft je Auftrag im Druckauftrag."}
         {abteilung === "cello" && "Batches sammeln Arbeitsvorgänge auftragsübergreifend, nach dem Umschlag-Druck."}
@@ -1108,15 +1107,15 @@ export default async function DruckDashboard({
 
       {abteilung === "versand" ? (
         versandJobs.length === 0 ? (
-          <p className="lead">Keine Versand-Vorgänge.</p>
+          <p className="bd-lead" style={{ marginBottom: 12 }}>Keine Versand-Vorgänge.</p>
         ) : (
           <div className="table-scroll">
-            <table className="data">
+            <table className="bd-table">
               <thead>
                 <tr>
                   <th>Auftrag</th>
                   <th>Vorgang</th>
-                  <th style={{ textAlign: "right" }}>Menge</th>
+                  <th className="bd-num">Menge</th>
                   <th>Liefertermin</th>
                   <th>Status</th>
                   <th>Tracking</th>
@@ -1127,7 +1126,7 @@ export default async function DruckDashboard({
                   <tr key={v.id}>
                     <td>
                       {v.portal_order_id ? (
-                        <a href={`/druckauftraege/${v.portal_order_id}`} target="_blank" rel="noreferrer">
+                        <a className="bd-link" href={`/druckauftraege/${v.portal_order_id}`} target="_blank" rel="noreferrer">
                           {v.order?.external_reference ?? v.portal_order_id.slice(0, 8)}
                         </a>
                       ) : (
@@ -1135,10 +1134,15 @@ export default async function DruckDashboard({
                       )}
                     </td>
                     <td>{v.bauteil}</td>
-                    <td style={{ textAlign: "right" }}>{v.auflage.toLocaleString("de-DE")}</td>
+                    <td className="bd-num">{v.auflage.toLocaleString("de-DE")}</td>
                     <td>{v.order?.deliver_date ? fmtDate(v.order.deliver_date) : "—"}</td>
-                    <td className="count">{v.status}</td>
-                    <td className="count">{v.versand_tracking ?? "—"}</td>
+                    <td>
+                      <span className={`bd-status t-${batchTone(v.status)}`}>
+                        <span className="bd-status-mark" />
+                        {v.status}
+                      </span>
+                    </td>
+                    <td className="bd-mute">{v.versand_tracking ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1148,18 +1152,18 @@ export default async function DruckDashboard({
       ) : (
         <>
           {batches.length === 0 && (
-            <p className="lead">Noch keine Batches. In einem Auftrag „Jobs erzeugen" klicken.</p>
+            <p className="bd-lead" style={{ marginBottom: 12 }}>Noch keine Batches. In einem Auftrag „Jobs erzeugen" klicken.</p>
           )}
 
           {TYPEN.filter((t) => t.abteilung === abteilung).map(({ typ, label, hint }) => {
         const list = batches.filter((b) => b.typ === typ && (b.job?.length ?? 0) > 0);
         if (!list.length) return null;
         return (
-          <section key={typ} style={{ marginTop: 26 }}>
-            <h2 style={{ marginBottom: 2 }}>
-              {label} <span className="count">{list.length}</span>
+          <section key={typ}>
+            <h2 className="bd-h2">
+              {label} <span className="bd-count">{list.length}</span>
             </h2>
-            <p className="lead" style={{ marginTop: 0 }}>{hint}</p>
+            <p className="bd-mute" style={{ marginTop: 0, marginBottom: 12 }}>{hint}</p>
             {BUCKETS.map((bucket) => {
               const ltKey = (b: Batch) => fruehesterLiefer(b) ?? "9999-99-99";
               const sortWert = (b: Batch) => (sort ? critWert(b, sort, cfg) : b.schluessel ?? "");
@@ -1176,7 +1180,7 @@ export default async function DruckDashboard({
               if (abteilung === "binden") {
                 return (
                   <div key={bucket.label} style={{ marginTop: 10 }}>
-                    <h3 style={{ margin: "0 0 6px", fontSize: 13, color: "var(--muted)" }}>
+                    <h3 className="bd-h3">
                       {bucket.label} · {bl.length}
                     </h3>
                     <BindenGruppen
@@ -1211,7 +1215,7 @@ export default async function DruckDashboard({
 
               return (
                 <div key={bucket.label} style={{ marginTop: 10 }}>
-                  <h3 style={{ margin: "0 0 6px", fontSize: 13, color: "var(--muted)" }}>
+                  <h3 className="bd-h3">
                     {bucket.label} · {bl.length}
                   </h3>
                   {gruppen.map(([gk, gb]) => {
@@ -1225,8 +1229,8 @@ export default async function DruckDashboard({
                             fontSize: 13,
                             margin: "10px 0 4px",
                             padding: "4px 10px",
-                            background: "var(--tag-bg)",
-                            borderRadius: 6,
+                            background: "var(--bd-surface-100)",
+                            borderRadius: "var(--bd-radius-sm)",
                             display: "inline-flex",
                             gap: 10,
                             alignItems: "baseline",
@@ -1235,16 +1239,16 @@ export default async function DruckDashboard({
                           <span>
                             {DIM_LABEL[group] ?? group}:{" "}
                             {group === "liefertermin" ? fmtDate(gk) : gk}{" "}
-                            <span className="count">· {gb.length}</span>
+                            <span className="bd-mute">· {gb.length}</span>
                           </span>
                           {fruehesterLiefer(gb[0]) && (
-                            <span style={{ color: "var(--accent)" }}>
+                            <span style={{ color: "var(--bd-info)" }}>
                               Liefertermin ab {fmtDate(fruehesterLiefer(gb[0]))}
                             </span>
                           )}
                           {gruppenAbw > 0 && (
                             <span
-                              style={{ ...chip, padding: "1px 7px", color: "var(--due-1)", borderColor: "var(--due-1)", background: "color-mix(in srgb, var(--due-1) 15%, transparent)" }}
+                              style={{ ...chip, padding: "1px 7px", color: "var(--bd-warning)", borderColor: "var(--bd-warning)", background: "color-mix(in srgb, var(--bd-warning) 15%, transparent)" }}
                               title="Abweichungen Auftrag ↔ Druckdaten in dieser Gruppe"
                             >
                               ⚠ {gruppenAbw} {gruppenAbw === 1 ? "Abweichung" : "Abweichungen"}
@@ -1268,7 +1272,7 @@ export default async function DruckDashboard({
                                       cursor: "pointer",
                                       fontSize: 12,
                                       fontWeight: 600,
-                                      color: "var(--muted)",
+                                      color: "var(--bd-ink-muted)",
                                       margin: "6px 0 4px",
                                     }}
                                   >
@@ -1298,6 +1302,6 @@ export default async function DruckDashboard({
       })}
         </>
       )}
-    </>
+    </div>
   );
 }

@@ -21,10 +21,10 @@ function StatusButton({
     <form action={action} style={{ display: "inline" }}>
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="status" value={status} />
-      <button type="submit" className={ghost ? "ghost" : undefined} disabled={pending} style={{ padding: "5px 10px" }}>
+      <button type="submit" className={ghost ? "bd-btn bd-btn-secondary bd-btn-sm" : "bd-btn bd-btn-primary bd-btn-sm"} disabled={pending}>
         {pending ? "…" : label}
       </button>
-      {state.error && <span className="msg-err"> {state.error}</span>}
+      {state.error && <span className="bd-err"> {state.error}</span>}
     </form>
   );
 }
@@ -44,12 +44,12 @@ export function BatchActions({
 
   if (typ === "druck") {
     return (
-      <div className="toolbar" style={{ gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+      <div className="bd-actions" style={{ marginTop: 8 }}>
         {sammeln && (
           <>
             <form action={fxAction} style={{ display: "inline" }}>
               <input type="hidden" name="id" value={id} />
-              <button type="submit" disabled={fxPending} style={{ padding: "5px 10px" }}>
+              <button type="submit" className="bd-btn bd-btn-primary bd-btn-sm" disabled={fxPending}>
                 {fxPending ? "…" : "an flux übergeben"}
               </button>
             </form>
@@ -62,8 +62,8 @@ export function BatchActions({
         )}
         {status === "an_flux" && <StatusButton id={id} status="gedruckt" label="gedruckt" />}
         {status === "gedruckt" && <StatusButton id={id} status="abgeschlossen" label="abschließen" ghost />}
-        {fx.ok && <span className="msg-ok">✓ {fx.note}</span>}
-        {fx.error && <span className="msg-err">{fx.error}</span>}
+        {fx.ok && <span className="bd-ok">✓ {fx.note}</span>}
+        {fx.error && <span className="bd-err">{fx.error}</span>}
       </div>
     );
   }
@@ -72,7 +72,7 @@ export function BatchActions({
   const doneLabel = typ === "cello" ? "cellophaniert" : "fertig";
   const doneStatus = typ === "cello" ? "cellophaniert" : "im_druck";
   return (
-    <div className="toolbar" style={{ gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+    <div className="bd-actions" style={{ marginTop: 8 }}>
       {sammeln && <StatusButton id={id} status="im_druck" label="starten" />}
       {(status === "im_druck" || status === "an_flux") && (
         <StatusButton id={id} status={doneStatus} label={doneLabel} />

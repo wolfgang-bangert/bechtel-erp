@@ -12,14 +12,14 @@ export function BatchRow({ cols, children }: { cols: React.ReactNode[]; children
   return (
     <>
       <tr onClick={() => setOpen((o) => !o)} style={{ cursor: "pointer" }}>
-        <td style={{ width: 18, color: "var(--muted)" }}>{open ? "▾" : "▸"}</td>
+        <td style={{ width: 18, color: "var(--bd-ink-muted)" }}>{open ? "▾" : "▸"}</td>
         {cols.map((c, i) => (
           <td key={i}>{c}</td>
         ))}
       </tr>
       {open && (
         <tr>
-          <td colSpan={cols.length + 1} style={{ background: "var(--bg)", padding: "10px 14px" }} onClick={(e) => e.stopPropagation()}>
+          <td colSpan={cols.length + 1} style={{ background: "var(--bd-surface-100)", padding: "10px 14px" }} onClick={(e) => e.stopPropagation()}>
             {children}
           </td>
         </tr>

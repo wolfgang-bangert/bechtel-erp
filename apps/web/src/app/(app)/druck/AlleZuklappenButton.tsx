@@ -5,8 +5,7 @@ export function AlleZuklappenButton() {
   return (
     <button
       type="button"
-      className="ghost"
-      style={{ padding: "6px 12px" }}
+      className="bd-btn bd-btn-secondary bd-btn-sm"
       onClick={() => {
         document.querySelectorAll<HTMLDetailsElement>("details.gd").forEach((d) => {
           d.open = false;
