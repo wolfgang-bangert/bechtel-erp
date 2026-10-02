@@ -220,24 +220,22 @@ export function PlanBoard({
 
   return (
     <div>
-      <div className="toolbar" style={{ gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+      <div className="bd-actions" style={{ marginBottom: 16 }}>
         {TYPEN.map((t) => {
           const n = batches.filter((b) => b.typ === t.typ && b.status !== "abgeschlossen").length;
           return (
             <button
               key={t.typ}
-              className={typ === t.typ ? undefined : "ghost"}
+              className={typ === t.typ ? "bd-btn bd-btn-primary" : "bd-btn bd-btn-secondary"}
               onClick={() => setTyp(t.typ)}
-              style={{ padding: "6px 12px" }}
             >
-              {t.label} <span className="count">{n}</span>
+              {t.label} <span style={{ fontWeight: 400, opacity: 0.85 }}>{n}</span>
             </button>
           );
         })}
         {typ === "druck" && (
           <button
-            className="ghost"
-            style={{ padding: "6px 12px" }}
+            className="bd-btn bd-btn-secondary"
             disabled={pending}
             onClick={() =>
               start(async () => {
@@ -251,15 +249,15 @@ export function PlanBoard({
             ⚙ Maschinen automatisch zuordnen
           </button>
         )}
-        {pending && <span className="count">speichert …</span>}
-        {note && <span className="msg-ok">{note}</span>}
-        {err && <span className="msg-err">{err}</span>}
+        {pending && <span className="bd-mute">speichert …</span>}
+        {note && <span className="bd-ok">{note}</span>}
+        {err && <span className="bd-err">{err}</span>}
       </div>
 
       {lanes.length <= 1 && (
-        <p className="lead">
+        <p className="bd-mute">
           Keine Maschine vom Typ „{TYPEN.find((t) => t.typ === typ)?.label}". In{" "}
-          <Link href="/einstellungen/maschinen">Maschinen</Link> anlegen.
+          <Link className="bd-link" href="/einstellungen/maschinen">Maschinen</Link> anlegen.
         </p>
       )}
 
@@ -278,11 +276,11 @@ export function PlanBoard({
               <div key={lane.id || "none"} style={{ display: "contents" }}>
                 <div
                   className="plan-lane-head"
-                  style={{ borderLeftColor: lane.farbe ?? "var(--border)" }}
+                  style={{ borderLeftColor: lane.farbe ?? "var(--bd-line-strong)" }}
                 >
                   <strong>{lane.name}</strong>
                   {lane.id && (
-                    <div className="count" style={{ marginTop: 2 }}>
+                    <div className="bd-mute" style={{ marginTop: 2 }}>
                       {[
                         lane.druckverfahren,
                         lane.max_farben ? `${lane.max_farben}-farbig` : null,
@@ -301,7 +299,7 @@ export function PlanBoard({
                       )}
                     </div>
                   )}
-                  <div className="count" style={{ marginTop: 4 }}>
+                  <div className="bd-mute" style={{ marginTop: 4 }}>
                     {load.anz} Batches
                     {load.min > 0 && ` · ~${Math.round(load.min / 60)} h`}
                     {load.bogen > 0 && ` · ${load.bogen.toLocaleString("de-DE")} Bogen`}
@@ -348,13 +346,13 @@ export function PlanBoard({
                               e.stopPropagation();
                               drop(lane.id, phase.key, b.id);
                             }}
-                            style={{ borderLeftColor: lane.farbe ?? "var(--muted)" }}
+                            style={{ borderLeftColor: lane.farbe ?? "var(--bd-ink-muted)" }}
                           >
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
-                              <Link href={`/druck#${b.nummer}`} style={{ fontWeight: 600 }}>
+                              <Link href={`/druck#${b.nummer}`} style={{ fontWeight: 600, color: "var(--bd-rot)" }}>
                                 {b.nummer}
                               </Link>
-                              <span className="count">{b.job.length} Jobs</span>
+                              <span className="bd-mute">{b.job.length} Jobs</span>
                             </div>
                             <div className="pc-meta">
                               {schluesselText(b.typ, b.schluessel, cfg) ||
@@ -385,7 +383,7 @@ export function PlanBoard({
                           </div>
                         );
                       })}
-                      {!list.length && <span className="count">–</span>}
+                      {!list.length && <span className="bd-mute">–</span>}
                     </div>
                   );
                 })}
