@@ -46,7 +46,7 @@ export default async function EingangsrechnungenPage({
   let query = supabase
     .from("incoming_document")
     .select(
-      "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, paid_total, status, supplier_name, email_from, advice_reference, advice_debit_date",
+      "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date",
       { count: "exact" },
     )
     .limit(200);
@@ -62,6 +62,26 @@ export default async function EingangsrechnungenPage({
   const sortColumn = sort === "supplier" ? "supplier_name" : dateColumn;
   query = query.order(sortColumn, { ascending, nullsFirst: false });
   const { data, count, error } = await query;
+
+  // Zahlart-Vorschlag je Lieferant (Vorkontierung) für Belege ohne eigene
+  // Angabe - nur zur Anzeige, nicht geraten (siehe Vorfall: vorher wurde
+  // ungeprüft "Lastschrift" angenommen, auch wenn z.B. eine Überweisungs-
+  // Regel existierte).
+  const orgIds = Array.from(
+    new Set((data ?? []).map((d) => d.supplier_organization_id).filter((x): x is string => !!x)),
+  );
+  const ruleMethodByOrg = new Map<string, string>();
+  if (orgIds.length) {
+    const { data: rules } = await supabase
+      .from("posting_rule")
+      .select("organization_id, payment_method")
+      .in("organization_id", orgIds)
+      .eq("is_active", true)
+      .not("payment_method", "is", null);
+    for (const r of rules ?? []) {
+      if (r.payment_method) ruleMethodByOrg.set(r.organization_id, r.payment_method);
+    }
+  }
 
   const sortHref = (field: "date" | "supplier") => {
     const u = new URLSearchParams();
@@ -218,13 +238,18 @@ export default async function EingangsrechnungenPage({
                         bezahlt
                       </span>
                     ) : (
-                      <span className="bd-sub">
-                        {d.payment_method
-                          ? (PAYMENT_LABEL[d.payment_method] ?? d.payment_method)
-                          : (d.paid_total ?? 0) > 0
-                            ? "–"
-                            : "Lastschrift"}
-                      </span>
+                      (() => {
+                        const method =
+                          d.payment_method ??
+                          (d.supplier_organization_id
+                            ? ruleMethodByOrg.get(d.supplier_organization_id)
+                            : null);
+                        return (
+                          <span className="bd-sub">
+                            {method ? (PAYMENT_LABEL[method] ?? method) : "–"}
+                          </span>
+                        );
+                      })()
                     )}
                   </td>
                   <td>
