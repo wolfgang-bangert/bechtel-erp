@@ -50,9 +50,9 @@ export default async function FluxLogPage({
     : zeilen.filter((z) => !z.matched).length;
 
   return (
-    <>
+    <div className="content-wide bd-page">
       <h1>flux-Log</h1>
-      <p className="lead">
+      <p className="bd-lead" style={{ maxWidth: 760 }}>
         Rohe Statusmeldungen, die flux an den Webhook geschickt hat - die letzten 300. "nicht
         zugeordnet" heißt: kein passender opri-Auftrag/Job gefunden, z.B. weil der Auftrag nicht
         über opri, sondern direkt in flux angelegt wurde.
@@ -60,27 +60,24 @@ export default async function FluxLogPage({
 
       {error && <div className="banner-err">Fehler beim Laden: {error.message}</div>}
 
-      <div className="toolbar" style={{ justifyContent: "space-between" }}>
-        <span className="count">
+      <div className="bd-toolbar" style={{ alignItems: "center" }}>
+        <span className="bd-mute">
           {zeilen.length} Einträge{!nurUnzugeordnet && ` · ${unzugeordnetAnzahl} nicht zugeordnet`}
         </span>
+        <div className="bd-spacer" />
         {nurUnzugeordnet ? (
-          <Link href="/druck/flux-log" className="ghost" style={{ padding: "7px 12px" }}>
+          <Link href="/druck/flux-log" className="bd-btn bd-btn-secondary">
             alle anzeigen
           </Link>
         ) : (
-          <Link
-            href="/druck/flux-log?nur=unzugeordnet"
-            className="ghost"
-            style={{ padding: "7px 12px" }}
-          >
+          <Link href="/druck/flux-log?nur=unzugeordnet" className="bd-btn bd-btn-secondary">
             nur nicht zugeordnete
           </Link>
         )}
       </div>
 
       <div className="table-scroll">
-        <table className="data">
+        <table className="bd-table">
           <thead>
             <tr>
               <th>Zeit</th>
@@ -97,48 +94,40 @@ export default async function FluxLogPage({
           <tbody>
             {zeilen.map((z) => (
               <tr key={z.id}>
-                <td className="count">{fmtZeit(z.received_at)}</td>
+                <td className="bd-mute" style={{ whiteSpace: "nowrap" }}>{fmtZeit(z.received_at)}</td>
                 <td>{z.event ?? "—"}</td>
                 <td>{z.status ?? "—"}</td>
                 <td>{z.work_step ?? "—"}</td>
-                <td className="count">
+                <td className="bd-mute">
                   {z.flux_order_id ?? "—"}
                   {z.flux_order_item_id ? ` / ${z.flux_order_item_id}` : ""}
                 </td>
                 <td>
                   {z.portal_order_id ? (
-                    <Link href={`/druckauftraege/${z.portal_order_id}`}>
+                    <Link className="bd-link" href={`/druckauftraege/${z.portal_order_id}`}>
                       {z.order?.external_reference ?? "zum Auftrag"}
                     </Link>
                   ) : (
-                    <span className="msg-err">nicht zugeordnet</span>
+                    <span className="bd-status t-danger">
+                      <span className="bd-status-mark" />
+                      nicht zugeordnet
+                    </span>
                   )}
                 </td>
                 <td>
                   {z.signature_ok == null ? (
-                    <span className="count">–</span>
+                    <span className="bd-mute">–</span>
                   ) : z.signature_ok ? (
-                    "✓"
+                    <span className="bd-ok">✓</span>
                   ) : (
-                    <span className="msg-err">✗</span>
+                    <span className="bd-err">✗</span>
                   )}
                 </td>
-                <td className="wrap count">{z.message ?? ""}</td>
+                <td className="wrap bd-mute">{z.message ?? ""}</td>
                 <td>
                   <details>
-                    <summary style={{ cursor: "pointer", color: "var(--muted)" }}>roh</summary>
-                    <pre
-                      style={{
-                        background: "var(--panel)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 6,
-                        padding: 10,
-                        overflow: "auto",
-                        fontSize: 11,
-                        maxWidth: 400,
-                        maxHeight: 300,
-                      }}
-                    >
+                    <summary className="bd-mute" style={{ cursor: "pointer" }}>roh</summary>
+                    <pre className="bd-pre" style={{ maxWidth: 400, maxHeight: 300 }}>
                       {JSON.stringify(z.raw, null, 2)}
                     </pre>
                   </details>
@@ -148,6 +137,6 @@ export default async function FluxLogPage({
           </tbody>
         </table>
       </div>
-    </>
+    </div>
   );
 }
