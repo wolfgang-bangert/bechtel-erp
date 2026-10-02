@@ -44,6 +44,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/bank", label: "Bank" },
       { href: "/lohnbuchungen", label: "Lohnbuchungen" },
       { href: "/datev-vorschau", label: "DATEV-Vorschau" },
+      { href: "/ustva", label: "UStVA" },
     ],
   },
   {
