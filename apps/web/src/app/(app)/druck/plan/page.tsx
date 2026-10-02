@@ -29,30 +29,32 @@ export default async function PlanPage() {
   const cfg = (cfgRow?.value as Record<string, string[]>) ?? {};
 
   return (
-    <>
-      <div className="toolbar" style={{ justifyContent: "space-between" }}>
-        <h1 style={{ margin: 0 }}>Belegungs-Board</h1>
-        <div className="toolbar" style={{ gap: 8 }}>
-          <Link href="/druck" className="ghost" style={{ padding: "7px 12px" }}>
+    <div className="content-wide bd-page">
+      <div className="bd-head">
+        <div>
+          <h1>Belegungs-Board</h1>
+          <p className="bd-lead" style={{ marginBottom: 16, maxWidth: 760 }}>
+            Batches per Drag &amp; Drop einer Maschine und Phase zuordnen. Spalten:
+            Warteschlange · Läuft · Fertig. Innerhalb einer Zelle bestimmt die Reihenfolge die
+            Abarbeitung. Der flux-Versand bleibt am Druck-Batch im Dashboard – hier ist „Läuft"
+            eine manuelle Statusmarkierung.
+          </p>
+        </div>
+        <div className="bd-actions">
+          <Link href="/druck" className="bd-btn bd-btn-secondary">
             ← Druck-Dashboard
           </Link>
-          <Link href="/einstellungen/maschinen" className="ghost" style={{ padding: "7px 12px" }}>
+          <Link href="/einstellungen/maschinen" className="bd-btn bd-btn-secondary">
             Maschinen
           </Link>
         </div>
       </div>
-      <p className="lead">
-        Batches per Drag &amp; Drop einer Maschine und Phase zuordnen. Spalten:
-        Warteschlange · Läuft · Fertig. Innerhalb einer Zelle bestimmt die Reihenfolge die
-        Abarbeitung. Der flux-Versand bleibt am Druck-Batch im Dashboard – hier ist „Läuft"
-        eine manuelle Statusmarkierung.
-      </p>
 
       <PlanBoard
         maschinen={(maschinen ?? []) as Maschine[]}
         batches={(batches ?? []) as unknown as PlanBatch[]}
         cfg={cfg}
       />
-    </>
+    </div>
   );
 }

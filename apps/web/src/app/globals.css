@@ -523,27 +523,27 @@ table.data td.wrap {
   grid-template-columns: 220px repeat(3, minmax(240px, 1fr));
   gap: 10px;
   min-width: 980px;
+  font-family: var(--font-bd-sans);
 }
 .plan-col-head {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 4px 2px;
+  color: var(--bd-ink-muted);
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--bd-line-strong);
 }
 .plan-lane-head {
-  border-left: 4px solid var(--border);
-  padding: 8px 10px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 1px solid var(--bd-line);
+  border-left: 4px solid var(--bd-line-strong);
+  padding: 10px 12px;
+  background: var(--bd-paper);
+  border-radius: var(--bd-radius-md);
   align-self: start;
 }
 .plan-cell {
-  background: var(--bg);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
+  background: var(--bd-surface-100);
+  border: 1px dashed var(--bd-line-strong);
+  border-radius: var(--bd-radius-md);
   padding: 6px;
   min-height: 64px;
   display: flex;
@@ -551,17 +551,20 @@ table.data td.wrap {
   gap: 6px;
 }
 .plan-cell.drop {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+  border-color: var(--bd-rot);
+  background: color-mix(in srgb, var(--bd-rot) 8%, var(--bd-surface-100));
 }
 .plan-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--muted);
-  border-radius: 6px;
-  padding: 8px 9px;
+  background: var(--bd-paper);
+  border: 1px solid var(--bd-line);
+  border-left: 4px solid var(--bd-ink-muted);
+  border-radius: var(--bd-radius-sm);
+  padding: 8px 10px;
   cursor: grab;
   font-size: 13px;
+}
+.plan-card:hover {
+  border-color: var(--bd-line-strong);
 }
 .plan-card:active {
   cursor: grabbing;
@@ -570,15 +573,19 @@ table.data td.wrap {
   opacity: 0.4;
 }
 .plan-card .pc-meta {
-  color: var(--muted);
-  font-size: 11px;
+  color: var(--bd-ink-muted);
+  font-size: 12px;
   margin-top: 4px;
 }
 .plan-card input.pc-dauer {
   width: 56px;
-  font-size: 11px;
-  padding: 1px 4px;
-  margin-top: 4px;
+  font-size: 12px;
+  padding: 2px 5px;
+  margin-top: 0;
+  border: 1px solid var(--bd-line-strong);
+  border-radius: var(--bd-radius-sm);
+  background: var(--bd-paper);
+  font-family: var(--font-bd-sans);
 }
 
 /* ---- Thumbnail-Hover-Zoom (Druckaufträge-Liste) ----------------------- */
