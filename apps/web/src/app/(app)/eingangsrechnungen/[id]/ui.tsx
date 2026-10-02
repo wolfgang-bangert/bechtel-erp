@@ -87,13 +87,34 @@ export function ReviewForm({
   const [state, action, pending] = useActionState(saveIncoming, empty);
   const v = (k: string) => (doc[k] == null ? "" : String(doc[k]));
 
-  const usingSuggestion = !v("ledger_account") && !!suggestion?.ledger_account;
-  const [defaultLedgerAccount, setDefaultLedgerAccount] = useState(
-    v("ledger_account") || suggestion?.ledger_account || "",
-  );
   const [organizationId, setOrganizationId] = useState(v("supplier_organization_id"));
   const [payeeDiffers, setPayeeDiffers] = useState(v("payee_differs") === "true");
-  const [positions, setPositions] = useState<Pos[]>(items);
+  // Kontierung passiert nur noch je Position - ein Beleg ohne Positionen
+  // (z.B. wenn die KI-Extraktion keine Positionsliste erkannt hat) bekäme
+  // sonst gar keine Stelle mehr zum Kontieren. Deshalb hier eine Position
+  // aus den Dokument-Summen vorbelegen, statt "+ Position" zu erzwingen.
+  const [positions, setPositions] = useState<Pos[]>(() =>
+    items.length
+      ? items
+      : [
+          {
+            position: 1,
+            description: "",
+            quantity: null,
+            unit_price: null,
+            tax_rate:
+              Number(doc.net_amount) > 0 && doc.tax_amount != null
+                ? Math.round((Number(doc.tax_amount) / Number(doc.net_amount)) * 100)
+                : 0,
+            net_amount: doc.net_amount != null ? Number(doc.net_amount) : null,
+            ledger_account: v("ledger_account") || suggestion?.ledger_account || "",
+            tax_code_id: v("tax_code_id") || suggestion?.tax_code_id || "",
+            material_ref: "",
+            linked_document_id: "",
+            allocations: [],
+          },
+        ],
+  );
   const [openPos, setOpenPos] = useState<number | null>(null);
 
   const orgName = organizations.find((o) => o.value === organizationId)?.label;
@@ -305,54 +326,7 @@ export function ReviewForm({
                 Beleg selbst ausgewiesene Fremdwährungsbetrag zur Anzeige.
               </p>
             )}
-          </Card>
-
-          <Card title="Kontierung (Vorgabe)">
-            <p className="lead" style={{ marginTop: -6 }}>
-              Gilt für alle Positionen ohne eigene Angabe.
-              {usingSuggestion && (
-                <>
-                  {" "}
-                  <span className="msg-ok">
-                    Vorschlag aus <a href="/einstellungen/vorkontierung">Vorkontierung</a> übernommen — prüfen
-                    und speichern.
-                  </span>
-                </>
-              )}
-            </p>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <div className="bd-field" style={{ width: 300 }}>
-                <label className="bd-field-label">Aufwandskonto (SKR03)</label>
-                <AccountPicker
-                  name="ledger_account"
-                  value={defaultLedgerAccount}
-                  onChange={setDefaultLedgerAccount}
-                  accounts={ledgerAccounts}
-                />
-              </div>
-              <div className="bd-field" style={{ width: 220 }}>
-                <label className="bd-field-label" htmlFor="tax_code_id">Steuerschlüssel</label>
-                <select
-                  className="bd-field-input"
-                  id="tax_code_id"
-                  name="tax_code_id"
-                  defaultValue={v("tax_code_id") || suggestion?.tax_code_id || ""}
-                >
-                  <option value="">–</option>
-                  {taxCodes.map((t) => (
-                    <option key={t.id} value={t.id}>{t.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="bd-field" style={{ width: 220 }}>
-                <label className="bd-field-label" htmlFor="cost_center_id">Kostenstelle</label>
-                <select className="bd-field-input" id="cost_center_id" name="cost_center_id" defaultValue={v("cost_center_id")}>
-                  <option value="">–</option>
-                  {costCenters.map((c) => (
-                    <option key={c.id} value={c.id}>{c.label}</option>
-                  ))}
-                </select>
-              </div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
               <div className="bd-field" style={{ width: 160 }}>
                 <label className="bd-field-label" htmlFor="payment_status">Zahlstatus</label>
                 <select className="bd-field-input" id="payment_status" name="payment_status" defaultValue={v("payment_status") || "open"}>
@@ -362,6 +336,14 @@ export function ReviewForm({
               </div>
             </div>
           </Card>
+
+          {/* Kontierung (Aufwandskonto/Steuerschlüssel/Kostenstelle) passiert nur
+              noch je Position (siehe Belegzeilen) - keine Dokument-Vorgabe mehr
+              zum Bearbeiten. Die bisherigen Dokument-Werte bleiben als Fallback
+              für Positionen ohne eigene Angabe erhalten, nur nicht mehr editierbar. */}
+          <input type="hidden" name="ledger_account" value={v("ledger_account")} />
+          <input type="hidden" name="tax_code_id" value={v("tax_code_id")} />
+          <input type="hidden" name="cost_center_id" value={v("cost_center_id")} />
         </div>
 
         {pdfUrl && (
