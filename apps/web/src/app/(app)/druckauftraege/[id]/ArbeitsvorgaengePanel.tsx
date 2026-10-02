@@ -54,10 +54,10 @@ export type ArbeitsvorgangJob = {
 };
 
 const F = ({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) => (
-  <label className="field" style={{ minWidth: 150 }}>
-    <span>{label}</span>
+  <label className="bd-field" style={{ minWidth: 150 }}>
+    <span className="bd-field-label">{label}</span>
     {children}
-    {hint && <small className="count">{hint}</small>}
+    {hint && <small className="bd-mute" style={{ fontSize: 12 }}>{hint}</small>}
   </label>
 );
 
@@ -75,31 +75,31 @@ export function JobDateien({ orderId, job }: { orderId: string; job: Arbeitsvorg
 
   return (
     <div style={{ marginTop: 12 }}>
-      <strong style={{ fontSize: 13 }}>Dateien für flux</strong>
+      <strong style={{ fontSize: 13, fontFamily: "var(--font-bd-sans)" }}>Dateien für flux</strong>
       {job.dateien.length === 0 ? (
-        <p className="msg-err" style={{ margin: "6px 0" }}>
+        <p className="bd-err" style={{ margin: "6px 0" }}>
           keine Druckdatei - ohne Upload kann dieser Vorgang nicht an flux übergeben werden
         </p>
       ) : (
-        <table className="data" style={{ marginTop: 6 }}>
+        <table className="bd-table" style={{ marginTop: 6 }}>
           <tbody>
             {job.dateien.map((d) => (
               <tr key={d.id}>
                 <td className="wrap">
                   {d.filename ?? "—"}
-                  {d.herkunft === "upload" && <span className="tag" style={{ marginLeft: 6 }}>Upload</span>}
+                  {d.herkunft === "upload" && <span className="bd-count" style={{ marginLeft: 6 }}>Upload</span>}
                 </td>
-                <td className="count" style={{ textAlign: "right" }}>{kb(d.bytes)}</td>
+                <td className="bd-num bd-mute">{kb(d.bytes)}</td>
                 <td style={{ whiteSpace: "nowrap" }}>
                   {d.viewUrl && (
-                    <a href={d.viewUrl} target="_blank" rel="noreferrer" className="ghost" style={{ padding: "4px 8px", marginRight: 6 }}>
+                    <a href={d.viewUrl} target="_blank" rel="noreferrer" className="bd-btn bd-btn-secondary bd-btn-sm" style={{ marginRight: 6 }}>
                       Öffnen
                     </a>
                   )}
                   <form action={deleteAction} style={{ display: "inline" }}>
                     <input type="hidden" name="datei_id" value={d.id} />
                     <input type="hidden" name="order_id" value={orderId} />
-                    <button type="button" className="ghost" style={{ padding: "4px 8px" }}
+                    <button type="button" className="bd-btn bd-btn-secondary bd-btn-sm"
                       onClick={(e) => {
                         if (!confirm(`"${d.filename ?? "Datei"}" aus der Liste entfernen?`)) return;
                         (e.currentTarget.form as HTMLFormElement).requestSubmit();
@@ -114,19 +114,19 @@ export function JobDateien({ orderId, job }: { orderId: string; job: Arbeitsvorg
           </tbody>
         </table>
       )}
-      {deleteState.error && <div className="msg-err" style={{ marginTop: 4 }}>{deleteState.error}</div>}
+      {deleteState.error && <div className="bd-err" style={{ marginTop: 4 }}>{deleteState.error}</div>}
 
-      <form action={uploadAction} className="toolbar" style={{ gap: 8, marginTop: 8 }}>
+      <form action={uploadAction} className="bd-actions" style={{ marginTop: 10 }}>
         <input type="hidden" name="job_id" value={job.id} />
         <input type="hidden" name="order_id" value={orderId} />
         <input type="file" name="file" accept="application/pdf" required />
-        <button type="submit" disabled={uploadPending} style={{ padding: "5px 10px" }}>
+        <button type="submit" className="bd-btn bd-btn-secondary bd-btn-sm" disabled={uploadPending}>
           {uploadPending ? "…" : "Datei hinzufügen"}
         </button>
-        {uploadState.ok && <span className="msg-ok">✓ {uploadState.note}</span>}
-        {uploadState.error && <span className="msg-err">{uploadState.error}</span>}
+        {uploadState.ok && <span className="bd-ok">✓ {uploadState.note}</span>}
+        {uploadState.error && <span className="bd-err">{uploadState.error}</span>}
       </form>
-      <p className="count" style={{ marginTop: 2 }}>
+      <p className="bd-mute" style={{ marginTop: 4 }}>
         Mehrere Dateien möglich (z. B. Umschlag + Inhalt getrennt geliefert). Zum Tauschen: alte
         Datei entfernen, neue hochladen.
       </p>
@@ -167,18 +167,18 @@ export function FluxFelder({
     <>
       {fluxUrl && (
         <div style={{ marginBottom: 10 }}>
-          <a href={fluxUrl} target="_blank" rel="noreferrer" className="ghost" style={{ padding: "5px 10px" }}>
+          <a href={fluxUrl} target="_blank" rel="noreferrer" className="bd-btn bd-btn-secondary bd-btn-sm">
             flux öffnen →
           </a>
         </div>
       )}
-      <form action={action} className="rows">
+      <form action={action} className="bd-form-col" style={{ maxWidth: "none" }}>
         <input type="hidden" name="order_id" value={orderId} />
         <input type="hidden" name="job_id" value={job.id} />
 
-        <div className="row" style={{ border: "none", padding: 0, flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
           <F label="flux-Produkt" hint={selected?.description}>
-            <input
+            <input className="bd-field-input"
               name="flux_product"
               list="flux-products"
               value={product}
@@ -188,11 +188,11 @@ export function FluxFelder({
           </F>
 
           <F label="Standbogen" hint="optional">
-            <input name="signature" defaultValue={job.flux_signature ?? ""} list="flux-signatures" />
+            <input className="bd-field-input" name="signature" defaultValue={job.flux_signature ?? ""} list="flux-signatures" />
           </F>
 
           <F label="Drucker" hint="optional">
-            <input name="printer" defaultValue={job.flux_printer ?? ""} list="flux-printers" />
+            <input className="bd-field-input" name="printer" defaultValue={job.flux_printer ?? ""} list="flux-printers" />
           </F>
 
           <F
@@ -200,7 +200,7 @@ export function FluxFelder({
             hint={paperG?.options.length ? "aus Produkt" : "aus Materialkatalog / frei"}
           >
             {paperG && paperG.options.length ? (
-              <select name="paper_type" defaultValue={job.flux_paper_type ?? ""}>
+              <select className="bd-field-input" name="paper_type" defaultValue={job.flux_paper_type ?? ""}>
                 <option value="">(Standard)</option>
                 {paperG.options.map((o) => (
                   <option key={o} value={o}>
@@ -212,12 +212,12 @@ export function FluxFelder({
                 )}
               </select>
             ) : (
-              <input name="paper_type" defaultValue={job.flux_paper_type ?? ""} list="flux-papers" />
+              <input className="bd-field-input" name="paper_type" defaultValue={job.flux_paper_type ?? ""} list="flux-papers" />
             )}
           </F>
 
           <F label="Beidseitig" hint={beidseitigG?.def ? `Standard: ${beidseitigG.def}` : undefined}>
-            <select name="beidseitig" defaultValue={curBeid}>
+            <select className="bd-field-input" name="beidseitig" defaultValue={curBeid}>
               <option value="">(Standard)</option>
               {(beidseitigG?.options ?? []).map((o) => (
                 <option key={o} value={o}>
@@ -231,7 +231,7 @@ export function FluxFelder({
           </F>
 
           <F label="Farbe" hint={farbeG?.def ? `Standard: ${farbeG.def}` : undefined}>
-            <select name="farbe" defaultValue={curFarbe}>
+            <select className="bd-field-input" name="farbe" defaultValue={curFarbe}>
               <option value="">(Standard)</option>
               {(farbeG?.options ?? []).map((o) => (
                 <option key={o} value={o}>
@@ -245,13 +245,13 @@ export function FluxFelder({
           </F>
         </div>
 
-        <div className="toolbar" style={{ gap: 10 }}>
-          <button type="submit" disabled={pending}>
+        <div className="bd-actions">
+          <button type="submit" className="bd-btn bd-btn-primary" disabled={pending}>
             {pending ? "…" : "Speichern"}
           </button>
-          {produktFehlt && <span className="count">Produkt nicht im flux-Katalog</span>}
-          {state.ok && <span className="msg-ok">✓ {state.note}</span>}
-          {state.error && <span className="msg-err">{state.error}</span>}
+          {produktFehlt && <span className="bd-mute">Produkt nicht im flux-Katalog</span>}
+          {state.ok && <span className="bd-ok">✓ {state.note}</span>}
+          {state.error && <span className="bd-err">{state.error}</span>}
         </div>
       </form>
 
@@ -264,15 +264,15 @@ function Json({ label, value }: { label: string; value: unknown }) {
   if (value == null) return null;
   return (
     <details style={{ marginTop: 6 }}>
-      <summary className="count">{label}</summary>
+      <summary className="bd-mute">{label}</summary>
       <pre
         style={{
           font: "11px ui-monospace, monospace",
           whiteSpace: "pre-wrap",
           wordBreak: "break-word",
-          background: "var(--bg)",
-          border: "1px solid var(--border)",
-          borderRadius: 6,
+          background: "var(--bd-surface-100)",
+          border: "1px solid var(--bd-line)",
+          borderRadius: "var(--bd-radius-sm)",
           padding: 8,
           marginTop: 6,
           maxHeight: 320,
@@ -327,38 +327,38 @@ function JobPopup({
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "var(--panel)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius)",
+          background: "var(--bd-paper)",
+          border: "1px solid var(--bd-line)",
+          borderRadius: "var(--bd-radius-md)",
           width: "min(720px, 100%)",
           maxHeight: "90vh",
           overflow: "auto",
         }}
       >
         <div
-          className="toolbar"
-          style={{ justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid var(--border)" }}
+          className="bd-section-head"
+          style={{ padding: "10px 14px", borderBottom: "1px solid var(--bd-line)", marginBottom: 0 }}
         >
-          <strong>{job.bauteil}</strong>
-          <button type="button" onClick={onClose} style={{ padding: "5px 10px" }}>
+          <strong style={{ fontFamily: "var(--font-bd-display)", fontSize: 16 }}>{job.bauteil}</strong>
+          <button type="button" className="bd-btn bd-btn-secondary bd-btn-sm" onClick={onClose}>
             Schließen
           </button>
         </div>
         <div style={{ padding: 14 }}>
           <FluxFelder orderId={orderId} job={job} products={products} fluxUrlTpl={fluxUrlTpl} />
 
-          <form action={sendAction} className="toolbar" style={{ gap: 10, marginTop: 14, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+          <form action={sendAction} className="bd-actions" style={{ marginTop: 14, borderTop: "1px solid var(--bd-line)", paddingTop: 12 }}>
             <input type="hidden" name="id" value={orderId} />
-            <button type="submit" disabled={sendPending} style={{ padding: "7px 14px" }}>
+            <button type="submit" className="bd-btn bd-btn-primary" disabled={sendPending}>
               {sendPending ? "…" : sentOrderId ? "erneut an flux senden" : "Auftrag an flux senden"}
             </button>
-            <span className="count">
+            <span className="bd-mute">
               {sentOrderId
                 ? `gesendet · flux ${sentOrderId}`
                 : "übergibt alle Druck-Vorgänge dieses Auftrags an flux"}
             </span>
-            {sendState.ok && <span className="msg-ok">✓ {sendState.note}</span>}
-            {sendState.error && <span className="msg-err">{sendState.error}</span>}
+            {sendState.ok && <span className="bd-ok">✓ {sendState.note}</span>}
+            {sendState.error && <span className="bd-err">{sendState.error}</span>}
           </form>
         </div>
       </div>
@@ -371,14 +371,14 @@ function JobPopup({
 function VersandTeillieferungForm({ orderId }: { orderId: string }) {
   const [state, action, pending] = useActionState(addVersandTeillieferungAction, empty);
   return (
-    <form action={action} className="toolbar" style={{ gap: 8, marginTop: 4 }}>
+    <form action={action} className="bd-actions" style={{ marginTop: 12 }}>
       <input type="hidden" name="order_id" value={orderId} />
-      <input name="menge" type="number" min={1} step={1} placeholder="Menge" style={{ width: 90 }} required />
-      <button type="submit" disabled={pending} className="ghost" style={{ padding: "6px 12px" }}>
+      <input className="bd-field-input" name="menge" type="number" min={1} step={1} placeholder="Menge" style={{ width: 90 }} required />
+      <button type="submit" disabled={pending} className="bd-btn bd-btn-secondary">
         {pending ? "…" : "+ Versand-Vorgang (Teillieferung)"}
       </button>
-      {state.ok && <span className="msg-ok">✓ {state.note}</span>}
-      {state.error && <span className="msg-err">{state.error}</span>}
+      {state.ok && <span className="bd-ok">✓ {state.note}</span>}
+      {state.error && <span className="bd-err">{state.error}</span>}
     </form>
   );
 }
@@ -417,31 +417,31 @@ export function ArbeitsvorgaengePanel({
 
   return (
     <>
-      <div className="toolbar" style={{ justifyContent: "space-between", marginTop: 18 }}>
-        <h2 style={{ margin: 0 }}>
-          Arbeitsvorgänge {jobs.length > 0 && <span className="tag">{jobs.length}</span>}
+      <div className="bd-section-head">
+        <h2>
+          Arbeitsvorgänge {jobs.length > 0 && <span className="bd-count">{jobs.length}</span>}
         </h2>
         <DruckjobsButton id={orderId} />
       </div>
 
       {jobs.length === 0 ? (
-        <p className="lead">
+        <p className="bd-mute">
           Noch keine Jobs. „Jobs erzeugen" legt Druck-, Cello-, Binde- und Aufhänger-Vorgänge
           an und sortiert sie in Batches.
         </p>
       ) : (
         <>
-          <p className="lead" style={{ marginTop: 0 }}>
+          <p className="bd-mute" style={{ marginTop: 0, marginBottom: 12 }}>
             Druck-Vorgänge anklicken, um flux-Produkt, Dateien und Overrides zu setzen.
           </p>
           <div className="table-scroll">
-            <table className="data">
+            <table className="bd-table">
               <thead>
                 <tr>
                   <th>Typ</th>
                   <th>Bauteil</th>
                   <th>Papier / Farbe</th>
-                  <th style={{ textAlign: "right" }}>Menge</th>
+                  <th className="bd-num">Menge</th>
                   <th>Cello / Wire-O</th>
                   <th>Batch</th>
                   <th>Status</th>
@@ -456,13 +456,13 @@ export function ArbeitsvorgaengePanel({
                       onClick={klickbar ? () => setSelectedId(j.id) : undefined}
                       style={klickbar ? { cursor: "pointer" } : undefined}
                     >
-                      <td><span className="tag">{j.typ}</span></td>
+                      <td><span className="bd-count">{j.typ}</span></td>
                       <td>
                         {j.bauteil}
-                        {klickbar && !j.dateien.length && <span className="msg-err" style={{ marginLeft: 6 }}>keine Datei</span>}
-                        {j.flux_order_item_id && <span className="tag" style={{ marginLeft: 6 }}>an flux</span>}
+                        {klickbar && !j.dateien.length && <span className="bd-err" style={{ marginLeft: 8 }}>keine Datei</span>}
+                        {j.flux_order_item_id && <span className="bd-count" style={{ marginLeft: 8 }}>an flux</span>}
                         {j.komponenten && j.komponenten.length > 0 && (
-                          <div className="count" style={{ marginTop: 3 }}>
+                          <span className="bd-sub">
                             führt zusammen:{" "}
                             {j.komponenten
                               .map(
@@ -472,7 +472,7 @@ export function ArbeitsvorgaengePanel({
                                   }`,
                               )
                               .join("  +  ")}
-                          </div>
+                          </span>
                         )}
                       </td>
                       <td>
@@ -480,7 +480,7 @@ export function ArbeitsvorgaengePanel({
                         {j.farbigkeit ? ` · ${j.farbigkeit}` : ""}
                         {j.format ? ` · ${j.format}` : ""}
                       </td>
-                      <td style={{ textAlign: "right" }}>
+                      <td className="bd-num">
                         {j.typ === "druck"
                           ? `${j.netto_bogen ?? "—"}${j.druckbogen ? ` ${j.druckbogen}` : ""}${j.nutzen ? ` (${j.nutzen}-up)` : ""}`
                           : j.typ === "binden"
@@ -495,9 +495,9 @@ export function ArbeitsvorgaengePanel({
                             : "—"}
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
-                        {j.batch ? <Link href="/druck">{j.batch.nummer}</Link> : "—"}
+                        {j.batch ? <Link className="bd-link" href="/druck">{j.batch.nummer}</Link> : "—"}
                       </td>
-                      <td className="count">{j.status}</td>
+                      <td><span className="bd-status t-neutral"><span className="bd-status-mark" />{j.status}</span></td>
                     </tr>
                   );
                 })}
@@ -510,7 +510,7 @@ export function ArbeitsvorgaengePanel({
           {druckJobs.length > 0 && (
             <>
               {catalogError && (
-                <div className="banner-err" style={{ marginTop: 10 }}>
+                <div className="bd-hint" style={{ color: "var(--bd-danger)" }}>
                   flux-Katalog nicht erreichbar ({catalogError}).
                 </div>
               )}
@@ -536,23 +536,23 @@ export function ArbeitsvorgaengePanel({
                 ))}
               </datalist>
 
-              <form action={sendAction} className="toolbar" style={{ gap: 10, marginTop: 12 }}>
+              <form action={sendAction} className="bd-actions" style={{ marginTop: 16 }}>
                 <input type="hidden" name="id" value={orderId} />
-                <button type="submit" disabled={sendPending} style={{ padding: "7px 14px" }}>
+                <button type="submit" className="bd-btn bd-btn-primary" disabled={sendPending}>
                   {sendPending ? "…" : sentOrderId ? "erneut an flux senden" : "Auftrag an flux senden"}
                 </button>
                 {sentOrderId && (
-                  <span className="count">
+                  <span className="bd-mute">
                     gesendet · flux {sentOrderId} (Druck-Vorgang anklicken für „flux öffnen")
                   </span>
                 )}
-                {sendState.ok && <span className="msg-ok">✓ {sendState.note}</span>}
-                {sendState.error && <span className="msg-err">{sendState.error}</span>}
+                {sendState.ok && <span className="bd-ok">✓ {sendState.note}</span>}
+                {sendState.error && <span className="bd-err">{sendState.error}</span>}
               </form>
 
               {(lastPayload != null || lastResponse != null) && (
-                <div style={{ marginTop: 8 }}>
-                  <div className="count">
+                <div style={{ marginTop: 10 }}>
+                  <div className="bd-mute">
                     letzte Übergabe{lastSentAt ? ` · ${new Date(lastSentAt).toLocaleString("de-DE")}` : ""}
                   </div>
                   <Json label="→ gesendetes Payload" value={lastPayload} />
