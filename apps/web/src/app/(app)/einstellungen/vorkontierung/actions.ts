@@ -25,6 +25,7 @@ export async function saveRegel(_p: State, fd: FormData): Promise<State> {
     organization_id: organizationId,
     expense_account: expenseAccount,
     revenue_account: revenueAccount,
+    payment_method: s(fd, "payment_method"),
     note: s(fd, "note"),
     is_active: fd.get("is_active") != null,
     source: "manual",

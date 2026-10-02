@@ -16,7 +16,7 @@ export default async function VorkontierungEditPage({
     supabase
       .from("posting_rule")
       .select(
-        "id, organization_id, expense_account, revenue_account, note, is_active, organization:organization_id(name, customer_number, supplier_number)",
+        "id, organization_id, expense_account, revenue_account, payment_method, note, is_active, organization:organization_id(name, customer_number, supplier_number)",
       )
       .eq("id", id)
       .maybeSingle(),

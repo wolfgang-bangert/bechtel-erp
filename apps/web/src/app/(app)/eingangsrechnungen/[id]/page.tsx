@@ -102,14 +102,17 @@ export default async function IncomingDetail({
   const { data: postingRule } = doc.supplier_organization_id
     ? await supabase
         .from("posting_rule")
-        .select("expense_account, tax_code_id, is_active")
+        .select("expense_account, tax_code_id, payment_method, is_active")
         .eq("organization_id", doc.supplier_organization_id)
         .maybeSingle()
     : { data: null };
-  const suggestion =
-    postingRule?.is_active && postingRule.expense_account
-      ? { ledger_account: postingRule.expense_account, tax_code_id: postingRule.tax_code_id }
-      : null;
+  const suggestion = postingRule?.is_active
+    ? {
+        ledger_account: postingRule.expense_account,
+        tax_code_id: postingRule.tax_code_id,
+        payment_method: postingRule.payment_method,
+      }
+    : null;
 
   const pdfUrl = doc.pdf_storage_key ? await signedGetUrl(doc.pdf_storage_key, 1800) : null;
   const isAdvice = doc.doc_type === "payment_advice" || doc.status === "advice";

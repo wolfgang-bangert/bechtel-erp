@@ -425,7 +425,12 @@ export async function extractIncoming(opts: Options = {}) {
   // Vorkontierungs-Regeln (Lieferant → Aufwandskonto) als Vorschlag.
   const rules = new Map<
     string,
-    { expense_account: string; tax_code_id: string | null; confidence: number | null }
+    {
+      expense_account: string;
+      tax_code_id: string | null;
+      confidence: number | null;
+      payment_method: string | null;
+    }
   >(
     (
       await pagedSelect<{
@@ -434,12 +439,21 @@ export async function extractIncoming(opts: Options = {}) {
         tax_code_id: string | null;
         confidence: number | null;
         is_active: boolean;
-      }>("posting_rule", "organization_id, expense_account, tax_code_id, confidence, is_active")
+        payment_method: string | null;
+      }>(
+        "posting_rule",
+        "organization_id, expense_account, tax_code_id, confidence, is_active, payment_method",
+      )
     )
       .filter((r) => r.is_active)
       .map((r) => [
         r.organization_id,
-        { expense_account: r.expense_account, tax_code_id: r.tax_code_id, confidence: r.confidence },
+        {
+          expense_account: r.expense_account,
+          tax_code_id: r.tax_code_id,
+          confidence: r.confidence,
+          payment_method: r.payment_method,
+        },
       ]),
   );
 
@@ -632,7 +646,16 @@ export async function extractIncoming(opts: Options = {}) {
           net_amount: isHint ? null : num(e.net_amount),
           tax_amount: isHint ? null : num(e.tax_amount),
           gross_amount: isHint ? hintAmount : num(e.gross_amount),
-          payment_method: isHint ? null : (e.payment_method ?? null),
+          // Original-Rechnungsbetrag in Fremdwährung (zur Anzeige) - der Beleg
+          // selbst nennt nur diesen Betrag, nicht den tatsächlich in EUR
+          // abgebuchten Betrag (der kommt erst über Kontoauszug/Verknüpfung
+          // und wird dann manuell in net_amount/tax_amount/gross_amount
+          // korrigiert; diese bleiben die für DATEV maßgeblichen EUR-Beträge).
+          fx_gross_amount:
+            !isHint && (e.currency ?? "EUR").slice(0, 3).toUpperCase() !== "EUR"
+              ? num(e.gross_amount)
+              : null,
+          payment_method: isHint ? null : (e.payment_method ?? rule?.payment_method ?? null),
           tax_breakdown: isHint ? null : (e.tax_breakdown ?? null),
           advice_debit_date: isAdvice ? date(e.advice?.debit_date) : null,
           advice_reference: isHint && refs.length ? refs : null,
