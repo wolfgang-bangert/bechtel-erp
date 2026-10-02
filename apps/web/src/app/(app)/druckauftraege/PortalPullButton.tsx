@@ -25,12 +25,12 @@ export function PortalPullButton({ last }: { last: LastPullRequest | null }) {
   const [state, action, pending] = useActionState(requestPortalPullAction, empty);
 
   return (
-    <form action={action} className="toolbar" style={{ gap: 8, margin: 0 }}>
-      <button type="submit" disabled={pending} style={{ padding: "7px 14px" }}>
+    <form action={action} className="bd-actions">
+      <button type="submit" className="bd-btn bd-btn-secondary" disabled={pending}>
         {pending ? "…" : "Aufträge aktualisieren"}
       </button>
       {last && !state.ok && !state.error && (
-        <span className="count">
+        <span className="bd-mute">
           {STATUS_LABEL[last.status] ?? last.status}
           {last.finished_at
             ? ` · ${new Date(last.finished_at).toLocaleString("de-DE")}`
@@ -38,8 +38,8 @@ export function PortalPullButton({ last }: { last: LastPullRequest | null }) {
           {last.status === "error" && last.error ? ` (${last.error})` : ""}
         </span>
       )}
-      {state.ok && <span className="msg-ok">✓ {state.note}</span>}
-      {state.error && <span className="msg-err">{state.error}</span>}
+      {state.ok && <span className="bd-ok">✓ {state.note}</span>}
+      {state.error && <span className="bd-err">{state.error}</span>}
     </form>
   );
 }
