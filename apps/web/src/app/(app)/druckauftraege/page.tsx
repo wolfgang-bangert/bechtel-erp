@@ -31,7 +31,7 @@ function attrLine(a: Attr | null | undefined): string {
 }
 
 function Adr({ a }: { a: Record<string, unknown> | null }) {
-  if (!a) return <span className="count">—</span>;
+  if (!a) return <span className="bd-mute">—</span>;
   const g = (k: string) => (a[k] == null ? "" : String(a[k]));
   const lines = [
     g("company"),
@@ -124,25 +124,30 @@ export default async function DruckauftraegePage({
     return str ? `/druckauftraege?${str}` : "/druckauftraege";
   };
 
+  const stateTone = (st: string | null): "neutral" | "info" | "success" | "danger" =>
+    st === "FINISHED" ? "success" : st === "NEW" ? "info" : st && /CANCEL/i.test(st) ? "danger" : "neutral";
+
   return (
-    <>
-      <div className="toolbar" style={{ justifyContent: "space-between" }}>
-        <h1 style={{ margin: 0 }}>Druckaufträge</h1>
+    <div className="content-wide bd-page">
+      <div className="bd-head">
+        <div>
+          <h1>Druckaufträge</h1>
+          <p className="bd-lead" style={{ marginBottom: 16 }}>
+            Eingehende Aufträge von OnlinePrinters. Automatisch täglich 5:30 Uhr, oder oben manuell
+            anstoßen (holt neue Aufträge + aktualisiert Status bestehender, auch auf FINISHED).
+          </p>
+        </div>
         <PortalPullButton last={lastPull ?? null} />
       </div>
-      <p className="lead">
-        Eingehende Aufträge von OnlinePrinters. Automatisch täglich 5:30 Uhr, oder oben manuell
-        anstoßen (holt neue Aufträge + aktualisiert Status bestehender, auch auf FINISHED).
-      </p>
 
-      <form className="toolbar" method="get" style={{ flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
-        <label className="field" style={{ width: 200 }}>
-          <span>Suche</span>
-          <input name="q" defaultValue={q} placeholder="Referenz / Beschreibung" />
-        </label>
-        <label className="field" style={{ width: 170 }}>
-          <span>Produktgruppe</span>
-          <select name="gruppe" defaultValue={gruppe}>
+      <form className="bd-toolbar" method="get">
+        <div className="bd-field" style={{ width: 210 }}>
+          <label className="bd-field-label" htmlFor="q">Suche</label>
+          <input className="bd-field-input" id="q" name="q" defaultValue={q} placeholder="Referenz / Beschreibung" />
+        </div>
+        <div className="bd-field" style={{ width: 180 }}>
+          <label className="bd-field-label" htmlFor="gruppe">Produktgruppe</label>
+          <select className="bd-field-input" id="gruppe" name="gruppe" defaultValue={gruppe}>
             <option value="">alle</option>
             {(gruppen ?? []).map((g) => (
               <option key={g.kuerzel as string} value={g.kuerzel as string}>
@@ -150,10 +155,12 @@ export default async function DruckauftraegePage({
               </option>
             ))}
           </select>
-        </label>
-        <label className="field" style={{ width: 260 }}>
-          <span>Stammartikel{gruppe ? "" : " (erst Gruppe wählen)"}</span>
-          <select name="stamm" defaultValue={stamm}>
+        </div>
+        <div className="bd-field" style={{ width: 270 }}>
+          <label className="bd-field-label" htmlFor="stamm">
+            Stammartikel{gruppe ? "" : " (erst Gruppe wählen)"}
+          </label>
+          <select className="bd-field-input" id="stamm" name="stamm" defaultValue={stamm}>
             <option value="">alle</option>
             {stammOptionen.map((s) => (
               <option key={s.id as string} value={s.id as string}>
@@ -161,102 +168,109 @@ export default async function DruckauftraegePage({
               </option>
             ))}
           </select>
-        </label>
-        <label className="field" style={{ width: 110 }}>
-          <span>Status</span>
-          <input name="state" defaultValue={state} placeholder="NEW …" />
-        </label>
-        <button type="submit">Filtern</button>
-        {(gruppe || stamm || state || q) && (
-          <Link href="/druckauftraege" className="ghost" style={{ padding: "7px 12px" }}>
-            zurücksetzen
-          </Link>
-        )}
-        <span className="count">{total.toLocaleString("de-DE")} Aufträge</span>
+        </div>
+        <div className="bd-field" style={{ width: 120 }}>
+          <label className="bd-field-label" htmlFor="state">Status</label>
+          <input className="bd-field-input" id="state" name="state" defaultValue={state} placeholder="NEW …" />
+        </div>
+        <button className="bd-btn bd-btn-secondary" type="submit">Filtern</button>
+        {(gruppe || stamm || state || q) && <Link className="bd-link" href="/druckauftraege">zurücksetzen</Link>}
+        <div className="bd-spacer" />
+        <span className="bd-mute">{total.toLocaleString("de-DE")} Aufträge</span>
       </form>
 
       {error && <div className="banner-err">Fehler beim Laden: {error.message}</div>}
 
-      {/* volle Breite: über die 1000px-Contentbox hinaus */}
-      <div style={{ width: "calc(100vw - 220px - 64px)", maxWidth: 1600 }}>
-        <div className="table-scroll">
-          <table className="data" style={{ width: "100%" }}>
-            <thead>
-              <tr>
-                <th style={{ width: 56 }}></th>
-                <th style={{ textAlign: "right", width: 78 }}>Auflage</th>
-                <th>Produkt</th>
-                <th style={{ width: 120 }}>Status</th>
-                <th style={{ width: 300 }}>Lieferanschrift</th>
-              </tr>
-            </thead>
-            <tbody>
-              {withThumbs.map((r) => {
-                const rr = r.resolve_result;
-                const produkt = (rr?.gruppe && gruppeName.get(rr.gruppe)) || r.description || "—";
-                const sub = attrLine(rr?.attribute);
-                const stammSku =
-                  rr?.stammartikel_id && stammName.get(rr.stammartikel_id)
-                    ? stammName.get(rr.stammartikel_id)!.split(" — ")[0]
-                    : null;
-                return (
-                  <tr key={r.id}>
-                    <td>
-                      {r.thumb ? (
-                        <span className="thumb-zoom">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={r.thumb}
-                            alt=""
-                            style={{ width: 48, height: 62, objectFit: "cover", borderRadius: 3, border: "1px solid var(--border)" }}
-                          />
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={r.thumb} alt="" className="zoom" />
-                        </span>
-                      ) : (
-                        <div
-                          style={{ width: 48, height: 62, borderRadius: 3, border: "1px dashed var(--border)", background: "var(--tag-bg)" }}
+      <div className="table-scroll">
+        <table className="bd-table">
+          <thead>
+            <tr>
+              <th style={{ width: 56 }}></th>
+              <th className="bd-num" style={{ width: 78 }}>Auflage</th>
+              <th>Produkt</th>
+              <th style={{ width: 120 }}>Status</th>
+              <th style={{ width: 300 }}>Lieferanschrift</th>
+            </tr>
+          </thead>
+          <tbody>
+            {withThumbs.map((r) => {
+              const rr = r.resolve_result;
+              const produkt = (rr?.gruppe && gruppeName.get(rr.gruppe)) || r.description || "—";
+              const sub = attrLine(rr?.attribute);
+              const stammSku =
+                rr?.stammartikel_id && stammName.get(rr.stammartikel_id)
+                  ? stammName.get(rr.stammartikel_id)!.split(" — ")[0]
+                  : null;
+              return (
+                <tr key={r.id}>
+                  <td>
+                    {r.thumb ? (
+                      <span className="thumb-zoom">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={r.thumb}
+                          alt=""
+                          style={{ width: 48, height: 62, objectFit: "cover", borderRadius: 2, border: "1px solid var(--bd-line)" }}
                         />
-                      )}
-                    </td>
-                    <td style={{ textAlign: "right", fontWeight: 600, fontSize: 15 }}>
-                      {r.quantity != null ? Number(r.quantity).toLocaleString("de-DE") : "—"}
-                    </td>
-                    <td>
-                      <Link href={`/druckauftraege/${r.id}`} style={{ fontSize: 15, fontWeight: 600 }}>
-                        <span className="count" style={{ fontWeight: 600 }}>{r.external_reference}</span>
-                        {"  "}
-                        {produkt}
-                      </Link>
-                      {sub && <div className="count" style={{ marginTop: 2 }}>{sub}</div>}
-                      {(stammSku || r.items?.[0]?.count) && (
-                        <div className="count" style={{ marginTop: 2 }}>
-                          {[stammSku, `${r.items?.[0]?.count ?? 0} Pos.`].filter(Boolean).join(" · ")}
-                        </div>
-                      )}
-                    </td>
-                    <td><span className="tag">{r.portal_state ?? "?"}</span></td>
-                    <td className="count"><Adr a={r.ship_to} /></td>
-                  </tr>
-                );
-              })}
-              {!withThumbs.length && (
-                <tr>
-                  <td colSpan={5} style={{ color: "var(--muted)" }}>Keine Druckaufträge.</td>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={r.thumb} alt="" className="zoom" />
+                      </span>
+                    ) : (
+                      <div
+                        style={{ width: 48, height: 62, borderRadius: 2, border: "1px dashed var(--bd-line-strong)", background: "var(--bd-surface-100)" }}
+                      />
+                    )}
+                  </td>
+                  <td className="bd-num" style={{ fontWeight: 600, fontSize: 15 }}>
+                    {r.quantity != null ? Number(r.quantity).toLocaleString("de-DE") : "—"}
+                  </td>
+                  <td className="wrap">
+                    <Link href={`/druckauftraege/${r.id}`} style={{ fontSize: 15, fontWeight: 600, color: "var(--bd-rot)" }}>
+                      <span style={{ color: "var(--bd-ink-muted)" }}>{r.external_reference}</span>
+                      {"  "}
+                      {produkt}
+                    </Link>
+                    {sub && <span className="bd-sub">{sub}</span>}
+                    {(stammSku || r.items?.[0]?.count) && (
+                      <span className="bd-sub">
+                        {[stammSku, `${r.items?.[0]?.count ?? 0} Pos.`].filter(Boolean).join(" · ")}
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <span className={`bd-status t-${stateTone(r.portal_state)}`}>
+                      <span className="bd-status-mark" />
+                      {r.portal_state ?? "?"}
+                    </span>
+                  </td>
+                  <td className="wrap bd-mute"><Adr a={r.ship_to} /></td>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              );
+            })}
+            {!withThumbs.length && (
+              <tr>
+                <td colSpan={5} className="bd-mute">Keine Druckaufträge.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
       {lastPage > 1 && (
-        <div className="pager">
-          {page > 1 && <Link href={href({ page: String(page - 1) })}>← zurück</Link>}
-          <span className="count">Seite {page} / {lastPage}</span>
-          {page < lastPage && <Link href={href({ page: String(page + 1) })}>weiter →</Link>}
+        <div className="bd-actions" style={{ marginTop: 16 }}>
+          {page > 1 && (
+            <Link className="bd-btn bd-btn-secondary" href={href({ page: String(page - 1) })}>
+              ← zurück
+            </Link>
+          )}
+          <span className="bd-mute">Seite {page} / {lastPage}</span>
+          {page < lastPage && (
+            <Link className="bd-btn bd-btn-secondary" href={href({ page: String(page + 1) })}>
+              weiter →
+            </Link>
+          )}
         </div>
       )}
-    </>
+    </div>
   );
 }
