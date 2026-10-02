@@ -541,13 +541,41 @@ export async function extractIncoming(opts: Options = {}) {
       }
 
       // Hinweisbelege (Avis / Mahnung) erkennen — KI-Klassifikation, mit
-      // Betreff/Dateiname als Fallback. Beide landen nicht in der Kreditoren-
-      // Prüfliste, sondern in eigenem Status, ohne Positionen.
+      // Betreff/Dateiname als Fallback für eine UNSICHERE KI-Antwort
+      // (doc_type fehlt/unknown). Betreff/Dateiname gelten für ALLE Anhänge
+      // derselben Mail gleichermaßen - eine "Zahlungserinnerung UND Rechnung
+      // XY"-Mail enthält fast immer (≈99 %) nur die bereits bekannte
+      // Rechnung nochmal als Anhang (Dublette). Der seltene Fall einer
+      // tatsächlich neuen Rechnung im selben Anhang wird per Dublettenabgleich
+      // erkannt: KI sagt "invoice" UND Betreff/Dateiname klingen nach Mahnung
+      // → nur dann als Mahnung einsortieren, wenn dieselbe Rechnungsnummer
+      // bereits an anderer Stelle existiert, sonst normal als neue, buchbare
+      // Rechnung behandeln. Beide Hinweistypen landen nicht in der
+      // Kreditoren-Prüfliste, sondern in eigenem Status, ohne Positionen.
+      const confidentDocType = new Set(["invoice", "credit_note", "receipt"]).has(e.doc_type ?? "");
+      const dunningContext = looksLikeDunning(doc.file_name, doc.email_subject);
+      let isDuplicateInDunningContext = false;
+      if (confidentDocType && dunningContext && e.doc_number?.trim()) {
+        let dupQuery = supabase
+          .from("incoming_document")
+          .select("id")
+          .eq("doc_number", e.doc_number.trim())
+          .neq("id", doc.id)
+          .limit(1);
+        if (e.supplier?.name?.trim()) {
+          dupQuery = dupQuery.ilike("supplier_name", `%${e.supplier.name.trim()}%`);
+        }
+        const { data: dup } = await dupQuery.maybeSingle();
+        isDuplicateInDunningContext = !!dup;
+      }
       const isAdvice =
-        e.doc_type === "payment_advice" || looksLikeAdvice(doc.file_name, doc.email_subject);
+        e.doc_type === "payment_advice" ||
+        (!confidentDocType && looksLikeAdvice(doc.file_name, doc.email_subject));
       const isDunning =
         !isAdvice &&
-        (e.doc_type === "dunning" || looksLikeDunning(doc.file_name, doc.email_subject));
+        (e.doc_type === "dunning" ||
+          (!confidentDocType && dunningContext) ||
+          isDuplicateInDunningContext);
       const isHint = isAdvice || isDunning;
 
       // Rechnungsnummer(n), auf die sich der Hinweisbeleg bezieht.
