@@ -36,6 +36,7 @@ type PosIn = {
   ledger_account?: string;
   tax_code_id?: string;
   material_ref?: string;
+  linked_document_id?: string;
   allocations?: AllocIn[];
 };
 
@@ -111,6 +112,7 @@ export async function saveIncoming(
           ledger_account: emptyToNull(p.ledger_account),
           tax_code_id: emptyToNull(p.tax_code_id),
           material_ref: emptyToNull(p.material_ref),
+          linked_document_id: emptyToNull(p.linked_document_id),
         })),
       )
       .select("id");

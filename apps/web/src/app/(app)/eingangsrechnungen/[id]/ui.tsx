@@ -35,6 +35,10 @@ type Pos = {
   ledger_account: string;
   tax_code_id: string;
   material_ref: string;
+  /** Bereits separat erfasster Beleg, der diese Position erklärt (z.B.
+   *  SaaS-Rechnung, die zusätzlich auf der Kreditkartenabrechnung auftaucht)
+   *  - Bridge statt Doppelerfassung. */
+  linked_document_id: string;
   allocations: Alloc[];
 };
 
@@ -52,6 +56,7 @@ export function ReviewForm({
   costCenters,
   ledgerAccounts,
   organizations,
+  documents,
   suggestion,
   bankTx,
   pdfUrl,
@@ -63,6 +68,8 @@ export function ReviewForm({
   costCenters: Opt[];
   ledgerAccounts: AccountOpt[];
   organizations: AccountOpt[];
+  /** Andere Belege zum Verknüpfen einzelner Belegzeilen. */
+  documents: AccountOpt[];
   /** Aus der BuchhaltungsButler-Historie gelernte oder von Hand gesetzte
    *  Vorkontierung für den Lieferanten (siehe /einstellungen/vorkontierung)
    *  - nur eine Vorbelegung, greift nur wenn noch kein eigenes Konto gesetzt. */
@@ -102,6 +109,7 @@ export function ReviewForm({
         ledger_account: "",
         tax_code_id: "",
         material_ref: "",
+        linked_document_id: "",
         allocations: [],
       },
     ]);
@@ -356,6 +364,7 @@ export function ReviewForm({
                       <th className="bd-num">Einzelpreis</th>
                       <th className="bd-num">Netto</th>
                       <th>Konto</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -366,7 +375,14 @@ export function ReviewForm({
                         <td className="bd-num">{p.quantity ?? "–"}</td>
                         <td className="bd-num">{p.unit_price != null ? fmtEur(p.unit_price) : "–"}</td>
                         <td className="bd-num">{p.net_amount != null ? fmtEur(p.net_amount) : "–"}</td>
-                        <td className="bd-sub">{p.ledger_account || "(Vorgabe)"}</td>
+                        <td className="bd-sub">
+                          {p.linked_document_id ? "– (verknüpft)" : p.ledger_account || "(Vorgabe)"}
+                        </td>
+                        <td className="bd-sub">
+                          {p.linked_document_id && (
+                            <span title="Mit einem anderen Beleg verknüpft - wird nicht separat gebucht">🔗</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -389,6 +405,7 @@ export function ReviewForm({
           taxCodes={taxCodes}
           costCenters={costCenters}
           ledgerAccounts={ledgerAccounts}
+          documents={documents}
         />
       )}
 
@@ -418,6 +435,7 @@ function PositionModal({
   taxCodes,
   costCenters,
   ledgerAccounts,
+  documents,
 }: {
   pos: Pos;
   onClose: () => void;
@@ -429,6 +447,7 @@ function PositionModal({
   taxCodes: Opt[];
   costCenters: Opt[];
   ledgerAccounts: AccountOpt[];
+  documents: AccountOpt[];
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -523,6 +542,38 @@ function PositionModal({
               <label className="bd-field-label">Material-Referenz</label>
               <input className="bd-field-input" value={pos.material_ref} onChange={(e) => onPatch({ material_ref: e.target.value })} />
             </div>
+          </div>
+
+          <div style={{ marginTop: 10 }}>
+            <div className="bd-field" style={{ width: 340 }}>
+              <label className="bd-field-label">Verknüpfter Beleg (bereits separat erfasst)</label>
+              <AccountPicker
+                value={pos.linked_document_id}
+                onChange={(val) => onPatch({ linked_document_id: val })}
+                accounts={documents}
+                placeholder="— kein verknüpfter Beleg —"
+                title="Beleg verknüpfen"
+                searchPlaceholder="Belegnummer oder Lieferant suchen…"
+                emptyOptionLabel="— kein verknüpfter Beleg —"
+              />
+            </div>
+            {pos.linked_document_id && (
+              <>
+                <a
+                  className="bd-link"
+                  style={{ marginTop: 4 }}
+                  href={`/eingangsrechnungen/${pos.linked_document_id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  verknüpften Beleg öffnen →
+                </a>
+                <div className="bd-hint">
+                  Diese Position wird für DATEV/Buchung nicht separat gezählt (Sachkonto hier ohne
+                  Wirkung) - die Buchung läuft über den verknüpften Beleg.
+                </div>
+              </>
+            )}
           </div>
 
           <div style={{ marginTop: 14, paddingTop: 10, borderTop: "1px dashed var(--bd-line)" }}>
