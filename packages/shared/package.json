@@ -24,7 +24,8 @@
     "./buchhaltung/erloeskonten": "./src/buchhaltung/erloeskonten.ts",
     "./pdf/rechnung": "./src/pdf/rechnung.ts",
     "./fakturierung/zugferd": "./src/fakturierung/zugferd.ts",
-    "./fakturierung/csv": "./src/fakturierung/csv.ts"
+    "./fakturierung/csv": "./src/fakturierung/csv.ts",
+    "./ustva": "./src/ustva/berechnung.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",
