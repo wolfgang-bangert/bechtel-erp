@@ -42,6 +42,9 @@ type PosIn = {
   allocations?: AllocIn[];
 };
 
+// Keyline zeigt "W7-MN-2S", gespeichert ist "W7MN2S".
+const normOrderNo = (x: string) => x.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+
 const emptyToNull = (x: unknown) => {
   const v = typeof x === "string" ? x.trim() : x;
   return v === "" || v == null ? null : v;
@@ -130,7 +133,7 @@ export async function saveIncoming(
         positions.flatMap((p) =>
           (p.allocations ?? [])
             .filter((a) => a.link_type === "sales_order" && a.order_number?.trim())
-            .map((a) => a.order_number!.trim()),
+            .map((a) => normOrderNo(a.order_number!)),
         ),
       ),
     );
@@ -149,7 +152,7 @@ export async function saveIncoming(
       if (!itemId) return;
       for (const a of p.allocations ?? []) {
         const orderNum = a.order_number?.trim() || null;
-        const soId = a.link_type === "sales_order" && orderNum ? orderMap.get(orderNum) ?? null : null;
+        const soId = a.link_type === "sales_order" && orderNum ? orderMap.get(normOrderNo(orderNum)) ?? null : null;
         if (a.link_type === "sales_order" && orderNum && !soId) unresolved += 1;
         allocRows.push({
           incoming_document_item_id: itemId,

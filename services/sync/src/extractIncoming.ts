@@ -411,7 +411,12 @@ export async function seedAllocations(
     Array.from(new Set((li.order_references ?? []).map((r) => r?.trim()).filter((r): r is string => !!r)));
   const all = Array.from(new Set(lineItems.flatMap(refsOf)));
   if (!all.length) return;
-  const { data: orders } = await supabase.from("sales_order").select("id, order_number").in("order_number", all);
+  // Keyline zeigt "W7-MN-2S", gespeichert ist "W7MN2S".
+  const norm = (r: string) => r.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  const { data: orders } = await supabase
+    .from("sales_order")
+    .select("id, order_number")
+    .in("order_number", Array.from(new Set(all.map(norm))));
   const byNumber = new Map((orders ?? []).map((o) => [o.order_number as string, o.id as string]));
   const rows: Record<string, unknown>[] = [];
   lineItems.forEach((li, k) => {
@@ -425,7 +430,7 @@ export async function seedAllocations(
         incoming_document_item_id: item.id,
         link_type: "sales_order",
         order_ref: ref,
-        sales_order_id: byNumber.get(ref) ?? null,
+        sales_order_id: byNumber.get(norm(ref)) ?? null,
         amount: j === refs.length - 1 ? Math.round((net - share * (refs.length - 1)) * 100) / 100 : share,
       });
     });
