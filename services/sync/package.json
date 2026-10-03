@@ -24,6 +24,7 @@
     "bb:import-parties": "tsx src/cli.ts bb:import-parties",
     "bb:apply-parties": "tsx src/cli.ts bb:apply-parties",
     "bb:create-suppliers": "tsx src/cli.ts bb:create-suppliers",
+    "bb:import-belege": "tsx src/cli.ts bb:import-belege",
     "bb:learn-vorkontierung": "tsx src/cli.ts bb:learn-vorkontierung",
     "bb:learn-vorkontierung-debitoren": "tsx src/cli.ts bb:learn-vorkontierung-debitoren",
     "bb:learn-bankregeln": "tsx src/cli.ts bb:learn-bankregeln",
