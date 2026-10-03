@@ -300,6 +300,9 @@ export default async function IncomingDetail({
       {!isHint && (
         <div className="content-wide">
           <ReviewForm
+            // Neu aufbauen, sobald die USt bestätigt wurde: sonst behält das Formular seinen alten
+            // Zustand (leere Schlüssel) und würde sie beim Speichern wieder überschreiben.
+            key={`${doc.id}:${ust?.status ?? ""}:${doc.tax_code_id ?? ""}`}
             doc={doc as Record<string, unknown>}
             items={items}
             taxCodes={(taxCodes ?? []).map((t) => ({ id: t.id, label: `${t.code} – ${t.name}` }))}
