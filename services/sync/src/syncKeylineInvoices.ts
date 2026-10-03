@@ -110,6 +110,13 @@ async function syncResource(
         skipped += 1;
         continue;
       }
+      // Rechnungsentwürfe (noch nicht abgerechnet: weder Nummer noch Abrechnungsdatum) sind
+      // keine Rechnungen - Keyline vergibt die Nummer erst beim Abrechnen. Sie würden sonst
+      // als Ausgangsrechnung ohne Nummer in werk landen (auch als Überbleibsel nach dem Abrechnen).
+      if (!inv.number?.trim() && !inv.billed_at) {
+        skipped += 1;
+        continue;
+      }
       seen += 1;
       const row = invoiceToRow(inv, kind, idPrefix, orgMap, orderMap);
       if (row.organization_id == null) noOrg += 1;
