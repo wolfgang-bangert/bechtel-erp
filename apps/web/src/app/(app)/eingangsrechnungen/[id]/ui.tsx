@@ -389,6 +389,7 @@ export function ReviewForm({
                       <th className="bd-num">Einzelpreis</th>
                       <th className="bd-num">Netto</th>
                       <th>Konto</th>
+                      <th>USt</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -409,6 +410,11 @@ export function ReviewForm({
                         <td className="bd-num">{p.net_amount != null ? fmtEur(p.net_amount) : "–"}</td>
                         <td className="bd-sub">
                           {p.linked_document_id ? "– (verknüpft)" : p.ledger_account || "(Vorgabe)"}
+                        </td>
+                        <td className="bd-sub">
+                          {p.tax_code_id
+                            ? (taxCodes.find((t) => t.id === p.tax_code_id)?.label.split(" – ")[0] ?? "?")
+                            : "–"}
                         </td>
                         <td className="bd-sub">
                           {p.linked_document_id && (
