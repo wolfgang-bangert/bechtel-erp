@@ -36,6 +36,9 @@ type ItemRow = {
   incoming_document_allocation: AllocRow[];
 };
 
+// Keyline-Schreibweise: "W7MN2S" -> "W7-MN-2S".
+const fmtOrderNo = (n: string) => (/^[A-Z0-9]{6}$/.test(n) ? n.match(/../g)!.join("-") : n);
+
 export default async function IncomingDetail({
   params,
 }: {
@@ -141,7 +144,9 @@ export default async function IncomingDetail({
     allocations: (it.incoming_document_allocation ?? []).map((a) => ({
       id: a.id,
       link_type: (a.link_type as "sales_order" | "material" | "cost_center") ?? "sales_order",
-      order_number: a.sales_order?.order_number ?? a.order_ref ?? "",
+      order_number: a.sales_order?.order_number
+        ? fmtOrderNo(a.sales_order.order_number)
+        : (a.order_ref ?? ""),
       material_ref: a.material_ref ?? "",
       cost_center_id: a.cost_center_id ?? "",
       amount: a.amount,
