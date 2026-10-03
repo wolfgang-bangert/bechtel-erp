@@ -13,6 +13,7 @@ import {
   bbPing,
 } from "./syncBButler";
 import { importBbAccounts, importBbParties, applyBbParties, createBbSuppliers } from "./bbImport";
+import { importBbBelege } from "./bbImportBelege";
 import { learnVorkontierung, learnDebitorVorkontierung } from "./learnVorkontierung";
 import { learnBankLedgerRules } from "./learnBankRules";
 import { syncNinoxOrders } from "./syncNinoxOrders";
@@ -637,6 +638,16 @@ async function main() {
     case "bb:create-suppliers": {
       console.log(`BB-Kreditoren ohne Org als Lieferanten anlegen${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await createBbSuppliers({ dryRun }), null, 1));
+      break;
+    }
+    case "bb:import-belege": {
+      const f = process.argv.find((a) => a.startsWith("--file="))?.slice("--file=".length);
+      if (!f) {
+        console.error("--file=<datenexport.zip oder Ordner mit dem BB-DATEV-Export> erforderlich");
+        process.exit(1);
+      }
+      console.log(`BB-DATEV-Export → Eingangsrechnungen: ${f}${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await importBbBelege({ file: f, dryRun, ohnePdf: flags.has("--ohne-pdf") }), null, 1));
       break;
     }
     case "bb:learn-vorkontierung": {
