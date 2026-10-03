@@ -5,6 +5,7 @@ import JSZip from "jszip";
 import { supabase } from "./supabase";
 import { pagedSelect } from "./db";
 import { putObject, prefix } from "./storage";
+import { bbGetAll, bbPost } from "./bbutler";
 
 /* --------------------------------------------------------------------------
  * BuchhaltungsButler-DATEV-Export (datenexport.zip) -> Eingangsrechnungen.
@@ -76,7 +77,7 @@ function rateFromBu(bu: string): { rate: number; rc: boolean; known: boolean } {
   return { rate: 0, rc: false, known: false };
 }
 
-type Line = { gross: number; rate: number; rc: boolean; konto: string; text: string; bu: string };
+type Line = { gross: number; rate: number; rc: boolean; konto: string; text: string; bu: string; known: boolean };
 type Beleg = {
   nr: string; // Buchungsnummer
   kreditor: string;
@@ -174,8 +175,43 @@ export async function importBbBelege(opts: Options) {
       konto: gegen,
       text: r[cText] ?? "",
       bu: r[cBu] ?? "",
+      known: bu.known,
     });
     belege.set(key, b);
+  }
+
+  // ---- Unbekannte BU-Schlüssel (z.B. 401 ab Juni): Satz am BB-Beleg nachschlagen ----
+  // BB setzt dort einen Platzhalter-Schlüssel; der tatsächliche USt-Satz steht
+  // nur am Beleg (receipts/get/{id}.vat). Fehlt er auch dort, bleibt der Satz
+  // unbekannt -> Beleg wird als "extrahiert" statt "geprüft" angelegt.
+  const satzNachgeschlagen = { belege: 0, gefunden: 0, ohneTreffer: 0, ohneSatz: 0 };
+  const needLookup = [...belege.values()].filter((b) => b.lines.some((l) => !l.known));
+  if (needLookup.length) {
+    const von = (meta[14] ?? "").replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
+    const bis = (meta[15] ?? "").replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
+    const list = await bbGetAll<{ id_by_customer: string; invoicenumber: string | null; amount: string }>(
+      "receipts/get",
+      { list_direction: "inbound", date_from: von, date_to: bis },
+    );
+    const byNr = new Map<string, typeof list>();
+    for (const rc of list) byNr.set(norm(rc.invoicenumber), [...(byNr.get(norm(rc.invoicenumber)) ?? []), rc]);
+    for (const b of needLookup) {
+      satzNachgeschlagen.belege++;
+      const gross = r2(b.lines.reduce((s, l) => s + l.gross, 0));
+      const cand = (byNr.get(norm(b.docNr)) ?? []).find((rc) => Math.abs(Math.abs(Number(rc.amount)) - Math.abs(gross)) <= 0.011);
+      if (!cand) {
+        satzNachgeschlagen.ohneTreffer++;
+        continue;
+      }
+      const det = (await bbPost<{ vat: string | null }>(`receipts/get/${cand.id_by_customer}`)).data;
+      const vat = det?.vat == null || det.vat === "" ? null : Number(det.vat);
+      if (vat == null || !Number.isFinite(vat)) {
+        satzNachgeschlagen.ohneSatz++;
+        continue;
+      }
+      satzNachgeschlagen.gefunden++;
+      for (const l of b.lines) if (!l.known) { l.rate = Math.round(vat); l.known = true; }
+    }
   }
 
   // ---- Referenzdaten aus werk ----------------------------------------------
@@ -225,6 +261,8 @@ export async function importBbBelege(opts: Options) {
     duplikatVerworfenUebersprungen: 0,
     ohneOrganisation: [] as string[],
     unbekannteBU: Object.fromEntries(unknownBu),
+    satzNachgeschlagen,
+    satzUnbekanntBelege: [] as string[],
     fehler: [] as string[],
   };
   const stand = new Date().toISOString();
@@ -236,6 +274,8 @@ export async function importBbBelege(opts: Options) {
       continue;
     }
     const gross = r2(b.lines.reduce((s, l) => s + l.gross, 0));
+    const satzOffen = b.lines.some((l) => !l.known);
+    if (satzOffen) out.satzUnbekanntBelege.push(`${b.docNr} ${kred.get(b.kreditor)?.name ?? b.kreditor}`);
     const stamm = kred.get(b.kreditor);
     const org = orgByNr.get(b.kreditor) ?? orgByName.get(normName(stamm?.name));
     const supplierName = org?.name ?? stamm?.name ?? `Kreditor ${b.kreditor}`;
@@ -274,7 +314,7 @@ export async function importBbBelege(opts: Options) {
         const patch: Record<string, unknown> = {};
         if (!dup.ledger_account) patch.ledger_account = biggest.l.konto;
         if (!dup.tax_code_id && codeFor(biggest.l)) patch.tax_code_id = codeFor(biggest.l);
-        if (dup.status === "extracted") {
+        if (dup.status === "extracted" && !satzOffen) {
           patch.status = "reviewed";
           patch.reviewed_at = stand;
         }
@@ -310,8 +350,8 @@ export async function importBbBelege(opts: Options) {
       .insert({
         source: "api",
         doc_type: b.credit ? "credit_note" : "invoice",
-        status: "reviewed",
-        reviewed_at: stand,
+        status: satzOffen ? "extracted" : "reviewed",
+        reviewed_at: satzOffen ? null : stand,
         file_name: pdfEntry ? `${b.docNr || b.nr}.pdf` : null,
         pdf_storage_key: key,
         file_sha256: sha,
@@ -327,7 +367,7 @@ export async function importBbBelege(opts: Options) {
         tax_breakdown: Object.keys(breakdown).length ? breakdown : null,
         ledger_account: biggest.l.konto,
         tax_code_id: codeFor(biggest.l),
-        notes: `Import aus BuchhaltungsButler (Buchungsnummer ${b.nr || "–"})`,
+        notes: `Import aus BuchhaltungsButler (Buchungsnummer ${b.nr || "–"})${satzOffen ? " - USt-Satz in BB nicht gesetzt, bitte prüfen" : ""}`,
       })
       .select("id")
       .single();
@@ -350,5 +390,7 @@ export async function importBbBelege(opts: Options) {
     out.angelegt++;
   }
 
-  return { datei: path, jahr: year, ...stats, ...out, dryRun };
+  const orgCount: Record<string, number> = {};
+  for (const o of out.ohneOrganisation) orgCount[o] = (orgCount[o] ?? 0) + 1;
+  return { datei: path, jahr: year, ...stats, ...out, ohneOrganisation: orgCount, dryRun };
 }
