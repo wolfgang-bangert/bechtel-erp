@@ -26,15 +26,39 @@ const PAYMENT_LABEL: Record<string, string> = {
   direct_debit: "Lastschrift",
 };
 
+const PAGE_SIZE = 200;
+
+// "2026-01" -> [2026-01-01, 2026-02-01)
+function monthRange(m: string): { from: string; to: string } | null {
+  const mt = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(m);
+  if (!mt) return null;
+  const y = Number(mt[1]);
+  const mo = Number(mt[2]);
+  const ny = mo === 12 ? y + 1 : y;
+  const nm = mo === 12 ? 1 : mo + 1;
+  return { from: `${mt[1]}-${mt[2]}-01`, to: `${ny}-${String(nm).padStart(2, "0")}-01` };
+}
+
 export default async function EingangsrechnungenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string; payment_method?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    q?: string;
+    sort?: string;
+    dir?: string;
+    payment_method?: string;
+    monat?: string;
+    seite?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const status = sp.status ?? "";
   const search = (sp.q ?? "").trim();
   const paymentMethod = sp.payment_method ?? "";
+  const monat = sp.monat ?? "";
+  const range = monthRange(monat);
+  const seite = Math.max(1, Number.parseInt(sp.seite ?? "1", 10) || 1);
   const isHint = HINT.has(status);
   const isAdvice = status === "advice";
   const isDunning = status === "dunning";
@@ -49,11 +73,12 @@ export default async function EingangsrechnungenPage({
       "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date",
       { count: "exact" },
     )
-    .limit(200);
+    .range((seite - 1) * PAGE_SIZE, seite * PAGE_SIZE - 1);
   if (status) query = query.eq("status", status);
   // Ohne Filter: Hinweisbelege raus aus der Rechnungs-Prüfliste.
   else query = query.not("status", "in", "(advice,dunning)");
   if (paymentMethod) query = query.eq("payment_method", paymentMethod);
+  if (range) query = query.gte("doc_date", range.from).lt("doc_date", range.to);
   if (search) {
     const like = `%${search.replace(/[%,]/g, "")}%`;
     query = query.or(`supplier_name.ilike.${like},email_from.ilike.${like}`);
@@ -83,15 +108,28 @@ export default async function EingangsrechnungenPage({
     }
   }
 
-  const sortHref = (field: "date" | "supplier") => {
+  const baseParams = () => {
     const u = new URLSearchParams();
     if (status) u.set("status", status);
     if (search) u.set("q", search);
     if (paymentMethod) u.set("payment_method", paymentMethod);
+    if (range) u.set("monat", monat);
+    if (sort !== "date") u.set("sort", sort);
+    if (dir !== "desc") u.set("dir", dir);
+    return u;
+  };
+  const sortHref = (field: "date" | "supplier") => {
+    const u = baseParams();
     u.set("sort", field);
     u.set("dir", sort === field && dir === "asc" ? "desc" : "asc");
     return `/eingangsrechnungen?${u.toString()}`;
   };
+  const pageHref = (n: number) => {
+    const u = baseParams();
+    if (n > 1) u.set("seite", String(n));
+    return `/eingangsrechnungen?${u.toString()}`;
+  };
+  const pages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
   const sortIndicator = (field: "date" | "supplier") => (sort === field ? (dir === "asc" ? " ▲" : " ▼") : "");
 
   const [{ count: adviceCount }, { count: dunningCount }, { count: openCount }] = await Promise.all([
@@ -166,10 +204,14 @@ export default async function EingangsrechnungenPage({
             <option value="paypal">PayPal</option>
           </select>
         </div>
+        <div className="bd-field">
+          <label className="bd-field-label">Monat (Belegdatum)</label>
+          <input className="bd-field-input" type="month" name="monat" defaultValue={range ? monat : ""} />
+        </div>
         {sort !== "date" && <input type="hidden" name="sort" value={sort} />}
         {dir !== "desc" && <input type="hidden" name="dir" value={dir} />}
         <button className="bd-btn bd-btn-secondary" type="submit">Filtern</button>
-        {(status || search || paymentMethod) && <Link href="/eingangsrechnungen">zurücksetzen</Link>}
+        {(status || search || paymentMethod || range) && <Link href="/eingangsrechnungen">zurücksetzen</Link>}
         <div className="bd-spacer" />
         <span style={{ color: "var(--bd-ink-muted)", fontSize: 13, fontFamily: "var(--font-bd-sans)" }}>
           {count ?? 0} Belege
@@ -279,6 +321,20 @@ export default async function EingangsrechnungenPage({
           </tbody>
         </table>
       </div>
+
+      {pages > 1 && (
+        <div className="bd-toolbar" style={{ marginTop: 14 }}>
+          {seite > 1 && (
+            <Link className="bd-btn bd-btn-secondary" href={pageHref(seite - 1)}>← zurück</Link>
+          )}
+          <span style={{ color: "var(--bd-ink-muted)", fontSize: 13, fontFamily: "var(--font-bd-sans)" }}>
+            Seite {seite} von {pages} · Belege {(seite - 1) * PAGE_SIZE + 1}–{Math.min(seite * PAGE_SIZE, count ?? 0)} von {count}
+          </span>
+          {seite < pages && (
+            <Link className="bd-btn bd-btn-secondary" href={pageHref(seite + 1)}>weiter →</Link>
+          )}
+        </div>
+      )}
     </div>
   );
 }
