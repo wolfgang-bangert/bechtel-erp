@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createPortal } from "react-dom";
 import { saveIncoming, type SaveState } from "../actions";
 import { AccountPicker } from "../../_shared/AccountPicker";
+import { AuftragPicker } from "../../_shared/AuftragPicker";
 import { Card } from "../../_shared/Card";
 import { OrganizationLink } from "../../_shared/OrganizationLink";
 import { fmtDate, fmtEur } from "@/lib/format";
@@ -651,9 +652,9 @@ function PositionModal({
                   </select>
                 </div>
                 {a.link_type === "sales_order" && (
-                  <div className="bd-field" style={{ width: 160 }}>
-                    <label className="bd-field-label">Auftragsnummer / Referenz</label>
-                    <input className="bd-field-input" value={a.order_number} onChange={(e) => onPatchAlloc(ai, { order_number: e.target.value })} />
+                  <div className="bd-field" style={{ width: 200 }}>
+                    <label className="bd-field-label">Auftrag</label>
+                    <AuftragPicker value={a.order_number} onChange={(val) => onPatchAlloc(ai, { order_number: val })} />
                   </div>
                 )}
                 {a.link_type === "material" && (
