@@ -67,26 +67,46 @@ export default async function EingangsrechnungenPage({
   const ascending = dir === "asc";
 
   const supabase = await createClient();
-  let query = supabase
-    .from("incoming_document")
-    .select(
-      "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date",
-      { count: "exact" },
-    )
-    .range((seite - 1) * PAGE_SIZE, seite * PAGE_SIZE - 1);
-  if (status) query = query.eq("status", status);
-  // Ohne Filter: Hinweisbelege raus aus der Rechnungs-Prüfliste.
-  else query = query.not("status", "in", "(advice,dunning)");
-  if (paymentMethod) query = query.eq("payment_method", paymentMethod);
-  if (range) query = query.gte("doc_date", range.from).lt("doc_date", range.to);
-  if (search) {
-    const like = `%${search.replace(/[%,]/g, "")}%`;
-    query = query.or(`supplier_name.ilike.${like},email_from.ilike.${like}`);
-  }
+  // Gleiche Filter für die Liste und die Summenzeile (alle Seiten, nicht nur die angezeigte).
+  const applyFilters = <T extends { eq: Function; not: Function; gte: Function; lt: Function; or: Function }>(q: T): T => {
+    let r = q;
+    if (status) r = r.eq("status", status);
+    // Ohne Filter: Hinweisbelege raus aus der Rechnungs-Prüfliste.
+    else r = r.not("status", "in", "(advice,dunning)");
+    if (paymentMethod) r = r.eq("payment_method", paymentMethod);
+    if (range) r = r.gte("doc_date", range.from).lt("doc_date", range.to);
+    if (search) {
+      const like = `%${search.replace(/[%,]/g, "")}%`;
+      r = r.or(`supplier_name.ilike.${like},email_from.ilike.${like}`);
+    }
+    return r;
+  };
+  let query = applyFilters(
+    supabase
+      .from("incoming_document")
+      .select(
+        "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date",
+        { count: "exact" },
+      )
+      .range((seite - 1) * PAGE_SIZE, seite * PAGE_SIZE - 1),
+  );
   const dateColumn = isAdvice ? "advice_debit_date" : "doc_date";
   const sortColumn = sort === "supplier" ? "supplier_name" : dateColumn;
   query = query.order(sortColumn, { ascending, nullsFirst: false });
   const { data, count, error } = await query;
+
+  // Nettosumme über alle gefilterten Belege (Gutschriften negativ).
+  let netSum = 0;
+  for (let from = 0; ; from += 1000) {
+    const { data: rows } = await applyFilters(
+      supabase.from("incoming_document").select("net_amount, doc_type").range(from, from + 999),
+    );
+    for (const r of rows ?? []) {
+      const n = Number(r.net_amount ?? 0);
+      netSum += r.doc_type === "credit_note" ? -Math.abs(n) : n;
+    }
+    if ((rows ?? []).length < 1000) break;
+  }
 
   // Zahlart-Vorschlag je Lieferant (Vorkontierung) für Belege ohne eigene
   // Angabe - nur zur Anzeige, nicht geraten (siehe Vorfall: vorher wurde
@@ -214,7 +234,7 @@ export default async function EingangsrechnungenPage({
         {(status || search || paymentMethod || range) && <Link href="/eingangsrechnungen">zurücksetzen</Link>}
         <div className="bd-spacer" />
         <span style={{ color: "var(--bd-ink-muted)", fontSize: 13, fontFamily: "var(--font-bd-sans)" }}>
-          {count ?? 0} Belege
+          {count ?? 0} Belege · Netto {fmtEur(netSum)}
         </span>
       </form>
 

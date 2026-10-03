@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { env } from "./env";
 import { supabase } from "./supabase";
 import { getObjectBytes } from "./storage";
-import { MODEL, PROMPT, parseJson, type Extracted } from "./extractIncoming";
+import { MODEL, PROMPT, parseJson, itemExtras, seedAllocations, type Extracted } from "./extractIncoming";
 
 /* --------------------------------------------------------------------------
  * Einzelpositionen für BB-importierte Eingangsrechnungen per KI-Erkennung.
@@ -103,7 +103,7 @@ export async function bbPositionen(opts: Options = {}) {
           const { error: dErr } = await supabase.from("incoming_document_item").delete().eq("incoming_document_id", d.id);
           if (dErr) throw new Error(dErr.message);
           const credit = d.doc_type === "credit_note";
-          const { error: iErr } = await supabase.from("incoming_document_item").insert(
+          const { data: ins, error: iErr } = await supabase.from("incoming_document_item").insert(
             lis.map((li, i) => ({
               incoming_document_id: d.id,
               position: i + 1,
@@ -114,10 +114,12 @@ export async function bbPositionen(opts: Options = {}) {
               net_amount: credit ? Math.abs(Number(li.net_amount)) : Number(li.net_amount),
               ledger_account: base.ledger_account,
               tax_code_id: base.tax_code_id,
+              ...itemExtras(li),
               raw: li,
             })),
-          );
+          ).select("id, net_amount");
           if (iErr) throw new Error(iErr.message);
+          await seedAllocations(ins ?? [], lis);
           out.ersetzt++;
           out.positionenGesamt += lis.length;
         }

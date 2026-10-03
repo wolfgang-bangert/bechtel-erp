@@ -31,7 +31,10 @@ Extrahiere die Daten und antworte ausschließlich mit JSON, ohne Markdown, in ge
   "tax_breakdown": { "<satz in prozent>": <ust-betrag> },   // z.B. {"19": 12.34}
   "line_items": [
     { "position": number|null, "description": string, "quantity": number|null,
-      "unit_price": number|null, "tax_rate": number|null, "net_amount": number|null }
+      "unit_price": number|null, "tax_rate": number|null, "net_amount": number|null,
+      "sku": string|null,                 // Artikelnummer/SKU/Art.-Nr. des LIEFERANTEN
+      "reference_text": string|null,      // Referenz-/Kommissionstext der Position (z.B. "Referenztext: W7-MN-2S Filseck")
+      "order_references": [string] }      // Auftragsreferenzen der Position, siehe Regel unten
   ],
   "payment_terms": {
     "net_due_date": "YYYY-MM-DD"|null,    // Nettofälligkeit (Datum)
@@ -78,6 +81,22 @@ Regeln:
   Teil-Rechnung separat neu extrahiert. Bei einer normalen Rechnung (auch mit
   mehreren Seiten, die zusammengehören, z.B. mit Positionsliste auf Seite 2):
   split_pages = null, restliche Felder wie gewohnt füllen.
+- line_items[].description: der VOLLSTÄNDIGE Positionstext, nichts weglassen und
+  nichts zusammenfassen. Übernimm ALLE Textzeilen, die zu der Position gehören,
+  aus allen Spalten (z.B. Auftragsnummer des Lieferanten, Referenz-/Kommissionstext,
+  Rabatt, Leistungsdatum, Zolltarifnummer, Gewicht, Format/Maße, Zertifikate,
+  Produktionszeit, Lieferhinweise, Material, Ausführung). Jede Zeile getrennt durch
+  "\\n", in der Lesereihenfolge. Rein dekorative Elemente (Logos, Vorschaubilder)
+  weglassen.
+- line_items[].sku: Artikelnummer / SKU / Art.-Nr. / Produktnummer des LIEFERANTEN
+  für diese Position, falls auf dem Beleg vorhanden, sonst null. Keine Auftrags-
+  oder Rechnungsnummer.
+- line_items[].order_references: Die Referenz(en), mit denen der Aussteller die Position
+  einem Kundenauftrag zuordnet (Felder wie "Referenztext", "Ihre Referenz", "Kommission",
+  "Projekt", "Ihre Bestellnummer"). Nur das eigentliche Kennzeichen, ohne Beiwerk:
+  aus "Referenztext: W7-MN-2S Filseck" wird ["W7-MN-2S"]. Stehen mehrere Referenzen
+  da (z.B. "W7-MN-2S, W7-MN-3T"), je eine pro Eintrag. Nicht gemeint: die Auftrags-/
+  Rechnungsnummer des Lieferanten selbst. Keine Referenz = [].
 - Beträge als Zahl mit Punkt als Dezimaltrenner, ohne Währungssymbol.
 - Unbekannte Felder = null. Wenn es keine Positionsaufstellung gibt, line_items = [].
 - doc_type "payment_advice" NUR für ein Zahlungs-/Lastschriftavis: Titel/Text wie
@@ -201,6 +220,9 @@ export type Extracted = {
     unit_price?: number | null;
     tax_rate?: number | null;
     net_amount?: number | null;
+    sku?: string | null;
+    reference_text?: string | null;
+    order_references?: (string | null)[] | null;
   }[];
   advice?: {
     debit_date?: string | null;
@@ -367,6 +389,51 @@ function cleanRefs(...lists: ((string | null)[] | null | undefined)[]): string[]
         .filter(Boolean),
     ),
   );
+}
+
+/** Zusatzfelder einer Positionszeile: Lieferanten-Artikelnummer und Referenztext. */
+export const itemExtras = (li: NonNullable<Extracted["line_items"]>[number]) => ({
+  supplier_sku: li.sku?.trim() || null,
+  order_reference: li.reference_text?.trim() || null,
+});
+
+/**
+ * Auftragsreferenzen aus dem Beleg als Zuordnungen der Position anlegen (je Referenz
+ * eine Zeile, Betrag gleichmäßig verteilt - der Nutzer korrigiert im Beleg). Existiert
+ * ein sales_order mit dieser Nummer, wird er verknüpft; sonst bleibt nur der Text.
+ * `inserted` muss in derselben Reihenfolge wie `lineItems` stehen.
+ */
+export async function seedAllocations(
+  inserted: { id: string; net_amount: number | null }[],
+  lineItems: NonNullable<Extracted["line_items"]>,
+): Promise<void> {
+  const refsOf = (li: (typeof lineItems)[number]) =>
+    Array.from(new Set((li.order_references ?? []).map((r) => r?.trim()).filter((r): r is string => !!r)));
+  const all = Array.from(new Set(lineItems.flatMap(refsOf)));
+  if (!all.length) return;
+  const { data: orders } = await supabase.from("sales_order").select("id, order_number").in("order_number", all);
+  const byNumber = new Map((orders ?? []).map((o) => [o.order_number as string, o.id as string]));
+  const rows: Record<string, unknown>[] = [];
+  lineItems.forEach((li, k) => {
+    const item = inserted[k];
+    const refs = refsOf(li);
+    if (!item || !refs.length) return;
+    const net = Number(item.net_amount ?? 0);
+    const share = Math.round((net / refs.length) * 100) / 100;
+    refs.forEach((ref, j) => {
+      rows.push({
+        incoming_document_item_id: item.id,
+        link_type: "sales_order",
+        order_ref: ref,
+        sales_order_id: byNumber.get(ref) ?? null,
+        amount: j === refs.length - 1 ? Math.round((net - share * (refs.length - 1)) * 100) / 100 : share,
+      });
+    });
+  });
+  if (rows.length) {
+    const { error } = await supabase.from("incoming_document_allocation").insert(rows);
+    if (error) throw new Error(error.message);
+  }
 }
 
 const num = (v: unknown): number | null =>
@@ -721,11 +788,16 @@ export async function extractIncoming(opts: Options = {}) {
             net_amount: num(li.net_amount),
             ledger_account: rule?.expense_account ?? null,
             tax_code_id: rateToCode(li.tax_rate) ?? rule?.tax_code_id ?? null,
+            ...itemExtras(li),
             raw: li,
           }));
       if (items.length) {
-        const { error: iErr } = await supabase.from("incoming_document_item").insert(items);
+        const { data: ins, error: iErr } = await supabase
+          .from("incoming_document_item")
+          .insert(items)
+          .select("id, net_amount");
         if (iErr) throw new Error(iErr.message);
+        await seedAllocations(ins ?? [], e.line_items ?? []);
       }
       ok += 1;
       if (isAdvice) advice += 1;

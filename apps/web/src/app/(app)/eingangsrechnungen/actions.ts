@@ -36,6 +36,8 @@ type PosIn = {
   ledger_account?: string;
   tax_code_id?: string;
   material_ref?: string;
+  supplier_sku?: string;
+  order_reference?: string;
   linked_document_id?: string;
   allocations?: AllocIn[];
 };
@@ -114,6 +116,8 @@ export async function saveIncoming(
           ledger_account: emptyToNull(p.ledger_account),
           tax_code_id: emptyToNull(p.tax_code_id),
           material_ref: emptyToNull(p.material_ref),
+          supplier_sku: emptyToNull(p.supplier_sku),
+          order_reference: emptyToNull(p.order_reference),
           linked_document_id: emptyToNull(p.linked_document_id),
         })),
       )
@@ -151,6 +155,8 @@ export async function saveIncoming(
           incoming_document_item_id: itemId,
           link_type: a.link_type,
           sales_order_id: soId,
+          // Gelesene/eingetippte Referenz bleibt auch ohne passenden sales_order erhalten.
+          order_ref: a.link_type === "sales_order" ? orderNum : null,
           material_ref:
             a.link_type === "material" ? emptyToNull(a.material_ref) : null,
           cost_center_id:
@@ -171,7 +177,7 @@ export async function saveIncoming(
   revalidatePath(`/eingangsrechnungen/${id}`);
   return {
     ok: true,
-    note: unresolved ? `${unresolved} Auftragsnummer(n) nicht gefunden` : undefined,
+    note: unresolved ? `${unresolved} Auftragsreferenz(en) ohne passenden Auftrag - als Text gespeichert` : undefined,
   };
 }
 
