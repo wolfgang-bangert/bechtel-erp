@@ -648,7 +648,7 @@ async function main() {
         process.exit(1);
       }
       console.log(`BB-DATEV-Export → Eingangsrechnungen: ${f}${dryRun ? "  (DRY RUN)" : ""}`);
-      console.log(JSON.stringify(await importBbBelege({ file: f, dryRun, ohnePdf: flags.has("--ohne-pdf") }), null, 1));
+      console.log(JSON.stringify(await importBbBelege({ file: f, dryRun, ohnePdf: flags.has("--ohne-pdf"), lieferantenAnlegen: flags.has("--lieferanten-anlegen") }), null, 1));
       break;
     }
     case "bb:positionen": {

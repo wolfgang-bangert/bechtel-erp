@@ -106,7 +106,7 @@ export async function bbPositionen(opts: Options = {}) {
           const { error: iErr } = await supabase.from("incoming_document_item").insert(
             lis.map((li, i) => ({
               incoming_document_id: d.id,
-              position: li.position ?? i + 1,
+              position: i + 1,
               description: li.description ?? null,
               quantity: li.quantity ?? null,
               unit_price: li.unit_price ?? null,
