@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { ReviewForm } from "./ui";
-import { setIncomingStatus } from "../actions";
+import { setIncomingStatus, bestaetigeUst } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -127,6 +127,10 @@ export default async function IncomingDetail({
   const dun = ((doc.extraction as { dunning?: Record<string, unknown> } | null)?.dunning ??
     {}) as Record<string, unknown>;
 
+  const ust = ((doc.extraction as { _ust?: { status?: string; tax_code_id?: string | null; tax_code?: string | null; reason?: string } } | null)
+    ?._ust ?? null);
+  const ustOpen = !isHint && ust?.status === "vorschlag" && ["captured", "extracted", "reviewed"].includes(doc.status);
+
   const items = ((itemsRaw ?? []) as unknown as ItemRow[]).map((it) => ({
     id: it.id,
     position: it.position,
@@ -242,7 +246,7 @@ export default async function IncomingDetail({
         ) : (
           <span className="count">kein PDF</span>
         )}
-        {!isHint && ["extracted", "reviewed"].includes(doc.status) && (
+        {!isHint && !ustOpen && ["extracted", "reviewed"].includes(doc.status) && (
           <form action={setIncomingStatus}>
             <input type="hidden" name="id" value={doc.id} />
             <input type="hidden" name="status" value="reviewed" />
@@ -262,6 +266,34 @@ export default async function IncomingDetail({
           <button type="submit" className="ghost">verwerfen</button>
         </form>
       </div>
+
+      {ustOpen && (
+        <div className="bd-card" style={{ borderLeft: "4px solid #d98e04", margin: "0 0 14px", padding: "12px 16px" }}>
+          <strong>USt bitte bestätigen</strong>
+          <p className="bd-hint" style={{ margin: "4px 0 8px" }}>
+            Die KI ist sich bei der Umsatzsteuer nicht ganz sicher und hat deshalb <em>keinen</em> Steuerschlüssel gesetzt.
+            Grund: {ust?.reason ?? "–"}
+          </p>
+          <form action={bestaetigeUst} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <input type="hidden" name="id" value={doc.id} />
+            <div className="bd-field" style={{ width: 320 }}>
+              <label className="bd-field-label" htmlFor="ust_code">
+                {ust?.tax_code_id ? `Vorschlag: ${ust.tax_code}` : "Steuerschlüssel wählen"}
+              </label>
+              <select className="bd-field-input" id="ust_code" name="tax_code_id" defaultValue={ust?.tax_code_id ?? ""} required>
+                <option value="" disabled>– wählen –</option>
+                {(taxCodes ?? []).map((t) => (
+                  <option key={t.id} value={t.id}>{t.code} – {t.name}</option>
+                ))}
+              </select>
+            </div>
+            <button type="submit" className="bd-btn bd-btn-primary">Bestätigen</button>
+          </form>
+        </div>
+      )}
+      {!isHint && ust?.status === "sicher" && (
+        <p className="bd-hint">USt automatisch erkannt (sicher): {ust.reason}.</p>
+      )}
 
       {doc.notes && <div className="banner-err">{doc.notes}</div>}
 

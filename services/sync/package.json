@@ -26,6 +26,7 @@
     "bb:create-suppliers": "tsx src/cli.ts bb:create-suppliers",
     "bb:import-belege": "tsx src/cli.ts bb:import-belege",
     "bb:positionen": "tsx src/cli.ts bb:positionen",
+    "incoming:ust-pruefen": "tsx src/cli.ts incoming:ust-pruefen",
     "bb:learn-vorkontierung": "tsx src/cli.ts bb:learn-vorkontierung",
     "bb:learn-vorkontierung-debitoren": "tsx src/cli.ts bb:learn-vorkontierung-debitoren",
     "bb:learn-bankregeln": "tsx src/cli.ts bb:learn-bankregeln",
