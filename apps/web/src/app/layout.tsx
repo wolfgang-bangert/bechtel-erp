@@ -1,26 +1,33 @@
 import type { Metadata } from "next";
-import { Jost, Archivo, Archivo_Narrow } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const headingFont = Jost({
-  subsets: ["latin"],
-  weight: ["500", "600"],
+// Schriften liegen im Repo (src/app/fonts, siehe README dort): kein Abruf von
+// Google Fonts beim Build, keine Verbindung zu Google zur Laufzeit (DSGVO).
+const headingFont = localFont({
+  src: [
+    { path: "./fonts/jost-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/jost-latin-600-normal.woff2", weight: "600", style: "normal" },
+  ],
   variable: "--font-heading-sans",
   display: "swap",
 });
 
-// Schriften aus dem Bechtel-Druck-Designsystem (Pilot: Sidebar,
-// Eingangsrechnungen) - über next/font selbst gehostet (DSGVO), nicht von
-// Google geladen, obwohl die Quelle Google Fonts ist.
-const bodyFont = Archivo({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
+// Schriften aus dem Bechtel-Druck-Designsystem.
+const bodyFont = localFont({
+  src: [
+    { path: "./fonts/archivo-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/archivo-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/archivo-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
   variable: "--font-archivo",
   display: "swap",
 });
-const displayFont = Archivo_Narrow({
-  subsets: ["latin"],
-  weight: ["600", "700"],
+const displayFont = localFont({
+  src: [
+    { path: "./fonts/archivo-narrow-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/archivo-narrow-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
   variable: "--font-archivo-narrow",
   display: "swap",
 });
