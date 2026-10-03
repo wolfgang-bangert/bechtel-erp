@@ -14,6 +14,7 @@ import {
 } from "./syncBButler";
 import { importBbAccounts, importBbParties, applyBbParties, createBbSuppliers } from "./bbImport";
 import { importBbBelege } from "./bbImportBelege";
+import { bbPositionen } from "./bbPositionen";
 import { learnVorkontierung, learnDebitorVorkontierung } from "./learnVorkontierung";
 import { learnBankLedgerRules } from "./learnBankRules";
 import { syncNinoxOrders } from "./syncNinoxOrders";
@@ -648,6 +649,13 @@ async function main() {
       }
       console.log(`BB-DATEV-Export → Eingangsrechnungen: ${f}${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await importBbBelege({ file: f, dryRun, ohnePdf: flags.has("--ohne-pdf") }), null, 1));
+      break;
+    }
+    case "bb:positionen": {
+      const monat = process.argv.find((a) => a.startsWith("--monat="))?.slice("--monat=".length);
+      const limit = Number(process.argv.find((a) => a.startsWith("--limit="))?.slice("--limit=".length)) || undefined;
+      console.log(`BB-Belege: Einzelpositionen per KI${monat ? ` (${monat})` : ""}${limit ? ` (max. ${limit})` : ""}`);
+      console.log(JSON.stringify(await bbPositionen({ monat, limit }), null, 1));
       break;
     }
     case "bb:learn-vorkontierung": {

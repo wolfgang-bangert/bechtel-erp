@@ -10,9 +10,9 @@ import { forwardDunnings } from "./forwardDunnings";
 
 type Options = { dryRun?: boolean; limit?: number };
 
-const MODEL = "claude-sonnet-5";
+export const MODEL = "claude-sonnet-5";
 
-const PROMPT = `Du bekommst einen Eingangsbeleg (PDF) einer deutschen Druckerei.
+export const PROMPT = `Du bekommst einen Eingangsbeleg (PDF) einer deutschen Druckerei.
 Extrahiere die Daten und antworte ausschließlich mit JSON, ohne Markdown, in genau dieser Struktur:
 
 {
@@ -118,7 +118,7 @@ Regeln:
   Kreditkarten-/PayPal-Sammelabrechnung. Bei normaler Überweisung/Lastschrift
   oder wenn nichts dazu erkennbar ist: payment_method = null.`;
 
-function parseJson(text: string): unknown {
+export function parseJson(text: string): unknown {
   const start = text.indexOf("{");
   if (start < 0) throw new Error("keine JSON-Antwort");
   const body = text.slice(start);
@@ -180,7 +180,7 @@ function repairTruncatedJson(s: string): string {
   return head + close.reverse().join("");
 }
 
-type Extracted = {
+export type Extracted = {
   doc_type?: string;
   supplier?: { name?: string | null; vat_id?: string | null; iban?: string | null };
   marketplace?: string | null;
