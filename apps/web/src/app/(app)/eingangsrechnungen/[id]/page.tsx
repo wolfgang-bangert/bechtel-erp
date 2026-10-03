@@ -15,6 +15,7 @@ type AllocRow = {
   cost_center_id: string | null;
   amount: number | null;
   note: string | null;
+  order_ref: string | null;
   sales_order: { order_number: string | null } | null;
 };
 
@@ -29,6 +30,8 @@ type ItemRow = {
   ledger_account: string | null;
   tax_code_id: string | null;
   material_ref: string | null;
+  supplier_sku: string | null;
+  order_reference: string | null;
   linked_document_id: string | null;
   incoming_document_allocation: AllocRow[];
 };
@@ -53,8 +56,8 @@ export default async function IncomingDetail({
     supabase
       .from("incoming_document_item")
       .select(
-        "id, position, description, quantity, unit_price, tax_rate, net_amount, ledger_account, tax_code_id, material_ref, linked_document_id, " +
-          "incoming_document_allocation ( id, link_type, sales_order_id, material_ref, cost_center_id, amount, note, sales_order:sales_order_id ( order_number ) )",
+        "id, position, description, quantity, unit_price, tax_rate, net_amount, ledger_account, tax_code_id, material_ref, supplier_sku, order_reference, linked_document_id, " +
+          "incoming_document_allocation ( id, link_type, sales_order_id, order_ref, material_ref, cost_center_id, amount, note, sales_order:sales_order_id ( order_number ) )",
       )
       .eq("incoming_document_id", id)
       .order("position", { nullsFirst: false }),
@@ -132,11 +135,13 @@ export default async function IncomingDetail({
     ledger_account: it.ledger_account ?? "",
     tax_code_id: it.tax_code_id ?? "",
     material_ref: it.material_ref ?? "",
+    supplier_sku: it.supplier_sku ?? "",
+    order_reference: it.order_reference ?? "",
     linked_document_id: it.linked_document_id ?? "",
     allocations: (it.incoming_document_allocation ?? []).map((a) => ({
       id: a.id,
       link_type: (a.link_type as "sales_order" | "material" | "cost_center") ?? "sales_order",
-      order_number: a.sales_order?.order_number ?? "",
+      order_number: a.sales_order?.order_number ?? a.order_ref ?? "",
       material_ref: a.material_ref ?? "",
       cost_center_id: a.cost_center_id ?? "",
       amount: a.amount,

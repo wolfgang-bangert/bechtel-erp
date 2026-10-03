@@ -35,6 +35,10 @@ type Pos = {
   ledger_account: string;
   tax_code_id: string;
   material_ref: string;
+  /** Artikelnummer/SKU des Lieferanten. */
+  supplier_sku: string;
+  /** Referenz-/Kommissionstext der Position laut Beleg. */
+  order_reference: string;
   /** Bereits separat erfasster Beleg, der diese Position erklärt (z.B.
    *  SaaS-Rechnung, die zusätzlich auf der Kreditkartenabrechnung auftaucht)
    *  - Bridge statt Doppelerfassung. */
@@ -110,6 +114,8 @@ export function ReviewForm({
             ledger_account: v("ledger_account") || suggestion?.ledger_account || "",
             tax_code_id: v("tax_code_id") || suggestion?.tax_code_id || "",
             material_ref: "",
+            supplier_sku: "",
+            order_reference: "",
             linked_document_id: "",
             allocations: [],
           },
@@ -134,6 +140,8 @@ export function ReviewForm({
         ledger_account: "",
         tax_code_id: "",
         material_ref: "",
+        supplier_sku: "",
+        order_reference: "",
         linked_document_id: "",
         allocations: [],
       },
@@ -373,7 +381,9 @@ export function ReviewForm({
                   <thead>
                     <tr>
                       <th>Pos.</th>
+                      <th>Art.-Nr.</th>
                       <th>Beschreibung</th>
+                      <th>Auftrag</th>
                       <th className="bd-num">Menge</th>
                       <th className="bd-num">Einzelpreis</th>
                       <th className="bd-num">Netto</th>
@@ -385,7 +395,14 @@ export function ReviewForm({
                     {positions.map((p, pi) => (
                       <tr key={pi} onClick={() => setOpenPos(pi)} style={{ cursor: "pointer" }}>
                         <td className="bd-sub">{p.position ?? pi + 1}</td>
-                        <td className="wrap">{p.description || "–"}</td>
+                        <td className="bd-sub">{p.supplier_sku || "–"}</td>
+                        <td className="wrap" style={{ whiteSpace: "pre-line" }}>{p.description || "–"}</td>
+                        <td className="wrap bd-sub">
+                          {p.allocations
+                            .filter((a) => a.link_type === "sales_order" && a.order_number)
+                            .map((a) => a.order_number)
+                            .join(", ") || "–"}
+                        </td>
                         <td className="bd-num">{p.quantity ?? "–"}</td>
                         <td className="bd-num">{p.unit_price != null ? fmtEur(p.unit_price) : "–"}</td>
                         <td className="bd-num">{p.net_amount != null ? fmtEur(p.net_amount) : "–"}</td>
@@ -512,8 +529,24 @@ function PositionModal({
 
         <div style={{ padding: 16 }}>
           <div className="bd-field">
-            <label className="bd-field-label">Beschreibung</label>
-            <input className="bd-field-input" value={pos.description} onChange={(e) => onPatch({ description: e.target.value })} />
+            <label className="bd-field-label">Beschreibung (kompletter Positionstext)</label>
+            <textarea
+              className="bd-field-input"
+              rows={Math.min(14, Math.max(3, pos.description.split("\n").length + 1))}
+              value={pos.description}
+              onChange={(e) => onPatch({ description: e.target.value })}
+              style={{ resize: "vertical", fontFamily: "inherit" }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+            <div className="bd-field" style={{ width: 200 }}>
+              <label className="bd-field-label">Artikelnr./SKU (Lieferant)</label>
+              <input className="bd-field-input" value={pos.supplier_sku} onChange={(e) => onPatch({ supplier_sku: e.target.value })} />
+            </div>
+            <div className="bd-field" style={{ flex: "1 1 240px" }}>
+              <label className="bd-field-label">Referenz laut Beleg</label>
+              <input className="bd-field-input" value={pos.order_reference} onChange={(e) => onPatch({ order_reference: e.target.value })} />
+            </div>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
             <div className="bd-field" style={{ width: 90 }}>
@@ -619,7 +652,7 @@ function PositionModal({
                 </div>
                 {a.link_type === "sales_order" && (
                   <div className="bd-field" style={{ width: 160 }}>
-                    <label className="bd-field-label">Auftragsnummer</label>
+                    <label className="bd-field-label">Auftragsnummer / Referenz</label>
                     <input className="bd-field-input" value={a.order_number} onChange={(e) => onPatchAlloc(ai, { order_number: e.target.value })} />
                   </div>
                 )}
