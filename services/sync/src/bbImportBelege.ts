@@ -19,7 +19,7 @@ import { bbGetAll, bbPost } from "./bbutler";
  * werden nicht doppelt angelegt, sondern nur ergänzt (Kontierung/Status).
  * -------------------------------------------------------------------------- */
 
-type Options = { file: string; dryRun?: boolean; ohnePdf?: boolean };
+type Options = { file: string; dryRun?: boolean; ohnePdf?: boolean; lieferantenAnlegen?: boolean };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const norm = (s: string | null | undefined) =>
@@ -88,7 +88,7 @@ type Beleg = {
 };
 
 export async function importBbBelege(opts: Options) {
-  const { dryRun = false, ohnePdf = false } = opts;
+  const { dryRun = false, ohnePdf = false, lieferantenAnlegen = false } = opts;
 
   // ---- Datei(en) einlesen --------------------------------------------------
   let path = opts.file;
@@ -221,6 +221,14 @@ export async function importBbBelege(opts: Options) {
   );
   const orgByNr = new Map(orgs.filter((o) => o.supplier_number).map((o) => [o.supplier_number!, o]));
   const orgByName = new Map(orgs.map((o) => [normName(o.name), o]));
+  // Optional: fehlende Lieferanten als Organisation anlegen (Name aus der BB-
+  // Kreditorenliste, da der DATEV-Stamm Namen auf 40 Zeichen kürzt).
+  let creditorNames = new Map<string, string>();
+  if (lieferantenAnlegen) {
+    const cr = await bbGetAll<{ postingaccount_number: string | null; name: string }>("settings/get/creditors");
+    creditorNames = new Map(cr.filter((c) => c.postingaccount_number).map((c) => [String(c.postingaccount_number), c.name.trim()]));
+  }
+  const angelegteLieferanten: string[] = [];
   const { data: tcs } = await supabase.from("tax_code").select("id, code").in("code", ["VST19", "VST7", "VST13B"]);
   const tc = (code: string) => tcs?.find((t) => t.code === code)?.id ?? null;
   const codeFor = (l: Line) => (l.rc ? tc("VST13B") : l.rate === 19 ? tc("VST19") : l.rate === 7 ? tc("VST7") : null);
@@ -277,7 +285,21 @@ export async function importBbBelege(opts: Options) {
     const satzOffen = b.lines.some((l) => !l.known);
     if (satzOffen) out.satzUnbekanntBelege.push(`${b.docNr} ${kred.get(b.kreditor)?.name ?? b.kreditor}`);
     const stamm = kred.get(b.kreditor);
-    const org = orgByNr.get(b.kreditor) ?? orgByName.get(normName(stamm?.name));
+    let org = orgByNr.get(b.kreditor) ?? orgByName.get(normName(stamm?.name));
+    const fullName = creditorNames.get(b.kreditor) || stamm?.name?.trim() || "";
+    if (!org && lieferantenAnlegen && stamm?.name?.trim() && fullName && !dryRun) {
+      const { data: no, error: oErr } = await supabase
+        .from("organization")
+        .insert({ relation: "supplier", name: fullName, supplier_number: b.kreditor, vat_id: stamm?.vat ?? null })
+        .select("id, name, supplier_number")
+        .single();
+      if (no) {
+        org = no;
+        orgByNr.set(b.kreditor, no);
+        orgByName.set(normName(no.name), no);
+        angelegteLieferanten.push(`${b.kreditor} ${no.name}`);
+      } else out.fehler.push(`Lieferant ${b.kreditor} ${fullName}: ${oErr?.message}`);
+    }
     const supplierName = org?.name ?? stamm?.name ?? `Kreditor ${b.kreditor}`;
     if (!org) out.ohneOrganisation.push(`${b.kreditor} ${stamm?.name ?? ""}`);
 
@@ -391,6 +413,7 @@ export async function importBbBelege(opts: Options) {
   }
 
   const orgCount: Record<string, number> = {};
+  (out as Record<string, unknown>).lieferantenAngelegt = angelegteLieferanten;
   for (const o of out.ohneOrganisation) orgCount[o] = (orgCount[o] ?? 0) + 1;
   return { datei: path, jahr: year, ...stats, ...out, ohneOrganisation: orgCount, dryRun };
 }
