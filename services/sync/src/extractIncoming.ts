@@ -5,6 +5,7 @@ import { env } from "./env";
 import { supabase } from "./supabase";
 import { getObjectBytes, putObject, deleteObject, prefix } from "./storage";
 import { pagedSelect } from "./db";
+import { pruefeUst, type UstTaxCode } from "./ustCheck";
 import { pruneReceiptDuplicates } from "./pruneReceipts";
 import { forwardDunnings } from "./forwardDunnings";
 
@@ -28,6 +29,11 @@ Extrahiere die Daten und antworte ausschließlich mit JSON, ohne Markdown, in ge
   "tax_amount": number|null,    // Gesamt USt
   "gross_amount": number|null,  // Gesamt brutto / Zahlbetrag
   "payment_method": "card" | "paypal" | null,  // siehe Regel unten
+  "vat_check": {                // wörtliche USt-Angaben des Belegs, siehe Regel unten
+    "reverse_charge": boolean,           // Beleg nennt ausdrücklich Reverse Charge/§ 13b/Steuerschuldnerschaft des Leistungsempfängers
+    "tax_free_reason": string|null,      // Begründung für 0 % / steuerfrei, wörtlich ("steuerfrei nach § 4 UStG", "Kleinunternehmer § 19", "innergemeinschaftliche Lieferung", "Drittland"…)
+    "statement": string|null             // kurzer wörtlicher USt-Hinweis des Belegs, z.B. "MwSt 19 % 12,92"
+  },
   "tax_breakdown": { "<satz in prozent>": <ust-betrag> },   // z.B. {"19": 12.34}
   "line_items": [
     { "position": number|null, "description": string, "quantity": number|null,
@@ -97,6 +103,12 @@ Regeln:
   aus "Referenztext: W7-MN-2S Filseck" wird ["W7-MN-2S"]. Stehen mehrere Referenzen
   da (z.B. "W7-MN-2S, W7-MN-3T"), je eine pro Eintrag. Nicht gemeint: die Auftrags-/
   Rechnungsnummer des Lieferanten selbst. Keine Referenz = [].
+- USt STRIKT vom Beleg übernehmen, niemals berechnen, schätzen oder "üblich" annehmen:
+  "tax_breakdown" nur aus den auf dem Beleg ausgewiesenen MwSt-/USt-Zeilen (Satz → Betrag),
+  "tax_amount" = dort ausgewiesene Summe, "line_items[].tax_rate" nur, wenn der Satz für die
+  Position erkennbar ist (sonst null). Weist der Beleg keine USt aus, bleibt tax_breakdown {}
+  und tax_amount 0/null. "vat_check.reverse_charge" nur true, wenn der Beleg das ausdrücklich
+  schreibt. Bei Zweifel immer null/false/{} statt zu raten.
 - Beträge als Zahl mit Punkt als Dezimaltrenner, ohne Währungssymbol.
 - Unbekannte Felder = null. Wenn es keine Positionsaufstellung gibt, line_items = [].
 - doc_type "payment_advice" NUR für ein Zahlungs-/Lastschriftavis: Titel/Text wie
@@ -213,6 +225,7 @@ export type Extracted = {
   tax_amount?: number | null;
   gross_amount?: number | null;
   tax_breakdown?: Record<string, number>;
+  vat_check?: { reverse_charge?: boolean | null; tax_free_reason?: string | null; statement?: string | null } | null;
   line_items?: {
     position?: number | null;
     description?: string;
@@ -529,26 +542,19 @@ export async function extractIncoming(opts: Options = {}) {
       ]),
   );
 
-  // Vorsteuer-Schlüssel nach Satz — der Satz selbst kommt aus der Rechnung.
-  const taxByRate = new Map<number, string>(
-    (
-      await pagedSelect<{ id: string; rate: number; direction: string; is_active: boolean }>(
-        "tax_code",
-        "id, rate, direction, is_active",
-      )
+  // Vorsteuer-Schlüssel (Eingang). Welcher gilt, entscheidet pruefeUst streng - der
+  // Satz allein reicht nicht (19 % gibt es als Standard UND als §13b).
+  const taxCodes: UstTaxCode[] = (
+    await pagedSelect<{ id: string; code: string; rate: number; treatment: string; direction: string; is_active: boolean }>(
+      "tax_code",
+      "id, code, rate, treatment, direction, is_active",
     )
-      .filter((t) => t.direction === "input" && t.is_active)
-      .map((t) => [Math.round(Number(t.rate)), t.id]),
-  );
-  const rateToCode = (rate: unknown): string | null => {
+  )
+    .filter((t) => t.direction === "input" && t.is_active)
+    .map((t) => ({ id: t.id, code: t.code, rate: Number(t.rate), treatment: t.treatment }));
+  const stdByRate = (rate: unknown): string | null => {
     const r = Math.round(Number(rate));
-    return Number.isFinite(r) && taxByRate.has(r) ? taxByRate.get(r)! : null;
-  };
-  /** dominanter USt-Satz aus einer tax_breakdown */
-  const dominantRate = (tb: Record<string, number> | undefined): number | null => {
-    const keys = Object.keys(tb ?? {});
-    if (!keys.length) return null;
-    return Number(keys.sort((a, b) => ((tb![b] ?? 0) - (tb![a] ?? 0)))[0]);
+    return taxCodes.find((c) => c.treatment === "standard_de" && Math.round(c.rate) === r)?.id ?? null;
   };
 
   let ok = 0;
@@ -679,6 +685,15 @@ export async function extractIncoming(opts: Options = {}) {
       const supplierId = await findSupplier(e);
       const rule = !isHint && supplierId ? rules.get(supplierId) : undefined;
 
+      // Strenge USt-Prüfung: Schlüssel nur bei eindeutigem Befund, sonst Vorschlag.
+      let supplierCountry: string | null = null;
+      if (!isHint && supplierId) {
+        const { data: org } = await supabase.from("organization").select("vat_id").eq("id", supplierId).maybeSingle();
+        const m = /^[A-Za-z]{2}/.exec((org?.vat_id ?? "").replace(/\s/g, ""));
+        supplierCountry = m ? m[0].toUpperCase() : null;
+      }
+      const ust = isHint ? null : pruefeUst(e, { codes: taxCodes, supplierCountry, ruleCodeId: rule?.tax_code_id });
+
       // Marktplatz-Rechnungen (z.B. Amazon-Marktplatz-Verkäufer): Suche nach
       // "amazon" soll den Beleg auch dann finden, wenn der eigentliche
       // Rechnungssteller (Kreditor) ein Drittanbieter ist - Zuordnung/
@@ -763,11 +778,11 @@ export async function extractIncoming(opts: Options = {}) {
           // Vorkontierungs-Vorschlag aus posting_rule (Lieferant → Aufwandskonto).
           // Steuerschlüssel aus dem USt-Satz der Rechnung, sonst aus der Regel.
           ledger_account: rule?.expense_account ?? null,
-          tax_code_id: isHint
-            ? null
-            : (rateToCode(dominantRate(e.tax_breakdown)) ?? rule?.tax_code_id ?? null),
+          // nur bei "sicher" - sonst bleibt der Schlüssel leer bis der Nutzer bestätigt
+          tax_code_id: ust?.status === "sicher" ? ust.tax_code_id : null,
           extraction: {
             ...(e as unknown as Record<string, unknown>),
+            _ust: ust,
             _vorkontierung: rule
               ? { account: rule.expense_account, confidence: rule.confidence, source: "posting_rule" }
               : null,
@@ -792,7 +807,7 @@ export async function extractIncoming(opts: Options = {}) {
             tax_rate: num(li.tax_rate),
             net_amount: num(li.net_amount),
             ledger_account: rule?.expense_account ?? null,
-            tax_code_id: rateToCode(li.tax_rate) ?? rule?.tax_code_id ?? null,
+            tax_code_id: ust?.status === "sicher" ? (stdByRate(li.tax_rate) ?? ust.tax_code_id) : null,
             ...itemExtras(li),
             raw: li,
           }));

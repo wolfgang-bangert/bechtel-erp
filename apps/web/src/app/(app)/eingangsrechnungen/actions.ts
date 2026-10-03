@@ -177,6 +177,20 @@ export async function saveIncoming(
     }
   }
 
+  // Hat der Nutzer jede Position selbst mit einem Steuerschlüssel versehen, gilt ein offener
+  // USt-Vorschlag als erledigt.
+  if (positions.length && positions.every((p) => emptyToNull(p.tax_code_id))) {
+    const { data: cur } = await supabase.from("incoming_document").select("extraction").eq("id", id).maybeSingle();
+    const ex = (cur?.extraction ?? null) as Record<string, unknown> | null;
+    const u = ex?._ust as { status?: string } | undefined;
+    if (ex && u?.status === "vorschlag") {
+      await supabase
+        .from("incoming_document")
+        .update({ extraction: { ...ex, _ust: { ...u, status: "bestaetigt" } } })
+        .eq("id", id);
+    }
+  }
+
   revalidatePath(`/eingangsrechnungen/${id}`);
   return {
     ok: true,
@@ -258,4 +272,46 @@ export async function setIncomingStatus(fd: FormData): Promise<void> {
   await supabase.from("incoming_document").update(patch).eq("id", id);
   revalidatePath("/eingangsrechnungen");
   revalidatePath(`/eingangsrechnungen/${id}`);
+}
+
+/**
+ * USt-Vorschlag bestätigen (ein Klick) bzw. mit anderem Schlüssel überschreiben:
+ * setzt den Steuerschlüssel am Beleg und an allen Positionen (Standard-Schlüssel je
+ * Positionssatz, Reverse Charge für alle) und markiert die Prüfung als bestätigt.
+ */
+export async function bestaetigeUst(fd: FormData): Promise<void> {
+  const id = String(fd.get("id") ?? "");
+  const codeId = String(fd.get("tax_code_id") ?? "");
+  if (!id || !codeId) return;
+  const supabase = await createClient();
+  const { data: codes } = await supabase
+    .from("tax_code")
+    .select("id, rate, treatment")
+    .eq("direction", "input")
+    .eq("is_active", true);
+  const chosen = (codes ?? []).find((c) => c.id === codeId);
+  if (!chosen) return;
+  const stdByRate = (rate: number | null) =>
+    rate == null
+      ? null
+      : ((codes ?? []).find((c) => c.treatment === "standard_de" && Math.round(Number(c.rate)) === Math.round(Number(rate)))
+          ?.id ?? null);
+
+  const { data: items } = await supabase
+    .from("incoming_document_item")
+    .select("id, tax_rate")
+    .eq("incoming_document_id", id);
+  for (const it of items ?? []) {
+    const itemCode = chosen.treatment === "standard_de" ? (stdByRate(it.tax_rate) ?? chosen.id) : chosen.id;
+    await supabase.from("incoming_document_item").update({ tax_code_id: itemCode }).eq("id", it.id);
+  }
+  const { data: doc } = await supabase.from("incoming_document").select("extraction").eq("id", id).maybeSingle();
+  const ex = (doc?.extraction ?? {}) as Record<string, unknown>;
+  const ust = { ...((ex._ust as Record<string, unknown>) ?? {}), status: "bestaetigt", tax_code_id: chosen.id };
+  await supabase
+    .from("incoming_document")
+    .update({ tax_code_id: chosen.id, extraction: { ...ex, _ust: ust } })
+    .eq("id", id);
+  revalidatePath(`/eingangsrechnungen/${id}`);
+  revalidatePath("/eingangsrechnungen");
 }

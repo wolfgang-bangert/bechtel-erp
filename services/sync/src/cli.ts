@@ -15,6 +15,7 @@ import {
 import { importBbAccounts, importBbParties, applyBbParties, createBbSuppliers } from "./bbImport";
 import { importBbBelege } from "./bbImportBelege";
 import { bbPositionen } from "./bbPositionen";
+import { ustPruefen } from "./ustPruefen";
 import { learnVorkontierung, learnDebitorVorkontierung } from "./learnVorkontierung";
 import { learnBankLedgerRules } from "./learnBankRules";
 import { syncNinoxOrders } from "./syncNinoxOrders";
@@ -649,6 +650,11 @@ async function main() {
       }
       console.log(`BB-DATEV-Export → Eingangsrechnungen: ${f}${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await importBbBelege({ file: f, dryRun, ohnePdf: flags.has("--ohne-pdf"), lieferantenAnlegen: flags.has("--lieferanten-anlegen") }), null, 1));
+      break;
+    }
+    case "incoming:ust-pruefen": {
+      console.log(`USt-Prüfung für erkannte Belege nachziehen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await ustPruefen({ dryRun }), null, 1));
       break;
     }
     case "bb:positionen": {

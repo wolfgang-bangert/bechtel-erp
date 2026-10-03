@@ -50,6 +50,7 @@ export default async function EingangsrechnungenPage({
     payment_method?: string;
     monat?: string;
     seite?: string;
+    ust?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -57,6 +58,7 @@ export default async function EingangsrechnungenPage({
   const search = (sp.q ?? "").trim();
   const paymentMethod = sp.payment_method ?? "";
   const monat = sp.monat ?? "";
+  const ustOffen = sp.ust === "offen";
   const range = monthRange(monat);
   const seite = Math.max(1, Number.parseInt(sp.seite ?? "1", 10) || 1);
   const isHint = HINT.has(status);
@@ -74,6 +76,7 @@ export default async function EingangsrechnungenPage({
     // Ohne Filter: Hinweisbelege raus aus der Rechnungs-Prüfliste.
     else r = r.not("status", "in", "(advice,dunning)");
     if (paymentMethod) r = r.eq("payment_method", paymentMethod);
+    if (ustOffen) r = r.eq("extraction->_ust->>status", "vorschlag");
     if (range) r = r.gte("doc_date", range.from).lt("doc_date", range.to);
     if (search) {
       const like = `%${search.replace(/[%,]/g, "")}%`;
@@ -85,7 +88,7 @@ export default async function EingangsrechnungenPage({
     supabase
       .from("incoming_document")
       .select(
-        "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date",
+        "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date, ust_status:extraction->_ust->>status",
         { count: "exact" },
       )
       .range((seite - 1) * PAGE_SIZE, seite * PAGE_SIZE - 1),
@@ -134,6 +137,7 @@ export default async function EingangsrechnungenPage({
     if (search) u.set("q", search);
     if (paymentMethod) u.set("payment_method", paymentMethod);
     if (range) u.set("monat", monat);
+    if (ustOffen) u.set("ust", "offen");
     if (sort !== "date") u.set("sort", sort);
     if (dir !== "desc") u.set("dir", dir);
     return u;
@@ -152,13 +156,18 @@ export default async function EingangsrechnungenPage({
   const pages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
   const sortIndicator = (field: "date" | "supplier") => (sort === field ? (dir === "asc" ? " ▲" : " ▼") : "");
 
-  const [{ count: adviceCount }, { count: dunningCount }, { count: openCount }] = await Promise.all([
+  const [{ count: adviceCount }, { count: dunningCount }, { count: openCount }, { count: ustCount }] = await Promise.all([
     supabase.from("incoming_document").select("id", { count: "exact", head: true }).eq("status", "advice"),
     supabase.from("incoming_document").select("id", { count: "exact", head: true }).eq("status", "dunning"),
     supabase
       .from("incoming_document")
       .select("id", { count: "exact", head: true })
       .in("status", ["captured", "extracted"]),
+    supabase
+      .from("incoming_document")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["captured", "extracted", "reviewed"])
+      .eq("extraction->_ust->>status", "vorschlag"),
   ]);
 
   return (
@@ -176,6 +185,13 @@ export default async function EingangsrechnungenPage({
         >
           <div className="n">{openCount ?? 0}</div>
           <div className="l">zu prüfen</div>
+        </Link>
+        <Link
+          href="/eingangsrechnungen?ust=offen"
+          className={"bd-stat-card" + ((ustCount ?? 0) > 0 ? " warn" : "")}
+        >
+          <div className="n">{ustCount ?? 0}</div>
+          <div className="l">USt bestätigen</div>
         </Link>
         <Link href="/eingangsrechnungen?status=advice" className="bd-stat-card">
           <div className="n">{adviceCount ?? 0}</div>
@@ -228,10 +244,11 @@ export default async function EingangsrechnungenPage({
           <label className="bd-field-label">Monat (Belegdatum)</label>
           <input className="bd-field-input" type="month" name="monat" defaultValue={range ? monat : ""} />
         </div>
+        {ustOffen && <input type="hidden" name="ust" value="offen" />}
         {sort !== "date" && <input type="hidden" name="sort" value={sort} />}
         {dir !== "desc" && <input type="hidden" name="dir" value={dir} />}
         <button className="bd-btn bd-btn-secondary" type="submit">Filtern</button>
-        {(status || search || paymentMethod || range) && <Link href="/eingangsrechnungen">zurücksetzen</Link>}
+        {(status || search || paymentMethod || range || ustOffen) && <Link href="/eingangsrechnungen">zurücksetzen</Link>}
         <div className="bd-spacer" />
         <span style={{ color: "var(--bd-ink-muted)", fontSize: 13, fontFamily: "var(--font-bd-sans)" }}>
           {count ?? 0} Belege · Netto {fmtEur(netSum)}
@@ -285,6 +302,12 @@ export default async function EingangsrechnungenPage({
                     <Link href={`/eingangsrechnungen/${d.id}`}>
                       {d.doc_number ?? d.file_name ?? d.id.slice(0, 8)}
                     </Link>
+                    {d.ust_status === "vorschlag" && (
+                      <span className="bd-status t-warning" style={{ marginLeft: 8 }} title="USt-Schlüssel noch nicht bestätigt">
+                        <span className="bd-status-mark" />
+                        USt?
+                      </span>
+                    )}
                   </td>
                   <td className="wrap">{d.supplier_name ?? d.email_from ?? "–"}</td>
                   <td>{fmtDate(isAdvice ? d.advice_debit_date : d.doc_date)}</td>
