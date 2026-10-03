@@ -36,6 +36,43 @@ export default async function AuftragDetail({
   if (error) return <div className="banner-err">Fehler: {error.message}</div>;
   if (!order) notFound();
 
+  // Eingangsrechnungen (Einkauf/Kosten), deren Positionen diesem Auftrag zugeordnet sind -
+  // per Verknüpfung oder (noch nicht verknüpft) über die gelesene Referenz als Text.
+  const plain = (order.order_number ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  const dashed = /^[A-Z0-9]{6}$/.test(plain) ? plain.match(/../g)!.join("-") : plain;
+  const { data: allocs } = await supabase
+    .from("incoming_document_allocation")
+    .select(
+      "id, amount, incoming_document_item:incoming_document_item_id ( description, incoming_document:incoming_document_id ( id, doc_number, supplier_name, doc_date, status, doc_type ) )",
+    )
+    .or(`sales_order_id.eq.${id}${plain ? `,order_ref.in.(${dashed},${plain})` : ""}`);
+  type AllocRow = {
+    id: string;
+    amount: number | null;
+    incoming_document_item: {
+      description: string | null;
+      incoming_document: {
+        id: string;
+        doc_number: string | null;
+        supplier_name: string | null;
+        doc_date: string | null;
+        status: string;
+        doc_type: string;
+      } | null;
+    } | null;
+  };
+  const costs = ((allocs ?? []) as unknown as AllocRow[]).filter(
+    (a) => a.incoming_document_item?.incoming_document && a.incoming_document_item.incoming_document.status !== "rejected",
+  );
+  const costSum = costs.reduce(
+    (sum, a) =>
+      sum +
+      (a.incoming_document_item!.incoming_document!.doc_type === "credit_note"
+        ? -Math.abs(a.amount ?? 0)
+        : (a.amount ?? 0)),
+    0,
+  );
+
   const org = order.organization as unknown as { id: string; name: string } | null;
   const contact = order.contact as unknown as
     | { first_name: string; last_name: string; email: string | null }
@@ -103,6 +140,35 @@ export default async function AuftragDetail({
           </tbody>
         </table>
       </div>
+
+      <h2>Eingangsrechnungen (Einkauf) zu diesem Auftrag</h2>
+      {costs.length === 0 ? (
+        <p className="lead">Keine.</p>
+      ) : (
+        <>
+          <div className="rows">
+            {costs.map((a) => {
+              const d = a.incoming_document_item!.incoming_document!;
+              return (
+                <div className="row" key={a.id}>
+                  <span className="w-code">
+                    <Link href={`/eingangsrechnungen/${d.id}`}>{d.doc_number ?? d.id.slice(0, 8)}</Link>
+                  </span>
+                  <span>{d.supplier_name ?? "–"}</span>
+                  <span>{fmtDate(d.doc_date)}</span>
+                  <span className="count" style={{ whiteSpace: "pre-line", flex: 1 }}>
+                    {(a.incoming_document_item!.description ?? "").split("\n")[0]}
+                  </span>
+                  <span className="count" style={{ marginLeft: "auto" }}>
+                    {fmtEur(d.doc_type === "credit_note" ? -Math.abs(a.amount ?? 0) : a.amount)} netto
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="lead">Summe Einkaufskosten (netto): <strong>{fmtEur(costSum)}</strong></p>
+        </>
+      )}
 
       <h2>Rechnungen zu diesem Auftrag</h2>
       {(invoices ?? []).length === 0 ? (
