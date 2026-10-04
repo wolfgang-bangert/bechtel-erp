@@ -244,7 +244,7 @@ export default async function IncomingDetail({
           doc.extraction_confidence != null &&
           ` · KI-Konfidenz ${Math.round(doc.extraction_confidence * 100)} %`}
         {doc.email_from && ` · von ${doc.email_from}`}
-        {isDunning && doc.forwarded_at && " · weitergeleitet"}
+        {isDunning && doc.forwarded_at && !String(doc.notes ?? "").startsWith("Von Hand als Sonstiges") && " · weitergeleitet"}
       </p>
 
       {isOther && (
@@ -404,7 +404,7 @@ export default async function IncomingDetail({
                 ))}
               </select>
             </div>
-            <button type="submit" className="bd-btn bd-btn-primary">Bestätigen</button>
+            <button type="submit" className="bd-btn bd-btn-primary">Bestätigen &amp; als geprüft markieren</button>
           </form>
         </div>
       )}
