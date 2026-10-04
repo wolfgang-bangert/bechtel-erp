@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
 import { UploadForm } from "./UploadForm";
+import { applyListFilters, monthRange, sortSpec } from "./_liste";
 
 export const dynamic = "force-dynamic";
 
@@ -27,17 +28,6 @@ const PAYMENT_LABEL: Record<string, string> = {
 };
 
 const PAGE_SIZE = 200;
-
-// "2026-01" -> [2026-01-01, 2026-02-01)
-function monthRange(m: string): { from: string; to: string } | null {
-  const mt = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(m);
-  if (!mt) return null;
-  const y = Number(mt[1]);
-  const mo = Number(mt[2]);
-  const ny = mo === 12 ? y + 1 : y;
-  const nm = mo === 12 ? 1 : mo + 1;
-  return { from: `${mt[1]}-${mt[2]}-01`, to: `${ny}-${String(nm).padStart(2, "0")}-01` };
-}
 
 export default async function EingangsrechnungenPage({
   searchParams,
@@ -70,20 +60,8 @@ export default async function EingangsrechnungenPage({
 
   const supabase = await createClient();
   // Gleiche Filter für die Liste und die Summenzeile (alle Seiten, nicht nur die angezeigte).
-  const applyFilters = <T extends { eq: Function; not: Function; gte: Function; lt: Function; or: Function }>(q: T): T => {
-    let r = q;
-    if (status) r = r.eq("status", status);
-    // Ohne Filter: Hinweisbelege raus aus der Rechnungs-Prüfliste.
-    else r = r.not("status", "in", "(advice,dunning)");
-    if (paymentMethod) r = r.eq("payment_method", paymentMethod);
-    if (ustOffen) r = r.eq("extraction->_ust->>status", "vorschlag");
-    if (range) r = r.gte("doc_date", range.from).lt("doc_date", range.to);
-    if (search) {
-      const like = `%${search.replace(/[%,]/g, "")}%`;
-      r = r.or(`supplier_name.ilike.${like},email_from.ilike.${like}`);
-    }
-    return r;
-  };
+  const applyFilters = <T extends { eq: Function; not: Function; gte: Function; lt: Function; or: Function }>(q: T): T =>
+    applyListFilters(q, sp);
   let query = applyFilters(
     supabase
       .from("incoming_document")
@@ -93,9 +71,8 @@ export default async function EingangsrechnungenPage({
       )
       .range((seite - 1) * PAGE_SIZE, seite * PAGE_SIZE - 1),
   );
-  const dateColumn = isAdvice ? "advice_debit_date" : "doc_date";
-  const sortColumn = sort === "supplier" ? "supplier_name" : dateColumn;
-  query = query.order(sortColumn, { ascending, nullsFirst: false });
+  const { column: sortColumn } = sortSpec(sp);
+  query = query.order(sortColumn, { ascending, nullsFirst: false }).order("id");
   const { data, count, error } = await query;
 
   // Nettosumme über alle gefilterten Belege (Gutschriften negativ).
@@ -141,6 +118,7 @@ export default async function EingangsrechnungenPage({
     if (dir !== "desc") u.set("dir", dir);
     return u;
   };
+  const listeQuery = baseParams().toString();
   const sortHref = (field: "date" | "supplier") => {
     const u = baseParams();
     u.set("sort", field);
@@ -299,7 +277,7 @@ export default async function EingangsrechnungenPage({
               return (
                 <tr key={d.id}>
                   <td className="wrap">
-                    <Link href={`/eingangsrechnungen/${d.id}`}>
+                    <Link href={`/eingangsrechnungen/${d.id}${listeQuery ? `?l=${encodeURIComponent(listeQuery)}` : ""}`}>
                       {d.doc_number ?? d.file_name ?? d.id.slice(0, 8)}
                     </Link>
                     {d.ust_status === "vorschlag" && (

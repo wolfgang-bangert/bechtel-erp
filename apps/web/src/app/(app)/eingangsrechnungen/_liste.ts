@@ -1,0 +1,48 @@
+/** Filter/Sortierung der Eingangsrechnungs-Liste - gemeinsam für die Liste und das Blättern im Detail. */
+export type ListeParams = {
+  status?: string;
+  q?: string;
+  sort?: string;
+  dir?: string;
+  payment_method?: string;
+  monat?: string;
+  ust?: string;
+};
+
+// "2026-01" -> [2026-01-01, 2026-02-01)
+export function monthRange(m: string): { from: string; to: string } | null {
+  const mt = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(m);
+  if (!mt) return null;
+  const y = Number(mt[1]);
+  const mo = Number(mt[2]);
+  const ny = mo === 12 ? y + 1 : y;
+  const nm = mo === 12 ? 1 : mo + 1;
+  return { from: `${mt[1]}-${mt[2]}-01`, to: `${ny}-${String(nm).padStart(2, "0")}-01` };
+}
+
+export function applyListFilters<T extends { eq: Function; not: Function; gte: Function; lt: Function; or: Function }>(
+  q: T,
+  sp: ListeParams,
+): T {
+  let r = q;
+  const status = sp.status ?? "";
+  const search = (sp.q ?? "").trim();
+  const range = monthRange(sp.monat ?? "");
+  if (status) r = r.eq("status", status);
+  // Ohne Filter: Hinweisbelege raus aus der Rechnungs-Prüfliste.
+  else r = r.not("status", "in", "(advice,dunning)");
+  if (sp.payment_method) r = r.eq("payment_method", sp.payment_method);
+  if (sp.ust === "offen") r = r.eq("extraction->_ust->>status", "vorschlag");
+  if (range) r = r.gte("doc_date", range.from).lt("doc_date", range.to);
+  if (search) {
+    const like = `%${search.replace(/[%,]/g, "")}%`;
+    r = r.or(`supplier_name.ilike.${like},email_from.ilike.${like}`);
+  }
+  return r;
+}
+
+export function sortSpec(sp: ListeParams): { column: string; ascending: boolean } {
+  const sort = sp.sort === "supplier" ? "supplier" : "date";
+  const dateColumn = sp.status === "advice" ? "advice_debit_date" : "doc_date";
+  return { column: sort === "supplier" ? "supplier_name" : dateColumn, ascending: sp.dir === "asc" };
+}

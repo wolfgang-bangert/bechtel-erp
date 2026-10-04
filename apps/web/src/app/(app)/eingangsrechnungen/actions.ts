@@ -346,3 +346,25 @@ export async function alsRechnungBehandeln(fd: FormData): Promise<void> {
   revalidatePath(`/eingangsrechnungen/${id}`);
   revalidatePath("/eingangsrechnungen");
 }
+
+/**
+ * Beleg von Hand als "Sonstiges" einstufen (kein Beleg, nicht buchungsrelevant, z.B. Lieferschein/AGB/Angebot).
+ * Wird nicht weitergeleitet (forwarded_at gesetzt); Umkehr über "Als Rechnung behandeln".
+ */
+export async function alsSonstigesBehandeln(fd: FormData): Promise<void> {
+  const id = String(fd.get("id") ?? "");
+  if (!id) return;
+  const supabase = await createClient();
+  await supabase
+    .from("incoming_document")
+    .update({
+      status: "dunning",
+      doc_type: "other",
+      force_invoice: false,
+      forwarded_at: new Date().toISOString(),
+      notes: "Von Hand als Sonstiges eingestuft.",
+    })
+    .eq("id", id);
+  revalidatePath(`/eingangsrechnungen/${id}`);
+  revalidatePath("/eingangsrechnungen");
+}
