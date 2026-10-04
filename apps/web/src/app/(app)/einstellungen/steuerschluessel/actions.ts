@@ -9,6 +9,7 @@ const TREATMENTS = [
   "standard_de",
   "reverse_charge_eu",
   "intra_community_supply",
+  "intra_community_acquisition",
   "export_third_country",
   "tax_free_other",
 ];

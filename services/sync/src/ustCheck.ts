@@ -27,6 +27,9 @@ const EU = new Set([
   "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
 ]);
 
+// Hinweis auf steuerfreie innergemeinschaftliche Lieferung (Art. 138 MwStSystRL) in den gängigen Sprachen
+const IG_LIEFERUNG = /innergemeinschaftlich|intra[-\s]?community|intracommunautaire|intracomunitari|art(?:ikel|icle|\.)?\s*138|\b138\b.{0,40}(?:2006\/112|mwstsyst|rl|directive)/i;
+
 const n = (v: unknown): number | null => {
   const x = typeof v === "string" ? Number(v.replace(",", ".")) : Number(v);
   return v == null || v === "" || !Number.isFinite(x) ? null : x;
@@ -47,6 +50,7 @@ export function pruefeUst(
   const std = (rate: number) =>
     opts.codes.find((c) => c.treatment === "standard_de" && Math.round(Number(c.rate)) === Math.round(rate)) ?? null;
   const rc = opts.codes.find((c) => c.treatment === "reverse_charge_eu") ?? null;
+  const ige = opts.codes.find((c) => c.treatment === "intra_community_acquisition") ?? null;
   const verdict = (status: UstVerdict["status"], code: UstTaxCode | null, reason: string): UstVerdict => ({
     status,
     tax_code_id: code?.id ?? null,
@@ -74,7 +78,15 @@ export function pruefeUst(
   // --- Einstellung an der Organisation hat Vorrang vor der Standardregel ---------------------
   if (noTax && country !== "DE") {
     if (opts.supplierKind === "goods") {
+      if (EU.has(country) && ige) {
+        return verdict("vorschlag", ige, "Warenlieferant aus der EU ohne USt - vermutlich innergemeinschaftlicher Erwerb");
+      }
       return verdict("vorschlag", null, "Lieferant ist als Warenlieferant aus dem Ausland markiert - kein §13b, ggf. Einfuhr: bitte Schlüssel festlegen");
+    }
+    // Beleg weist ausdrücklich eine steuerfreie innergemeinschaftliche Lieferung aus (Art. 138) und der Lieferant
+    // sitzt in der EU (gültige Lieferanten-USt-IdNr. eines EU-Landes) -> innergemeinschaftlicher Erwerb, automatisch.
+    if (opts.supplierKind !== "service" && ige && EU.has(country) && freeReason && IG_LIEFERUNG.test(freeReason)) {
+      return verdict("sicher", ige, `Beleg weist steuerfreie innergemeinschaftliche Lieferung aus (${freeReason.slice(0, 80)}), Lieferant aus ${country} - Erwerbsteuer beim Empfänger`);
     }
     if (opts.supplierKind === "service" && rc) {
       return verdict("sicher", rc, "Lieferant ist als Auslands-Dienstleister markiert - Reverse Charge (§ 13b)");

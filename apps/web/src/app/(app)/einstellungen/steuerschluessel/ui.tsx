@@ -19,6 +19,7 @@ const TREATMENTS: [string, string][] = [
   ["standard_de", "Inland (19/7 %)"],
   ["reverse_charge_eu", "EU Reverse-Charge"],
   ["intra_community_supply", "innergem. Lieferung"],
+  ["intra_community_acquisition", "innergem. Erwerb"],
   ["export_third_country", "Ausfuhr Drittland"],
   ["tax_free_other", "sonst. steuerfrei"],
 ];
