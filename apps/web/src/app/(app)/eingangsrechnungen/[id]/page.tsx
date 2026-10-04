@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { ReviewForm } from "./ui";
-import { setIncomingStatus, bestaetigeUst } from "../actions";
+import { setIncomingStatus, bestaetigeUst, alsRechnungBehandeln } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -148,7 +148,8 @@ export default async function IncomingDetail({
 
   const pdfUrl = doc.pdf_storage_key ? await signedGetUrl(doc.pdf_storage_key, 1800) : null;
   const isAdvice = doc.doc_type === "payment_advice" || doc.status === "advice";
-  const isDunning = doc.doc_type === "dunning" || doc.status === "dunning";
+  const isDunning = doc.doc_type === "dunning" || doc.doc_type === "other" || doc.status === "dunning";
+  const isOther = doc.doc_type === "other";
   const isHint = isAdvice || isDunning;
   const dun = ((doc.extraction as { dunning?: Record<string, unknown> } | null)?.dunning ??
     {}) as Record<string, unknown>;
@@ -191,7 +192,7 @@ export default async function IncomingDetail({
       </p>
       <h1>{doc.doc_number ?? doc.file_name ?? "Beleg"}</h1>
       <p className="lead">
-        {isAdvice ? "Zahlungsavis" : isDunning ? "Mahnung" : `Status ${doc.status}`}
+        {isAdvice ? "Zahlungsavis" : isOther ? "Sonstiges (kein Beleg)" : isDunning ? "Mahnung (Sonstiges)" : `Status ${doc.status}`}
         {!isHint &&
           doc.extraction_confidence != null &&
           ` · KI-Konfidenz ${Math.round(doc.extraction_confidence * 100)} %`}
@@ -199,7 +200,34 @@ export default async function IncomingDetail({
         {isDunning && doc.forwarded_at && " · weitergeleitet"}
       </p>
 
-      {isDunning && (
+      {isOther && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p className="lead" style={{ marginTop: 0 }}>
+            Sonstiges — kein Beleg, nicht buchungsrelevant (z.B. AGB, Werbung, Angebot).
+            {doc.forwarded_at
+              ? " Wurde per E-Mail weitergeleitet."
+              : " Weiterleitung ausstehend (SMTP/Ziel prüfen)."}
+          </p>
+          <table className="data">
+            <tbody>
+              <tr>
+                <th style={{ textAlign: "left" }}>Absender</th>
+                <td>{doc.email_from ?? "–"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left" }}>Betreff</th>
+                <td>{doc.email_subject ?? "–"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left" }}>Datei</th>
+                <td>{doc.file_name ?? "–"}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {isDunning && !isOther && (
         <div className="card" style={{ marginBottom: 16 }}>
           <p className="lead" style={{ marginTop: 0 }}>
             Mahnung / Zahlungserinnerung — keine zu buchende Rechnung.
@@ -284,6 +312,12 @@ export default async function IncomingDetail({
             <input type="hidden" name="id" value={doc.id} />
             <input type="hidden" name="status" value="booked" />
             <button type="submit">gebucht</button>
+          </form>
+        )}
+        {isDunning && doc.status === "dunning" && (
+          <form action={alsRechnungBehandeln}>
+            <input type="hidden" name="id" value={doc.id} />
+            <button type="submit">Als Rechnung behandeln</button>
           </form>
         )}
         <form action={setIncomingStatus}>

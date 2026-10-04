@@ -17,7 +17,7 @@ export const PROMPT = `Du bekommst einen Eingangsbeleg (PDF) einer deutschen Dru
 Extrahiere die Daten und antworte ausschließlich mit JSON, ohne Markdown, in genau dieser Struktur:
 
 {
-  "doc_type": "invoice" | "credit_note" | "receipt" | "payment_advice" | "dunning" | "unknown",
+  "doc_type": "invoice" | "credit_note" | "receipt" | "payment_advice" | "dunning" | "other" | "unknown",
   "supplier": { "name": string|null, "vat_id": string|null, "iban": string|null, "address": string|null },
   "marketplace": string|null,   // siehe Regel zu Marktplatz-Rechnungen unten
   "doc_number": string|null,
@@ -127,6 +127,11 @@ Regeln:
   und Mahngebühr. Dann: "dunning.referenced_doc_numbers" = angemahnte
   Rechnungsnummer(n), "dunning.amount_due" = offener Betrag, "dunning.level" =
   Mahnstufe, "dunning.deadline" = neue Frist. line_items = [].
+- doc_type "other" für Dokumente, die KEIN buchbarer Beleg sind und weder Mahnung noch Zahlungsavis: AGB,
+  Widerrufsbelehrung, Datenschutzhinweise, Werbung/Newsletter, Preislisten, Kataloge, Angebote,
+  Auftragsbestätigungen, Lieferscheine, Verträge, Zertifikate, reine Anschreiben. Diese haben keinen
+  Rechnungsbetrag zum Zahlen. Im Zweifel zwischen "invoice" und "other": hat das Dokument eine Rechnungsnummer
+  UND einen Zahlbetrag, ist es "invoice". Bei "other" bleiben Beträge/line_items leer (null/[]).
 - Für nicht zutreffende Belege bleiben "advice" und "dunning" mit null/[] gefüllt.
 - "payment_terms": aus den Zahlungsbedingungen lesen ("Zahlbar bis …",
   "2% Skonto bis TT.MM., netto bis TT.MM.", "Zahlung innerhalb 14 Tagen mit
@@ -506,7 +511,7 @@ export async function extractIncoming(opts: Options = {}) {
       dedup_key: string;
     }>(
       "incoming_document",
-      "id, pdf_storage_key, file_name, email_subject, source, email_message_id, email_from, email_date, dedup_key",
+      "id, pdf_storage_key, file_name, email_subject, source, email_message_id, email_from, email_date, dedup_key, force_invoice",
       ["status", "captured"],
     )
   ).slice(0, limit);
@@ -641,15 +646,23 @@ export async function extractIncoming(opts: Options = {}) {
         const { data: dup } = await dupQuery.maybeSingle();
         isDuplicateInDunningContext = !!dup;
       }
+      // Vom Nutzer zur Rechnung erklärt ("Als Rechnung behandeln"): nie als Mahnung/Sonstiges einsortieren.
+      const forceInvoice = Boolean((doc as { force_invoice?: boolean }).force_invoice);
       const isAdvice =
-        e.doc_type === "payment_advice" ||
-        (!confidentDocType && looksLikeAdvice(doc.file_name, doc.email_subject));
+        !forceInvoice &&
+        (e.doc_type === "payment_advice" ||
+          (!confidentDocType && looksLikeAdvice(doc.file_name, doc.email_subject)));
+      const isOther = !forceInvoice && !isAdvice && e.doc_type === "other";
       const isDunning =
+        !forceInvoice &&
         !isAdvice &&
+        !isOther &&
         (e.doc_type === "dunning" ||
           (!confidentDocType && dunningContext) ||
           isDuplicateInDunningContext);
-      const isHint = isAdvice || isDunning;
+      // "Sonstiges" = Mahnungen + sonstige Dokumente ohne Buchungsrelevanz (Status 'dunning')
+      const isSonstiges = isDunning || isOther;
+      const isHint = isAdvice || isSonstiges;
 
       // Rechnungsnummer(n), auf die sich der Hinweisbeleg bezieht.
       const refs = cleanRefs(
@@ -662,10 +675,12 @@ export async function extractIncoming(opts: Options = {}) {
         ? (num(e.advice?.total_amount) ?? num(e.gross_amount))
         : isDunning
           ? (num(e.dunning?.amount_due) ?? num(e.gross_amount))
-          : num(e.gross_amount);
+          : isOther
+            ? null
+            : num(e.gross_amount);
 
       if (dryRun) {
-        const tag = isAdvice ? "AVIS" : isDunning ? "MAHNUNG" : null;
+        const tag = isAdvice ? "AVIS" : isDunning ? "MAHNUNG" : isOther ? "SONSTIGES" : null;
         console.log(
           tag
             ? `  ${doc.file_name}: ${tag} · ${e.supplier?.name ?? "?"} · Rg [${refs.join(", ") || "?"}] · ` +
@@ -743,12 +758,17 @@ export async function extractIncoming(opts: Options = {}) {
       const { error: uErr } = await supabase
         .from("incoming_document")
         .update({
-          status: isAdvice ? "advice" : isDunning ? "dunning" : "extracted",
+          status: isAdvice ? "advice" : isSonstiges ? "dunning" : "extracted",
           doc_type: isAdvice
             ? "payment_advice"
             : isDunning
               ? "dunning"
-              : (e.doc_type ?? "invoice"),
+              : isOther
+                ? "other"
+                : forceInvoice && ["other", "dunning", "payment_advice", "unknown"].includes(e.doc_type ?? "")
+                  ? "invoice"
+                  : (e.doc_type ?? "invoice"),
+          force_invoice: forceInvoice,
           supplier_organization_id: supplierId,
           supplier_name: supplierNameDisplay,
           supplier_vat_id: e.supplier?.vat_id ?? null,
@@ -829,7 +849,7 @@ export async function extractIncoming(opts: Options = {}) {
       }
       ok += 1;
       if (isAdvice) advice += 1;
-      if (isDunning) dunning += 1;
+      if (isSonstiges) dunning += 1;
       process.stdout.write(`\r  extrahiert ${ok}/${docs.length}   `);
     } catch (err) {
       failed += 1;

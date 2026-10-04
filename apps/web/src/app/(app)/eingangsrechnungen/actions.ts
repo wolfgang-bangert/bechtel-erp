@@ -323,3 +323,26 @@ export async function bestaetigeUst(fd: FormData): Promise<void> {
   revalidatePath(`/eingangsrechnungen/${id}`);
   revalidatePath("/eingangsrechnungen");
 }
+
+/**
+ * Ein als "Sonstiges"/Mahnung eingestuftes Dokument ist doch eine Rechnung: zurück auf "erfasst" mit
+ * force_invoice - die nächste Erkennung (stündlich) liest es als Rechnung ein und sortiert es nicht erneut
+ * als Sonstiges ein.
+ */
+export async function alsRechnungBehandeln(fd: FormData): Promise<void> {
+  const id = String(fd.get("id") ?? "");
+  if (!id) return;
+  const supabase = await createClient();
+  await supabase
+    .from("incoming_document")
+    .update({
+      status: "captured",
+      doc_type: "unknown",
+      force_invoice: true,
+      forwarded_at: null,
+      notes: "Vom Nutzer als Rechnung eingestuft - wird beim nächsten Lauf als Rechnung eingelesen.",
+    })
+    .eq("id", id);
+  revalidatePath(`/eingangsrechnungen/${id}`);
+  revalidatePath("/eingangsrechnungen");
+}
