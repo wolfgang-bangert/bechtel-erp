@@ -448,54 +448,74 @@ export function ReviewForm({
             {positions.length === 0 ? (
               <p className="lead" style={{ padding: "0 16px 16px" }}>Keine Positionen. „+ Position" zum Anlegen.</p>
             ) : (
-              <div className="table-scroll">
-                <table className="bd-table">
-                  <thead>
-                    <tr>
-                      <th>Pos.</th>
-                      <th>Art.-Nr.</th>
-                      <th>Beschreibung</th>
-                      <th>Auftrag</th>
-                      <th className="bd-num">Menge</th>
-                      <th className="bd-num">Einzelpreis</th>
-                      <th className="bd-num">Netto</th>
-                      <th>Konto</th>
-                      <th>USt</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {positions.map((p, pi) => (
-                      <tr key={pi} onClick={() => setOpenPos(pi)} style={{ cursor: "pointer" }}>
-                        <td className="bd-sub">{p.position ?? pi + 1}</td>
-                        <td className="bd-sub">{p.supplier_sku || "–"}</td>
-                        <td className="wrap" style={{ whiteSpace: "pre-line" }}>{p.description || "–"}</td>
-                        <td className="wrap bd-sub">
-                          {p.allocations
-                            .filter((a) => a.link_type === "sales_order" && a.order_number)
-                            .map((a) => a.order_number)
-                            .join(", ") || "–"}
-                        </td>
-                        <td className="bd-num">{p.quantity ?? "–"}</td>
-                        <td className="bd-num">{p.unit_price != null ? fmtEur(p.unit_price) : "–"}</td>
-                        <td className="bd-num">{p.net_amount != null ? fmtEur(p.net_amount) : "–"}</td>
-                        <td className="bd-sub">
-                          {p.linked_document_id ? "– (verknüpft)" : p.ledger_account || "(Vorgabe)"}
-                        </td>
-                        <td className="bd-sub">
-                          {p.tax_code_id
-                            ? (taxCodes.find((t) => t.id === p.tax_code_id)?.label.split(" – ")[0] ?? "?")
-                            : "–"}
-                        </td>
-                        <td className="bd-sub">
-                          {p.linked_document_id && (
-                            <span title="Mit einem anderen Beleg verknüpft - wird nicht separat gebucht">🔗</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div>
+                {positions.map((p, pi) => {
+                  const lines = (p.description || "").split("\n").map((x) => x.trim()).filter(Boolean);
+                  const [title, ...rest] = lines;
+                  const auftrag = p.allocations
+                    .filter((a) => a.link_type === "sales_order" && a.order_number)
+                    .map((a) => a.order_number)
+                    .join(", ");
+                  const ust = p.tax_code_id ? (taxCodes.find((t) => t.id === p.tax_code_id)?.label.split(" – ")[0] ?? "?") : null;
+                  const chip = (text: string, warn = false) => (
+                    <span
+                      style={{
+                        display: "inline-block",
+                        padding: "1px 8px",
+                        borderRadius: 10,
+                        fontSize: 12,
+                        background: warn ? "rgba(217,142,4,.15)" : "var(--bd-line, #eee)",
+                        color: warn ? "#a86800" : "inherit",
+                      }}
+                    >
+                      {text}
+                    </span>
+                  );
+                  return (
+                    <div
+                      key={pi}
+                      onClick={() => setOpenPos(pi)}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "34px minmax(0,1fr) auto",
+                        gap: 12,
+                        padding: "12px 16px",
+                        borderTop: "1px solid var(--bd-line, #e5e5e5)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div className="bd-sub" style={{ paddingTop: 1 }}>{p.position ?? pi + 1}</div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600 }}>{title || "(ohne Text)"}</div>
+                        {rest.length > 0 && (
+                          <div className="bd-sub" style={{ marginTop: 2, whiteSpace: "pre-line", lineHeight: 1.45 }}>
+                            {rest.join("\n")}
+                          </div>
+                        )}
+                        {(p.supplier_sku || auftrag || p.order_reference || p.linked_document_id) && (
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                            {p.supplier_sku && chip(`Art.-Nr. ${p.supplier_sku}`)}
+                            {auftrag && chip(`Auftrag ${auftrag}`)}
+                            {p.order_reference && chip(`Ref. ${p.order_reference}`)}
+                            {p.linked_document_id && chip("🔗 mit anderem Beleg verknüpft")}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        <div style={{ fontWeight: 600 }}>{p.net_amount != null ? fmtEur(p.net_amount) : "–"}</div>
+                        {(p.quantity != null || p.unit_price != null) && (
+                          <div className="bd-sub">
+                            {p.quantity != null ? p.quantity : "–"} × {p.unit_price != null ? fmtEur(p.unit_price) : "–"}
+                          </div>
+                        )}
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 6 }}>
+                          {!p.linked_document_id && chip(p.ledger_account ? `Konto ${p.ledger_account}` : "Konto (Vorgabe)")}
+                          {!p.linked_document_id && (ust ? chip(ust) : chip("USt fehlt", true))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </Card>

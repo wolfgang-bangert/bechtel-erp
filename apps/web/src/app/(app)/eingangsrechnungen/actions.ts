@@ -313,13 +313,26 @@ export async function bestaetigeUst(fd: FormData): Promise<void> {
         : chosen.id;
     await supabase.from("incoming_document_item").update({ tax_code_id: itemCode }).eq("id", it.id);
   }
-  const { data: doc } = await supabase.from("incoming_document").select("extraction").eq("id", id).maybeSingle();
+  const { data: doc } = await supabase
+    .from("incoming_document")
+    .select("extraction, status, ledger_account")
+    .eq("id", id)
+    .maybeSingle();
   const ex = (doc?.extraction ?? {}) as Record<string, unknown>;
   const ust = { ...((ex._ust as Record<string, unknown>) ?? {}), status: "bestaetigt", tax_code_id: chosen.id };
-  await supabase
-    .from("incoming_document")
-    .update({ tax_code_id: chosen.id, extraction: { ...ex, _ust: ust } })
-    .eq("id", id);
+  const patch: Record<string, unknown> = { tax_code_id: chosen.id, extraction: { ...ex, _ust: ust } };
+  // Bestätigen ersetzt das separate Speichern: ist der Beleg noch offen und jede Position hat ein Konto
+  // (oder der Beleg eine Vorgabe), gilt er damit als geprüft.
+  const { data: konten } = await supabase
+    .from("incoming_document_item")
+    .select("ledger_account, linked_document_id")
+    .eq("incoming_document_id", id);
+  const kontenOk = (konten ?? []).every((k) => k.linked_document_id || k.ledger_account || doc?.ledger_account);
+  if (doc && ["captured", "extracted"].includes(doc.status) && kontenOk && ((konten ?? []).length > 0 || doc.ledger_account)) {
+    patch.status = "reviewed";
+    patch.reviewed_at = new Date().toISOString();
+  }
+  await supabase.from("incoming_document").update(patch).eq("id", id);
   revalidatePath(`/eingangsrechnungen/${id}`);
   revalidatePath("/eingangsrechnungen");
 }
