@@ -67,7 +67,22 @@ export default async function IncomingDetail({
     supabase.from("tax_code").select("id, code, name").eq("direction", "input").order("code"),
     supabase.from("cost_center").select("id, number, name").eq("is_active", true).order("number"),
     supabase.from("ledger_account").select("number, name").eq("is_active", true).order("number"),
-    supabase.from("organization").select("id, name").order("name"),
+    // Lieferanten (auch "Kunde + Lieferant") komplett laden - PostgREST liefert sonst nur die ersten
+    // 1000 Zeilen, spätere (z.B. Lidl) wurden dann nur als ID angezeigt.
+    (async () => {
+      const all: { id: string; name: string }[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data } = await supabase
+          .from("organization")
+          .select("id, name")
+          .in("relation", ["supplier", "both"])
+          .order("name")
+          .range(from, from + 999);
+        all.push(...(data ?? []));
+        if ((data ?? []).length < 1000) break;
+      }
+      return { data: all };
+    })(),
   ]);
 
   // Andere Belege zum Verknüpfen von Belegzeilen (z.B. SaaS-Anbieter-Rechnung,
@@ -83,6 +98,15 @@ export default async function IncomingDetail({
 
   if (error) return <div className="banner-err">Fehler: {error.message}</div>;
   if (!doc) notFound();
+
+  if (doc.supplier_organization_id && !(organizations ?? []).some((o) => o.id === doc.supplier_organization_id)) {
+    const { data: cur } = await supabase
+      .from("organization")
+      .select("id, name")
+      .eq("id", doc.supplier_organization_id)
+      .maybeSingle();
+    if (cur) organizations?.push(cur);
+  }
 
   // Verknüpfte Bankzeile (falls schon zugeordnet) - für den Hinweis im
   // Zahlung-Block, direkt mit Link zur Bank-Übersicht dieses Kontos.
