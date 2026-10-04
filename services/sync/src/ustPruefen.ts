@@ -22,6 +22,15 @@ export async function ustPruefen({ dryRun }: { dryRun: boolean }) {
   const stdByRate = (rate: unknown) =>
     taxCodes.find((c) => c.treatment === "standard_de" && Math.round(c.rate) === Math.round(Number(rate)))?.id ?? null;
 
+  const orgInfo = new Map(
+    (
+      await pagedSelect<{ id: string; vat_id: string | null; foreign_supply_kind: string | null }>(
+        "organization",
+        "id, vat_id, foreign_supply_kind",
+      )
+    ).map((o) => [o.id, o]),
+  );
+
   const docs = await pagedSelect<{
     id: string;
     doc_number: string | null;
@@ -45,7 +54,13 @@ export async function ustPruefen({ dryRun }: { dryRun: boolean }) {
     if (ex.doc_type === "payment_advice" || ex.doc_type === "dunning") continue;
     const edited =
       d.extracted_at != null && new Date(d.updated_at).getTime() - new Date(d.extracted_at).getTime() > 60_000;
-    const v = pruefeUst(ex, { codes: taxCodes });
+    const org = d.supplier_organization_id ? orgInfo.get(d.supplier_organization_id) : undefined;
+    const m = /^[A-Za-z]{2}/.exec((org?.vat_id ?? "").replace(/\s/g, ""));
+    const v = pruefeUst(ex, {
+      codes: taxCodes,
+      supplierCountry: m ? m[0].toUpperCase() : null,
+      supplierKind: (org?.foreign_supply_kind as "service" | "goods" | null) ?? null,
+    });
     // Vom Nutzer bearbeitete Belege nicht anfassen - außer die USt-Prüfung ist noch offen
     // ("vorschlag") und trifft jetzt eine feste Regel ("sicher", z.B. USD-Rechnung = §13b).
     const ustOffen = (ex._ust as { status?: string } | undefined)?.status === "vorschlag";

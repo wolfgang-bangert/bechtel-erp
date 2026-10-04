@@ -18,6 +18,7 @@ type Row = {
   default_expense_account: string | null;
   default_revenue_account: string | null;
   default_payment_method: string | null;
+  foreign_supply_kind: string | null;
   vorkontierung_source: string | null;
   vorkontierung_confidence: number | null;
 };
@@ -28,9 +29,9 @@ export default async function VorkontierungPage() {
     supabase
       .from("organization")
       .select(
-        "id, name, customer_number, supplier_number, default_expense_account, default_revenue_account, default_payment_method, vorkontierung_source, vorkontierung_confidence",
+        "id, name, customer_number, supplier_number, default_expense_account, default_revenue_account, default_payment_method, foreign_supply_kind, vorkontierung_source, vorkontierung_confidence",
       )
-      .or("default_expense_account.not.is.null,default_revenue_account.not.is.null,default_payment_method.not.is.null")
+      .or("default_expense_account.not.is.null,default_revenue_account.not.is.null,default_payment_method.not.is.null,foreign_supply_kind.not.is.null")
       .order("name"),
     supabase.from("ledger_account").select("number, name"),
   ]);
@@ -65,6 +66,7 @@ export default async function VorkontierungPage() {
               <th>Aufwandskonto (Kreditor)</th>
               <th>Erlöskonto (Debitor)</th>
               <th>Zahlart</th>
+              <th>Ausland</th>
               <th>Herkunft</th>
               <th style={{ textAlign: "right" }}>Konfidenz</th>
             </tr>
@@ -90,6 +92,9 @@ export default async function VorkontierungPage() {
                 <td className="count">
                   {r.default_payment_method ? (PAYMENT_LABEL[r.default_payment_method] ?? r.default_payment_method) : "–"}
                 </td>
+                <td className="count">
+                  {r.foreign_supply_kind === "service" ? "Dienstleistung" : r.foreign_supply_kind === "goods" ? "Ware" : "–"}
+                </td>
                 <td>
                   <span className="tag">{r.vorkontierung_source === "learned" ? "gelernt" : "manuell"}</span>
                 </td>
@@ -100,7 +105,7 @@ export default async function VorkontierungPage() {
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={6} style={{ color: "var(--muted)" }}>
+                <td colSpan={7} style={{ color: "var(--muted)" }}>
                   Noch keine Vorkontierung. <code>pnpm --filter sync bb:learn-vorkontierung</code> /{" "}
                   <code>bb:learn-vorkontierung-debitoren</code> lernen aus der BuchhaltungsButler-Historie,
                   oder hier von Hand anlegen.
