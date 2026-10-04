@@ -138,8 +138,12 @@ export function pruefeUst(
   const zero = bd.filter((x) => x.rate === 0);
   const gemischt = pos.length > 1 || (zero.length > 0 && pos.length > 0);
   const problems: string[] = [];
-  if (!country) problems.push("Land des Lieferanten unbekannt (keine USt-IdNr.)");
-  else if (country !== "DE") problems.push(`Lieferant aus ${country}, weist aber deutsche USt aus`);
+  // Ohne USt-IdNr. (z.B. Kleinbetragsrechnung/Restaurant): 7 % UND 19 % nebeneinander in EUR ist die deutsche
+  // Satzkombination - dann gilt der Lieferant als inländisch.
+  const deutscheSaetze = pos.some((x) => Math.round(x.rate) === 7) && pos.some((x) => Math.round(x.rate) === 19);
+  const landAusSaetzen = !country && currency === "EUR" && deutscheSaetze;
+  if (!country && !landAusSaetzen) problems.push("Land des Lieferanten unbekannt (keine USt-IdNr.)");
+  else if (country && country !== "DE") problems.push(`Lieferant aus ${country}, weist aber deutsche USt aus`);
   if (currency !== "EUR") problems.push(`Währung ${currency}`);
   if (freeReason && !(zero.length > 0 && pos.length > 0)) problems.push(`Beleg nennt: ${freeReason}`);
   if (pos.some((x) => !std(x.rate) || ![7, 19].includes(Math.round(x.rate)))) {
@@ -164,7 +168,7 @@ export function pruefeUst(
   }
   const code = dominant != null ? std(dominant) : null;
   if (!problems.length && code) {
-    return verdict("sicher", code, `deutscher Lieferant, ${bd.map((x) => x.rate).join("/")} % USt ausgewiesen, Beträge stimmig${zero.length ? " (0-%-Anteil je Position)" : ""}`);
+    return verdict("sicher", code, `${landAusSaetzen ? "Land unbekannt, aber 7 % und 19 % nebeneinander (deutsche Sätze)" : "deutscher Lieferant"}, ${bd.map((x) => x.rate).join("/")} % USt ausgewiesen, Beträge stimmig${zero.length ? " (0-%-Anteil je Position)" : ""}`);
   }
   return verdict("vorschlag", code, problems.join("; ") || "Steuerschlüssel nicht ableitbar");
 }
