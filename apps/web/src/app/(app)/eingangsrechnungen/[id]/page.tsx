@@ -108,23 +108,36 @@ export default async function IncomingDetail({
     if (cur) organizations?.push(cur);
   }
 
-  // Verknüpfte Bankzeile (falls schon zugeordnet) - für den Hinweis im
-  // Zahlung-Block, direkt mit Link zur Bank-Übersicht dieses Kontos.
-  const { data: bankMatch } = await supabase
+  // Zuordnungen zu Bankzeilen (Zahlungen und Skonto-Ausbuchungen) - für den Block im Zahlung-Kasten,
+  // mit Link zur Bank-Übersicht des jeweiligen Kontos.
+  const { data: bankMatchRaw } = await supabase
     .from("bank_transaction_match")
     .select(
-      "amount, bank_transaction:bank_transaction_id(id, booking_date, amount, counterparty_name, bank_account_id)",
+      "id, amount, ledger_account, auto, created_at, bank_transaction:bank_transaction_id(id, booking_date, amount, counterparty_name, purpose, bank_account_id)",
     )
     .eq("incoming_document_id", id)
-    .limit(1)
-    .maybeSingle();
-  const linkedBankTx = (
-    bankMatch?.bank_transaction as unknown as
-      | { id: string; booking_date: string; amount: number; counterparty_name: string | null; bank_account_id: string }
-      | { id: string; booking_date: string; amount: number; counterparty_name: string | null; bank_account_id: string }[]
-      | null
-  ) ?? null;
-  const bankTxInfo = Array.isArray(linkedBankTx) ? (linkedBankTx[0] ?? null) : linkedBankTx;
+    .order("created_at");
+  type BankTxInfo = {
+    id: string;
+    booking_date: string;
+    amount: number;
+    counterparty_name: string | null;
+    purpose: string | null;
+    bank_account_id: string;
+  };
+  const bankMatches = ((bankMatchRaw ?? []) as unknown as {
+    id: string;
+    amount: number;
+    ledger_account: string | null;
+    auto: boolean;
+    bank_transaction: BankTxInfo | BankTxInfo[] | null;
+  }[]).map((m) => ({
+    id: m.id,
+    amount: m.amount,
+    ledger_account: m.ledger_account,
+    auto: m.auto,
+    tx: Array.isArray(m.bank_transaction) ? (m.bank_transaction[0] ?? null) : m.bank_transaction,
+  }));
 
   // Gelernte/von Hand gesetzte Vorkontierung des Lieferanten (Standardkonto/Zahlart an der
   // Organisation, siehe /einstellungen/vorkontierung) - nur ein Vorschlag fürs Formular, greift
@@ -345,7 +358,7 @@ export default async function IncomingDetail({
               }${d.doc_date ? ` · ${d.doc_date}` : ""}`,
             }))}
             suggestion={suggestion}
-            bankTx={bankTxInfo}
+            bankMatches={bankMatches}
             pdfUrl={pdfUrl}
             pdfLabel={doc.doc_number ?? doc.file_name ?? "Beleg.pdf"}
           />
