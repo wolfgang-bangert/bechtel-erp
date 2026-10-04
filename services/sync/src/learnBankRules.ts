@@ -58,7 +58,7 @@ const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1
  * Bankbuchungen (Skonto, Versicherungen, Leasing, Bankgebühren, ...), wo
  * keine Rechnung/Eingangsrechnung existiert. Nur Buchungen, bei denen genau
  * eine Seite ein Bankkonto ist (SKR03 1200-1299) und keine Seite ein
- * Personenkonto (die sind schon über posting_rule/Erlöskonto abgedeckt).
+ * Personenkonto (die sind schon über Standardkonto an der Organisation abgedeckt).
  */
 export async function learnBankLedgerRules(opts: Options = {}) {
   const { dryRun = false, minCount = 2, minConfidence = 0.6 } = opts;

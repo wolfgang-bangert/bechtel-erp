@@ -24,7 +24,7 @@ const bump = (m: Map<string, number>, k: string, by = 1) => m.set(k, (m.get(k) ?
 
 /**
  * Lernt aus imports/bb-buchungen.json je Lieferant (Kreditorkonto) das am
- * häufigsten bebuchte Aufwandskonto + den Steuersatz und schreibt posting_rule.
+ * häufigsten bebuchte Aufwandskonto und schreibt es als Standard-Aufwandskonto an die Organisation.
  * Nur Buchungen "Aufwand (3000–69999) an Kreditor (70000+)".
  */
 export async function learnVorkontierung(opts: Options = {}) {
@@ -54,22 +54,15 @@ export async function learnVorkontierung(opts: Options = {}) {
     "id, name, supplier_number",
   );
   const orgBySupNum = new Map(orgs.filter((o) => o.supplier_number).map((o) => [o.supplier_number!, o]));
-  const taxCodes = await pagedSelect<{ id: string; code: string; rate: number }>(
-    "tax_code",
-    "id, code, rate",
-  );
-  const taxByRate = new Map(
-    taxCodes.filter((t) => t.code.startsWith("VST")).map((t) => [Math.round(t.rate), t.id]),
-  );
   const existingManual = new Set(
     (
-      await pagedSelect<{ organization_id: string; source: string }>(
-        "posting_rule",
-        "organization_id, source",
+      await pagedSelect<{ id: string; vorkontierung_source: string | null }>(
+        "organization",
+        "id, vorkontierung_source",
       )
     )
-      .filter((r) => r.source === "manual")
-      .map((r) => r.organization_id),
+      .filter((o) => o.vorkontierung_source === "manual")
+      .map((o) => o.id),
   );
 
   const rows: Record<string, unknown>[] = [];
@@ -82,7 +75,6 @@ export async function learnVorkontierung(opts: Options = {}) {
     const [vat] = topOf(agg.vats);
     const conf = agg.total ? Math.round((accCount / agg.total) * 1000) / 1000 : 0;
     const org = orgBySupNum.get(credNum);
-    const taxId = taxByRate.get(Number(vat)) ?? null;
 
     rows.push({
       kreditorkonto: credNum,
@@ -103,13 +95,10 @@ export async function learnVorkontierung(opts: Options = {}) {
     }
     matched += 1;
     upserts.push({
-      organization_id: org.id,
-      expense_account: account,
-      tax_code_id: taxId,
-      source: "learned",
-      sample_count: agg.total,
-      confidence: conf,
-      is_active: true,
+      id: org.id,
+      default_expense_account: account,
+      vorkontierung_source: "learned",
+      vorkontierung_confidence: conf,
     });
   }
 
@@ -132,11 +121,9 @@ export async function learnVorkontierung(opts: Options = {}) {
 
   let backfilled = 0;
   if (!dryRun && upserts.length) {
-    for (let i = 0; i < upserts.length; i += 500) {
-      const { error } = await supabase
-        .from("posting_rule")
-        .upsert(upserts.slice(i, i + 500), { onConflict: "organization_id" });
-      if (error) throw new Error(`posting_rule upsert: ${error.message}`);
+    for (const { id, ...cols } of upserts) {
+      const { error } = await supabase.from("organization").update(cols).eq("id", id as string);
+      if (error) throw new Error(`organization (Vorkontierung): ${error.message}`);
     }
     backfilled = await applyRulesToExisting();
   }
@@ -188,13 +175,13 @@ export async function learnDebitorVorkontierung(opts: Options = {}) {
   const orgByCustNum = new Map(orgs.filter((o) => o.customer_number).map((o) => [o.customer_number!, o]));
   const existingManual = new Set(
     (
-      await pagedSelect<{ organization_id: string; source: string }>(
-        "posting_rule",
-        "organization_id, source",
+      await pagedSelect<{ id: string; vorkontierung_source: string | null }>(
+        "organization",
+        "id, vorkontierung_source",
       )
     )
-      .filter((r) => r.source === "manual")
-      .map((r) => r.organization_id),
+      .filter((o) => o.vorkontierung_source === "manual")
+      .map((o) => o.id),
   );
 
   const rows: Record<string, unknown>[] = [];
@@ -230,12 +217,10 @@ export async function learnDebitorVorkontierung(opts: Options = {}) {
     }
     matched += 1;
     upserts.push({
-      organization_id: org.id,
-      revenue_account: account,
-      source: "learned",
-      sample_count: agg.total,
-      confidence: conf,
-      is_active: true,
+      id: org.id,
+      default_revenue_account: account,
+      vorkontierung_source: "learned",
+      vorkontierung_confidence: conf,
     });
   }
 
@@ -257,11 +242,9 @@ export async function learnDebitorVorkontierung(opts: Options = {}) {
   );
 
   if (!dryRun && upserts.length) {
-    for (let i = 0; i < upserts.length; i += 500) {
-      const { error } = await supabase
-        .from("posting_rule")
-        .upsert(upserts.slice(i, i + 500), { onConflict: "organization_id" });
-      if (error) throw new Error(`posting_rule (revenue_account) upsert: ${error.message}`);
+    for (const { id, ...cols } of upserts) {
+      const { error } = await supabase.from("organization").update(cols).eq("id", id as string);
+      if (error) throw new Error(`organization (Erlöskonto): ${error.message}`);
     }
   }
 
@@ -284,15 +267,13 @@ export async function learnDebitorVorkontierung(opts: Options = {}) {
 export async function applyRulesToExisting(): Promise<number> {
   const rules = new Map(
     (
-      await pagedSelect<{
-        organization_id: string;
-        expense_account: string;
-        tax_code_id: string | null;
-        is_active: boolean;
-      }>("posting_rule", "organization_id, expense_account, tax_code_id, is_active")
+      await pagedSelect<{ id: string; default_expense_account: string | null }>(
+        "organization",
+        "id, default_expense_account",
+      )
     )
-      .filter((r) => r.is_active)
-      .map((r) => [r.organization_id, r]),
+      .filter((o) => o.default_expense_account)
+      .map((o) => [o.id, o.default_expense_account!]),
   );
   const docs = await pagedSelect<{
     id: string;
@@ -308,15 +289,13 @@ export async function applyRulesToExisting(): Promise<number> {
   for (const d of docs) {
     if (d.ledger_account || !d.supplier_organization_id) continue;
     if (!["extracted", "captured"].includes(d.status)) continue;
-    const rule = rules.get(d.supplier_organization_id);
-    if (!rule) continue;
-    await supabase
-      .from("incoming_document")
-      .update({ ledger_account: rule.expense_account, tax_code_id: rule.tax_code_id })
-      .eq("id", d.id);
+    const account = rules.get(d.supplier_organization_id);
+    if (!account) continue;
+    // Steuerschlüssel bleibt unberührt (strenge USt-Prüfung / Bestätigung am Beleg).
+    await supabase.from("incoming_document").update({ ledger_account: account }).eq("id", d.id);
     await supabase
       .from("incoming_document_item")
-      .update({ ledger_account: rule.expense_account, tax_code_id: rule.tax_code_id })
+      .update({ ledger_account: account })
       .eq("incoming_document_id", d.id)
       .is("ledger_account", null);
     n += 1;

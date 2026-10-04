@@ -507,37 +507,26 @@ export async function extractIncoming(opts: Options = {}) {
     )
   ).slice(0, limit);
 
-  // Vorkontierungs-Regeln (Lieferant → Aufwandskonto) als Vorschlag.
+  // Vorkontierung je Lieferant (Standard-Aufwandskonto/Zahlart an der Organisation) als Vorschlag.
   const rules = new Map<
     string,
-    {
-      expense_account: string;
-      tax_code_id: string | null;
-      confidence: number | null;
-      payment_method: string | null;
-    }
+    { expense_account: string | null; confidence: number | null; payment_method: string | null }
   >(
     (
       await pagedSelect<{
-        organization_id: string;
-        expense_account: string;
-        tax_code_id: string | null;
-        confidence: number | null;
-        is_active: boolean;
-        payment_method: string | null;
-      }>(
-        "posting_rule",
-        "organization_id, expense_account, tax_code_id, confidence, is_active, payment_method",
-      )
+        id: string;
+        default_expense_account: string | null;
+        default_payment_method: string | null;
+        vorkontierung_confidence: number | null;
+      }>("organization", "id, default_expense_account, default_payment_method, vorkontierung_confidence")
     )
-      .filter((r) => r.is_active)
-      .map((r) => [
-        r.organization_id,
+      .filter((o) => o.default_expense_account || o.default_payment_method)
+      .map((o) => [
+        o.id,
         {
-          expense_account: r.expense_account,
-          tax_code_id: r.tax_code_id,
-          confidence: r.confidence,
-          payment_method: r.payment_method,
+          expense_account: o.default_expense_account,
+          confidence: o.vorkontierung_confidence,
+          payment_method: o.default_payment_method,
         },
       ]),
   );
@@ -692,7 +681,7 @@ export async function extractIncoming(opts: Options = {}) {
         const m = /^[A-Za-z]{2}/.exec((org?.vat_id ?? "").replace(/\s/g, ""));
         supplierCountry = m ? m[0].toUpperCase() : null;
       }
-      const ust = isHint ? null : pruefeUst(e, { codes: taxCodes, supplierCountry, ruleCodeId: rule?.tax_code_id });
+      const ust = isHint ? null : pruefeUst(e, { codes: taxCodes, supplierCountry });
 
       // Marktplatz-Rechnungen (z.B. Amazon-Marktplatz-Verkäufer): Suche nach
       // "amazon" soll den Beleg auch dann finden, wenn der eigentliche
@@ -775,7 +764,7 @@ export async function extractIncoming(opts: Options = {}) {
           advice_debit_date: isAdvice ? date(e.advice?.debit_date) : null,
           advice_reference: isHint && refs.length ? refs : null,
           forwarded_at: null,
-          // Vorkontierungs-Vorschlag aus posting_rule (Lieferant → Aufwandskonto).
+          // Vorkontierungs-Vorschlag aus der Organisation (Lieferant → Aufwandskonto).
           // Steuerschlüssel aus dem USt-Satz der Rechnung, sonst aus der Regel.
           ledger_account: rule?.expense_account ?? null,
           // nur bei "sicher" - sonst bleibt der Schlüssel leer bis der Nutzer bestätigt
@@ -784,7 +773,7 @@ export async function extractIncoming(opts: Options = {}) {
             ...(e as unknown as Record<string, unknown>),
             _ust: ust,
             _vorkontierung: rule
-              ? { account: rule.expense_account, confidence: rule.confidence, source: "posting_rule" }
+              ? { account: rule.expense_account, confidence: rule.confidence, source: "organization" }
               : null,
           },
           extraction_model: MODEL,

@@ -95,6 +95,33 @@ export default async function OrganisationDetail({
         <dd>{org.dunning_enabled ? "nein" : "ja"}</dd>
       </dl>
 
+      <h2>Vorkontierung</h2>
+      <dl className="kv">
+        <dt>Aufwandskonto (Eingangsrechnungen)</dt>
+        <dd>{org.default_expense_account || "–"}</dd>
+        <dt>Erlöskonto (Ausgangsrechnungen)</dt>
+        <dd>{org.default_revenue_account || "–"}</dd>
+        <dt>Zahlart</dt>
+        <dd>
+          {org.default_payment_method
+            ? ({ card: "Kreditkarte", paypal: "PayPal", transfer: "Überweisung", direct_debit: "Lastschrift" } as Record<string, string>)[
+                org.default_payment_method
+              ] ?? org.default_payment_method
+            : "–"}
+        </dd>
+        <dt>Herkunft</dt>
+        <dd>
+          {org.vorkontierung_source === "learned"
+            ? `gelernt${org.vorkontierung_confidence != null ? ` (Konfidenz ${Math.round(org.vorkontierung_confidence * 100)} %)` : ""}`
+            : org.vorkontierung_source === "manual"
+              ? "manuell"
+              : "–"}
+        </dd>
+      </dl>
+      <p className="lead">
+        <Link href={`/einstellungen/vorkontierung/${org.id}`}>Vorkontierung bearbeiten →</Link>
+      </p>
+
       <h2>Herkunft / Fremdsysteme</h2>
       {(refs ?? []).length === 0 ? (
         <p className="lead">In werk angelegt, keine Fremdsystem-Zuordnung.</p>

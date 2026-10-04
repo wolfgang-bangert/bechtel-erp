@@ -34,12 +34,11 @@ const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
 
 export function pruefeUst(
   e: Extracted,
-  opts: { codes: UstTaxCode[]; supplierCountry?: string | null; ruleCodeId?: string | null },
+  opts: { codes: UstTaxCode[]; supplierCountry?: string | null },
 ): UstVerdict {
   const std = (rate: number) =>
     opts.codes.find((c) => c.treatment === "standard_de" && Math.round(Number(c.rate)) === Math.round(rate)) ?? null;
   const rc = opts.codes.find((c) => c.treatment === "reverse_charge_eu") ?? null;
-  const byId = (id: string | null | undefined) => opts.codes.find((c) => c.id === id) ?? null;
   const verdict = (status: UstVerdict["status"], code: UstTaxCode | null, reason: string): UstVerdict => ({
     status,
     tax_code_id: code?.id ?? null,
@@ -78,7 +77,7 @@ export function pruefeUst(
   if (noTax) {
     return verdict(
       "vorschlag",
-      byId(opts.ruleCodeId),
+      null,
       freeReason
         ? `Keine USt ausgewiesen — Beleg: ${freeReason}`
         : "Beleg weist keine USt aus - bitte Schlüssel festlegen",
@@ -115,5 +114,5 @@ export function pruefeUst(
   if (!problems.length && code) {
     return verdict("sicher", code, `deutscher Lieferant, ${bd.map((x) => x.rate).join("/")} % USt ausgewiesen, Beträge stimmig`);
   }
-  return verdict("vorschlag", code ?? byId(opts.ruleCodeId), problems.join("; ") || "Steuerschlüssel nicht ableitbar");
+  return verdict("vorschlag", code, problems.join("; ") || "Steuerschlüssel nicht ableitbar");
 }

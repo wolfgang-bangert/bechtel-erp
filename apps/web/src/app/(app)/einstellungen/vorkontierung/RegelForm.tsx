@@ -5,13 +5,10 @@ import { saveRegel, deleteRegel, type State } from "./actions";
 import { AccountPicker } from "../../_shared/AccountPicker";
 
 export type Regel = {
-  id: string;
   organization_id: string;
   expense_account: string | null;
   revenue_account: string | null;
   payment_method: string | null;
-  note: string | null;
-  is_active: boolean;
 };
 
 const empty: State = {};
@@ -35,7 +32,6 @@ export function RegelForm({
 
   return (
     <form action={action} className="rows" style={{ gap: 14, maxWidth: 520 }}>
-      {regel && <input type="hidden" name="id" value={regel.id} />}
 
       <div className="field">
         <label>Organisation</label>
@@ -90,15 +86,6 @@ export function RegelForm({
         </select>
       </div>
 
-      <div className="field">
-        <label htmlFor="note">Notiz (optional)</label>
-        <input id="note" name="note" defaultValue={regel?.note ?? ""} />
-      </div>
-
-      <label className="chk">
-        <input type="checkbox" name="is_active" defaultChecked={regel?.is_active ?? true} /> aktiv
-      </label>
-
       <div className="row" style={{ border: "none", padding: 0, gap: 10 }}>
         <button type="submit" disabled={pending}>
           {pending ? "…" : "Speichern"}
@@ -110,10 +97,10 @@ export function RegelForm({
             formAction={dAction}
             formNoValidate
             onClick={(e) => {
-              if (!confirm("Regel löschen?")) e.preventDefault();
+              if (!confirm("Vorkontierung dieser Organisation entfernen?")) e.preventDefault();
             }}
           >
-            Löschen
+            Entfernen
           </button>
         )}
         {state.error && <span className="msg-err">{state.error}</span>}
