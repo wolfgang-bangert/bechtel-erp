@@ -206,7 +206,7 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
     // Mit einem anderen Beleg verknüpfte Positionen (z.B. Kreditkartenzeile) zählen hier nicht.
     const items = (d.incoming_document_item ?? []).filter((it) => !it.linked_document_id);
     const dIge = d.tax_code_id ? igeCode.has(d.tax_code_id) : false;
-    const units: { net: number; rate: number; rc: boolean; ige: boolean; eust: boolean }[] = [];
+    const units: { net: number; rate: number; rc: boolean; ige: boolean; eust: boolean; konto: string | null }[] = [];
     if ((d.incoming_document_item ?? []).length) {
       for (const it of items) {
         units.push({
@@ -215,10 +215,11 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
           rc: it.tax_code_id ? rcCode.has(it.tax_code_id) : dRc,
           ige: it.tax_code_id ? igeCode.has(it.tax_code_id) : dIge,
           eust: (it.ledger_account ?? d.ledger_account) === EUST_KONTO,
+          konto: it.ledger_account ?? d.ledger_account,
         });
       }
     } else {
-      units.push({ net: d.net_amount ?? 0, rate: dRate, rc: dRc, ige: dIge, eust: d.ledger_account === EUST_KONTO });
+      units.push({ net: d.net_amount ?? 0, rate: dRate, rc: dRc, ige: dIge, eust: d.ledger_account === EUST_KONTO, konto: d.ledger_account });
     }
 
     const herkunft = rcHerkunft(d);
@@ -226,7 +227,15 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
     let hatIge = false;
     for (const u of units) {
       if (Math.abs(u.net) < 0.005) continue;
-      if (u.eust) {
+      if (!u.eust && u.konto?.startsWith("8")) {
+        // Erlöskonto (SKR03 8xxx) auf einem Eingangsbeleg, z.B. Gutschrift des Lieferanten für verwertetes
+        // Altpapier (8520): das ist Umsatz, kein Vorsteuerabzug - Gutschrift = Erlös (+), Rechnung auf ein
+        // Erlöskonto = Erlösschmälerung (-).
+        zeilen.push({
+          richtung: "ausgang", belegId: d.id, belegNr: d.doc_number, partner, datum: d.doc_date, href,
+          netto: Math.abs(u.net), satz: u.rate, konto: u.konto, vorzeichen: (sign === -1 ? 1 : -1) as 1 | -1,
+        });
+      } else if (u.eust) {
         // Einfuhrumsatzsteuer (SKR03 1588 "Bezahlte Einfuhrumsatzsteuer"): Betrag = Vorsteuer, Kz 62
         zeilen.push({
           richtung: "eingang", belegId: d.id, belegNr: d.doc_number, partner, datum: d.doc_date, href,
