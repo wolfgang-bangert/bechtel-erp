@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 import { pagedSelect } from "./db";
-import { pruefeUst, type UstTaxCode } from "./ustCheck";
+import { pruefeUst, loadOwnVatId, type UstTaxCode } from "./ustCheck";
 import type { Extracted } from "./extractIncoming";
 
 /* --------------------------------------------------------------------------
@@ -22,6 +22,7 @@ export async function ustPruefen({ dryRun }: { dryRun: boolean }) {
   const stdByRate = (rate: unknown) =>
     taxCodes.find((c) => c.treatment === "standard_de" && Math.round(c.rate) === Math.round(Number(rate)))?.id ?? null;
 
+  const ownVatId = await loadOwnVatId();
   const orgInfo = new Map(
     (
       await pagedSelect<{ id: string; vat_id: string | null; foreign_supply_kind: string | null }>(
@@ -55,8 +56,10 @@ export async function ustPruefen({ dryRun }: { dryRun: boolean }) {
     const edited =
       d.extracted_at != null && new Date(d.updated_at).getTime() - new Date(d.extracted_at).getTime() > 60_000;
     const org = d.supplier_organization_id ? orgInfo.get(d.supplier_organization_id) : undefined;
-    const m = /^[A-Za-z]{2}/.exec((org?.vat_id ?? "").replace(/\s/g, ""));
+    const orgVat = (org?.vat_id ?? "").replace(/\s/g, "").toUpperCase();
+    const m = /^[A-Za-z]{2}/.exec(orgVat && orgVat !== ownVatId ? orgVat : "");
     const v = pruefeUst(ex, {
+      ownVatId,
       codes: taxCodes,
       supplierCountry: m ? m[0].toUpperCase() : null,
       supplierKind: (org?.foreign_supply_kind as "service" | "goods" | null) ?? null,

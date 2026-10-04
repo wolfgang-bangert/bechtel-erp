@@ -5,7 +5,7 @@ import { env } from "./env";
 import { supabase } from "./supabase";
 import { getObjectBytes, putObject, deleteObject, prefix } from "./storage";
 import { pagedSelect } from "./db";
-import { pruefeUst, type UstTaxCode } from "./ustCheck";
+import { pruefeUst, loadOwnVatId, type UstTaxCode } from "./ustCheck";
 import { pruneReceiptDuplicates } from "./pruneReceipts";
 import { forwardDunnings } from "./forwardDunnings";
 
@@ -541,6 +541,7 @@ export async function extractIncoming(opts: Options = {}) {
   )
     .filter((t) => t.direction === "input" && t.is_active)
     .map((t) => ({ id: t.id, code: t.code, rate: Number(t.rate), treatment: t.treatment }));
+  const ownVatId = await loadOwnVatId();
   const stdByRate = (rate: unknown): string | null => {
     const r = Math.round(Number(rate));
     return taxCodes.find((c) => c.treatment === "standard_de" && Math.round(c.rate) === r)?.id ?? null;
@@ -671,6 +672,12 @@ export async function extractIncoming(opts: Options = {}) {
         continue;
       }
 
+      // Die eigene USt-IdNr. steht beim Empfänger; die KI liest sie gelegentlich als Lieferanten-
+      // Nummer (v.a. bei Anbietern ohne eigene). Nie als Lieferanten-USt-IdNr. verwenden - sonst
+      // wird der Beleg an die Organisation gehängt, die diese Nummer trägt.
+      if (ownVatId && e.supplier?.vat_id && e.supplier.vat_id.replace(/\s+/g, "").toUpperCase() === ownVatId) {
+        e.supplier.vat_id = null;
+      }
       const supplierId = await findSupplier(e);
       const rule = !isHint && supplierId ? rules.get(supplierId) : undefined;
 
@@ -683,11 +690,12 @@ export async function extractIncoming(opts: Options = {}) {
           .select("vat_id, foreign_supply_kind")
           .eq("id", supplierId)
           .maybeSingle();
-        const m = /^[A-Za-z]{2}/.exec((org?.vat_id ?? "").replace(/\s/g, ""));
+        const orgVat = (org?.vat_id ?? "").replace(/\s/g, "").toUpperCase();
+        const m = /^[A-Za-z]{2}/.exec(orgVat && orgVat !== ownVatId ? orgVat : "");
         supplierCountry = m ? m[0].toUpperCase() : null;
         supplierKind = (org?.foreign_supply_kind as "service" | "goods" | null) ?? null;
       }
-      const ust = isHint ? null : pruefeUst(e, { codes: taxCodes, supplierCountry, supplierKind });
+      const ust = isHint ? null : pruefeUst(e, { codes: taxCodes, supplierCountry, supplierKind, ownVatId });
 
       // Marktplatz-Rechnungen (z.B. Amazon-Marktplatz-Verkäufer): Suche nach
       // "amazon" soll den Beleg auch dann finden, wenn der eigentliche
