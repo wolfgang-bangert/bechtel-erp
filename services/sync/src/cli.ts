@@ -197,7 +197,9 @@ async function main() {
     }
     case "bb:ust-korrigieren": {
       console.log(`BB-Belege ohne Steuerschlüssel: Netto/USt/Positionen aus der Rechnung übernehmen${dryRun ? "  (DRY RUN)" : ""}`);
-      console.log(JSON.stringify(await bbUstKorrektur({ dryRun }), null, 1));
+      const modusArg = (process.argv.find((a) => a.startsWith("--modus="))?.split("=")[1] ?? "A").toUpperCase();
+      if (!["A", "B1", "B2"].includes(modusArg)) throw new Error("--modus= A | B1 | B2");
+      console.log(JSON.stringify(await bbUstKorrektur({ dryRun, modus: modusArg as "A" | "B1" | "B2" }), null, 1));
       break;
     }
     case "pdf:invoices": {
