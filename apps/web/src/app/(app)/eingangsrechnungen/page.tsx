@@ -66,7 +66,7 @@ export default async function EingangsrechnungenPage({
     supabase
       .from("incoming_document")
       .select(
-        "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date, ust_status:extraction->_ust->>status",
+        "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date, ledger_account, ust_status:extraction->_ust->>status, incoming_document_item!incoming_document_item_incoming_document_id_fkey ( ledger_account )",
         { count: "exact" },
       )
       .range((seite - 1) * PAGE_SIZE, seite * PAGE_SIZE - 1),
@@ -105,6 +105,18 @@ export default async function EingangsrechnungenPage({
     for (const o of orgs ?? []) {
       if (o.default_payment_method) ruleMethodByOrg.set(o.id, o.default_payment_method);
     }
+  }
+
+  // Konten (aus den Positionen, sonst am Beleg) mit Bezeichnung für die Spalte "Konto"
+  const kontenVon = (d: NonNullable<typeof data>[number]): string[] => {
+    const fromItems = (d.incoming_document_item ?? []).map((i) => i.ledger_account).filter((x): x is string => !!x);
+    return Array.from(new Set(fromItems.length ? fromItems : d.ledger_account ? [d.ledger_account] : []));
+  };
+  const kontoNr = Array.from(new Set((data ?? []).flatMap(kontenVon)));
+  const kontoName = new Map<string, string>();
+  if (kontoNr.length) {
+    const { data: la } = await supabase.from("ledger_account").select("number, name").in("number", kontoNr);
+    for (const a of la ?? []) kontoName.set(a.number, a.name);
   }
 
   const baseParams = () => {
@@ -266,6 +278,7 @@ export default async function EingangsrechnungenPage({
               <th className="bd-num">
                 {isAdvice ? "Lastschrift" : isDunning ? "Betrag" : "Brutto"}
               </th>
+              {!isHint && <th>Konto</th>}
               <th>{isHint ? "bezieht sich auf" : "bezahlt"}</th>
               <th>{isHint ? "" : "gebucht"}</th>
             </tr>
@@ -292,6 +305,16 @@ export default async function EingangsrechnungenPage({
                   <td className="bd-num">
                     {fmtEur(d.doc_type === "credit_note" ? -Math.abs(d.gross_amount ?? 0) : d.gross_amount)}
                   </td>
+                  {!isHint && (
+                    <td className="wrap bd-sub">
+                      {(() => {
+                        const k = kontenVon(d);
+                        if (!k.length) return "–";
+                        const label = (nr: string) => `${nr}${kontoName.get(nr) ? ` ${kontoName.get(nr)}` : ""}`;
+                        return k.length === 1 ? label(k[0]) : `${label(k[0])} +${k.length - 1}`;
+                      })()}
+                    </td>
+                  )}
                   <td className="wrap">
                     {isHint ? (
                       (d.advice_reference ?? []).join(", ") || "–"

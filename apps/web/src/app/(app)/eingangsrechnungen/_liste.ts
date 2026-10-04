@@ -29,8 +29,8 @@ export function applyListFilters<T extends { eq: Function; not: Function; gte: F
   const search = (sp.q ?? "").trim();
   const range = monthRange(sp.monat ?? "");
   if (status) r = r.eq("status", status);
-  // Ohne Filter: Hinweisbelege raus aus der Rechnungs-Prüfliste.
-  else r = r.not("status", "in", "(advice,dunning)");
+  // Ohne Filter: Hinweisbelege und verworfene Belege (Dubletten u.a.) raus aus der Rechnungs-Prüfliste.
+  else r = r.not("status", "in", "(advice,dunning,rejected)");
   if (sp.payment_method) r = r.eq("payment_method", sp.payment_method);
   if (sp.ust === "offen") r = r.eq("extraction->_ust->>status", "vorschlag");
   if (range) r = r.gte("doc_date", range.from).lt("doc_date", range.to);

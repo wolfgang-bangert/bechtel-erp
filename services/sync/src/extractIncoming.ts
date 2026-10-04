@@ -823,6 +823,35 @@ export async function extractIncoming(opts: Options = {}) {
         .eq("id", doc.id);
       if (uErr) throw new Error(uErr.message);
 
+      // Dublette: gleiche Rechnungsnummer + gleicher Betrag + ähnlicher Lieferant wie ein anderer, nicht verworfener
+      // Beleg (z.B. gleiche Rechnung per Mail UND aus BB) -> dieser Beleg wird verworfen, der ältere bleibt.
+      const nrDup = e.doc_number?.trim();
+      const grossDup = num(e.gross_amount);
+      if (!isHint && nrDup && grossDup != null) {
+        const nm = (x: string | null | undefined) => (x ?? "").toLowerCase().replace(/[^a-z0-9äöüß]/g, "");
+        const { data: cands } = await supabase
+          .from("incoming_document")
+          .select("id, supplier_name, supplier_organization_id, gross_amount, created_at")
+          .eq("doc_number", nrDup)
+          .neq("id", doc.id)
+          .neq("status", "rejected");
+        const other = (cands ?? []).find(
+          (c) =>
+            Math.abs(Math.abs(c.gross_amount ?? 0) - Math.abs(grossDup)) <= 0.02 &&
+            (c.supplier_organization_id === supplierId ||
+              (nm(c.supplier_name).length >= 4 && nm(supplierNameDisplay).startsWith(nm(c.supplier_name).slice(0, 6))) ||
+              (nm(supplierNameDisplay).length >= 4 && nm(c.supplier_name).startsWith(nm(supplierNameDisplay).slice(0, 6)))),
+        );
+        if (other) {
+          await supabase
+            .from("incoming_document")
+            .update({ status: "rejected", notes: `Dublette von Beleg ${other.id} (gleiche Rechnungsnummer und Betrag)` })
+            .eq("id", doc.id);
+          ok += 1;
+          continue;
+        }
+      }
+
       await supabase.from("incoming_document_item").delete().eq("incoming_document_id", doc.id);
       const items = isHint
         ? []
