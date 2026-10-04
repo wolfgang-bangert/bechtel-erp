@@ -503,7 +503,7 @@ export function ReviewForm({
                       </div>
                       <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                         <div style={{ fontWeight: 600 }}>{p.net_amount != null ? fmtEur(p.net_amount) : "–"}</div>
-                        {(p.quantity != null || p.unit_price != null) && (
+                        {p.unit_price != null && (
                           <div className="bd-sub">
                             {p.quantity != null ? p.quantity : "–"} × {p.unit_price != null ? fmtEur(p.unit_price) : "–"}
                           </div>
@@ -518,6 +518,63 @@ export function ReviewForm({
                 })}
               </div>
             )}
+            {(() => {
+              // Steuer nach Sätzen: Netto je Satz aus den Belegzeilen, Abgleich mit den Kopfwerten.
+              const eligible = positions.filter((p) => !p.linked_document_id && p.net_amount != null);
+              if (eligible.length === 0) return null;
+              const groups = new Map<string, { rate: number | null; net: number; codes: Set<string> }>();
+              for (const p of eligible) {
+                const key = p.tax_rate == null ? "?" : String(Math.round(Number(p.tax_rate) * 100) / 100);
+                const g = groups.get(key) ?? { rate: p.tax_rate == null ? null : Number(p.tax_rate), net: 0, codes: new Set<string>() };
+                g.net += Number(p.net_amount);
+                g.codes.add(p.tax_code_id ? (taxCodes.find((t) => t.id === p.tax_code_id)?.label.split(" – ")[0] ?? "?") : "fehlt");
+                groups.set(key, g);
+              }
+              const rows = [...groups.values()].sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1));
+              const r2 = (x: number) => Math.round(x * 100) / 100;
+              const sumNet = r2(rows.reduce((s, g) => s + g.net, 0));
+              const sumTax = r2(rows.reduce((s, g) => s + r2((g.net * (g.rate ?? 0)) / 100), 0));
+              const hdrNet = doc.net_amount == null ? null : Number(doc.net_amount);
+              const hdrTax = doc.tax_amount == null ? null : Number(doc.tax_amount);
+              const netOk = hdrNet == null || Math.abs(sumNet - hdrNet) <= 0.05;
+              const taxOk = hdrTax == null || Math.abs(sumTax - hdrTax) <= 0.05;
+              return (
+                <div style={{ padding: "12px 16px 16px", borderTop: "1px solid var(--bd-line, #e5e5e5)" }}>
+                  <div className="bd-field-label" style={{ marginBottom: 6 }}>Steuer nach Sätzen</div>
+                  <table className="bd-table" style={{ maxWidth: 520 }}>
+                    <thead>
+                      <tr>
+                        <th>Satz</th>
+                        <th className="bd-num">Netto</th>
+                        <th className="bd-num">USt</th>
+                        <th>Steuerschlüssel</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((g, i) => (
+                        <tr key={i}>
+                          <td>{g.rate == null ? "?" : `${g.rate} %`}</td>
+                          <td className="bd-num">{fmtEur(r2(g.net))}</td>
+                          <td className="bd-num">{fmtEur(r2((g.net * (g.rate ?? 0)) / 100))}</td>
+                          <td className="bd-sub">{[...g.codes].join(", ")}</td>
+                        </tr>
+                      ))}
+                      <tr style={{ fontWeight: 600 }}>
+                        <td>Summe</td>
+                        <td className="bd-num">{fmtEur(sumNet)}</td>
+                        <td className="bd-num">{fmtEur(sumTax)}</td>
+                        <td className="bd-sub">Brutto {fmtEur(r2(sumNet + sumTax))}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  {(!netOk || !taxOk) && (
+                    <p className="bd-hint" style={{ color: "#a86800", marginTop: 6 }}>
+                      Weicht vom Beleg ab: Netto {fmtEur(hdrNet ?? 0)} / USt {fmtEur(hdrTax ?? 0)} laut Kopfdaten.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </Card>
         </div>
       </div>
