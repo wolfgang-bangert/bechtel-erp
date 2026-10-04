@@ -94,9 +94,18 @@ export async function bbAusgangNachholen({ dryRun, von = "2026-01-01", bis = "20
     const tax = r2(zeilen.reduce((s, z) => s + z.tax, 0));
     const gross = r2(net + tax);
     out.nettoSumme = r2(out.nettoSumme + net);
-    const cand = byName.get(norm(e.kunde)) ?? [];
+    let cand = byName.get(norm(e.kunde)) ?? [];
+    if (cand.length === 0) {
+      // lockerer Treffer: genau eine Organisation, deren Name mit dem Kundennamen beginnt (oder umgekehrt)
+      const k = norm(e.kunde);
+      const l = orgs.filter((o) => {
+        const n = norm(o.name);
+        return Math.min(n.length, k.length) >= 14 && (n.startsWith(k) || k.startsWith(n));
+      });
+      if (l.length === 1) cand = [l[0].id];
+    }
     if (cand.length !== 1) out.ohneOrganisation.push(`${nr} · ${e.kunde} (${cand.length === 0 ? "nicht gefunden" : "mehrdeutig"})`);
-    out.liste.push(`${e.datum} ${nr} · ${e.kunde} · netto ${net.toFixed(2)} · ${zeilen.map((z) => `${z.konto}/${z.satz}%`).join(",")}`);
+    out.liste.push(`${e.datum} ${nr} · ${e.kunde}${cand.length === 1 ? ` → ${orgs.find((o) => o.id === cand[0])?.name}` : ""} · netto ${net.toFixed(2)} · ${zeilen.map((z) => `${z.konto}/${z.satz}%`).join(",")}`);
     if (dryRun) continue;
 
     const ext = `bb:rcpt:${e.rid ?? nr}`;
