@@ -132,7 +132,7 @@ export async function ustPruefen({ dryRun, neuLesen = false }: { dryRun: boolean
           v.status !== "sicher"
             ? null
             : codeTreatment === "standard_de"
-              ? (stdByRate(it.tax_rate) ?? v.tax_code_id)
+              ? (it.tax_rate != null && Number(it.tax_rate) === 0 ? null : (stdByRate(it.tax_rate) ?? v.tax_code_id))
               : v.tax_code_id,
       }).eq("id", it.id);
     }

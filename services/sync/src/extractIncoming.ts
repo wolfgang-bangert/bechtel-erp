@@ -109,6 +109,10 @@ Regeln:
   Position erkennbar ist (sonst null). Weist der Beleg keine USt aus, bleibt tax_breakdown {}
   und tax_amount 0/null. "vat_check.reverse_charge" nur true, wenn der Beleg das ausdrücklich
   schreibt. Bei Zweifel immer null/false/{} statt zu raten.
+- Weist der Beleg mehrere Steuergruppen/Steuersätze aus (z.B. Zeilen mit Kennzeichen wie "(20)" und "(33)",
+  deren Legende "Steuergruppe … 0,00 %" bzw. "… 19,00 %" lautet), ordne JEDER Position über dieses Kennzeichen
+  ihren Satz zu (line_items[].tax_rate, auch 0) und fasse die Zeilen nicht zusammen. tax_breakdown enthält
+  je ausgewiesenem Satz den USt-Betrag (für 0 % den Betrag 0).
 - Beträge als Zahl mit Punkt als Dezimaltrenner, ohne Währungssymbol.
 - Unbekannte Felder = null. Wenn es keine Positionsaufstellung gibt, line_items = [].
 - doc_type "payment_advice" NUR für ein Zahlungs-/Lastschriftavis: Titel/Text wie
@@ -810,7 +814,7 @@ export async function extractIncoming(opts: Options = {}) {
             tax_rate: num(li.tax_rate),
             net_amount: num(li.net_amount),
             ledger_account: rule?.expense_account ?? null,
-            tax_code_id: ust?.status === "sicher" ? (stdByRate(li.tax_rate) ?? ust.tax_code_id) : null,
+            tax_code_id: ust?.status === "sicher" ? (num(li.tax_rate) === 0 ? null : (stdByRate(li.tax_rate) ?? ust.tax_code_id)) : null,
             ...itemExtras(li),
             raw: li,
           }));
