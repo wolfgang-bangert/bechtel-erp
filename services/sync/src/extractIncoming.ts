@@ -486,7 +486,9 @@ async function findSupplier(e: Extracted): Promise<string | null> {
     const { data } = await supabase
       .from("organization")
       .select("id")
-      .ilike("name", `%${name.slice(0, 20).replace(/[%,]/g, "")}%`)
+      // Satzzeichen als Platzhalter ("Anthropic, PBC" muss "Anthropic, PBC" treffen - Kommas wurden früher entfernt,
+      // der Name in der Organisation hat sie aber)
+      .ilike("name", `%${name.slice(0, 20).replace(/[^\p{L}\p{N}]+/gu, "%")}%`)
       .limit(1)
       .maybeSingle();
     if (data) return data.id;
@@ -831,7 +833,7 @@ export async function extractIncoming(opts: Options = {}) {
         const nm = (x: string | null | undefined) => (x ?? "").toLowerCase().replace(/[^a-z0-9äöüß]/g, "");
         const { data: cands } = await supabase
           .from("incoming_document")
-          .select("id, supplier_name, supplier_organization_id, gross_amount, created_at")
+          .select("id, doc_type, status, supplier_name, supplier_organization_id, gross_amount, created_at")
           .eq("doc_number", nrDup)
           .neq("id", doc.id)
           .neq("status", "rejected");
@@ -843,12 +845,21 @@ export async function extractIncoming(opts: Options = {}) {
               (nm(supplierNameDisplay).length >= 4 && nm(c.supplier_name).startsWith(nm(supplierNameDisplay).slice(0, 6)))),
         );
         if (other) {
-          await supabase
-            .from("incoming_document")
-            .update({ status: "rejected", notes: `Dublette von Beleg ${other.id} (gleiche Rechnungsnummer und Betrag)` })
-            .eq("id", doc.id);
-          ok += 1;
-          continue;
+          // Quittung neben Rechnung: die Rechnung bleibt, auch wenn sie erst nach der Quittung gelesen wird.
+          const dieseIstRechnung = (e.doc_type ?? "invoice") === "invoice";
+          if (dieseIstRechnung && other.doc_type === "receipt" && ["captured", "extracted"].includes(other.status)) {
+            await supabase
+              .from("incoming_document")
+              .update({ status: "rejected", notes: `Quittung zur Rechnung ${nrDup} - nur die Rechnung wird gebraucht` })
+              .eq("id", other.id);
+          } else {
+            await supabase
+              .from("incoming_document")
+              .update({ status: "rejected", notes: `Dublette von Beleg ${other.id} (gleiche Rechnungsnummer und Betrag)` })
+              .eq("id", doc.id);
+            ok += 1;
+            continue;
+          }
         }
       }
 

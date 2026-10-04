@@ -90,8 +90,17 @@ export async function syncMailbox(opts: Options = {}) {
       )) as FetchMessageObject | false;
       if (!msg) continue;
 
-      const parts = findPdfParts(msg.bodyStructure);
+      let parts = findPdfParts(msg.bodyStructure);
       if (parts.length === 0) continue;
+      // Manche Anbieter (Anthropic, Weweb ...) schicken je Mail eine Rechnung UND eine Quittung ("Receipt") als PDF.
+      // Gebraucht wird nur die Rechnung: Quittungs-PDFs werden übersprungen, wenn in derselben Mail eine Rechnung liegt.
+      const istRechnung = (f: string | null | undefined) => /^\s*(invoice|rechnung|facture)\b/i.test(f ?? "");
+      const istQuittung = (f: string | null | undefined) => /^\s*(receipt|quittung|zahlungsbeleg|payment[-_ ]?receipt)\b/i.test(f ?? "");
+      if (parts.some((p) => istRechnung(p.filename)) && parts.some((p) => istQuittung(p.filename))) {
+        const vorher = parts.length;
+        parts = parts.filter((p) => !istQuittung(p.filename));
+        ignored += vorher - parts.length;
+      }
 
       const env_ = msg.envelope;
       const messageId = env_?.messageId ?? `uid:${uid}`;

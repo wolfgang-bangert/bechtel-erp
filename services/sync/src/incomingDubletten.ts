@@ -46,7 +46,9 @@ export async function incomingDubletten({ dryRun }: { dryRun: boolean }) {
     for (let i = 0; i < g.length; i++)
       for (let j = i + 1; j < g.length; j++) {
         const a = g[i], b = g[j];
-        if (a.doc_type !== b.doc_type) continue;
+        // Rechnung und Quittung (Receipt) derselben Rechnung zählen als Paar; sonst muss die Art übereinstimmen
+        const paar = new Set([a.doc_type, b.doc_type]);
+        if (a.doc_type !== b.doc_type && !(paar.has("invoice") && paar.has("receipt"))) continue;
         if (Math.abs(Math.abs(a.gross_amount ?? 0) - Math.abs(b.gross_amount ?? 0)) > 0.02) continue;
         const sameFile = !!a.file_sha256 && a.file_sha256 === b.file_sha256;
         const sameOrg = !!a.supplier_organization_id && a.supplier_organization_id === b.supplier_organization_id;
@@ -88,6 +90,7 @@ export async function incomingDubletten({ dryRun }: { dryRun: boolean }) {
     }
     const score = (d: Doc) => [
       RANK[d.status] ?? 0,
+      d.doc_type === "invoice" ? 1 : 0,
       d.dedup_key.startsWith("bb:") ? 0 : 1,
       matchCount.get(d.id) ?? 0,
       d.ledger_account ? 1 : 0,
