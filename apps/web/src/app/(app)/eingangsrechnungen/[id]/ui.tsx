@@ -257,6 +257,13 @@ export function ReviewForm({
                   </div>
                 )}
               </div>
+              <div className="bd-field" style={{ width: 130 }}>
+                <label className="bd-field-label" htmlFor="payment_status">Zahlstatus</label>
+                <select className="bd-field-input" id="payment_status" name="payment_status" defaultValue={v("payment_status") || "open"}>
+                  <option value="open">offen</option>
+                  <option value="paid">bezahlt</option>
+                </select>
+              </div>
               <F name="supplier_iban" label="IBAN (laut Beleg)" w={260} />
               <F name="discount_date" label="Skonto-Termin" type="date" w={150} />
               <F name="discount_percent" label="Skonto %" w={90} />
@@ -336,13 +343,6 @@ export function ReviewForm({
               </p>
             )}
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
-              <div className="bd-field" style={{ width: 160 }}>
-                <label className="bd-field-label" htmlFor="payment_status">Zahlstatus</label>
-                <select className="bd-field-input" id="payment_status" name="payment_status" defaultValue={v("payment_status") || "open"}>
-                  <option value="open">offen</option>
-                  <option value="paid">bezahlt</option>
-                </select>
-              </div>
             </div>
           </Card>
 
