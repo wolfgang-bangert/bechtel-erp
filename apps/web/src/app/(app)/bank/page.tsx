@@ -38,7 +38,18 @@ const kontoLabel = (a: { label: string; bank_name: string | null; iban: string }
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 100;
-type Search = { account?: string; hide_matched?: string; q?: string; page?: string };
+type Search = { account?: string; hide_matched?: string; q?: string; page?: string; monat?: string };
+
+// "2026-03" -> [2026-03-01, 2026-04-01)
+function monthRange(m: string): { from: string; to: string } | null {
+  const mt = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(m);
+  if (!mt) return null;
+  const y = Number(mt[1]);
+  const mo = Number(mt[2]);
+  const ny = mo === 12 ? y + 1 : y;
+  const nm = mo === 12 ? 1 : mo + 1;
+  return { from: `${mt[1]}-${mt[2]}-01`, to: `${ny}-${String(nm).padStart(2, "0")}-01` };
+}
 
 export default async function BankPage({
   searchParams,
@@ -50,6 +61,8 @@ export default async function BankPage({
   // Immer alle Status zeigen, nur "zugeordnete ausblenden" als einziger Schalter.
   const hideMatched = sp.hide_matched === "1";
   const q = (sp.q ?? "").trim();
+  const monat = sp.monat ?? "";
+  const range = monthRange(monat);
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
   const fromRow = (page - 1) * PAGE_SIZE;
 
@@ -139,22 +152,43 @@ export default async function BankPage({
         "supplier:supplier_organization_id(supplier_number)))",
       { count: "exact" },
     );
-  // Nur echte Girokonten - Darlehenskonten (accountIds enthält sie nicht)
-  // dürfen auch über einen von Hand gebauten ?account=-Link nicht auftauchen.
-  if (account && accountIds.has(account)) query = query.eq("bank_account_id", account);
-  else query = query.in("bank_account_id", [...accountIds]);
-  if (hideMatched) query = query.neq("match_status", "matched");
-  if (q) {
-    const like = `%${q.replace(/[%,]/g, "")}%`;
-    const filters = [`counterparty_name.ilike.${like}`, `purpose.ilike.${like}`];
-    // Zahl eingegeben (mit Komma oder Punkt) → auch auf den Betrag matchen,
-    // Vorzeichen ignorieren (Nutzer weiß bei Suche oft nicht, ob Soll/Haben).
-    const num = q.replace(".", "").replace(",", ".");
-    if (/^-?\d+(\.\d{1,2})?$/.test(num)) {
-      const n = Number(num);
-      filters.push(`amount.eq.${n}`, `amount.eq.${-n}`);
+  // Gleiche Filter für die Liste und die Summenzeile (alle Seiten, nicht nur die angezeigte).
+  const applyFilters = <T extends { eq: Function; in: Function; neq: Function; or: Function; gte: Function; lt: Function }>(qb: T): T => {
+    let r = qb;
+    // Nur echte Girokonten - Darlehenskonten (accountIds enthält sie nicht)
+    // dürfen auch über einen von Hand gebauten ?account=-Link nicht auftauchen.
+    if (account && accountIds.has(account)) r = r.eq("bank_account_id", account);
+    else r = r.in("bank_account_id", [...accountIds]);
+    if (hideMatched) r = r.neq("match_status", "matched");
+    if (range) r = r.gte("booking_date", range.from).lt("booking_date", range.to);
+    if (q) {
+      const like = `%${q.replace(/[%,]/g, "")}%`;
+      const filters = [`counterparty_name.ilike.${like}`, `purpose.ilike.${like}`];
+      // Zahl eingegeben (mit Komma oder Punkt) → auch auf den Betrag matchen,
+      // Vorzeichen ignorieren (Nutzer weiß bei Suche oft nicht, ob Soll/Haben).
+      const num = q.replace(".", "").replace(",", ".");
+      if (/^-?\d+(\.\d{1,2})?$/.test(num)) {
+        const n = Number(num);
+        filters.push(`amount.eq.${n}`, `amount.eq.${-n}`);
+      }
+      r = r.or(filters.join(","));
     }
-    query = query.or(filters.join(","));
+    return r;
+  };
+  query = applyFilters(query);
+
+  // Summen der gefilterten Umsätze (Eingänge/Ausgänge) über alle Seiten
+  let sumIn = 0;
+  let sumOut = 0;
+  for (let from = 0; ; from += 1000) {
+    const { data: amts } = await applyFilters(
+      supabase.from("bank_transaction").select("amount").range(from, from + 999),
+    );
+    for (const r of (amts ?? []) as { amount: number }[]) {
+      if (Number(r.amount) >= 0) sumIn += Number(r.amount);
+      else sumOut += Number(r.amount);
+    }
+    if ((amts ?? []).length < 1000) break;
   }
 
   const res = await query
@@ -334,6 +368,7 @@ export default async function BankPage({
     const u = new URLSearchParams();
     if (account) u.set("account", account);
     if (hideMatched) u.set("hide_matched", "1");
+    if (range) u.set("monat", monat);
     if (q) u.set("q", q);
     if (p > 1) u.set("page", String(p));
     const s = u.toString();
@@ -655,6 +690,7 @@ export default async function BankPage({
             </option>
           ))}
         </select>
+        <input type="month" name="monat" defaultValue={range ? monat : ""} title="Monat (Buchungsdatum)" />
         <input
           name="q"
           defaultValue={q}
@@ -666,8 +702,10 @@ export default async function BankPage({
           ausblenden
         </label>
         <button type="submit">Anzeigen</button>
-        {(account || hideMatched || q) && <Link href="/bank">zurücksetzen</Link>}
-        <span className="count">{total.toLocaleString("de-DE")} Umsätze</span>
+        {(account || hideMatched || q || range) && <Link href="/bank">zurücksetzen</Link>}
+        <span className="count">
+          {total.toLocaleString("de-DE")} Umsätze · Eingänge {fmtEur(sumIn)} · Ausgänge {fmtEur(sumOut)}
+        </span>
       </form>
 
       {error && <div className="banner-err">Fehler: {error.message}</div>}
