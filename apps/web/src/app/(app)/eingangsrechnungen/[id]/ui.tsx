@@ -141,6 +141,9 @@ export function ReviewForm({
 
   const patchPos = (i: number, p: Partial<Pos>) =>
     setPositions((xs) => xs.map((x, k) => (k === i ? { ...x, ...p } : x)));
+  // Konto der geöffneten Position auf alle Positionen übernehmen (mit anderem Beleg verknüpfte bleiben unberührt).
+  const applyAccountAll = (account: string) =>
+    setPositions((xs) => xs.map((x) => (x.linked_document_id ? x : { ...x, ledger_account: account })));
   const addPos = () =>
     setPositions((xs) => [
       ...xs,
@@ -584,6 +587,8 @@ export function ReviewForm({
           pos={positions[openPos]}
           onClose={() => setOpenPos(null)}
           onPatch={(p) => patchPos(openPos, p)}
+          onApplyAccountAll={applyAccountAll}
+          positionCount={positions.filter((x) => !x.linked_document_id).length}
           onDelete={() => delPos(openPos)}
           onAddAlloc={() => addAlloc(openPos)}
           onPatchAlloc={(ai, a) => patchAlloc(openPos, ai, a)}
@@ -614,6 +619,8 @@ function PositionModal({
   pos,
   onClose,
   onPatch,
+  onApplyAccountAll,
+  positionCount,
   onDelete,
   onAddAlloc,
   onPatchAlloc,
@@ -626,6 +633,8 @@ function PositionModal({
   pos: Pos;
   onClose: () => void;
   onPatch: (p: Partial<Pos>) => void;
+  onApplyAccountAll: (account: string) => void;
+  positionCount: number;
   onDelete: () => void;
   onAddAlloc: () => void;
   onPatchAlloc: (ai: number, a: Partial<Alloc>) => void;
@@ -730,6 +739,18 @@ function PositionModal({
                 accounts={ledgerAccounts}
                 placeholder="(Vorgabe)"
               />
+              {positionCount > 1 && (
+                <button
+                  type="button"
+                  className="bd-btn bd-btn-secondary"
+                  style={{ marginTop: 6, fontSize: 12, padding: "3px 10px" }}
+                  disabled={!pos.ledger_account}
+                  onClick={() => onApplyAccountAll(pos.ledger_account)}
+                  title="Setzt dieses Konto bei allen Positionen (ohne verknüpften Beleg); danach noch speichern"
+                >
+                  dieses Konto auf alle {positionCount} Positionen anwenden
+                </button>
+              )}
             </div>
             <div className="bd-field" style={{ width: 200 }}>
               <label className="bd-field-label">Steuerschlüssel</label>
