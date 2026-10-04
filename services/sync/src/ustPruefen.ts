@@ -23,6 +23,7 @@ export async function ustPruefen({ dryRun, neuLesen = false }: { dryRun: boolean
   )
     .filter((t) => t.direction === "input" && t.is_active)
     .map((t) => ({ id: t.id, code: t.code, rate: Number(t.rate), treatment: t.treatment }));
+  const zeroCodeId = taxCodes.find((c) => c.treatment === "tax_free_other" && Math.round(c.rate) === 0)?.id ?? null;
   const stdByRate = (rate: unknown) =>
     taxCodes.find((c) => c.treatment === "standard_de" && Math.round(c.rate) === Math.round(Number(rate)))?.id ?? null;
 
@@ -132,7 +133,7 @@ export async function ustPruefen({ dryRun, neuLesen = false }: { dryRun: boolean
           v.status !== "sicher"
             ? null
             : codeTreatment === "standard_de"
-              ? (it.tax_rate != null && Number(it.tax_rate) === 0 ? null : (stdByRate(it.tax_rate) ?? v.tax_code_id))
+              ? (it.tax_rate != null && Number(it.tax_rate) === 0 ? zeroCodeId : (stdByRate(it.tax_rate) ?? v.tax_code_id))
               : v.tax_code_id,
       }).eq("id", it.id);
     }

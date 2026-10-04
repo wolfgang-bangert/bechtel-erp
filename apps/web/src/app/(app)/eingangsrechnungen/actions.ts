@@ -291,6 +291,8 @@ export async function bestaetigeUst(fd: FormData): Promise<void> {
     .eq("is_active", true);
   const chosen = (codes ?? []).find((c) => c.id === codeId);
   if (!chosen) return;
+  const zeroCodeId =
+    (codes ?? []).find((c) => c.treatment === "tax_free_other" && Number(c.rate) === 0)?.id ?? null;
   const stdByRate = (rate: number | null) =>
     rate == null
       ? null
@@ -306,7 +308,7 @@ export async function bestaetigeUst(fd: FormData): Promise<void> {
     const itemCode =
       chosen.treatment === "standard_de"
         ? it.tax_rate != null && Number(it.tax_rate) === 0
-          ? null
+          ? zeroCodeId
           : (stdByRate(it.tax_rate) ?? chosen.id)
         : chosen.id;
     await supabase.from("incoming_document_item").update({ tax_code_id: itemCode }).eq("id", it.id);
