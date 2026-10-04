@@ -21,6 +21,7 @@ import { learnVorkontierung, learnDebitorVorkontierung } from "./learnVorkontier
 import { learnBankLedgerRules } from "./learnBankRules";
 import { syncNinoxOrders } from "./syncNinoxOrders";
 import { syncNinoxInvoices } from "./syncNinoxInvoices";
+import { syncNinoxExterneRechnungen } from "./syncNinoxExterneRechnungen";
 import { dedupeReport } from "./dedupeReport";
 import { dedupeMerge } from "./mergeOrganizations";
 import { syncInvoicePdfs } from "./syncInvoicePdfs";
@@ -165,6 +166,24 @@ async function main() {
         `\nFertig. ${r.seen} Rechnungen (${r.uebersprungen} übersprungen), ` +
           `${"items" in r ? r.items : 0} Positionen, ohne Org ${r.noOrg}` +
           (dryRun ? "  (DRY RUN)" : ""),
+      );
+      break;
+    }
+    case "ninox:rechnungen-extern": {
+      const sinceArg = process.argv.find((a) => a.startsWith("--since="))?.split("=")[1];
+      const quelleArg = process.argv.find((a) => a.startsWith("--quelle="))?.split("=")[1];
+      const limArg = process.argv.find((a) => a.startsWith("--limit="));
+      console.log(
+        `Ninox (D-TACK, Euchner) -> Ausgangsrechnungen${quelleArg ? ` [${quelleArg}]` : ""}` +
+          (sinceArg ? `  (ab ${sinceArg})` : "  (dieses Jahr)") +
+          (dryRun ? "  (DRY RUN)" : ""),
+      );
+      console.log(
+        JSON.stringify(
+          await syncNinoxExterneRechnungen({ dryRun, since: sinceArg, quelle: quelleArg, limit: limArg ? Number(limArg.split("=")[1]) : undefined }),
+          null,
+          1,
+        ),
       );
       break;
     }
