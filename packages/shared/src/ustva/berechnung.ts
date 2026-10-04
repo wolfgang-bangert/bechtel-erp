@@ -11,6 +11,8 @@
  *  43       steuerfreie Ausfuhrlieferungen / Drittland
  *  46 / 47  Leistungen EU-Unternehmer (§ 13b Abs. 1)  Bemessungsgrundlage / Steuer
  *  52 / 53  Leistungen ausländischer Unternehmer aus Drittländern (§ 13b Abs. 2 Nr. 1)
+ *  89       steuerpflichtige innergemeinschaftliche Erwerbe zu 19 % (Eingang: EU-Lieferant liefert steuerfrei, Art. 138)
+ *  61       Vorsteuer aus innergemeinschaftlichem Erwerb
  *  66       Vorsteuer aus Rechnungen anderer Unternehmer
  *  67       Vorsteuer aus Leistungen nach § 13b
  *  83       verbleibende Vorauszahlung (+) bzw. Überschuss (-)
@@ -33,7 +35,7 @@ export type UstvaZeile = {
   /** Bei Ausgang: Erlöskonto (zur Einordnung steuerfreier Zeilen). */
   konto?: string | null;
   /** Eingang: §13b-Fall (BU 94) - Steuer wird mit 19 % selbst berechnet. */
-  rc?: "eu" | "drittland" | "unklar";
+  rc?: "eu" | "drittland" | "unklar" | "ige";
   vorzeichen: 1 | -1;
 };
 
@@ -72,6 +74,8 @@ const LABEL: Record<string, string> = {
   "41": "Steuerfreie innergemeinschaftliche Lieferungen",
   "21": "Nicht steuerbare sonstige Leistungen an EU-Unternehmer (§ 18b)",
   "43": "Steuerfreie Ausfuhrlieferungen / Drittland",
+  "89": "Innergemeinschaftliche Erwerbe zu 19 % (steuerfreie Lieferung des EU-Lieferanten, Art. 138)",
+  "61": "Abziehbare Vorsteuer aus innergemeinschaftlichem Erwerb",
   "46": "Leistungen EU-Unternehmer (§ 13b Abs. 1) - Steuerschuld beim Empfänger",
   "52": "Leistungen ausländischer Unternehmer, Drittland (§ 13b Abs. 2 Nr. 1)",
   "66": "Abziehbare Vorsteuer aus Rechnungen anderer Unternehmer",
@@ -101,6 +105,9 @@ export function berechneUstva(zeilen: UstvaZeile[], konten: UstvaErloesKonten): 
       else if (konten.reverse_charge_eu && z.konto === konten.reverse_charge_eu) add("21", z);
       else if (konten.export_third_country && z.konto === konten.export_third_country) add("43", z);
       else unzugeordnet.push(z);
+    } else if (z.rc === "ige") {
+      add("89", z);
+      add("61", z);
     } else if (z.rc) {
       add(z.rc === "eu" ? "46" : "52", z);
       add("67", z);
@@ -117,7 +124,7 @@ export function berechneUstva(zeilen: UstvaZeile[], konten: UstvaErloesKonten): 
   const row = (kz: string, mitSteuer: boolean, steuerKz?: string): KennzahlZeile => ({
     kz: steuerKz ? `${kz} / ${steuerKz}` : kz,
     label: LABEL[kz] ?? kz,
-    basis: kz === "66" || kz === "67" ? null : sum(kz, netto),
+    basis: kz === "66" || kz === "67" || kz === "61" ? null : sum(kz, netto),
     steuer: mitSteuer ? sum(kz, steuer) : null,
     belege: buckets.get(kz) ?? [],
   });
@@ -131,11 +138,13 @@ export function berechneUstva(zeilen: UstvaZeile[], konten: UstvaErloesKonten): 
     row("43", false),
     row("46", true, "47"),
     row("52", true, "53"),
+    row("89", true),
+    row("61", true),
     row("66", true),
     row("67", true),
   ];
 
-  const umsatzsteuer = r2(sum("81", steuer) + sum("86", steuer) + sum("46", steuer) + sum("52", steuer));
-  const vorsteuer = r2(sum("66", steuer) + sum("67", steuer));
+  const umsatzsteuer = r2(sum("81", steuer) + sum("86", steuer) + sum("46", steuer) + sum("52", steuer) + sum("89", steuer));
+  const vorsteuer = r2(sum("66", steuer) + sum("67", steuer) + sum("61", steuer));
   return { kennzahlen, umsatzsteuer, vorsteuer, zahllast: r2(umsatzsteuer - vorsteuer), unzugeordnet };
 }

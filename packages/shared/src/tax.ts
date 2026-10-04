@@ -5,6 +5,7 @@ export type TaxTreatment =
   | "standard_de" // Inland 19 % / 7 %
   | "reverse_charge_eu" // EU B2B, Steuerschuld beim Empfänger
   | "intra_community_supply" // innergem. Warenlieferung, steuerfrei
+  | "intra_community_acquisition" // innergem. Erwerb (Eingang): EU-Lieferant liefert steuerfrei, Erwerbsteuer beim Empfänger
   | "export_third_country" // Ausfuhr Drittland (CH), steuerfrei
   | "tax_free_other";
 
@@ -57,6 +58,7 @@ export const TAX_TREATMENT_NOTE: Record<TaxTreatment, string> = {
   reverse_charge_eu:
     "Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge).",
   intra_community_supply: "Steuerfreie innergemeinschaftliche Lieferung.",
+  intra_community_acquisition: "",
   export_third_country: "Steuerfreie Ausfuhrlieferung.",
   tax_free_other: "Steuerfreier Umsatz.",
 };

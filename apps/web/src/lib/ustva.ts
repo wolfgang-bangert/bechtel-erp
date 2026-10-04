@@ -129,6 +129,9 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
       .filter((t) => t.direction === "input" && (t.datev_tax_key?.trim() === "94" || t.treatment === "reverse_charge_eu"))
       .map((t) => t.id),
   );
+  const igeCode = new Set(
+    (tcs ?? []).filter((t) => t.direction === "input" && t.treatment === "intra_community_acquisition").map((t) => t.id),
+  );
   const konten = ((settings ?? [])[0]?.value ?? {}) as UstvaErloesKonten;
 
   const zeilen: UstvaZeile[] = [];
@@ -197,24 +200,33 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
     const dRc = d.tax_code_id ? rcCode.has(d.tax_code_id) : false;
     // Mit einem anderen Beleg verknüpfte Positionen (z.B. Kreditkartenzeile) zählen hier nicht.
     const items = (d.incoming_document_item ?? []).filter((it) => !it.linked_document_id);
-    const units: { net: number; rate: number; rc: boolean }[] = [];
+    const dIge = d.tax_code_id ? igeCode.has(d.tax_code_id) : false;
+    const units: { net: number; rate: number; rc: boolean; ige: boolean }[] = [];
     if ((d.incoming_document_item ?? []).length) {
       for (const it of items) {
         units.push({
           net: it.net_amount ?? 0,
           rate: it.tax_rate != null ? Math.round(Number(it.tax_rate)) : dRate,
           rc: it.tax_code_id ? rcCode.has(it.tax_code_id) : dRc,
+          ige: it.tax_code_id ? igeCode.has(it.tax_code_id) : dIge,
         });
       }
     } else {
-      units.push({ net: d.net_amount ?? 0, rate: dRate, rc: dRc });
+      units.push({ net: d.net_amount ?? 0, rate: dRate, rc: dRc, ige: dIge });
     }
 
     const herkunft = rcHerkunft(d);
     let hatRc = false;
+    let hatIge = false;
     for (const u of units) {
       if (Math.abs(u.net) < 0.005) continue;
-      if (u.rc) {
+      if (u.ige) {
+        hatIge = true;
+        zeilen.push({
+          richtung: "eingang", belegId: d.id, belegNr: d.doc_number, partner, datum: d.doc_date, href,
+          netto: Math.abs(u.net), satz: 0, rc: "ige", vorzeichen: sign,
+        });
+      } else if (u.rc) {
         hatRc = true;
         zeilen.push({
           richtung: "eingang", belegId: d.id, belegNr: d.doc_number, partner, datum: d.doc_date, href,
@@ -228,7 +240,7 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
       }
     }
     if (hatRc && herkunft === "unklar") rcUnklar.push({ label, href });
-    if (!hatRc && istAuslaender(d) && (d.tax_amount ?? 0) < 0.005 && Math.abs(d.net_amount ?? 0) >= 0.005)
+    if (!hatRc && !hatIge && istAuslaender(d) && (d.tax_amount ?? 0) < 0.005 && Math.abs(d.net_amount ?? 0) >= 0.005)
       auslandOhneRc.push({ label, href });
     if (!d.doc_date) ohneDatum.push({ label, href });
   }

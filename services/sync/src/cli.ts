@@ -679,7 +679,7 @@ async function main() {
     }
     case "incoming:ust-pruefen": {
       console.log(`USt-Prüfung für erkannte Belege nachziehen${dryRun ? "  (DRY RUN)" : ""}`);
-      console.log(JSON.stringify(await ustPruefen({ dryRun }), null, 1));
+      console.log(JSON.stringify(await ustPruefen({ dryRun, neuLesen: flags.has("--neu-lesen") }), null, 1));
       break;
     }
     case "bb:positionen": {
