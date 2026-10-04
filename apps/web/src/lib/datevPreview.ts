@@ -223,7 +223,7 @@ function revAccount(rate: number, country: string, m: Record<string, string>): s
   if (rate >= 6 && rate < 8) return m.standard_7 ?? "";
   const c = (country || "DE").toUpperCase();
   if (c === "DE") return m.tax_free_other ?? m.fallback ?? "";
-  if (EU.has(c)) return m.reverse_charge_eu ?? m.fallback ?? "";
+  if (EU.has(c)) return m.intra_community_supply ?? m.reverse_charge_eu ?? m.fallback ?? "";
   return m.export_third_country ?? m.fallback ?? "";
 }
 

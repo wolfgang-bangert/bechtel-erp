@@ -42,7 +42,9 @@ function revenueAccount(rate: number, taxCountry: string, map: ErloesKontenMap):
   // rate ~0
   const c = (taxCountry || "DE").toUpperCase();
   if (c === "DE") return map.tax_free_other ?? map.fallback;
-  if (EU.has(c)) return map.reverse_charge_eu ?? map.fallback;
+  // EU-Kunde ohne USt: Standard ist die steuerfreie innergemeinschaftliche Lieferung (Ware, Kz 41); Leistungen (Kz 21)
+  // nur, wenn kein Lieferungs-Konto hinterlegt ist.
+  if (EU.has(c)) return map.intra_community_supply ?? map.reverse_charge_eu ?? map.fallback;
   return map.export_third_country ?? map.fallback;
 }
 
