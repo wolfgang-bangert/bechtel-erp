@@ -2,6 +2,7 @@ import { requireStaff } from "@/lib/auth";
 import { signOut } from "../login/actions";
 import { NotificationBanner } from "./_notifications/NotificationBanner";
 import { Sidebar, type NavGroup } from "./_shared/Sidebar";
+import { ZurueckLeiste } from "./_shared/ZurueckLeiste";
 
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -95,6 +96,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const { user, roles } = await requireStaff();
+  const navLabels = Object.fromEntries(NAV_GROUPS.flatMap((g) => g.links.map((l) => [l.href, l.label])));
 
   return (
     <div className="shell">
@@ -107,6 +109,7 @@ export default async function AppLayout({
 
       <main className="content">
         <NotificationBanner />
+        <ZurueckLeiste navLabels={navLabels} />
         {children}
       </main>
     </div>
