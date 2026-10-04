@@ -63,7 +63,7 @@ export function ReviewForm({
   organizations,
   documents,
   suggestion,
-  bankTx,
+  bankMatches,
   pdfUrl,
   pdfLabel,
 }: {
@@ -84,7 +84,20 @@ export function ReviewForm({
     payment_method: string | null;
   } | null;
   /** Bereits mit diesem Beleg verknüpfte Bankzeile (falls vorhanden). */
-  bankTx?: { id: string; booking_date: string; amount: number; counterparty_name: string | null; bank_account_id: string } | null;
+  bankMatches?: {
+    id: string;
+    amount: number;
+    ledger_account: string | null;
+    auto: boolean;
+    tx: {
+      id: string;
+      booking_date: string;
+      amount: number;
+      counterparty_name: string | null;
+      purpose: string | null;
+      bank_account_id: string;
+    } | null;
+  }[];
   /** Signierte PDF-URL für die Vorschau rechts neben den oberen Karten. */
   pdfUrl?: string | null;
   pdfLabel?: string;
@@ -271,14 +284,72 @@ export function ReviewForm({
               <F name="net_due_date" label="Netto-Termin" type="date" w={150} />
             </div>
 
-            {bankTx && (
-              <div className="bd-hint">
-                Verknüpfte Bankzeile:{" "}
-                <Link className="bd-link" style={{ margin: 0 }} href={`/bank?account=${bankTx.bank_account_id}`}>
-                  {fmtDate(bankTx.booking_date)} · {fmtEur(bankTx.amount)} · {bankTx.counterparty_name ?? "–"}
-                </Link>
-              </div>
-            )}
+            {(() => {
+              const matches = bankMatches ?? [];
+              const zahlungen = matches.filter((m) => !m.ledger_account);
+              const skonti = matches.filter((m) => m.ledger_account);
+              const num = (k: string) => (doc[k] == null ? 0 : Number(doc[k]));
+              // Summen direkt aus den Zuordnungen (nicht aus gespeicherten Summenfeldern)
+              const zahlungSumme = zahlungen.reduce((x, m) => x + Math.abs(m.amount), 0);
+              const skontoSumme = skonti.reduce((x, m) => x + Math.abs(m.amount), 0);
+              const offenBetrag = Math.max(0, Math.round((num("gross_amount") - zahlungSumme - skontoSumme) * 100) / 100);
+              const status =
+                zahlungen.length === 0 && skonti.length === 0
+                  ? "open"
+                  : offenBetrag > 0.005
+                    ? "partly_paid"
+                    : zahlungSumme + skontoSumme > num("gross_amount") + 0.005
+                      ? "overpaid"
+                      : "paid";
+              const STATUS_LABEL: Record<string, string> = {
+                open: "offen",
+                partly_paid: "teilweise bezahlt",
+                paid: "bezahlt",
+                overpaid: "überzahlt",
+              };
+              return (
+                <div style={{ marginTop: 12 }}>
+                  <div className="bd-field-label">Bankzuordnung</div>
+                  {zahlungen.length === 0 && skonti.length === 0 ? (
+                    <div className="bd-hint">
+                      Noch keiner Bankzeile zugeordnet
+                      {num("gross_amount") ? ` - offen ${fmtEur(num("gross_amount"))}` : ""}.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="bd-hint" style={{ marginBottom: 4 }}>
+                        <strong>{STATUS_LABEL[status] ?? status}</strong>
+                        {" · "}Brutto {fmtEur(num("gross_amount"))}
+                        {" · "}bezahlt {fmtEur(zahlungSumme)}
+                        {skontoSumme > 0 ? ` · Skonto ${fmtEur(skontoSumme)}` : ""}
+                        {" · "}offen {fmtEur(offenBetrag)}
+                      </div>
+                      {zahlungen.map((m) => (
+                        <div key={m.id} className="bd-hint" style={{ margin: "2px 0" }}>
+                          {m.tx ? (
+                            <Link className="bd-link" style={{ margin: 0 }} href={`/bank?account=${m.tx.bank_account_id}`}>
+                              {fmtDate(m.tx.booking_date)} · {fmtEur(Math.abs(m.tx.amount))} · {m.tx.counterparty_name ?? "–"}
+                            </Link>
+                          ) : (
+                            "Bankzeile nicht mehr vorhanden"
+                          )}
+                          {" - zugeordnet "}
+                          {fmtEur(Math.abs(m.amount))}
+                          {m.auto ? " (automatisch)" : " (von Hand)"}
+                          {m.tx?.purpose ? <span className="bd-sub"> · {m.tx.purpose.slice(0, 70)}</span> : null}
+                        </div>
+                      ))}
+                      {skonti.map((m) => (
+                        <div key={m.id} className="bd-hint" style={{ margin: "2px 0" }}>
+                          {`Skonto ausgebucht: ${fmtEur(Math.abs(m.amount))} (Konto ${m.ledger_account})`}
+                          {m.tx ? ` - zur Zahlung vom ${fmtDate(m.tx.booking_date)}` : ""}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
             <label className="bd-check">
               <input
