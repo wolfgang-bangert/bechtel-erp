@@ -19,6 +19,12 @@
 # bei Keyline oben
 */30 * * * *  cd /app/services/sync && pnpm ninox:invoices && pnpm pdf:invoices && pnpm invoice:bookings && pnpm bank:match && pnpm skonto:apply
 
+# Ausgangsrechnungen aus Ninox-Apps außerhalb von Keyline (D-TACK/Kohlhammer: sobald "Rechnung an
+# Kunde gesendet" gesetzt ist; Euchner: mit PDF + Rechnungsnummer): PDF holen, per KI lesen, als
+# Ausgangsrechnung mit Erlösbuchung anlegen (seit Jahresbeginn; schon vorhandene werden übersprungen).
+# Danach bank:match/skonto:apply wie bei Keyline.
+20 6 * * *   cd /app/services/sync && pnpm ninox:rechnungen-extern && pnpm bank:match && pnpm skonto:apply
+
 # Eingangsrechnungen aus dem Postfach + KI-Vorerfassung (war stündlich)
 15 * * * *   cd /app/services/sync && pnpm mail:fetch --since=7 && pnpm incoming:extract --limit=100
 
