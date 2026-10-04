@@ -25,6 +25,9 @@ const EU = new Set([
   "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
 ]);
 
+/** SKR03: Bezahlte Einfuhrumsatzsteuer (Vorsteuer, UStVA Kz 62). */
+const EUST_KONTO = "1588";
+
 export function monatsGrenzen(monat: string): { von: string; bis: string } {
   const [y, m] = monat.split("-").map(Number);
   const von = new Date(Date.UTC(y, m - 1, 1));
@@ -47,6 +50,7 @@ type SalesInv = {
 };
 
 type Item = {
+  ledger_account: string | null;
   net_amount: number | null;
   tax_rate: number | null;
   tax_code_id: string | null;
@@ -59,6 +63,7 @@ type IncDoc = {
   doc_number: string | null;
   doc_date: string | null;
   currency: string | null;
+  ledger_account: string | null;
   net_amount: number | null;
   tax_amount: number | null;
   tax_breakdown: Record<string, number> | null;
@@ -112,9 +117,9 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
     supabase
       .from("incoming_document")
       .select(
-        "id, doc_type, status, doc_number, doc_date, currency, net_amount, tax_amount, tax_breakdown, tax_code_id, " +
+        "id, doc_type, status, doc_number, doc_date, currency, ledger_account, net_amount, tax_amount, tax_breakdown, tax_code_id, " +
           "supplier_name, supplier_vat_id, organization:supplier_organization_id ( tax_country ), " +
-          "incoming_document_item!incoming_document_item_incoming_document_id_fkey ( net_amount, tax_rate, tax_code_id, linked_document_id )",
+          "incoming_document_item!incoming_document_item_incoming_document_id_fkey ( ledger_account, net_amount, tax_rate, tax_code_id, linked_document_id )",
       )
       .gte("doc_date", von)
       .lte("doc_date", bis)
@@ -201,7 +206,7 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
     // Mit einem anderen Beleg verknüpfte Positionen (z.B. Kreditkartenzeile) zählen hier nicht.
     const items = (d.incoming_document_item ?? []).filter((it) => !it.linked_document_id);
     const dIge = d.tax_code_id ? igeCode.has(d.tax_code_id) : false;
-    const units: { net: number; rate: number; rc: boolean; ige: boolean }[] = [];
+    const units: { net: number; rate: number; rc: boolean; ige: boolean; eust: boolean }[] = [];
     if ((d.incoming_document_item ?? []).length) {
       for (const it of items) {
         units.push({
@@ -209,10 +214,11 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
           rate: it.tax_rate != null ? Math.round(Number(it.tax_rate)) : dRate,
           rc: it.tax_code_id ? rcCode.has(it.tax_code_id) : dRc,
           ige: it.tax_code_id ? igeCode.has(it.tax_code_id) : dIge,
+          eust: (it.ledger_account ?? d.ledger_account) === EUST_KONTO,
         });
       }
     } else {
-      units.push({ net: d.net_amount ?? 0, rate: dRate, rc: dRc, ige: dIge });
+      units.push({ net: d.net_amount ?? 0, rate: dRate, rc: dRc, ige: dIge, eust: d.ledger_account === EUST_KONTO });
     }
 
     const herkunft = rcHerkunft(d);
@@ -220,7 +226,13 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
     let hatIge = false;
     for (const u of units) {
       if (Math.abs(u.net) < 0.005) continue;
-      if (u.ige) {
+      if (u.eust) {
+        // Einfuhrumsatzsteuer (SKR03 1588 "Bezahlte Einfuhrumsatzsteuer"): Betrag = Vorsteuer, Kz 62
+        zeilen.push({
+          richtung: "eingang", belegId: d.id, belegNr: d.doc_number, partner, datum: d.doc_date, href,
+          netto: Math.abs(u.net), satz: 0, rc: "eust", vorzeichen: sign,
+        });
+      } else if (u.ige) {
         hatIge = true;
         zeilen.push({
           richtung: "eingang", belegId: d.id, belegNr: d.doc_number, partner, datum: d.doc_date, href,
