@@ -23,6 +23,7 @@ import { syncNinoxOrders } from "./syncNinoxOrders";
 import { syncNinoxInvoices } from "./syncNinoxInvoices";
 import { syncNinoxExterneRechnungen } from "./syncNinoxExterneRechnungen";
 import { bbBankImport } from "./bbBankImport";
+import { bbAusgangNachholen } from "./bbAusgangNachholen";
 import { bbUstKorrektur } from "./bbUstKorrektur";
 import { dedupeReport } from "./dedupeReport";
 import { dedupeMerge } from "./mergeOrganizations";
@@ -193,6 +194,13 @@ async function main() {
       const fromArg = process.argv.find((a) => a.startsWith("--from="))?.split("=")[1];
       console.log(`Bankumsätze aus BuchhaltungsButler nachholen${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await bbBankImport({ dryRun, from: fromArg }), null, 1));
+      break;
+    }
+    case "bb:ausgang-nachholen": {
+      const vonArg = process.argv.find((a) => a.startsWith("--von="))?.split("=")[1];
+      const bisArg = process.argv.find((a) => a.startsWith("--bis="))?.split("=")[1];
+      console.log(`Ausgangsrechnungen aus BuchhaltungsButler nachholen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await bbAusgangNachholen({ dryRun, von: vonArg, bis: bisArg }), null, 1));
       break;
     }
     case "bb:ust-korrigieren": {
