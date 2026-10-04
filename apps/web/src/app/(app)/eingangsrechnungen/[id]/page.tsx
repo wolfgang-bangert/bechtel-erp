@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { ReviewForm } from "./ui";
-import { setIncomingStatus, bestaetigeUst, alsRechnungBehandeln } from "../actions";
+import { setIncomingStatus, bestaetigeUst, alsRechnungBehandeln, alsSonstigesBehandeln } from "../actions";
+import { applyListFilters, sortSpec, type ListeParams } from "../_liste";
 
 export const dynamic = "force-dynamic";
 
@@ -41,11 +42,37 @@ const fmtOrderNo = (n: string) => (/^[A-Z0-9]{6}$/.test(n) ? n.match(/../g)!.joi
 
 export default async function IncomingDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ l?: string }>;
 }) {
   const { id } = await params;
+  const { l: listeRaw } = await searchParams;
   const supabase = await createClient();
+
+  // Blättern: Nachbarn in der Liste, aus der der Beleg geöffnet wurde (gleiche Filter und Sortierung).
+  const liste = listeRaw ? Object.fromEntries(new URLSearchParams(listeRaw)) as ListeParams : null;
+  let prevId: string | null = null;
+  let nextId: string | null = null;
+  let pos = 0;
+  let total = 0;
+  if (liste) {
+    const { column, ascending } = sortSpec(liste);
+    const { data: ids } = await applyListFilters(supabase.from("incoming_document").select("id"), liste)
+      .order(column, { ascending, nullsFirst: false })
+      .order("id")
+      .range(0, 4999);
+    const list = (ids ?? []).map((r: { id: string }) => r.id);
+    const i = list.indexOf(id);
+    if (i >= 0) {
+      pos = i + 1;
+      total = list.length;
+      prevId = i > 0 ? list[i - 1] : null;
+      nextId = i < list.length - 1 ? list[i + 1] : null;
+    }
+  }
+  const lq = listeRaw ? `?l=${encodeURIComponent(listeRaw)}` : "";
 
   const [
     { data: doc, error },
@@ -200,8 +227,15 @@ export default async function IncomingDetail({
 
   return (
     <>
-      <p className="lead">
-        <Link href="/eingangsrechnungen">← Eingangsrechnungen</Link>
+      <p className="lead" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <Link href={`/eingangsrechnungen${listeRaw ? `?${listeRaw}` : ""}`}>← Eingangsrechnungen</Link>
+        {pos > 0 && (
+          <span style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+            {prevId ? <Link href={`/eingangsrechnungen/${prevId}${lq}`}>← vorheriger</Link> : <span style={{ opacity: 0.4 }}>← vorheriger</span>}
+            <span className="count">{pos} von {total}</span>
+            {nextId ? <Link href={`/eingangsrechnungen/${nextId}${lq}`}>nächster →</Link> : <span style={{ opacity: 0.4 }}>nächster →</span>}
+          </span>
+        )}
       </p>
       <h1>{doc.doc_number ?? doc.file_name ?? "Beleg"}</h1>
       <p className="lead">
@@ -217,7 +251,9 @@ export default async function IncomingDetail({
         <div className="card" style={{ marginBottom: 16 }}>
           <p className="lead" style={{ marginTop: 0 }}>
             Sonstiges — kein Beleg, nicht buchungsrelevant (z.B. AGB, Werbung, Angebot).
-            {doc.forwarded_at
+            {String(doc.notes ?? "").startsWith("Von Hand als Sonstiges")
+              ? " Von Hand als Sonstiges eingestuft (nicht weitergeleitet)."
+              : doc.forwarded_at
               ? " Wurde per E-Mail weitergeleitet."
               : " Weiterleitung ausstehend (SMTP/Ziel prüfen)."}
           </p>
@@ -333,6 +369,14 @@ export default async function IncomingDetail({
             <button type="submit">Als Rechnung behandeln</button>
           </form>
         )}
+        {!isOther && !isAdvice && (
+          <form action={alsSonstigesBehandeln}>
+            <input type="hidden" name="id" value={doc.id} />
+            <button type="submit" className="ghost" title="kein Beleg, nicht buchungsrelevant (z.B. Lieferschein, AGB, Angebot)">
+              als Sonstiges einstufen
+            </button>
+          </form>
+        )}
         <form action={setIncomingStatus}>
           <input type="hidden" name="id" value={doc.id} />
           <input type="hidden" name="status" value="rejected" />
@@ -368,7 +412,7 @@ export default async function IncomingDetail({
         <p className="bd-hint">USt automatisch erkannt (sicher): {ust.reason}.</p>
       )}
 
-      {doc.notes && <div className="banner-err">{doc.notes}</div>}
+      {doc.notes && !String(doc.notes).startsWith("Von Hand als Sonstiges") && <div className="banner-err">{doc.notes}</div>}
 
       {!isHint && (
         <div className="content-wide">
