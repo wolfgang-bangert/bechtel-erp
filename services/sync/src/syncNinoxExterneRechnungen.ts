@@ -147,7 +147,12 @@ export async function syncNinoxExterneRechnungen(opts: {
     const todo: Rec[] = [];
     for (const r of recs) {
       const ext = `ninox:${q.key}:${q.table}:${r.id}`;
-      const nr = q.numberField ? String(r.fields[q.numberField]).trim() : "";
+      // Rechnungsnummer vorab: Euchner-Feld, bei D-TACK aus dem Dateinamen ("Rechnung 260H105 vom ...").
+      // So kostet eine schon vorhandene Rechnung (z.B. von Hand angelegt) keinen KI-Aufruf pro Lauf.
+      const fileName0 = String(r.fields[q.fileField] ?? "");
+      const nr = q.numberField
+        ? String(r.fields[q.numberField]).trim()
+        : (/^Rechnung\s+(\S+)\s+vom\b/i.exec(fileName0)?.[1] ?? "");
       if (haveExt.has(ext) || (nr && haveNr.has(nr))) stat.schonVorhanden++;
       else todo.push(r);
     }
