@@ -13,7 +13,7 @@ const STATUS: Record<string, string> = {
   exported: "exportiert",
   rejected: "verworfen",
   advice: "Zahlungsavis",
-  dunning: "Mahnung",
+  dunning: "Sonstiges",
 };
 
 // Hinweisbelege: keine zu buchenden Rechnungen, eigener Blick.
@@ -201,7 +201,7 @@ export default async function EingangsrechnungenPage({
           className={"bd-stat-card" + ((dunningCount ?? 0) > 0 ? " danger" : "")}
         >
           <div className="n">{dunningCount ?? 0}</div>
-          <div className="l">Mahnungen</div>
+          <div className="l">Sonstiges</div>
         </Link>
       </div>
 
@@ -263,8 +263,9 @@ export default async function EingangsrechnungenPage({
       )}
       {isDunning && (
         <p className="bd-lead">
-          Mahnungen / Zahlungserinnerungen — <strong>keine</strong> zu buchenden
-          Rechnungen. Werden zusätzlich per E-Mail weitergeleitet.
+          Sonstiges — Mahnungen, AGB, Werbung, Angebote und andere Dokumente ohne Buchungsrelevanz,
+          <strong> keine</strong> zu buchenden Rechnungen. Werden zusätzlich per E-Mail weitergeleitet.
+          Ist eines doch eine Rechnung: öffnen und „Als Rechnung behandeln" wählen.
         </p>
       )}
 
@@ -285,7 +286,7 @@ export default async function EingangsrechnungenPage({
                 </Link>
               </th>
               <th className="bd-num">
-                {isAdvice ? "Lastschrift" : isDunning ? "offen" : "Brutto"}
+                {isAdvice ? "Lastschrift" : isDunning ? "Betrag" : "Brutto"}
               </th>
               <th>{isHint ? "bezieht sich auf" : "bezahlt"}</th>
               <th>{isHint ? "" : "gebucht"}</th>

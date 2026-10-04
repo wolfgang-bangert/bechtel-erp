@@ -20,6 +20,7 @@ type Row = {
   file_name: string | null;
   pdf_storage_key: string | null;
   extraction: Record<string, unknown> | null;
+  doc_type?: string;
 };
 
 /**
@@ -43,9 +44,9 @@ export async function forwardDunnings(opts: Options = {}) {
   const { data, error } = await supabase
     .from("incoming_document")
     .select(
-      "id, supplier_name, doc_number, gross_amount, currency, advice_reference, email_subject, email_from, email_date, file_name, pdf_storage_key, extraction",
+      "id, doc_type, supplier_name, doc_number, gross_amount, currency, advice_reference, email_subject, email_from, email_date, file_name, pdf_storage_key, extraction",
     )
-    .eq("doc_type", "dunning")
+    .in("doc_type", ["dunning", "other"])
     .is("forwarded_at", null);
   if (error) throw new Error(error.message);
 
@@ -57,11 +58,22 @@ export async function forwardDunnings(opts: Options = {}) {
   let sent = 0;
   let skipped = 0;
   for (const r of rows) {
-    const origSubject = r.email_subject?.trim() || `Mahnung ${r.supplier_name ?? ""}`.trim();
+    const origSubject = r.email_subject?.trim() || (r.doc_type === "other" ? (r.file_name ?? "Dokument") : `Mahnung ${r.supplier_name ?? ""}`.trim());
     const subject = `${SUBJECT_TAG}: ${origSubject}`;
     const ref = (r.advice_reference ?? []).join(", ") || r.doc_number || "unbekannt";
     const dun = (r.extraction?.dunning ?? {}) as Record<string, unknown>;
-    const body = [
+    const body = r.doc_type === "other"
+      ? [
+          `Weitergeleitetes Dokument aus dem Postfach rechnungen@bechtel-druck.de (kein Beleg, nicht buchungsrelevant).`,
+          ``,
+          `Absender:  ${r.email_from ?? "?"} am ${r.email_date ?? "?"}`,
+          `Betreff:   ${r.email_subject ?? "-"}`,
+          `Datei:     ${r.file_name ?? "-"}`,
+          ``,
+          `Das Original-PDF hängt an. In werk steht es unter Eingangsrechnungen > Sonstiges; ist es doch eine`,
+          `Rechnung, dort "Als Rechnung behandeln" wählen.`,
+        ].join("\n")
+      : [
       `Weitergeleitete Mahnung aus dem Postfach rechnungen@bechtel-druck.de.`,
       ``,
       `Lieferant:        ${r.supplier_name ?? "?"}`,
@@ -73,7 +85,7 @@ export async function forwardDunnings(opts: Options = {}) {
       `Original von:     ${r.email_from ?? "?"} am ${r.email_date ?? "?"}`,
       ``,
       `Das Original-PDF hängt an.`,
-    ].join("\n");
+        ].join("\n");
 
     if (dryRun) {
       console.log(`  [DRY] ${subject}`);

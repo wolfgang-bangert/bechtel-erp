@@ -62,7 +62,7 @@ export async function ustPruefen({ dryRun, neuLesen = false }: { dryRun: boolean
     if (d.dedup_key.startsWith("bb:") || !d.extraction) continue;
     let ex = d.extraction;
     let gelesen = false;
-    if (ex.doc_type === "payment_advice" || ex.doc_type === "dunning") continue;
+    if (ex.doc_type === "payment_advice" || ex.doc_type === "dunning" || ex.doc_type === "other") continue;
     const offen = (ex._ust as { status?: string } | undefined)?.status === "vorschlag";
     if (d.status === "reviewed" && !offen) continue;
 
