@@ -23,6 +23,7 @@ import { syncNinoxOrders } from "./syncNinoxOrders";
 import { syncNinoxInvoices } from "./syncNinoxInvoices";
 import { syncNinoxExterneRechnungen } from "./syncNinoxExterneRechnungen";
 import { bbBankImport } from "./bbBankImport";
+import { bbUstKorrektur } from "./bbUstKorrektur";
 import { dedupeReport } from "./dedupeReport";
 import { dedupeMerge } from "./mergeOrganizations";
 import { syncInvoicePdfs } from "./syncInvoicePdfs";
@@ -192,6 +193,11 @@ async function main() {
       const fromArg = process.argv.find((a) => a.startsWith("--from="))?.split("=")[1];
       console.log(`Bankumsätze aus BuchhaltungsButler nachholen${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await bbBankImport({ dryRun, from: fromArg }), null, 1));
+      break;
+    }
+    case "bb:ust-korrigieren": {
+      console.log(`BB-Belege ohne Steuerschlüssel: Netto/USt/Positionen aus der Rechnung übernehmen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await bbUstKorrektur({ dryRun }), null, 1));
       break;
     }
     case "pdf:invoices": {
