@@ -45,11 +45,14 @@ export async function ustPruefen({ dryRun }: { dryRun: boolean }) {
     if (ex.doc_type === "payment_advice" || ex.doc_type === "dunning") continue;
     const edited =
       d.extracted_at != null && new Date(d.updated_at).getTime() - new Date(d.extracted_at).getTime() > 60_000;
-    if (edited) {
+    const v = pruefeUst(ex, { codes: taxCodes });
+    // Vom Nutzer bearbeitete Belege nicht anfassen - außer die USt-Prüfung ist noch offen
+    // ("vorschlag") und trifft jetzt eine feste Regel ("sicher", z.B. USD-Rechnung = §13b).
+    const ustOffen = (ex._ust as { status?: string } | undefined)?.status === "vorschlag";
+    if (edited && !(ustOffen && v.status === "sicher")) {
       out.manuellBearbeitet++;
       continue;
     }
-    const v = pruefeUst(ex, { codes: taxCodes });
     out.geprueft++;
     out[v.status]++;
     const changed = (v.status === "sicher" ? v.tax_code_id : null) !== d.tax_code_id;

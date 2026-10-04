@@ -58,6 +58,7 @@ type IncDoc = {
   status: string;
   doc_number: string | null;
   doc_date: string | null;
+  currency: string | null;
   net_amount: number | null;
   tax_amount: number | null;
   tax_breakdown: Record<string, number> | null;
@@ -80,6 +81,8 @@ function rcHerkunft(d: IncDoc): "eu" | "drittland" | "unklar" {
   if (/^[A-Z]{2}$/.test(pre) && pre !== "DE") return EU.has(pre) || pre === "EL" ? "eu" : "drittland";
   const land = (d.organization?.tax_country ?? "").toUpperCase();
   if (land && land !== "DE") return EU.has(land) ? "eu" : "drittland";
+  // Ohne USt-IdNr/Land: eine USD-Rechnung ist ein Anbieter aus dem Drittland (USA).
+  if ((d.currency ?? "").toUpperCase() === "USD") return "drittland";
   return "unklar";
 }
 
@@ -109,7 +112,7 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
     supabase
       .from("incoming_document")
       .select(
-        "id, doc_type, status, doc_number, doc_date, net_amount, tax_amount, tax_breakdown, tax_code_id, " +
+        "id, doc_type, status, doc_number, doc_date, currency, net_amount, tax_amount, tax_breakdown, tax_code_id, " +
           "supplier_name, supplier_vat_id, organization:supplier_organization_id ( tax_country ), " +
           "incoming_document_item!incoming_document_item_incoming_document_id_fkey ( net_amount, tax_rate, tax_code_id, linked_document_id )",
       )
