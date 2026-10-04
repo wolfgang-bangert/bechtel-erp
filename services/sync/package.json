@@ -32,6 +32,7 @@
     "bb:learn-vorkontierung-debitoren": "tsx src/cli.ts bb:learn-vorkontierung-debitoren",
     "bb:learn-bankregeln": "tsx src/cli.ts bb:learn-bankregeln",
     "ninox:orders": "tsx src/cli.ts ninox:orders",
+    "ninox:rechnungen-extern": "tsx src/cli.ts ninox:rechnungen-extern",
     "ninox:invoices": "tsx src/cli.ts ninox:invoices",
     "datev:extf": "tsx src/cli.ts datev:extf",
     "invoice:bookings": "tsx src/cli.ts invoice:bookings",
