@@ -51,6 +51,7 @@ export function pruefeUst(
     opts.codes.find((c) => c.treatment === "standard_de" && Math.round(Number(c.rate)) === Math.round(rate)) ?? null;
   const rc = opts.codes.find((c) => c.treatment === "reverse_charge_eu") ?? null;
   const ige = opts.codes.find((c) => c.treatment === "intra_community_acquisition") ?? null;
+  const vst0 = opts.codes.find((c) => c.treatment === "tax_free_other" && Math.round(Number(c.rate)) === 0) ?? null;
   const verdict = (status: UstVerdict["status"], code: UstTaxCode | null, reason: string): UstVerdict => ({
     status,
     tax_code_id: code?.id ?? null,
@@ -112,9 +113,18 @@ export function pruefeUst(
     return verdict("vorschlag", rc, `Fremdwährung ${currency}, keine USt ausgewiesen`);
   }
   if (noTax) {
+    // Deutscher Lieferant ohne USt (Porto, Versicherung, Kleinunternehmer ...): keine Vorsteuer. Ist die
+    // Steuerfreiheit auf dem Beleg erkennbar (0-%-Satz oder Begründung), setzen wir VST0 automatisch.
+    if (country === "DE" && currency === "EUR" && vst0) {
+      const explicitZero = bd.some((x) => x.rate === 0);
+      if (freeReason || explicitZero) {
+        return verdict("sicher", vst0, `deutscher Lieferant, keine USt ausgewiesen${freeReason ? ` (${freeReason.slice(0, 80)})` : " (0 %)"} - keine Vorsteuer`);
+      }
+      return verdict("vorschlag", vst0, "deutscher Lieferant ohne ausgewiesene USt - vermutlich steuerfrei (keine Vorsteuer), bitte bestätigen");
+    }
     return verdict(
       "vorschlag",
-      null,
+      vst0,
       freeReason
         ? `Keine USt ausgewiesen — Beleg: ${freeReason}`
         : "Beleg weist keine USt aus - bitte Schlüssel festlegen",

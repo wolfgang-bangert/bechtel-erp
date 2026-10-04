@@ -546,6 +546,7 @@ export async function extractIncoming(opts: Options = {}) {
     .filter((t) => t.direction === "input" && t.is_active)
     .map((t) => ({ id: t.id, code: t.code, rate: Number(t.rate), treatment: t.treatment }));
   const ownVatId = await loadOwnVatId();
+  const zeroCodeId = taxCodes.find((c) => c.treatment === "tax_free_other" && Math.round(c.rate) === 0)?.id ?? null;
   const stdByRate = (rate: unknown): string | null => {
     const r = Math.round(Number(rate));
     return taxCodes.find((c) => c.treatment === "standard_de" && Math.round(c.rate) === r)?.id ?? null;
@@ -814,7 +815,7 @@ export async function extractIncoming(opts: Options = {}) {
             tax_rate: num(li.tax_rate),
             net_amount: num(li.net_amount),
             ledger_account: rule?.expense_account ?? null,
-            tax_code_id: ust?.status === "sicher" ? (num(li.tax_rate) === 0 ? null : (stdByRate(li.tax_rate) ?? ust.tax_code_id)) : null,
+            tax_code_id: ust?.status === "sicher" ? (num(li.tax_rate) === 0 ? zeroCodeId : (stdByRate(li.tax_rate) ?? ust.tax_code_id)) : null,
             ...itemExtras(li),
             raw: li,
           }));
