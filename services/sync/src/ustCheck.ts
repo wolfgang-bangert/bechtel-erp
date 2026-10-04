@@ -1,4 +1,5 @@
 import type { Extracted } from "./extractIncoming";
+import { supabase } from "./supabase";
 
 /* --------------------------------------------------------------------------
  * Strenge USt-Prüfung für Eingangsbelege.
@@ -39,6 +40,8 @@ export function pruefeUst(
     supplierCountry?: string | null;
     /** Einstellung an der Organisation: 'service' = Dienstleister (Reverse Charge), 'goods' = Warenlieferant. */
     supplierKind?: "service" | "goods" | null;
+    /** Eigene USt-IdNr. (Firmenprofil) - steht beim Rechnungsempfänger, ist nie die des Lieferanten. */
+    ownVatId?: string | null;
   },
 ): UstVerdict {
   const std = (rate: number) =>
@@ -55,7 +58,9 @@ export function pruefeUst(
   const tax = n(e.tax_amount);
   const gross = n(e.gross_amount);
   const currency = (e.currency ?? "EUR").toUpperCase();
-  const vat = (e.supplier?.vat_id ?? "").replace(/\s/g, "").toUpperCase();
+  const own = (opts.ownVatId ?? "").replace(/\s/g, "").toUpperCase();
+  let vat = (e.supplier?.vat_id ?? "").replace(/\s/g, "").toUpperCase();
+  if (own && vat === own) vat = "";
   let country = /^[A-Z]{2}/.test(vat) ? vat.slice(0, 2) : (opts.supplierCountry ?? "").toUpperCase();
   if (country === "EL") country = "GR";
   const bd = Object.entries(e.tax_breakdown ?? {})
@@ -135,4 +140,10 @@ export function pruefeUst(
     return verdict("sicher", code, `deutscher Lieferant, ${bd.map((x) => x.rate).join("/")} % USt ausgewiesen, Beträge stimmig`);
   }
   return verdict("vorschlag", code, problems.join("; ") || "Steuerschlüssel nicht ableitbar");
+}
+
+/** Eigene USt-IdNr. (normalisiert) aus dem Firmenprofil. */
+export async function loadOwnVatId(): Promise<string> {
+  const { data } = await supabase.from("setting").select("value").eq("key", "company.profile").maybeSingle();
+  return String((data?.value as { vat_id?: string } | null)?.vat_id ?? "").replace(/\s/g, "").toUpperCase();
 }

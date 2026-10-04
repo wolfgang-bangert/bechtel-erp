@@ -16,6 +16,7 @@ import { importBbAccounts, importBbParties, applyBbParties, createBbSuppliers } 
 import { importBbBelege } from "./bbImportBelege";
 import { bbPositionen } from "./bbPositionen";
 import { ustPruefen } from "./ustPruefen";
+import { eigeneUstIdBereinigen } from "./eigeneUstIdBereinigen";
 import { learnVorkontierung, learnDebitorVorkontierung } from "./learnVorkontierung";
 import { learnBankLedgerRules } from "./learnBankRules";
 import { syncNinoxOrders } from "./syncNinoxOrders";
@@ -650,6 +651,11 @@ async function main() {
       }
       console.log(`BB-DATEV-Export → Eingangsrechnungen: ${f}${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await importBbBelege({ file: f, dryRun, ohnePdf: flags.has("--ohne-pdf"), lieferantenAnlegen: flags.has("--lieferanten-anlegen") }), null, 1));
+      break;
+    }
+    case "incoming:eigene-ustid": {
+      console.log(`Eigene USt-IdNr. aus Organisationen/Belegen entfernen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await eigeneUstIdBereinigen({ dryRun }), null, 1));
       break;
     }
     case "incoming:ust-pruefen": {
