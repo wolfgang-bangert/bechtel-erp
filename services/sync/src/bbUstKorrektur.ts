@@ -16,7 +16,15 @@ import type { Extracted } from "./extractIncoming";
 const AUSGENOMMEN = new Set(["1206926153", "1207100561"]);
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-export async function bbUstKorrektur({ dryRun }: { dryRun: boolean }) {
+export type KorrekturModus = "A" | "B1" | "B2";
+
+/**
+ * Modus A  : BB ohne Steuerschlüssel (Netto = Brutto, USt 0) - Netto/USt aus der Rechnung.
+ * Modus B1 : gleicher Bruttobetrag, die Rechnung rechnet Netto/USt anders (u.a. Ausland ohne USt, 7 %/19 %).
+ * Modus B2 : Rechnung in Fremdwährung (USD ...): BB hat auf den gebuchten Euro-Betrag 19 % Vorsteuer gerechnet -
+ *            Euro-Betrag bleibt, USt wird 0, Fremdwährungsbetrag wird hinterlegt.
+ */
+export async function bbUstKorrektur({ dryRun, modus = "A" }: { dryRun: boolean; modus?: KorrekturModus }) {
   const taxCodes: UstTaxCode[] = (
     await pagedSelect<{ id: string; code: string; rate: number; treatment: string; direction: string; is_active: boolean }>(
       "tax_code",
@@ -61,6 +69,16 @@ export async function bbUstKorrektur({ dryRun }: { dryRun: boolean }) {
     korrigiert: 0,
   };
 
+  // Für B1/B2: Belege, bei denen mehrere BB-Buchungen zu derselben Rechnung gehören, bleiben unberührt (Kategorie 3).
+  const grpCount = new Map<string, number>();
+  for (const d of docs) {
+    if (!d.dedup_key.startsWith("bb:") || d.status === "rejected" || !d.extraction) continue;
+    const bbx = d.extraction._bb as { positionen?: string; ust_korrektur?: unknown } | undefined;
+    if (bbx?.positionen !== "Summe weicht ab" || bbx.ust_korrektur) continue;
+    const k = `${d.supplier_name}|${d.doc_number}`;
+    grpCount.set(k, (grpCount.get(k) ?? 0) + 1);
+  }
+
   for (const d of docs) {
     if (!d.dedup_key.startsWith("bb:") || d.status === "rejected" || !d.extraction) continue;
     const bb = d.extraction._bb as { positionen?: string; ust_korrektur?: unknown } | undefined;
@@ -70,7 +88,19 @@ export async function bbUstKorrektur({ dryRun }: { dryRun: boolean }) {
     const kn = Number(e.net_amount), kt = Number(e.tax_amount ?? 0), kg = Number(e.gross_amount);
     const wn = Number(d.net_amount), wt = Number(d.tax_amount ?? 0);
     if (![kn, kg].every(Number.isFinite)) continue;
-    if (!(Math.abs(wn - kg) <= 0.05 && kt > 0.01 && wt < 0.005)) continue; // nur Klasse "Netto = Brutto, keine USt"
+    const cur = String(e.currency ?? "EUR").toUpperCase();
+    const wg = Number(d.gross_amount);
+    const mehrfach = (grpCount.get(`${d.supplier_name}|${d.doc_number}`) ?? 0) > 1;
+    const kleinAbw = Math.abs(kt - wt) < 0.5 && Math.abs(kn - wn) < 0.5; // Rundung - nicht anfassen (B)
+    if (modus === "A") {
+      if (!(Math.abs(wn - kg) <= 0.05 && kt > 0.01 && wt < 0.005)) continue; // nur "Netto = Brutto, keine USt"
+    } else if (modus === "B2") {
+      if (cur === "EUR" || mehrfach || kleinAbw || !Number.isFinite(wg)) continue;
+    } else {
+      if (cur !== "EUR" || mehrfach || kleinAbw) continue;
+      if (!(Math.abs(wg - kg) <= 0.02 && Math.abs(kn + kt - kg) <= 0.03)) continue; // gleicher Brutto, Rechnung stimmig
+      if (Math.abs(wn - kg) <= 0.05 && kt > 0.01 && wt < 0.005) continue; // das ist Klasse A (schon erledigt)
+    }
     out.kandidaten++;
     const label = `${d.supplier_name ?? "?"} ${d.doc_number ?? ""}`.trim();
 
@@ -96,8 +126,13 @@ export async function bbUstKorrektur({ dryRun }: { dryRun: boolean }) {
     const liSum = r2(lis.reduce((s, li) => s + Number(li.net_amount), 0));
 
     type NewItem = { description: string | null; quantity: number | null; unit_price: number | null; tax_rate: number | null; net_amount: number; ledger_account: string | null; cost_center_id: string | null; material_ref: string | null };
+    // Zielwerte je Modus: B2 behält den gebuchten Euro-Betrag (netto = brutto, USt 0)
+    const zielNetto = modus === "B2" ? r2(wg) : kn;
+    const zielUst = modus === "B2" ? 0 : kt;
+    const zielRate = modus === "B2" ? 0 : domRate;
+    const summeBB = r2(its.reduce((x, i) => x + Number(i.net_amount ?? 0), 0));
     let neu: NewItem[] | null = null;
-    if (accounts.length === 1 && lis.length > 0 && Math.abs(liSum - kn) <= 0.05) {
+    if (modus !== "B2" && accounts.length === 1 && lis.length > 0 && Math.abs(liSum - kn) <= 0.05) {
       neu = lis.map((li) => ({
         description: li.description ?? null,
         quantity: li.quantity ?? null,
@@ -108,15 +143,15 @@ export async function bbUstKorrektur({ dryRun }: { dryRun: boolean }) {
         cost_center_id: its[0].cost_center_id,
         material_ref: its[0].material_ref,
       }));
-    } else if (pos.length === 1 && bd.every((x) => x.rate > 0 || x.amount === 0)) {
-      // BB-Positionen (Brutto) auf Netto herunterrechnen
-      const rate = pos[0].rate;
-      let rest = kn;
+    } else if (modus === "B2" || modus === "B1" ? pos.length <= 1 : pos.length === 1 && bd.every((x) => x.rate > 0 || x.amount === 0)) {
+      // BB-Positionen proportional auf das Ziel-Netto umrechnen (Rundungsrest in die letzte Position)
+      const faktor = summeBB > 0 ? zielNetto / summeBB : 0;
+      let rest = zielNetto;
       neu = its.map((i, idx) => {
         const last = idx === its.length - 1;
-        const n = last ? r2(rest) : r2(Number(i.net_amount) / (1 + rate / 100));
+        const n = last ? r2(rest) : r2(Number(i.net_amount ?? 0) * faktor);
         rest = r2(rest - n);
-        return { description: i.description, quantity: i.quantity, unit_price: null, tax_rate: rate, net_amount: n, ledger_account: i.ledger_account, cost_center_id: i.cost_center_id, material_ref: i.material_ref };
+        return { description: i.description, quantity: i.quantity, unit_price: null, tax_rate: zielRate ?? 0, net_amount: n, ledger_account: i.ledger_account, cost_center_id: i.cost_center_id, material_ref: i.material_ref };
       });
     }
     if (!neu) { out.manuell.push(`${label}: gemischte Sätze/mehrere Konten - bitte von Hand`); continue; }
@@ -124,16 +159,26 @@ export async function bbUstKorrektur({ dryRun }: { dryRun: boolean }) {
     const org = d.supplier_organization_id ? orgInfo.get(d.supplier_organization_id) : undefined;
     const orgVat = (org?.vat_id ?? "").replace(/\s/g, "").toUpperCase();
     const m = /^[A-Za-z]{2}/.exec(orgVat && orgVat !== ownVatId ? orgVat : "");
-    const v = pruefeUst(e, { ownVatId, codes: taxCodes, supplierCountry: m ? m[0].toUpperCase() : null, supplierKind: (org?.foreign_supply_kind as "service" | "goods" | null) ?? null });
+    const eFuerPruefung = modus === "B2" ? ({ ...e, net_amount: zielNetto, tax_amount: 0, gross_amount: zielNetto, tax_breakdown: {} } as typeof e) : e;
+    const v = pruefeUst(eFuerPruefung, { ownVatId, codes: taxCodes, supplierCountry: m ? m[0].toUpperCase() : null, supplierKind: (org?.foreign_supply_kind as "service" | "goods" | null) ?? null });
     const sicher = v.status === "sicher";
     out[sicher ? "sicher" : "vorschlag"]++;
     const mon = String(d.doc_date).slice(0, 7);
     const pm = (out.ustProMonat[mon] ??= { sicher: 0, vorschlag: 0 });
-    pm[sicher ? "sicher" : "vorschlag"] += kt;
+    pm[sicher ? "sicher" : "vorschlag"] += zielUst - wt;
     if (dryRun) continue;
 
+    // Schlüssel je Position: bei Standardschlüssel nach Satz (0 % = "keine Vorsteuer"), bei Reverse Charge /
+    // innergemeinschaftlichem Erwerb der gewählte Schlüssel für alle Positionen.
+    const vTreatment = taxCodes.find((c) => c.id === v.tax_code_id)?.treatment;
     const codeFor = (rate: number | null) =>
-      !sicher ? null : rate != null && rate === 0 ? zeroCodeId : (taxCodes.find((c) => c.id === v.tax_code_id)?.treatment === "standard_de" ? (stdByRate(rate) ?? v.tax_code_id) : v.tax_code_id);
+      !sicher
+        ? null
+        : vTreatment === "standard_de"
+          ? rate != null && rate === 0
+            ? zeroCodeId
+            : (stdByRate(rate) ?? v.tax_code_id)
+          : v.tax_code_id;
     const { error: de } = await supabase.from("incoming_document_item").delete().eq("incoming_document_id", d.id);
     if (de) throw new Error(`${label}: ${de.message}`);
     const { error: ie } = await supabase.from("incoming_document_item").insert(
@@ -147,15 +192,17 @@ export async function bbUstKorrektur({ dryRun }: { dryRun: boolean }) {
     );
     if (ie) throw new Error(`${label}: ${ie.message}`);
     const { error: ue } = await supabase.from("incoming_document").update({
-      net_amount: kn,
-      tax_amount: kt,
-      tax_breakdown: e.tax_breakdown ?? null,
+      net_amount: zielNetto,
+      tax_amount: zielUst,
+      tax_breakdown: modus === "B2" ? null : (e.tax_breakdown ?? null),
+      // Fremdwährungs-Rechnung: Original-Betrag und Währung festhalten (Euro-Beträge bleiben die gebuchten)
+      ...(modus === "B2" ? { currency: cur.slice(0, 3), fx_gross_amount: Number.isFinite(kg) && kg !== 0 ? Math.abs(kg) : null } : {}),
       tax_code_id: sicher && !neu.every((x) => x.ledger_account?.startsWith("8")) ? v.tax_code_id : null,
       status: sicher ? d.status : "extracted",
       extraction: {
         ...e,
         _ust: v,
-        _bb: { ...(e._bb ?? {}), ust_korrektur: { am: new Date().toISOString(), vorher: { netto: wn, ust: wt }, nachher: { netto: kn, ust: kt } } },
+        _bb: { ...(e._bb ?? {}), ust_korrektur: { am: new Date().toISOString(), vorher: { netto: wn, ust: wt }, nachher: { netto: zielNetto, ust: zielUst }, modus } },
       },
     }).eq("id", d.id);
     if (ue) throw new Error(`${label}: ${ue.message}`);
