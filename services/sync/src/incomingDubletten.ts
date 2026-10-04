@@ -4,8 +4,9 @@ import { pagedSelect } from "./db";
 /* --------------------------------------------------------------------------
  * Dubletten bei Eingangsbelegen bereinigen. Zwei Belege gelten als dieselbe Rechnung, wenn Rechnungsnummer
  * (normalisiert), Art und Betrag (±0,02) übereinstimmen UND dieselbe Datei (SHA-256) oder derselbe/ähnliche
- * Lieferant vorliegt. Pro Gruppe bleibt EIN Beleg: der mit Bankzuordnung, sonst der weiter bearbeitete
- * (gebucht > geprüft > extrahiert), sonst der ältere. Die übrigen werden "verworfen" (nie gelöscht).
+ * Lieferant vorliegt. Pro Gruppe bleibt EIN Beleg: der am weitesten bearbeitete (gebucht > geprüft > extrahiert),
+ * dann der mit KI-Positionen (Mail/Upload vor BB), dann der mit Bankzuordnung, sonst der ältere. Bankzuordnungen
+ * der übrigen wandern zum behaltenen Beleg; die übrigen werden "verworfen" (nie gelöscht).
  * Übersprungen (und gemeldet) werden Gruppen, in denen mehrere Belege Bankzuordnungen haben oder ein Verlierer
  * Auftrags-Zuordnungen trägt - das entscheidet der Nutzer.
  * -------------------------------------------------------------------------- */
@@ -85,7 +86,13 @@ export async function incomingDubletten({ dryRun }: { dryRun: boolean }) {
       out.uebersprungen.push(`${label}: mehrere Belege mit Bankzuordnung`);
       continue;
     }
-    const score = (d: Doc) => [matchCount.get(d.id) ?? 0, RANK[d.status] ?? 0, d.ledger_account ? 1 : 0, d.tax_code_id ? 1 : 0];
+    const score = (d: Doc) => [
+      RANK[d.status] ?? 0,
+      d.dedup_key.startsWith("bb:") ? 0 : 1,
+      matchCount.get(d.id) ?? 0,
+      d.ledger_account ? 1 : 0,
+      d.tax_code_id ? 1 : 0,
+    ];
     const sorted = [...g].sort((a, b) => {
       const sa = score(a), sb = score(b);
       for (let i = 0; i < sa.length; i++) if (sa[i] !== sb[i]) return sb[i] - sa[i];
@@ -101,6 +108,16 @@ export async function incomingDubletten({ dryRun }: { dryRun: boolean }) {
     out.liste.push(`${label}: behalte ${keeper.dedup_key.split(":")[0]}/${keeper.status}, verwerfe ${losers.map((d) => `${d.dedup_key.split(":")[0]}/${d.status}`).join(", ")}`);
     if (dryRun) continue;
     for (const l of losers) {
+      // Bankzuordnungen (Zahlungen/Skonto) zum behaltenen Beleg umhängen
+      if ((matchCount.get(l.id) ?? 0) > 0) {
+        const { error: me } = await supabase.from("bank_transaction_match").update({ incoming_document_id: keeper.id }).eq("incoming_document_id", l.id);
+        if (me) {
+          out.uebersprungen.push(`${label}: Bankzuordnung nicht umhängbar (${me.message})`);
+          continue;
+        }
+        await supabase.rpc("recalc_incoming_payment", { p_id: keeper.id });
+        await supabase.rpc("recalc_incoming_payment", { p_id: l.id });
+      }
       const { error } = await supabase
         .from("incoming_document")
         .update({ status: "rejected", notes: `Dublette von Beleg ${keeper.id} (gleiche Rechnungsnummer/Datei und Betrag) - automatisch bereinigt` })
