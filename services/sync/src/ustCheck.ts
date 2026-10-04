@@ -61,6 +61,12 @@ export function pruefeUst(
   const freeReason = e.vat_check?.tax_free_reason?.trim() || null;
   const noTax = tax == null || tax === 0 || bd.length === 0;
 
+  // --- Festgelegte Regel (Nutzer): USD-Rechnung ohne ausgewiesene USt = Leistung eines Anbieters
+  // aus dem Drittland -> Reverse Charge §13b, automatisch (nicht nur Vorschlag). ---------------
+  if (noTax && currency === "USD" && country !== "DE" && rc) {
+    return verdict("sicher", rc, "USD-Rechnung ohne USt - Reverse Charge (§ 13b), feste Regel");
+  }
+
   // --- Reverse Charge / ausländische Leistung ohne USt -> Vorschlag §13b -------
   if (rcNote) return verdict("vorschlag", rc, "Beleg nennt Reverse Charge / Steuerschuldnerschaft des Leistungsempfängers");
   if (noTax && country && country !== "DE") {
