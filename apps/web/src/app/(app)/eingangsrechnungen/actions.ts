@@ -302,7 +302,13 @@ export async function bestaetigeUst(fd: FormData): Promise<void> {
     .select("id, tax_rate")
     .eq("incoming_document_id", id);
   for (const it of items ?? []) {
-    const itemCode = chosen.treatment === "standard_de" ? (stdByRate(it.tax_rate) ?? chosen.id) : chosen.id;
+    // 0-%-Positionen (z.B. DPD-Europa) bekommen keinen Vorsteuer-Schlüssel
+    const itemCode =
+      chosen.treatment === "standard_de"
+        ? it.tax_rate != null && Number(it.tax_rate) === 0
+          ? null
+          : (stdByRate(it.tax_rate) ?? chosen.id)
+        : chosen.id;
     await supabase.from("incoming_document_item").update({ tax_code_id: itemCode }).eq("id", it.id);
   }
   const { data: doc } = await supabase.from("incoming_document").select("extraction").eq("id", id).maybeSingle();
