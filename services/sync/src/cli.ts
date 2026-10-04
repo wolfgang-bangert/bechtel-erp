@@ -22,6 +22,7 @@ import { learnBankLedgerRules } from "./learnBankRules";
 import { syncNinoxOrders } from "./syncNinoxOrders";
 import { syncNinoxInvoices } from "./syncNinoxInvoices";
 import { syncNinoxExterneRechnungen } from "./syncNinoxExterneRechnungen";
+import { bbBankImport } from "./bbBankImport";
 import { dedupeReport } from "./dedupeReport";
 import { dedupeMerge } from "./mergeOrganizations";
 import { syncInvoicePdfs } from "./syncInvoicePdfs";
@@ -185,6 +186,12 @@ async function main() {
           1,
         ),
       );
+      break;
+    }
+    case "bank:aus-bb": {
+      const fromArg = process.argv.find((a) => a.startsWith("--from="))?.split("=")[1];
+      console.log(`Bankumsätze aus BuchhaltungsButler nachholen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await bbBankImport({ dryRun, from: fromArg }), null, 1));
       break;
     }
     case "pdf:invoices": {
