@@ -122,8 +122,22 @@ export async function bbUstKorrektur({ dryRun, modus = "A" }: { dryRun: boolean;
     const pos = bd.filter((x) => x.rate > 0);
     const domRate = [...pos].sort((a, b) => b.amount - a.amount)[0]?.rate ?? null;
     const accounts = [...new Set(its.map((i) => i.ledger_account ?? ""))];
-    const lis = (e.line_items ?? []).filter((li) => li.net_amount != null);
-    const liSum = r2(lis.reduce((s, li) => s + Number(li.net_amount), 0));
+    let lis = (e.line_items ?? []).filter((li) => li.net_amount != null);
+    let liSum = r2(lis.reduce((s, li) => s + Number(li.net_amount), 0));
+    // Summenzeile auf dem Beleg (z.B. Deutsche Post: Sonderedition = Porto + Trägermaterial): eine Zeile, deren Netto
+    // der Summe aller übrigen entspricht, würde doppelt zählen - dann weglassen.
+    if (lis.length > 2 && Math.abs(liSum - kn) > 0.05) {
+      const j = lis.findIndex((li) => Math.abs(Number(li.net_amount) - r2(liSum - Number(li.net_amount))) <= 0.05);
+      if (j >= 0 && Math.abs(r2(liSum - Number(lis[j].net_amount)) - kn) <= 0.05) {
+        lis = lis.filter((_, i) => i !== j);
+        liSum = r2(lis.reduce((s, li) => s + Number(li.net_amount), 0));
+      }
+    }
+    // Satz je KI-Position muss zur USt des Belegs passen (sonst gemischte Sätze, die die KI nicht sauber getrennt hat)
+    const kiSteuerOk =
+      lis.length > 0 &&
+      lis.every((li) => li.tax_rate != null) &&
+      Math.abs(r2(lis.reduce((s, li) => s + (Number(li.net_amount) * Number(li.tax_rate)) / 100, 0)) - kt) <= 0.05;
 
     type NewItem = { description: string | null; quantity: number | null; unit_price: number | null; tax_rate: number | null; net_amount: number; ledger_account: string | null; cost_center_id: string | null; material_ref: string | null };
     // Zielwerte je Modus: B2 behält den gebuchten Euro-Betrag (netto = brutto, USt 0)
@@ -132,7 +146,7 @@ export async function bbUstKorrektur({ dryRun, modus = "A" }: { dryRun: boolean;
     const zielRate = modus === "B2" ? 0 : domRate;
     const summeBB = r2(its.reduce((x, i) => x + Number(i.net_amount ?? 0), 0));
     let neu: NewItem[] | null = null;
-    if (modus !== "B2" && accounts.length === 1 && lis.length > 0 && Math.abs(liSum - kn) <= 0.05) {
+    if (modus !== "B2" && accounts.length === 1 && lis.length > 0 && Math.abs(liSum - kn) <= 0.05 && (kiSteuerOk || pos.length <= 1)) {
       neu = lis.map((li) => ({
         description: li.description ?? null,
         quantity: li.quantity ?? null,
@@ -143,7 +157,11 @@ export async function bbUstKorrektur({ dryRun, modus = "A" }: { dryRun: boolean;
         cost_center_id: its[0].cost_center_id,
         material_ref: its[0].material_ref,
       }));
-    } else if (modus === "B2" || modus === "B1" ? pos.length <= 1 : pos.length === 1 && bd.every((x) => x.rate > 0 || x.amount === 0)) {
+    } else if (
+      (modus === "B2" || modus === "B1" ? pos.length <= 1 : pos.length === 1 && bd.every((x) => x.rate > 0 || x.amount === 0)) &&
+      // eine einzige Rate für alle Positionen nur, wenn die USt dazu passt (sonst steuerfreier Anteil: von Hand)
+      Math.abs(r2((zielNetto * (zielRate ?? 0)) / 100) - zielUst) <= Math.max(0.03, zielNetto * 0.001)
+    ) {
       // BB-Positionen proportional auf das Ziel-Netto umrechnen (Rundungsrest in die letzte Position)
       const faktor = summeBB > 0 ? zielNetto / summeBB : 0;
       let rest = zielNetto;
