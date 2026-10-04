@@ -1215,3 +1215,20 @@ a.bd-tab:hover {
   font-weight: 600;
   color: var(--bd-ink-muted);
 }
+
+/* "Zurück zu …" - auf jeder Seite, ergänzt die festen Übersicht-Links der Seiten */
+.zurueck-leiste { margin: 0 0 10px; }
+.zurueck-knopf {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--bd-line, var(--border));
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.zurueck-knopf:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
