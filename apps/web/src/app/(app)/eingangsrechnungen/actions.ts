@@ -235,6 +235,9 @@ export async function uploadIncoming(
       .eq("dedup_key", dedupKey)
       .maybeSingle();
     if (exists) continue; // identischer Beleg schon erfasst
+    // dieselbe Datei aus anderem Kanal (Mail, BB-Import) zählt ebenfalls als schon erfasst
+    const { data: sameFile } = await supabase.from("incoming_document").select("id").eq("file_sha256", sha256).limit(1);
+    if (sameFile && sameFile.length) continue;
 
     const year = new Date().getFullYear();
     const key = `eingangsrechnungen/${year}/${randomUUID()}.pdf`;

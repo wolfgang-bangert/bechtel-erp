@@ -316,12 +316,16 @@ export async function importBbBelege(opts: Options) {
 
     // Duplikat gegen bestehende werk-Belege?
     const cands = byNr.get(norm(b.docNr)) ?? [];
-    const dup = cands.find(
-      (e) =>
-        (org && e.supplier_organization_id === org.id) ||
-        normName(e.supplier_name) === normName(supplierName) ||
-        (!!e.supplier_name && normName(supplierName).includes(normName(e.supplier_name).slice(0, 8))),
-    );
+    const dup =
+      cands.find(
+        (e) =>
+          (org && e.supplier_organization_id === org.id) ||
+          normName(e.supplier_name) === normName(supplierName) ||
+          (!!e.supplier_name && normName(supplierName).includes(normName(e.supplier_name).slice(0, 8))),
+      ) ??
+      // gleiche Rechnungsnummer UND gleicher Betrag genügen auch bei abweichendem Lieferantennamen
+      // (z.B. "Amazon" in BB gegenüber "Amazon EU S.à r.l." im Beleg)
+      cands.find((e) => e.status !== "rejected" && Math.abs(Math.abs(e.gross_amount ?? 0) - Math.abs(gross)) <= 0.02);
     if (dup) {
       if (dup.status === "rejected") {
         out.duplikatVerworfenUebersprungen++;

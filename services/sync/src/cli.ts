@@ -23,6 +23,7 @@ import { syncNinoxOrders } from "./syncNinoxOrders";
 import { syncNinoxInvoices } from "./syncNinoxInvoices";
 import { syncNinoxExterneRechnungen } from "./syncNinoxExterneRechnungen";
 import { bbBankImport } from "./bbBankImport";
+import { incomingDubletten } from "./incomingDubletten";
 import { bbAusgangNachholen } from "./bbAusgangNachholen";
 import { bbUstKorrektur } from "./bbUstKorrektur";
 import { dedupeReport } from "./dedupeReport";
@@ -194,6 +195,11 @@ async function main() {
       const fromArg = process.argv.find((a) => a.startsWith("--from="))?.split("=")[1];
       console.log(`Bankumsätze aus BuchhaltungsButler nachholen${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await bbBankImport({ dryRun, from: fromArg }), null, 1));
+      break;
+    }
+    case "incoming:dubletten": {
+      console.log(`Dubletten bei Eingangsbelegen bereinigen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await incomingDubletten({ dryRun }), null, 1));
       break;
     }
     case "bb:ausgang-nachholen": {

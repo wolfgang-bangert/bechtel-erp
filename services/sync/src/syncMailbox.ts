@@ -138,6 +138,14 @@ export async function syncMailbox(opts: Options = {}) {
         const buf = Buffer.concat(chunks);
         if (buf.length < 100) continue;
 
+        // Dieselbe Datei (z.B. Rechnung mehrfach gemailt, oder schon hochgeladen/aus BB importiert) nicht doppelt anlegen.
+        const sha = createHash("sha256").update(buf).digest("hex");
+        const { data: sameFile } = await supabase.from("incoming_document").select("id").eq("file_sha256", sha).limit(1);
+        if (sameFile && sameFile.length) {
+          duplicates += 1;
+          continue;
+        }
+
         const key = prefix.eingangsrechnung(year, dedupKey.slice(5));
         await putObject(key, buf, "application/pdf");
 
@@ -150,7 +158,7 @@ export async function syncMailbox(opts: Options = {}) {
           email_date: date ? new Date(date).toISOString() : null,
           file_name: p.filename,
           pdf_storage_key: key,
-          file_sha256: createHash("sha256").update(buf).digest("hex"),
+          file_sha256: sha,
           dedup_key: dedupKey,
         });
         if (error) throw new Error(`incoming_document: ${error.message}`);

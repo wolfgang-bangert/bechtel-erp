@@ -32,6 +32,7 @@
     "bb:learn-vorkontierung-debitoren": "tsx src/cli.ts bb:learn-vorkontierung-debitoren",
     "bb:learn-bankregeln": "tsx src/cli.ts bb:learn-bankregeln",
     "ninox:orders": "tsx src/cli.ts ninox:orders",
+    "incoming:dubletten": "tsx src/cli.ts incoming:dubletten",
     "bb:ausgang-nachholen": "tsx src/cli.ts bb:ausgang-nachholen",
     "bb:ust-korrigieren": "tsx src/cli.ts bb:ust-korrigieren",
     "bank:aus-bb": "tsx src/cli.ts bank:aus-bb",
