@@ -57,19 +57,37 @@ export default async function IncomingDetail({
   let nextId: string | null = null;
   let pos = 0;
   let total = 0;
+  let ausserhalb = false;
   if (liste) {
     const { column, ascending } = sortSpec(liste);
-    const { data: ids } = await applyListFilters(supabase.from("incoming_document").select("id"), liste)
+    const { data: ids } = await applyListFilters(supabase.from("incoming_document").select(`id, sort_value:${column}`), liste)
       .order(column, { ascending, nullsFirst: false })
       .order("id")
       .range(0, 4999);
-    const list = (ids ?? []).map((r: { id: string }) => r.id);
-    const i = list.indexOf(id);
+    const list = (ids ?? []) as unknown as { id: string; sort_value: string | null }[];
+    const i = list.findIndex((r) => r.id === id);
     if (i >= 0) {
       pos = i + 1;
       total = list.length;
-      prevId = i > 0 ? list[i - 1] : null;
-      nextId = i < list.length - 1 ? list[i + 1] : null;
+      prevId = i > 0 ? list[i - 1].id : null;
+      nextId = i < list.length - 1 ? list[i + 1].id : null;
+    } else if (list.length) {
+      // Der Beleg passt nach einer Änderung (z.B. USt bestätigt, geprüft) nicht mehr zum Listenfilter:
+      // trotzdem an seiner Stelle in der Sortierung blättern.
+      const { data: self } = await supabase.from("incoming_document").select(`sort_value:${column}`).eq("id", id).maybeSingle();
+      const mine = (self as unknown as { sort_value: string | null } | null)?.sort_value ?? null;
+      const before = (r: { id: string; sort_value: string | null }) => {
+        if (r.sort_value === mine) return r.id < id;
+        if (r.sort_value == null) return false; // Leerwerte stehen am Ende
+        if (mine == null) return true;
+        return ascending ? r.sort_value < mine : r.sort_value > mine;
+      };
+      const k = list.filter(before).length;
+      prevId = k > 0 ? list[k - 1].id : null;
+      nextId = k < list.length ? list[k].id : null;
+      pos = k + 1;
+      total = list.length;
+      ausserhalb = true;
     }
   }
   const lq = listeRaw ? `?l=${encodeURIComponent(listeRaw)}` : "";
@@ -232,7 +250,7 @@ export default async function IncomingDetail({
         {pos > 0 && (
           <span style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
             {prevId ? <Link href={`/eingangsrechnungen/${prevId}${lq}`}>← vorheriger</Link> : <span style={{ opacity: 0.4 }}>← vorheriger</span>}
-            <span className="count">{pos} von {total}</span>
+            <span className="count">{ausserhalb ? "nicht mehr in der Liste" : `${pos} von ${total}`}</span>
             {nextId ? <Link href={`/eingangsrechnungen/${nextId}${lq}`}>nächster →</Link> : <span style={{ opacity: 0.4 }}>nächster →</span>}
           </span>
         )}
