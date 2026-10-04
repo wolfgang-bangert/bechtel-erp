@@ -16,7 +16,7 @@ export default async function VorkontierungEditPage({
   const [{ data: org }, { data: ledgerAccounts }] = await Promise.all([
     supabase
       .from("organization")
-      .select("id, name, customer_number, supplier_number, default_expense_account, default_revenue_account, default_payment_method")
+      .select("id, name, customer_number, supplier_number, default_expense_account, default_revenue_account, default_payment_method, foreign_supply_kind")
       .eq("id", id)
       .maybeSingle(),
     supabase.from("ledger_account").select("number, name").eq("is_active", true).order("number"),
@@ -31,6 +31,7 @@ export default async function VorkontierungEditPage({
     expense_account: org.default_expense_account,
     revenue_account: org.default_revenue_account,
     payment_method: org.default_payment_method,
+    foreign_supply_kind: org.foreign_supply_kind,
   };
 
   return (

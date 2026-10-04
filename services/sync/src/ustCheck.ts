@@ -34,7 +34,12 @@ const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
 
 export function pruefeUst(
   e: Extracted,
-  opts: { codes: UstTaxCode[]; supplierCountry?: string | null },
+  opts: {
+    codes: UstTaxCode[];
+    supplierCountry?: string | null;
+    /** Einstellung an der Organisation: 'service' = Dienstleister (Reverse Charge), 'goods' = Warenlieferant. */
+    supplierKind?: "service" | "goods" | null;
+  },
 ): UstVerdict {
   const std = (rate: number) =>
     opts.codes.find((c) => c.treatment === "standard_de" && Math.round(Number(c.rate)) === Math.round(rate)) ?? null;
@@ -61,10 +66,19 @@ export function pruefeUst(
   const freeReason = e.vat_check?.tax_free_reason?.trim() || null;
   const noTax = tax == null || tax === 0 || bd.length === 0;
 
-  // --- Festgelegte Regel (Nutzer): USD-Rechnung ohne ausgewiesene USt = Leistung eines Anbieters
-  // aus dem Drittland -> Reverse Charge §13b, automatisch (nicht nur Vorschlag). ---------------
-  if (noTax && currency === "USD" && country !== "DE" && rc) {
-    return verdict("sicher", rc, "USD-Rechnung ohne USt - Reverse Charge (§ 13b), feste Regel");
+  // --- Einstellung an der Organisation hat Vorrang vor der Standardregel ---------------------
+  if (noTax && country !== "DE") {
+    if (opts.supplierKind === "goods") {
+      return verdict("vorschlag", null, "Lieferant ist als Warenlieferant aus dem Ausland markiert - kein §13b, ggf. Einfuhr: bitte Schlüssel festlegen");
+    }
+    if (opts.supplierKind === "service" && rc) {
+      return verdict("sicher", rc, "Lieferant ist als Auslands-Dienstleister markiert - Reverse Charge (§ 13b)");
+    }
+    // Standardregel (Nutzer): USD-Rechnung ohne ausgewiesene USt = Dienstleistung eines Anbieters aus
+    // dem Drittland -> Reverse Charge §13b, automatisch (nicht nur Vorschlag).
+    if (currency === "USD" && rc) {
+      return verdict("sicher", rc, "USD-Rechnung ohne USt - Reverse Charge (§ 13b), Standardregel");
+    }
   }
 
   // --- Reverse Charge / ausländische Leistung ohne USt -> Vorschlag §13b -------

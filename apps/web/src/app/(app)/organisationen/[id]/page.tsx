@@ -109,6 +109,14 @@ export default async function OrganisationDetail({
               ] ?? org.default_payment_method
             : "–"}
         </dd>
+        <dt>Lieferant aus dem Ausland</dt>
+        <dd>
+          {org.foreign_supply_kind === "service"
+            ? "Dienstleistung (Reverse Charge §13b automatisch)"
+            : org.foreign_supply_kind === "goods"
+              ? "Ware (kein §13b, USt von Hand)"
+              : "Standard (USD-Rechnung ohne USt = Dienstleistung)"}
+        </dd>
         <dt>Herkunft</dt>
         <dd>
           {org.vorkontierung_source === "learned"

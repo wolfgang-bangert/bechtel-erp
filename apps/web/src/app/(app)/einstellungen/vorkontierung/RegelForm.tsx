@@ -9,6 +9,7 @@ export type Regel = {
   expense_account: string | null;
   revenue_account: string | null;
   payment_method: string | null;
+  foreign_supply_kind: string | null;
 };
 
 const empty: State = {};
@@ -73,6 +74,19 @@ export function RegelForm({
           accounts={ledgerAccounts}
           placeholder="— kein Erlöskonto —"
         />
+      </div>
+
+      <div className="field">
+        <label htmlFor="foreign_supply_kind">Lieferant aus dem Ausland (USt)</label>
+        <select id="foreign_supply_kind" name="foreign_supply_kind" defaultValue={regel?.foreign_supply_kind ?? ""}>
+          <option value="">Standard (USD-Rechnung ohne USt = Dienstleistung)</option>
+          <option value="service">Dienstleistung - Reverse Charge §13b, automatisch</option>
+          <option value="goods">Ware - kein §13b (z.B. Einfuhr), USt immer von Hand</option>
+        </select>
+        <p className="count" style={{ margin: "4px 0 0" }}>
+          Gilt für Rechnungen dieses Lieferanten ohne ausgewiesene USt. Bei „Ware" bleibt die USt-Prüfung
+          bewusst ein Vorschlag.
+        </p>
       </div>
 
       <div className="field">

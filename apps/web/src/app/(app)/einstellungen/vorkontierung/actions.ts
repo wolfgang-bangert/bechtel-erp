@@ -17,9 +17,10 @@ export async function saveRegel(_p: State, fd: FormData): Promise<State> {
   const expenseAccount = s(fd, "expense_account");
   const revenueAccount = s(fd, "revenue_account");
   const paymentMethod = s(fd, "payment_method");
+  const foreignKind = s(fd, "foreign_supply_kind");
   if (!organizationId) return { error: "Organisation ist Pflicht." };
-  if (!expenseAccount && !revenueAccount && !paymentMethod) {
-    return { error: "Aufwandskonto, Erlöskonto oder Zahlart angeben." };
+  if (!expenseAccount && !revenueAccount && !paymentMethod && !foreignKind) {
+    return { error: "Aufwandskonto, Erlöskonto, Zahlart oder Auslandslieferung angeben." };
   }
 
   const supabase = await createClient();
@@ -29,6 +30,7 @@ export async function saveRegel(_p: State, fd: FormData): Promise<State> {
       default_expense_account: expenseAccount,
       default_revenue_account: revenueAccount,
       default_payment_method: paymentMethod,
+      foreign_supply_kind: foreignKind === "service" || foreignKind === "goods" ? foreignKind : null,
       vorkontierung_source: "manual",
       vorkontierung_confidence: null,
     })
@@ -50,6 +52,7 @@ export async function deleteRegel(_p: State, fd: FormData): Promise<State> {
       default_expense_account: null,
       default_revenue_account: null,
       default_payment_method: null,
+      foreign_supply_kind: null,
       vorkontierung_source: null,
       vorkontierung_confidence: null,
     })

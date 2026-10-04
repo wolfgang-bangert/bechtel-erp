@@ -676,12 +676,18 @@ export async function extractIncoming(opts: Options = {}) {
 
       // Strenge USt-Prüfung: Schlüssel nur bei eindeutigem Befund, sonst Vorschlag.
       let supplierCountry: string | null = null;
+      let supplierKind: "service" | "goods" | null = null;
       if (!isHint && supplierId) {
-        const { data: org } = await supabase.from("organization").select("vat_id").eq("id", supplierId).maybeSingle();
+        const { data: org } = await supabase
+          .from("organization")
+          .select("vat_id, foreign_supply_kind")
+          .eq("id", supplierId)
+          .maybeSingle();
         const m = /^[A-Za-z]{2}/.exec((org?.vat_id ?? "").replace(/\s/g, ""));
         supplierCountry = m ? m[0].toUpperCase() : null;
+        supplierKind = (org?.foreign_supply_kind as "service" | "goods" | null) ?? null;
       }
-      const ust = isHint ? null : pruefeUst(e, { codes: taxCodes, supplierCountry });
+      const ust = isHint ? null : pruefeUst(e, { codes: taxCodes, supplierCountry, supplierKind });
 
       // Marktplatz-Rechnungen (z.B. Amazon-Marktplatz-Verkäufer): Suche nach
       // "amazon" soll den Beleg auch dann finden, wenn der eigentliche
