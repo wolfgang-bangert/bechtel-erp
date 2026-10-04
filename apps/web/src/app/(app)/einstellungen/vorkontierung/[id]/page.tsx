@@ -5,6 +5,7 @@ import { RegelForm, type Regel } from "../RegelForm";
 
 export const dynamic = "force-dynamic";
 
+/** id = Organisation: Standardkonten/Zahlart direkt an der Organisation bearbeiten. */
 export default async function VorkontierungEditPage({
   params,
 }: {
@@ -12,37 +13,36 @@ export default async function VorkontierungEditPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
-  const [{ data }, { data: ledgerAccounts }] = await Promise.all([
+  const [{ data: org }, { data: ledgerAccounts }] = await Promise.all([
     supabase
-      .from("posting_rule")
-      .select(
-        "id, organization_id, expense_account, revenue_account, payment_method, note, is_active, organization:organization_id(name, customer_number, supplier_number)",
-      )
+      .from("organization")
+      .select("id, name, customer_number, supplier_number, default_expense_account, default_revenue_account, default_payment_method")
       .eq("id", id)
       .maybeSingle(),
     supabase.from("ledger_account").select("number, name").eq("is_active", true).order("number"),
   ]);
-  if (!data) notFound();
+  if (!org) notFound();
 
-  const org = data.organization as unknown as {
-    name: string;
-    customer_number: string | null;
-    supplier_number: string | null;
-  } | null;
-  const organizationLabel = org
-    ? `${org.name}${org.customer_number ? ` · Kd ${org.customer_number}` : ""}${
-        org.supplier_number ? ` · Lief ${org.supplier_number}` : ""
-      }`
-    : undefined;
+  const organizationLabel = `${org.name}${org.customer_number ? ` · Kd ${org.customer_number}` : ""}${
+    org.supplier_number ? ` · Lief ${org.supplier_number}` : ""
+  }`;
+  const regel: Regel = {
+    organization_id: org.id,
+    expense_account: org.default_expense_account,
+    revenue_account: org.default_revenue_account,
+    payment_method: org.default_payment_method,
+  };
 
   return (
     <>
       <p className="lead">
         <Link href="/einstellungen/vorkontierung">← Übersicht</Link>
+        {" · "}
+        <Link href={`/organisationen/${org.id}`}>Organisation öffnen</Link>
       </p>
-      <h1>Regel: {org?.name ?? "?"}</h1>
+      <h1>Vorkontierung: {org.name}</h1>
       <RegelForm
-        regel={data as Regel}
+        regel={regel}
         organizationLabel={organizationLabel}
         organizations={[]}
         ledgerAccounts={(ledgerAccounts ?? []).map((a) => ({ value: a.number, label: `${a.number} – ${a.name}` }))}

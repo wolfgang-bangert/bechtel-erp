@@ -102,23 +102,25 @@ export default async function IncomingDetail({
   ) ?? null;
   const bankTxInfo = Array.isArray(linkedBankTx) ? (linkedBankTx[0] ?? null) : linkedBankTx;
 
-  // Gelernte/von Hand gesetzte Vorkontierung für den Lieferanten (siehe
-  // /einstellungen/vorkontierung) - nur ein Vorschlag fürs Formular, greift
-  // dort nur wenn das Dokument noch kein eigenes Aufwandskonto hat.
-  const { data: postingRule } = doc.supplier_organization_id
+  // Gelernte/von Hand gesetzte Vorkontierung des Lieferanten (Standardkonto/Zahlart an der
+  // Organisation, siehe /einstellungen/vorkontierung) - nur ein Vorschlag fürs Formular, greift
+  // dort nur wenn das Dokument noch kein eigenes Aufwandskonto hat. Steuerschlüssel kommt nicht
+  // von hier, sondern aus der USt-Prüfung des Belegs.
+  const { data: supplierOrg } = doc.supplier_organization_id
     ? await supabase
-        .from("posting_rule")
-        .select("expense_account, tax_code_id, payment_method, is_active")
-        .eq("organization_id", doc.supplier_organization_id)
+        .from("organization")
+        .select("default_expense_account, default_payment_method")
+        .eq("id", doc.supplier_organization_id)
         .maybeSingle()
     : { data: null };
-  const suggestion = postingRule?.is_active
-    ? {
-        ledger_account: postingRule.expense_account,
-        tax_code_id: postingRule.tax_code_id,
-        payment_method: postingRule.payment_method,
-      }
-    : null;
+  const suggestion =
+    supplierOrg?.default_expense_account || supplierOrg?.default_payment_method
+      ? {
+          ledger_account: supplierOrg.default_expense_account,
+          tax_code_id: null,
+          payment_method: supplierOrg.default_payment_method,
+        }
+      : null;
 
   const pdfUrl = doc.pdf_storage_key ? await signedGetUrl(doc.pdf_storage_key, 1800) : null;
   const isAdvice = doc.doc_type === "payment_advice" || doc.status === "advice";

@@ -38,12 +38,12 @@ export async function generateInvoiceBooking(invoiceId: string, map?: ErloesKont
 
   let revenueOverride: string | null = null;
   if (inv.organization_id) {
-    const { data: rule } = await supabase
-      .from("posting_rule")
-      .select("revenue_account, is_active")
-      .eq("organization_id", inv.organization_id)
+    const { data: org } = await supabase
+      .from("organization")
+      .select("default_revenue_account")
+      .eq("id", inv.organization_id)
       .maybeSingle();
-    if (rule?.is_active && rule.revenue_account) revenueOverride = rule.revenue_account;
+    if (org?.default_revenue_account) revenueOverride = org.default_revenue_account;
   }
 
   const org = inv.organization as unknown as { tax_country: string | null } | null;

@@ -111,7 +111,7 @@ export default async function EingangsrechnungenPage({
     if ((rows ?? []).length < 1000) break;
   }
 
-  // Zahlart-Vorschlag je Lieferant (Vorkontierung) für Belege ohne eigene
+  // Zahlart-Vorschlag je Lieferant (Vorkontierung an der Organisation) für Belege ohne eigene
   // Angabe - nur zur Anzeige, nicht geraten (siehe Vorfall: vorher wurde
   // ungeprüft "Lastschrift" angenommen, auch wenn z.B. eine Überweisungs-
   // Regel existierte).
@@ -120,14 +120,13 @@ export default async function EingangsrechnungenPage({
   );
   const ruleMethodByOrg = new Map<string, string>();
   if (orgIds.length) {
-    const { data: rules } = await supabase
-      .from("posting_rule")
-      .select("organization_id, payment_method")
-      .in("organization_id", orgIds)
-      .eq("is_active", true)
-      .not("payment_method", "is", null);
-    for (const r of rules ?? []) {
-      if (r.payment_method) ruleMethodByOrg.set(r.organization_id, r.payment_method);
+    const { data: orgs } = await supabase
+      .from("organization")
+      .select("id, default_payment_method")
+      .in("id", orgIds)
+      .not("default_payment_method", "is", null);
+    for (const o of orgs ?? []) {
+      if (o.default_payment_method) ruleMethodByOrg.set(o.id, o.default_payment_method);
     }
   }
 
