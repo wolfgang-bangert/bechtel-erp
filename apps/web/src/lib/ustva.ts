@@ -121,8 +121,10 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
           "supplier_name, supplier_vat_id, organization:supplier_organization_id ( tax_country ), " +
           "incoming_document_item!incoming_document_item_incoming_document_id_fkey ( ledger_account, net_amount, tax_rate, tax_code_id, linked_document_id )",
       )
-      .gte("doc_date", von)
-      .lte("doc_date", bis)
+      // Zeitraum: Vorsteuer-Zeitraum (vat_period_date), sonst Belegdatum
+      .or(
+        `and(vat_period_date.gte.${von},vat_period_date.lte.${bis}),and(vat_period_date.is.null,doc_date.gte.${von},doc_date.lte.${bis})`,
+      )
       .in("doc_type", ["invoice", "credit_note"])
       .in("status", ["extracted", "reviewed", "booked", "exported"]),
     supabase.from("tax_code").select("id, datev_tax_key, treatment, direction"),

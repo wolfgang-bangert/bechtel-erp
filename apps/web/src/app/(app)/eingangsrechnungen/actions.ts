@@ -70,6 +70,7 @@ export async function saveIncoming(
       doc_number: s(fd, "doc_number"),
       doc_date: s(fd, "doc_date"),
       service_date: s(fd, "service_date"),
+      vat_period_date: s(fd, "vat_period_date"),
       due_date: s(fd, "net_due_date") ?? s(fd, "due_date"),
       net_due_date: s(fd, "net_due_date"),
       discount_date: s(fd, "discount_date"),

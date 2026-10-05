@@ -438,6 +438,11 @@ export function ReviewForm({
               <F name="doc_number" label="Belegnummer" w={200} />
               <F name="doc_date" label="Belegdatum" type="date" w={160} />
               <F name="service_date" label="Leistungsdatum" type="date" w={160} />
+              <div className="bd-field" style={{ width: 190 }}>
+                <label className="bd-field-label" htmlFor="vat_period_date">Vorsteuer-Zeitraum (Datum)</label>
+                <input className="bd-field-input" id="vat_period_date" name="vat_period_date" type="date" defaultValue={v("vat_period_date")} />
+                <div className="bd-hint">leer = Belegdatum; sonst zählt der Beleg in der UStVA in diesem Monat (z.B. Rechnung erst später eingetroffen)</div>
+              </div>
             </div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
               <F name="net_amount" label="Netto (EUR)" w={140} />
