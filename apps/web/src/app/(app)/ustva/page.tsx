@@ -28,6 +28,23 @@ export default async function UstvaPage({
   const e = d.ergebnis;
   const zahllastTon = e.zahllast > 0 ? "danger" : e.zahllast < 0 ? "ok" : "";
 
+  // Wie ELSTER rechnet: Steuer aus abgerundeter Bemessungsgrundlage (Kz 81/86/89), Vorsteuer auf den Cent
+  const kzMap = new Map(e.kennzahlen.map((k) => [k.kz, k]));
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const basis = (kz: string) => Math.trunc(kzMap.get(kz)?.basis ?? 0);
+  const steuerKz = (kz: string) => kzMap.get(kz)?.steuer ?? 0;
+  const ust = r2(basis("81") * 0.19) + r2(basis("86") * 0.07) + r2(basis("89") * 0.19) + steuerKz("46 / 47") + steuerKz("52 / 53");
+  const vst = steuerKz("66") + steuerKz("61") + steuerKz("62") + steuerKz("67");
+  const elster = { ust: r2(ust), vst: r2(vst), zahllast: r2(ust - vst) };
+  // Fälligkeit: 10. des Folgemonats, mit Dauerfristverlängerung 10. des übernächsten Monats
+  const [yy, mm] = monat.split("-").map(Number);
+  const faelligOhneD = new Date(Date.UTC(yy, mm, 10));
+  const faelligD = new Date(Date.UTC(yy, mm + 1, 10));
+  const faellig = faelligD.toISOString().slice(0, 10);
+  const faelligOhne = faelligOhneD.toISOString().slice(0, 10);
+  const heute = new Date(new Date().toISOString().slice(0, 10) + "T00:00:00Z");
+  const faelligTage = Math.round((faelligD.getTime() - heute.getTime()) / 86400000);
+
   const [y, m] = monat.split("-").map(Number);
   const nav = (delta: number) => new Date(Date.UTC(y, m - 1 + delta, 1)).toISOString().slice(0, 7);
   const href = (mo: string) => `/ustva?monat=${mo}${versteuerung === "ist" ? "&versteuerung=ist" : ""}`;
@@ -79,6 +96,28 @@ export default async function UstvaPage({
           <div className="n">{fmtEur(Math.abs(e.zahllast))}</div>
           <div className="l">{e.zahllast >= 0 ? "Zahllast (Kz 83)" : "Erstattung (Kz 83)"}</div>
         </div>
+      </div>
+
+      <div className="bd-card">
+        <h2>Eingabehilfe für Mein ELSTER</h2>
+        <p className="bd-mute" style={{ marginTop: 0 }}>
+          Im Formular „Umsatzsteuer-Voranmeldung“ stehen die Bemessungsgrundlagen als <strong>volle Euro (abgerundet)</strong>
+          und die Vorsteuer auf den <strong>Cent</strong>; ELSTER berechnet die Steuer auf Kz 81/86/89 selbst. So rechnet ELSTER
+          mit den Werten unten:
+        </p>
+        <table className="bd-table" style={{ maxWidth: 640 }}>
+          <tbody>
+            <tr><td>Umsatzsteuer (Kz 81 · 19 % + Kz 86 · 7 % + Kz 89 · 19 % + Kz 47 + Kz 53)</td><td className="bd-num">{fmtEur(elster.ust)}</td></tr>
+            <tr><td>abziehbare Vorsteuer (Kz 66 + 61 + 62 + 67)</td><td className="bd-num">{fmtEur(elster.vst)}</td></tr>
+            <tr><td><strong>Kz 83 laut ELSTER-Rechnung</strong></td><td className="bd-num"><strong>{fmtEur(elster.zahllast)}</strong></td></tr>
+          </tbody>
+        </table>
+        <p className="bd-mute" style={{ marginBottom: 0 }}>
+          Fälligkeit mit Dauerfristverlängerung: <strong>{fmtDate(faellig)}</strong>
+          {faelligTage < 0 ? ` (seit ${-faelligTage} Tagen überfällig)` : faelligTage === 0 ? " (heute)" : ` (in ${faelligTage} Tagen)`}
+          {" · "}ohne Verlängerung: {fmtDate(faelligOhne)}. Tragen Sie Kz 21, 41, 43, 46, 52, 89 mit der Bemessungsgrundlage ein; zu Kz 46/52 gehören die
+          Steuerbeträge Kz 47/53 (siehe Tabelle, Spalte „Steuer“).
+        </p>
       </div>
 
       {d.hinweise.filter((h) => h.ton === "warn").length > 0 && (
