@@ -3,6 +3,7 @@ import { ImapFlow, type FetchMessageObject } from "imapflow";
 import { env } from "./env";
 import { supabase } from "./supabase";
 import { putObject, prefix } from "./storage";
+import { bildZuPdf } from "@werk/shared/pdf/bild";
 
 type Options = {
   dryRun?: boolean;
@@ -15,6 +16,8 @@ type AttPart = {
   part: string;
   filename: string;
   size: number;
+  /** Bild statt PDF (Screenshot einer Rechnung, intern weitergeleitet) - wird beim Abruf in ein PDF verpackt. */
+  bildMime?: string;
 };
 
 /** PDF-Anhänge in der bodyStructure finden. */
@@ -36,6 +39,20 @@ function findPdfParts(node: unknown, acc: AttPart[] = [], path = ""): AttPart[] 
       filename: filename || "beleg.pdf",
       size: Number(n.size ?? 0),
     });
+  }
+  return acc;
+}
+
+/** Bild-Anhänge (PNG/JPEG) - nur aus Mails interner Absender genutzt, ohne Logos/Signaturbilder (zu klein). */
+function findImageParts(node: unknown, acc: AttPart[] = []): AttPart[] {
+  if (!node || typeof node !== "object") return acc;
+  const n = node as Record<string, unknown>;
+  const children = (n.childNodes ?? n.child ?? []) as unknown[];
+  if (Array.isArray(children)) children.forEach((c) => findImageParts(c, acc));
+  const type = String(n.type ?? "").toLowerCase();
+  if ((type === "image/png" || type === "image/jpeg") && Number(n.size ?? 0) >= 60_000) {
+    const params = (n.dispositionParameters ?? n.parameters ?? {}) as Record<string, string>;
+    acc.push({ part: String(n.part ?? "1"), filename: String(params.filename ?? params.name ?? "bild"), size: Number(n.size ?? 0), bildMime: type });
   }
   return acc;
 }
@@ -91,6 +108,10 @@ export async function syncMailbox(opts: Options = {}) {
       if (!msg) continue;
 
       let parts = findPdfParts(msg.bodyStructure);
+      // Intern weitergeleitete Screenshots/Fotos von Rechnungen (kein PDF in der Mail): als PDF verpacken.
+      if (parts.length === 0 && /@bechtel-druck\.de$/i.test(msg.envelope?.from?.[0]?.address ?? "")) {
+        parts = findImageParts(msg.bodyStructure);
+      }
       if (parts.length === 0) continue;
       // Manche Anbieter (Anthropic, Weweb ...) schicken je Mail eine Rechnung UND eine Quittung ("Receipt") als PDF.
       // Gebraucht wird nur die Rechnung: Quittungs-PDFs werden übersprungen, wenn in derselben Mail eine Rechnung liegt.
@@ -144,8 +165,11 @@ export async function syncMailbox(opts: Options = {}) {
         const { content } = await client.download(String(uid), p.part, { uid: true });
         const chunks: Buffer[] = [];
         for await (const ch of content) chunks.push(Buffer.from(ch));
-        const buf = Buffer.concat(chunks);
+        let buf = Buffer.concat(chunks);
         if (buf.length < 100) continue;
+        if (p.bildMime) {
+          buf = Buffer.from(await bildZuPdf(new Uint8Array(buf), p.bildMime));
+        }
 
         // Dieselbe Datei (z.B. Rechnung mehrfach gemailt, oder schon hochgeladen/aus BB importiert) nicht doppelt anlegen.
         const sha = createHash("sha256").update(buf).digest("hex");
@@ -165,7 +189,7 @@ export async function syncMailbox(opts: Options = {}) {
           email_from: from,
           email_subject: subject,
           email_date: date ? new Date(date).toISOString() : null,
-          file_name: p.filename,
+          file_name: p.bildMime ? `${p.filename.replace(/\.[a-z]+$/i, "")}.pdf` : p.filename,
           pdf_storage_key: key,
           file_sha256: sha,
           dedup_key: dedupKey,
