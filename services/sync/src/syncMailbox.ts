@@ -148,10 +148,13 @@ export async function syncMailbox(opts: Options = {}) {
           .update(`${messageId}|${p.filename}|${p.size}`)
           .digest("hex")}`;
 
+        // Auch aufgeteilte Sammel-PDFs gelten als schon importiert: das Original wird nach dem Aufteilen gelöscht,
+        // die Teile tragen den Schlüssel "<Schlüssel>#n".
         const { data: exists } = await supabase
           .from("incoming_document")
           .select("id")
-          .eq("dedup_key", dedupKey)
+          .or(`dedup_key.eq.${dedupKey},dedup_key.like.${dedupKey}#%`)
+          .limit(1)
           .maybeSingle();
         if (exists) {
           duplicates += 1;
