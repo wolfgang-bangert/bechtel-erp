@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { ReviewForm } from "./ui";
-import { setIncomingStatus, bestaetigeUst, alsRechnungBehandeln, alsSonstigesBehandeln } from "../actions";
+import { setIncomingStatus, bestaetigeUst, alsRechnungBehandeln, alsSonstigesBehandeln, kollegenGesehen } from "../actions";
 import { applyListFilters, sortSpec, type ListeParams } from "../_liste";
 
 export const dynamic = "force-dynamic";
@@ -204,6 +204,12 @@ export default async function IncomingDetail({
         }
       : null;
 
+  let colleagueName: string | null = null;
+  if (doc.colleague_checked_by) {
+    const { data: cu } = await supabase.from("app_user").select("display_name, email").eq("id", doc.colleague_checked_by).maybeSingle();
+    colleagueName = cu?.display_name || cu?.email || null;
+  }
+
   const pdfUrl = doc.pdf_storage_key ? await signedGetUrl(doc.pdf_storage_key, 1800) : null;
   const isAdvice = doc.doc_type === "payment_advice" || doc.status === "advice";
   const isDunning = doc.doc_type === "dunning" || doc.doc_type === "other" || doc.status === "dunning";
@@ -214,7 +220,7 @@ export default async function IncomingDetail({
 
   const ust = ((doc.extraction as { _ust?: { status?: string; tax_code_id?: string | null; tax_code?: string | null; reason?: string } } | null)
     ?._ust ?? null);
-  const ustOpen = !isHint && ust?.status === "vorschlag" && ["captured", "extracted", "reviewed"].includes(doc.status);
+  const ustOpen = !isHint && ust?.status === "vorschlag" && ["captured", "extracted", "booked"].includes(doc.status);
 
   const items = ((itemsRaw ?? []) as unknown as ItemRow[]).map((it) => ({
     id: it.id,
@@ -367,18 +373,29 @@ export default async function IncomingDetail({
         ) : (
           <span className="count">kein PDF</span>
         )}
-        {!isHint && !ustOpen && ["extracted", "reviewed"].includes(doc.status) && (
-          <form action={setIncomingStatus}>
-            <input type="hidden" name="id" value={doc.id} />
-            <input type="hidden" name="status" value="reviewed" />
-            <button type="submit">als geprüft markieren</button>
-          </form>
-        )}
-        {!isHint && doc.status === "reviewed" && (
+        {!isHint && !ustOpen && ["captured", "extracted"].includes(doc.status) && (
           <form action={setIncomingStatus}>
             <input type="hidden" name="id" value={doc.id} />
             <input type="hidden" name="status" value="booked" />
-            <button type="submit">gebucht</button>
+            <button type="submit">als gebucht markieren</button>
+          </form>
+        )}
+        {!isHint && ["booked", "exported"].includes(doc.status) && (
+          <form action={setIncomingStatus}>
+            <input type="hidden" name="id" value={doc.id} />
+            <input type="hidden" name="status" value="extracted" />
+            <button type="submit" className="ghost">Buchung zurücknehmen</button>
+          </form>
+        )}
+        {!isHint && (
+          <form action={kollegenGesehen}>
+            <input type="hidden" name="id" value={doc.id} />
+            <input type="hidden" name="gesehen" value={doc.colleague_checked_at ? "0" : "1"} />
+            <button type="submit" className="ghost" title="Vermerk für die Durchsicht durch Kollegen, ohne Wirkung auf die Buchung">
+              {doc.colleague_checked_at
+                ? `von Kollegen gesehen (${new Date(doc.colleague_checked_at).toLocaleDateString("de-DE")}${colleagueName ? `, ${colleagueName}` : ""}) – zurücknehmen`
+                : "von Kollegen gesehen"}
+            </button>
           </form>
         )}
         {isDunning && doc.status === "dunning" && (
@@ -422,7 +439,7 @@ export default async function IncomingDetail({
                 ))}
               </select>
             </div>
-            <button type="submit" className="bd-btn bd-btn-primary">Bestätigen &amp; als geprüft markieren</button>
+            <button type="submit" className="bd-btn bd-btn-primary">Bestätigen &amp; buchen</button>
           </form>
         </div>
       )}
