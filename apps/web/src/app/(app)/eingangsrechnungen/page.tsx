@@ -160,11 +160,11 @@ export default async function EingangsrechnungenPage({
     supabase
       .from("incoming_document")
       .select("id", { count: "exact", head: true })
-      .in("status", ["captured", "extracted"]),
+      .eq("status", "extracted"),
     supabase
       .from("incoming_document")
       .select("id", { count: "exact", head: true })
-      .in("status", ["captured", "extracted", "reviewed"])
+      .in("status", ["captured", "extracted", "booked"])
       .eq("extraction->_ust->>status", "vorschlag"),
   ]);
 
@@ -182,7 +182,7 @@ export default async function EingangsrechnungenPage({
           className={"bd-stat-card" + ((openCount ?? 0) > 0 ? " warn" : "")}
         >
           <div className="n">{openCount ?? 0}</div>
-          <div className="l">zu prüfen</div>
+          <div className="l">zu buchen</div>
         </Link>
         <Link
           href="/eingangsrechnungen?ust=offen"
