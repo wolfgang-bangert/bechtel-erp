@@ -7,6 +7,8 @@ type Options = {
   dryRun?: boolean;
   maxPercent?: number; // Anteil vom Brutto, bis zu dem eine Differenz als Skonto gilt
   maxAbs?: number; // absolute Obergrenze je Beleg
+  /** nur eine Seite bearbeiten (sonst beide): Eingangsrechnungen (kreditoren) oder Ausgangsrechnungen (debitoren) */
+  seite?: "kreditoren" | "debitoren";
 };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -55,7 +57,7 @@ async function refreshTxStatus(txId: string) {
  * 3730/3731/3736) und Debitoren (gewährtes, 8730/8731/8736) Skonto.
  */
 export async function skontoApply(opts: Options = {}) {
-  const { from, to, dryRun = false, maxPercent = 0.03, maxAbs = 300 } = opts;
+  const { from, to, dryRun = false, maxPercent = 0.03, maxAbs = 300, seite } = opts;
   const inRange = (d: string | null) => (!from || !d || d >= from) && (!to || !d || d <= to);
 
   type BelegMatch = { id: string; bank_transaction_id: string; amount: number; created_at: string };
@@ -96,7 +98,7 @@ export async function skontoApply(opts: Options = {}) {
 
   type Hit = { id: string; gap: number; rate: number; txId: string; label: string };
   const incHits: Hit[] = [];
-  for (const d of incDocs) {
+  for (const d of seite === "debitoren" ? [] : incDocs) {
     if (!inRange(d.doc_date)) continue;
     const matches = byIncDoc.get(d.id) ?? [];
     if (!matches.length) continue; // keine Zahlung -> kein Skonto
@@ -146,7 +148,7 @@ export async function skontoApply(opts: Options = {}) {
     ["payment_status", "partly_paid"],
   );
   const salesHits: Hit[] = [];
-  for (const s of sInv) {
+  for (const s of seite === "kreditoren" ? [] : sInv) {
     if (!inRange(s.invoice_date)) continue;
     const gross = r2(s.gross_total ?? 0);
     const gap = r2(s.open_amount ?? 0);

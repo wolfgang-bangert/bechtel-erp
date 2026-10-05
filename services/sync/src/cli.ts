@@ -591,6 +591,7 @@ async function main() {
         dryRun,
         maxPercent: pct ? Number(pct) / 100 : undefined,
         maxAbs: abs ? Number(abs) : undefined,
+        seite: ((v) => (v === "kreditoren" || v === "debitoren" ? v : undefined))(arg("--seite")),
       });
       console.log(
         `Kreditoren: ${r.kreditoren.count} Belege, ${r.kreditoren.summe.toLocaleString("de-DE")} EUR erhaltenes Skonto`,
