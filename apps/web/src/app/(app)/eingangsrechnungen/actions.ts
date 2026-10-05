@@ -38,6 +38,7 @@ type PosIn = {
   material_ref?: string;
   supplier_sku?: string;
   order_reference?: string;
+  booking_text?: string;
   linked_document_id?: string;
   allocations?: AllocIn[];
 };
@@ -121,6 +122,7 @@ export async function saveIncoming(
           material_ref: emptyToNull(p.material_ref),
           supplier_sku: emptyToNull(p.supplier_sku),
           order_reference: emptyToNull(p.order_reference),
+          booking_text: emptyToNull(typeof p.booking_text === "string" ? p.booking_text.slice(0, 60) : p.booking_text),
           linked_document_id: emptyToNull(p.linked_document_id),
         })),
       )

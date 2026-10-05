@@ -33,6 +33,7 @@ type ItemRow = {
   material_ref: string | null;
   supplier_sku: string | null;
   order_reference: string | null;
+  booking_text: string | null;
   linked_document_id: string | null;
   incoming_document_allocation: AllocRow[];
 };
@@ -104,7 +105,7 @@ export default async function IncomingDetail({
     supabase
       .from("incoming_document_item")
       .select(
-        "id, position, description, quantity, unit_price, tax_rate, net_amount, ledger_account, tax_code_id, material_ref, supplier_sku, order_reference, linked_document_id, " +
+        "id, position, description, quantity, unit_price, tax_rate, net_amount, ledger_account, tax_code_id, material_ref, supplier_sku, order_reference, booking_text, linked_document_id, " +
           "incoming_document_allocation ( id, link_type, sales_order_id, order_ref, material_ref, cost_center_id, amount, note, sales_order:sales_order_id ( order_number ) )",
       )
       .eq("incoming_document_id", id)
@@ -235,6 +236,7 @@ export default async function IncomingDetail({
     material_ref: it.material_ref ?? "",
     supplier_sku: it.supplier_sku ?? "",
     order_reference: it.order_reference ?? "",
+    booking_text: it.booking_text ?? "",
     linked_document_id: it.linked_document_id ?? "",
     allocations: (it.incoming_document_allocation ?? []).map((a) => ({
       id: a.id,
