@@ -474,3 +474,14 @@ export async function kollegenGesehen(fd: FormData): Promise<void> {
   revalidatePath("/eingangsrechnungen");
   revalidatePath(`/eingangsrechnungen/${id}`);
 }
+
+/** Zahlart für mehrere Belege auf einmal setzen (Mehrfachauswahl in der Liste). */
+export async function zahlartMehrere(ids: string[], method: string): Promise<{ gesetzt: number }> {
+  if (!["card", "paypal", "transfer", "direct_debit"].includes(method)) return { gesetzt: 0 };
+  const clean = ids.filter((x) => /^[0-9a-f-]{36}$/i.test(x));
+  if (!clean.length) return { gesetzt: 0 };
+  const supabase = await createClient();
+  const { data } = await supabase.from("incoming_document").update({ payment_method: method }).in("id", clean).select("id");
+  revalidatePath("/eingangsrechnungen");
+  return { gesetzt: (data ?? []).length };
+}

@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { AccountPicker } from "../_shared/AccountPicker";
-import { buchenMehrere, setzeKontoAlle } from "./actions";
+import { buchenMehrere, setzeKontoAlle, zahlartMehrere } from "./actions";
 
 /**
  * Steuerung der Belegliste: Mehrfachauswahl ("als gebucht markieren") und Schnell-Konto je Zeile.
@@ -63,6 +63,14 @@ export function ListeSteuerung({ konten }: { konten: { value: string; label: str
       setTimeout(zaehlen, 400);
     });
 
+  const zahlart = (method: string) =>
+    start(async () => {
+      if (!method) return;
+      const r = await zahlartMehrere(ids(false), method);
+      setMsg(`Zahlart bei ${r.gesetzt} Beleg(en) gesetzt.`);
+      router.refresh();
+    });
+
   return (
     <>
       {anzahl > 0 && (
@@ -71,6 +79,20 @@ export function ListeSteuerung({ konten }: { konten: { value: string; label: str
           <button type="button" className="bd-btn bd-btn-primary" disabled={pending} onClick={() => buchen(false)}>
             als gebucht markieren
           </button>
+          <select
+            className="bd-field-input"
+            style={{ width: 190 }}
+            disabled={pending}
+            value=""
+            onChange={(e) => zahlart(e.target.value)}
+            title="Zahlart für alle markierten Belege setzen"
+          >
+            <option value="">Zahlart setzen …</option>
+            <option value="card">Kreditkarte</option>
+            <option value="paypal">PayPal</option>
+            <option value="transfer">Überweisung</option>
+            <option value="direct_debit">Lastschrift</option>
+          </select>
           {bereit > 0 && bereit < anzahl && (
             <button type="button" className="bd-btn bd-btn-secondary" disabled={pending} onClick={() => buchen(true)}>
               nur die {bereit} „bereiten“ buchen
