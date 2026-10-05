@@ -238,38 +238,42 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
     const herkunft = rcHerkunft(d);
     let hatRc = false;
     let hatIge = false;
+    // Gutschrift mit (älter importierten) negativen Beträgen: Vorzeichen der Positionen umdrehen, damit "Gutschrift" nicht doppelt wirkt.
+    // Negative Positionen innerhalb eines Belegs (Verrechnung, Rabatt) mindern den Beleg - nicht als Betrag zählen.
+    const flip = sign === -1 && units.reduce((acc, u) => acc + u.net, 0) < 0;
     for (const u of units) {
       if (Math.abs(u.net) < 0.005) continue;
+      const en = flip ? -u.net : u.net;
       if (!u.eust && u.konto?.startsWith("8")) {
         // Erlöskonto (SKR03 8xxx) auf einem Eingangsbeleg, z.B. Gutschrift des Lieferanten für verwertetes
         // Altpapier (8520): das ist Umsatz, kein Vorsteuerabzug - Gutschrift = Erlös (+), Rechnung auf ein
         // Erlöskonto = Erlösschmälerung (-).
         zeilen.push({
           richtung: "ausgang", belegId: d.id, belegNr: d.doc_number, partner, datum: d.doc_date, href,
-          netto: Math.abs(u.net), satz: u.rate, konto: u.konto, vorzeichen: (sign === -1 ? 1 : -1) as 1 | -1,
+          netto: Math.abs(u.net), satz: u.rate, konto: u.konto, vorzeichen: ((sign === -1 ? 1 : -1) * (en < 0 ? -1 : 1)) as 1 | -1,
         });
       } else if (u.eust) {
         // Einfuhrumsatzsteuer (SKR03 1588 "Bezahlte Einfuhrumsatzsteuer"): Betrag = Vorsteuer, Kz 62
         zeilen.push({
           richtung: "eingang", belegId: d.id, belegNr: d.doc_number, partner, datum: d.doc_date, href,
-          netto: Math.abs(u.net), satz: 0, rc: "eust", vorzeichen: sign,
+          netto: Math.abs(u.net), satz: 0, rc: "eust", vorzeichen: (sign * (en < 0 ? -1 : 1)) as 1 | -1,
         });
       } else if (u.ige) {
         hatIge = true;
         zeilen.push({
           richtung: "eingang", belegId: d.id, belegNr: d.doc_number, partner, datum: d.doc_date, href,
-          netto: Math.abs(u.net), satz: 0, rc: "ige", vorzeichen: sign,
+          netto: Math.abs(u.net), satz: 0, rc: "ige", vorzeichen: (sign * (en < 0 ? -1 : 1)) as 1 | -1,
         });
       } else if (u.rc) {
         hatRc = true;
         zeilen.push({
           richtung: "eingang", belegId: d.id, belegNr: d.doc_number, partner, datum: d.doc_date, href,
-          netto: Math.abs(u.net), satz: 0, rc: herkunft, vorzeichen: sign,
+          netto: Math.abs(u.net), satz: 0, rc: herkunft, vorzeichen: (sign * (en < 0 ? -1 : 1)) as 1 | -1,
         });
       } else {
         zeilen.push({
           richtung: "eingang", belegId: d.id, belegNr: d.doc_number, partner, datum: d.doc_date, href,
-          netto: Math.abs(u.net), satz: u.rate, vorzeichen: sign,
+          netto: Math.abs(u.net), satz: u.rate, vorzeichen: (sign * (en < 0 ? -1 : 1)) as 1 | -1,
         });
       }
     }
