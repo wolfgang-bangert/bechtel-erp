@@ -10,6 +10,7 @@ export type Regel = {
   revenue_account: string | null;
   payment_method: string | null;
   foreign_supply_kind: string | null;
+  gutschriftverfahren?: boolean;
 };
 
 const empty: State = {};
@@ -86,6 +87,17 @@ export function RegelForm({
         <p className="count" style={{ margin: "4px 0 0" }}>
           Gilt für Rechnungen dieses Lieferanten ohne ausgewiesene USt. Bei „Ware" bleibt die USt-Prüfung
           bewusst ein Vorschlag.
+        </p>
+      </div>
+
+      <div className="field">
+        <label>
+          <input type="checkbox" name="gutschriftverfahren" defaultChecked={regel?.gutschriftverfahren ?? false} />{" "}
+          Gutschriftverfahren (der Kunde stellt die Abrechnung aus und überweist)
+        </label>
+        <p className="count" style={{ margin: "4px 0 0" }}>
+          Belege dieser Organisation (z.B. Festool-Konsignationsabrechnung) sind Umsatz: sie werden beim Einlesen automatisch
+          als Ausgangsrechnung mit Erlösbuchung angelegt statt als Eingangsbeleg.
         </p>
       </div>
 

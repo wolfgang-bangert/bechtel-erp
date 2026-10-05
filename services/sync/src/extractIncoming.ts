@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { seitenNeuZusammenstellen, seitenzahl } from "@werk/shared/pdf/seiten";
+import { gutschriftverfahrenPruefen } from "./gutschriftverfahren";
 import { env } from "./env";
 import { supabase } from "./supabase";
 import { getObjectBytes, putObject, deleteObject, prefix } from "./storage";
@@ -886,6 +887,14 @@ export async function extractIncoming(opts: Options = {}) {
           .select("id, net_amount");
         if (iErr) throw new Error(iErr.message);
         await seedAllocations(ins ?? [], e.line_items ?? []);
+      }
+      // Gutschriftverfahren (Kunde stellt aus und überweist, z.B. Festool): als Ausgangsrechnung übernehmen
+      if (!isHint) {
+        try {
+          await gutschriftverfahrenPruefen(doc.id);
+        } catch (err) {
+          console.error(`  Gutschriftverfahren ${doc.file_name}: ${err instanceof Error ? err.message : err}`);
+        }
       }
       ok += 1;
       if (isAdvice) advice += 1;
