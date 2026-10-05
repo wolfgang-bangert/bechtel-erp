@@ -173,7 +173,7 @@ export default async function EingangsrechnungenPage({
   ]);
 
   return (
-    <div className="bd-page">
+    <div className="bd-page content-wide">
       <h1>Eingangsrechnungen</h1>
       <p className="bd-lead">
         Aus dem Postfach <code>rechnungen@bechtel-druck.de</code>, per KI
