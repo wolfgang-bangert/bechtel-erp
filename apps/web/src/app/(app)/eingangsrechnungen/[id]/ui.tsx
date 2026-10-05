@@ -225,6 +225,20 @@ export function ReviewForm({
     return { net: net.toFixed(2), tax: tax.toFixed(2), gross: r2c(net + tax).toFixed(2) };
   })();
 
+  // Zahlart aus der zugeordneten Bankzeile ableiten, wenn am Beleg keine steht (Lastschrift/Karte/PayPal/Überweisung).
+  const zahlartAusBank = (() => {
+    for (const m of bankMatches ?? []) {
+      if (m.ledger_account || !m.tx) continue;
+      const t = `${m.tx.purpose ?? ""} ${m.tx.counterparty_name ?? ""}`.toLowerCase();
+      if (/paypal/.test(t)) return "paypal";
+      if (/lastschrift/.test(t)) return "direct_debit";
+      if (/debitk|kreditk|kartenzahl|visa|mastercard|\bkarte\b/.test(t)) return "card";
+      return "transfer";
+    }
+    return "";
+  })();
+  const zahlartVorbelegt = v("payment_method") || suggestion?.payment_method || zahlartAusBank || "";
+
   const F = ({
     name,
     label,
@@ -288,7 +302,7 @@ export function ReviewForm({
                   className="bd-field-input"
                   id="payment_method"
                   name="payment_method"
-                  defaultValue={v("payment_method") || suggestion?.payment_method || ""}
+                  defaultValue={zahlartVorbelegt}
                 >
                   <option value="">— unbekannt —</option>
                   <option value="transfer">Überweisung</option>
@@ -301,12 +315,17 @@ export function ReviewForm({
                     Vorschlag aus <a href="/einstellungen/vorkontierung">Vorkontierung</a> übernommen.
                   </div>
                 )}
+                {!v("payment_method") && !suggestion?.payment_method && zahlartAusBank && (
+                  <div className="bd-hint">Aus der zugeordneten Bankzeile abgeleitet - bitte mit „Speichern“ übernehmen.</div>
+                )}
               </div>
               <div className="bd-field" style={{ width: 130 }}>
                 <label className="bd-field-label" htmlFor="payment_status">Zahlstatus</label>
                 <select className="bd-field-input" id="payment_status" name="payment_status" defaultValue={v("payment_status") || "open"}>
                   <option value="open">offen</option>
+                  <option value="partly_paid">teilweise bezahlt</option>
                   <option value="paid">bezahlt</option>
+                  <option value="overpaid">überzahlt</option>
                 </select>
               </div>
               <F name="supplier_iban" label="IBAN (laut Beleg)" w={260} />
