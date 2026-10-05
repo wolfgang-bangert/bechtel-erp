@@ -35,7 +35,9 @@ export function applyListFilters<T extends { eq: Function; not: Function; gte: F
   const status = sp.status ?? "";
   const search = (sp.q ?? "").trim();
   const range = monthRange(sp.monat ?? "");
-  if (status) r = r.eq("status", status);
+  if (status === "alle") {
+    // "Alle": keine Einschränkung nach Status (auch verworfene, Avis und Sonstiges)
+  } else if (status) r = r.eq("status", status);
   // Ohne Filter: Hinweisbelege und verworfene Belege (Dubletten u.a.) raus aus der Rechnungs-Prüfliste.
   else r = r.not("status", "in", "(advice,dunning,rejected)");
   if (sp.payment_method) r = r.eq("payment_method", sp.payment_method);
