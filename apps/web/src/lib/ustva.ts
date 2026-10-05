@@ -103,7 +103,7 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
   const { von, bis } = monatsGrenzen(monat);
   const dateCol = versteuerung === "ist" ? "paid_at" : "invoice_date";
 
-  const [{ data: salesRaw }, { data: incRaw }, { data: tcs }, { data: settings }] = await Promise.all([
+  const [{ data: salesRaw }, { data: incRaw }, { data: tcs }, { data: settings }, { data: skontoRaw }] = await Promise.all([
     supabase
       .from("sales_invoice")
       .select(
@@ -129,6 +129,17 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
       .in("status", ["extracted", "reviewed", "booked", "exported"]),
     supabase.from("tax_code").select("id, datev_tax_key, treatment, direction"),
     supabase.from("setting").select("key, value").eq("key", "datev.revenue_accounts"),
+    // Skonto-Ausbuchungen (Buchungszeilen auf den Skonto-Konten) im Monat der Zahlung: mindern Umsatz bzw. Vorsteuer
+    supabase
+      .from("bank_transaction_match")
+      .select(
+        "amount, ledger_account, sales_invoice_id, incoming_document_id, bank_transaction!inner ( booking_date ), " +
+          "sales_invoice ( invoice_number, net_total, tax_total, organization:organization ( name ) ), " +
+          "incoming_document ( doc_number, supplier_name, net_amount, tax_amount )",
+      )
+      .in("ledger_account", ["8736", "8731", "8730", "3736", "3731", "3730"])
+      .gte("bank_transaction.booking_date", von)
+      .lte("bank_transaction.booking_date", bis),
   ]);
 
   const rcCode = new Set(
@@ -285,6 +296,62 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
       ton: "warn",
       text: `${rcUnklar.length} §13b-Beleg(e) mit unklarem Lieferantenland (keine USt-IdNr, Land DE) - als Drittland (Kz 52/53) gezählt. EU-Lieferanten bitte Kz 46/47 zuordnen (USt-IdNr am Beleg/Organisation ergänzen).`,
       belege: rcUnklar,
+    });
+
+  // ---- Skonto ------------------------------------------------------------
+  type SkontoRow = {
+    amount: number;
+    ledger_account: string;
+    sales_invoice_id: string | null;
+    incoming_document_id: string | null;
+    bank_transaction: { booking_date: string } | { booking_date: string }[] | null;
+    sales_invoice: { invoice_number: string | null; net_total: number | null; tax_total: number | null; organization: { name: string | null } | { name: string | null }[] | null } | null;
+    incoming_document: { doc_number: string | null; supplier_name: string | null; net_amount: number | null; tax_amount: number | null } | null;
+  };
+  let skontoAnzahl = 0;
+  let skontoUst = 0;
+  let skontoVst = 0;
+  for (const m of (skontoRaw ?? []) as unknown as SkontoRow[]) {
+    const gross = Math.abs(Number(m.amount));
+    const bt = Array.isArray(m.bank_transaction) ? m.bank_transaction[0] : m.bank_transaction;
+    const acc = m.ledger_account;
+    const ausgang = acc.startsWith("8") && !!m.sales_invoice_id;
+    const eingang = acc.startsWith("3") && !!m.incoming_document_id;
+    if (!ausgang && !eingang) continue;
+    let rate = acc.endsWith("36") ? 19 : acc.endsWith("31") ? 7 : 0;
+    if (rate === 0) {
+      // "wählbarer" Skonto-Satz: Satz des Belegs
+      const net = ausgang ? (m.sales_invoice?.net_total ?? 0) : (m.incoming_document?.net_amount ?? 0);
+      const tax = ausgang ? (m.sales_invoice?.tax_total ?? 0) : (m.incoming_document?.tax_amount ?? 0);
+      rate = net > 0 && tax > 0 ? Math.round((tax / net) * 100) : 0;
+    }
+    if (rate === 0 || gross < 0.005) continue;
+    const netto = r2(gross / (1 + rate / 100));
+    const org = m.sales_invoice?.organization;
+    const partner = ausgang
+      ? (Array.isArray(org) ? org[0]?.name : org?.name) ?? "?"
+      : m.incoming_document?.supplier_name ?? "?";
+    const nr = ausgang ? m.sales_invoice?.invoice_number : m.incoming_document?.doc_number;
+    zeilen.push({
+      richtung: ausgang ? "ausgang" : "eingang",
+      belegId: (ausgang ? m.sales_invoice_id : m.incoming_document_id) as string,
+      belegNr: `Skonto ${nr ?? ""}`.trim(),
+      partner,
+      datum: bt?.booking_date ?? null,
+      href: ausgang ? `/rechnungen/${m.sales_invoice_id}` : `/eingangsrechnungen/${m.incoming_document_id}`,
+      netto,
+      satz: rate,
+      konto: null,
+      vorzeichen: -1,
+    });
+    skontoAnzahl += 1;
+    if (ausgang) skontoUst = r2(skontoUst + r2((netto * rate) / 100));
+    else skontoVst = r2(skontoVst + r2((netto * rate) / 100));
+  }
+  if (skontoAnzahl)
+    hinweise.push({
+      ton: "info",
+      text: `${skontoAnzahl} Skonto-Ausbuchung(en) im Monat der Zahlung berücksichtigt: Umsatzsteuer −${skontoUst.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €, Vorsteuer −${skontoVst.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €.`,
     });
 
   const ergebnis = berechneUstva(zeilen, konten);
