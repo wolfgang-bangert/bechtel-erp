@@ -44,6 +44,8 @@ export type UstvaErloesKonten = {
   intra_community_supply?: string;
   reverse_charge_eu?: string;
   export_third_country?: string;
+  /** DE-steuerfreie Umsätze (Porto/Auslagen, 0 %) - keine Kennzahl, bewusst nicht gemeldet */
+  tax_free_other?: string;
 };
 
 export type KennzahlZeile = {
@@ -64,6 +66,8 @@ export type UstvaErgebnis = {
   zahllast: number;
   /** nicht eindeutig zuordenbare Zeilen (steuerfreie Ausgangszeilen ohne Konto-Zuordnung) */
   unzugeordnet: UstvaZeile[];
+  /** 0%-Ausgangszeilen auf dem Konto "steuerfrei sonstige" (z.B. Porto) - nur zur Information */
+  steuerfreiOhneKz: UstvaZeile[];
 };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -100,6 +104,7 @@ export function berechneUstva(zeilen: UstvaZeile[], konten: UstvaErloesKonten): 
     buckets.set(kz, l);
   };
   const unzugeordnet: UstvaZeile[] = [];
+  const steuerfreiOhneKz: UstvaZeile[] = [];
 
   for (const z of zeilen) {
     if (z.richtung === "ausgang") {
@@ -108,6 +113,7 @@ export function berechneUstva(zeilen: UstvaZeile[], konten: UstvaErloesKonten): 
       else if (konten.intra_community_supply && z.konto === konten.intra_community_supply) add("41", z);
       else if (konten.reverse_charge_eu && z.konto === konten.reverse_charge_eu) add("21", z);
       else if (konten.export_third_country && z.konto === konten.export_third_country) add("43", z);
+      else if (konten.tax_free_other && z.konto === konten.tax_free_other && z.satz < 0.5) steuerfreiOhneKz.push(z);
       else unzugeordnet.push(z);
     } else if (z.rc === "eust") {
       add("62", z);
@@ -153,5 +159,5 @@ export function berechneUstva(zeilen: UstvaZeile[], konten: UstvaErloesKonten): 
 
   const umsatzsteuer = r2(sum("81", steuer) + sum("86", steuer) + sum("46", steuer) + sum("52", steuer) + sum("89", steuer));
   const vorsteuer = r2(sum("66", steuer) + sum("67", steuer) + sum("61", steuer) + sum("62", steuer));
-  return { kennzahlen, umsatzsteuer, vorsteuer, zahllast: r2(umsatzsteuer - vorsteuer), unzugeordnet };
+  return { kennzahlen, umsatzsteuer, vorsteuer, zahllast: r2(umsatzsteuer - vorsteuer), unzugeordnet, steuerfreiOhneKz };
 }
