@@ -14,6 +14,9 @@ export function candidateTokens(purpose: string): string[] {
     t.add(c);
     t.add(c.replace(/[^A-Za-z0-9]/g, ""));
     t.add(c.replace(/^[A-Za-z]+[- ]?/i, "").replace(/[^A-Za-z0-9]/g, ""));
+    // Referenzen mit führenden Nullen ("/INV/ 0003128391") auf die Rechnungsnummer ohne Nullen abbilden
+    const ohneNull = c.replace(/[^A-Za-z0-9]/g, "").replace(/^0+(?=\d{4})/, "");
+    if (ohneNull.length >= 4) t.add(ohneNull);
   };
   for (const m of purpose.matchAll(/\d{5,12}/g)) add(m[0]);
   for (const m of purpose.matchAll(/\b\d{2}[A-Za-z]{1,4}\d{2,8}\b/g)) add(m[0]);
