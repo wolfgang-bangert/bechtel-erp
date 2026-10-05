@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
 import { UploadForm } from "./UploadForm";
 import { ListeSteuerung } from "./ListeSteuerung";
-import { applyListFilters, monthRange, sortSpec } from "./_liste";
+import { applyListFilters, kontoJoin, monthRange, sortSpec } from "./_liste";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +30,9 @@ const PAYMENT_LABEL: Record<string, string> = {
 
 const PAGE_SIZE = 200;
 
+const LISTEN_SELECT =
+  "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date, ledger_account, tax_code_id, net_amount, tax_amount, colleague_checked_at, colleague_checked_by, ust_status:extraction->_ust->>status, incoming_document_item!incoming_document_item_incoming_document_id_fkey ( ledger_account, tax_code_id, linked_document_id )" as const;
+
 export default async function EingangsrechnungenPage({
   searchParams,
 }: {
@@ -42,6 +45,7 @@ export default async function EingangsrechnungenPage({
     monat?: string;
     seite?: string;
     ust?: string;
+    konto?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -61,14 +65,13 @@ export default async function EingangsrechnungenPage({
 
   const supabase = await createClient();
   // Gleiche Filter für die Liste und die Summenzeile (alle Seiten, nicht nur die angezeigte).
-  const applyFilters = <T extends { eq: Function; not: Function; gte: Function; lt: Function; or: Function }>(q: T): T =>
+  const kontoLeer = sp.konto === "leer";
+  const applyFilters = <T extends { eq: Function; not: Function; gte: Function; lt: Function; or: Function; is: Function }>(q: T): T =>
     applyListFilters(q, sp);
   let query = applyFilters(
     supabase
       .from("incoming_document")
-      .select(
-        "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date, ledger_account, tax_code_id, net_amount, tax_amount, colleague_checked_at, colleague_checked_by, ust_status:extraction->_ust->>status, incoming_document_item!incoming_document_item_incoming_document_id_fkey ( ledger_account, tax_code_id, linked_document_id )",
-        { count: "exact" },
+      .select((LISTEN_SELECT + kontoJoin(sp)) as typeof LISTEN_SELECT, { count: "exact" },
       )
       .range((seite - 1) * PAGE_SIZE, seite * PAGE_SIZE - 1),
   );
@@ -80,7 +83,7 @@ export default async function EingangsrechnungenPage({
   let netSum = 0;
   for (let from = 0; ; from += 1000) {
     const { data: rows } = await applyFilters(
-      supabase.from("incoming_document").select("net_amount, doc_type").range(from, from + 999),
+      supabase.from("incoming_document").select(("net_amount, doc_type" + kontoJoin(sp)) as "net_amount, doc_type").range(from, from + 999),
     );
     for (const r of rows ?? []) {
       const n = Number(r.net_amount ?? 0);
@@ -135,6 +138,7 @@ export default async function EingangsrechnungenPage({
     if (paymentMethod) u.set("payment_method", paymentMethod);
     if (range) u.set("monat", monat);
     if (ustOffen) u.set("ust", "offen");
+    if (kontoLeer) u.set("konto", "leer");
     if (sort !== "date") u.set("sort", sort);
     if (dir !== "desc") u.set("dir", dir);
     return u;
@@ -242,11 +246,18 @@ export default async function EingangsrechnungenPage({
           <label className="bd-field-label">Monat (Belegdatum)</label>
           <input className="bd-field-input" type="month" name="monat" defaultValue={range ? monat : ""} />
         </div>
+        <div className="bd-field">
+          <label className="bd-field-label">Konto</label>
+          <select className="bd-field-input" name="konto" defaultValue={kontoLeer ? "leer" : ""}>
+            <option value="">alle</option>
+            <option value="leer">ohne Konto</option>
+          </select>
+        </div>
         {ustOffen && <input type="hidden" name="ust" value="offen" />}
         {sort !== "date" && <input type="hidden" name="sort" value={sort} />}
         {dir !== "desc" && <input type="hidden" name="dir" value={dir} />}
         <button className="bd-btn bd-btn-secondary" type="submit">Filtern</button>
-        {(status || search || paymentMethod || range || ustOffen) && <Link href="/eingangsrechnungen">zurücksetzen</Link>}
+        {(status || search || paymentMethod || range || ustOffen || kontoLeer) && <Link href="/eingangsrechnungen">zurücksetzen</Link>}
         <div className="bd-spacer" />
         <span style={{ color: "var(--bd-ink-muted)", fontSize: 13, fontFamily: "var(--font-bd-sans)" }}>
           {count ?? 0} Belege · Netto {fmtEur(netSum)}

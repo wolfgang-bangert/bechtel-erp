@@ -7,7 +7,14 @@ export type ListeParams = {
   payment_method?: string;
   monat?: string;
   ust?: string;
+  /** "leer": nur Belege, bei denen mindestens eine Position (ohne verknüpften Beleg) kein Konto hat und am Beleg keins steht */
+  konto?: string;
 };
+
+/** Zusatz fürs select(): Join, auf dem der Filter "ohne Konto" arbeitet. */
+export function kontoJoin(sp: ListeParams): string {
+  return sp.konto === "leer" ? ", fehlend:incoming_document_item!incoming_document_item_incoming_document_id_fkey!inner(ledger_account, linked_document_id)" : "";
+}
 
 // "2026-01" -> [2026-01-01, 2026-02-01)
 export function monthRange(m: string): { from: string; to: string } | null {
@@ -20,7 +27,7 @@ export function monthRange(m: string): { from: string; to: string } | null {
   return { from: `${mt[1]}-${mt[2]}-01`, to: `${ny}-${String(nm).padStart(2, "0")}-01` };
 }
 
-export function applyListFilters<T extends { eq: Function; not: Function; gte: Function; lt: Function; or: Function }>(
+export function applyListFilters<T extends { eq: Function; not: Function; gte: Function; lt: Function; or: Function; is: Function }>(
   q: T,
   sp: ListeParams,
 ): T {
@@ -34,6 +41,7 @@ export function applyListFilters<T extends { eq: Function; not: Function; gte: F
   if (sp.payment_method) r = r.eq("payment_method", sp.payment_method);
   if (sp.ust === "offen") r = r.eq("extraction->_ust->>status", "vorschlag");
   if (range) r = r.gte("doc_date", range.from).lt("doc_date", range.to);
+  if (sp.konto === "leer") r = r.is("ledger_account", null).is("fehlend.ledger_account", null).is("fehlend.linked_document_id", null);
   if (search) {
     const like = `%${search.replace(/[%,]/g, "")}%`;
     r = r.or(`supplier_name.ilike.${like},email_from.ilike.${like}`);
