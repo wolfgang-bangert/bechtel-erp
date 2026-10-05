@@ -14,7 +14,7 @@ import { bbGetAll, bbPost } from "./bbutler";
  * Stammdaten inkl. EU-USt-IdNr) und Belege.zip (<Buchungsnummer>.pdf).
  * Importiert werden nur Eingangsrechnungen (Konto = Kreditor 70000-99999,
  * Gegenkonto = Aufwandskonto); Zahlungen/Ausgleiche/Ausgangsrechnungen werden
- * übersprungen. Status der neuen Belege: "reviewed" (in BB bereits verbucht).
+ * übersprungen. Status der neuen Belege: "booked" (in BB bereits verbucht).
  * Bereits in werk vorhandene Belege (gleiche Rechnungsnummer + Lieferant)
  * werden nicht doppelt angelegt, sondern nur ergänzt (Kontierung/Status).
  * -------------------------------------------------------------------------- */
@@ -341,7 +341,7 @@ export async function importBbBelege(opts: Options) {
         if (!dup.ledger_account) patch.ledger_account = biggest.l.konto;
         if (!dup.tax_code_id && codeFor(biggest.l)) patch.tax_code_id = codeFor(biggest.l);
         if (dup.status === "extracted" && !satzOffen) {
-          patch.status = "reviewed";
+          patch.status = "booked";
           patch.reviewed_at = stand;
         }
         if (Object.keys(patch).length) {
@@ -376,7 +376,7 @@ export async function importBbBelege(opts: Options) {
       .insert({
         source: "api",
         doc_type: b.credit ? "credit_note" : "invoice",
-        status: satzOffen ? "extracted" : "reviewed",
+        status: satzOffen ? "extracted" : "booked",
         reviewed_at: satzOffen ? null : stand,
         file_name: pdfEntry ? `${b.docNr || b.nr}.pdf` : null,
         pdf_storage_key: key,

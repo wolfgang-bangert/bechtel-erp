@@ -51,10 +51,10 @@ export async function ustPruefen({ dryRun, neuLesen = false }: { dryRun: boolean
     pdf_storage_key: string | null;
   };
   const cols = "id, doc_number, supplier_name, status, tax_code_id, extraction, extracted_at, updated_at, supplier_organization_id, dedup_key, pdf_storage_key";
-  // "reviewed" nur für Belege mit noch offener USt-Prüfung (siehe unten), sonst ist dort nichts zu tun.
+  // "booked" (früher "reviewed") nur für Belege mit noch offener USt-Prüfung (siehe unten), sonst ist dort nichts zu tun.
   const docs = [
     ...(await pagedSelect<Doc>("incoming_document", cols, ["status", "extracted"])),
-    ...(await pagedSelect<Doc>("incoming_document", cols, ["status", "reviewed"])),
+    ...(await pagedSelect<Doc>("incoming_document", cols, ["status", "booked"])),
   ];
 
   const out = { geprueft: 0, sicher: 0, vorschlag: 0, geaendert: 0, manuellBearbeitet: 0, neuGelesen: 0, details: [] as string[] };
@@ -64,7 +64,7 @@ export async function ustPruefen({ dryRun, neuLesen = false }: { dryRun: boolean
     let gelesen = false;
     if (ex.doc_type === "payment_advice" || ex.doc_type === "dunning" || ex.doc_type === "other") continue;
     const offen = (ex._ust as { status?: string } | undefined)?.status === "vorschlag";
-    if (d.status === "reviewed" && !offen) continue;
+    if (d.status === "booked" && !offen) continue;
 
     // Offene Belege, deren Extraktion noch keine USt-Angaben des Belegs ("vat_check") enthält, einmal neu
     // lesen - nur dieses Feld wird übernommen, Positionen/Beträge bleiben unberührt.

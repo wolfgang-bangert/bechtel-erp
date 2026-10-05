@@ -27,7 +27,7 @@ type Doc = {
 };
 
 const nm = (x: string | null | undefined) => (x ?? "").toLowerCase().replace(/[^a-z0-9äöüß]/g, "");
-const RANK: Record<string, number> = { booked: 5, exported: 5, reviewed: 4, extracted: 3, captured: 2 };
+const RANK: Record<string, number> = { booked: 5, exported: 5, reviewed: 5, extracted: 3, captured: 2 };
 
 export async function incomingDubletten({ dryRun }: { dryRun: boolean }) {
   const alle = (

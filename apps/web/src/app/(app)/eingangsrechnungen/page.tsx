@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
 import { UploadForm } from "./UploadForm";
+import { ListeSteuerung } from "./ListeSteuerung";
 import { applyListFilters, monthRange, sortSpec } from "./_liste";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
 const STATUS: Record<string, string> = {
   captured: "erfasst",
   extracted: "extrahiert",
-  reviewed: "geprüft",
+  reviewed: "gebucht", // früher "geprüft" - wird zu "gebucht" umgestellt
   booked: "gebucht",
   exported: "exportiert",
   rejected: "verworfen",
@@ -66,7 +67,7 @@ export default async function EingangsrechnungenPage({
     supabase
       .from("incoming_document")
       .select(
-        "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date, ledger_account, ust_status:extraction->_ust->>status, incoming_document_item!incoming_document_item_incoming_document_id_fkey ( ledger_account )",
+        "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date, ledger_account, tax_code_id, net_amount, tax_amount, colleague_checked_at, colleague_checked_by, ust_status:extraction->_ust->>status, incoming_document_item!incoming_document_item_incoming_document_id_fkey ( ledger_account, tax_code_id, linked_document_id )",
         { count: "exact" },
       )
       .range((seite - 1) * PAGE_SIZE, seite * PAGE_SIZE - 1),
@@ -118,6 +119,14 @@ export default async function EingangsrechnungenPage({
     const { data: la } = await supabase.from("ledger_account").select("number, name").in("number", kontoNr);
     for (const a of la ?? []) kontoName.set(a.number, a.name);
   }
+
+  const kollegenIds = Array.from(new Set((data ?? []).map((d) => d.colleague_checked_by).filter((x): x is string => !!x)));
+  const kollegenName = new Map<string, string>();
+  if (kollegenIds.length) {
+    const { data: us } = await supabase.from("app_user").select("id, display_name, email").in("id", kollegenIds);
+    for (const u of us ?? []) kollegenName.set(u.id, u.display_name || u.email || "?");
+  }
+  const { data: alleKonten } = await supabase.from("ledger_account").select("number, name").eq("is_active", true).order("number");
 
   const baseParams = () => {
     const u = new URLSearchParams();
@@ -261,10 +270,21 @@ export default async function EingangsrechnungenPage({
 
       {error && <div className="banner-err">Fehler: {error.message}</div>}
 
+      {!isHint && (
+        <ListeSteuerung
+          konten={(alleKonten ?? []).map((a) => ({ value: a.number, label: `${a.number} – ${a.name}` }))}
+        />
+      )}
+
       <div className="table-scroll">
         <table className="bd-table">
           <thead>
             <tr>
+              {!isHint && (
+                <th style={{ width: 28 }}>
+                  <input type="checkbox" className="row-check-all" aria-label="alle auswählen" />
+                </th>
+              )}
               <th>Beleg</th>
               <th>
                 <Link href={sortHref("supplier")}>Lieferant{sortIndicator("supplier")}</Link>
@@ -280,16 +300,31 @@ export default async function EingangsrechnungenPage({
               </th>
               {!isHint && <th>Status</th>}
               {!isHint && <th>Konto</th>}
-              <th>{isHint ? "bezieht sich auf" : "bezahlt"}</th>
-              <th>{isHint ? "" : "gebucht"}</th>
+              <th>{isHint ? "bezieht sich auf" : "Zahlung"}</th>
             </tr>
           </thead>
           <tbody>
             {(data ?? []).map((d) => {
               const isPaid = d.payment_status === "paid" || d.payment_status === "overpaid";
               const isBooked = d.status === "booked" || d.status === "exported";
+              const orgMethod = d.supplier_organization_id ? ruleMethodByOrg.get(d.supplier_organization_id) : null;
+              const itemsOhneLink = (d.incoming_document_item ?? []).filter((i) => !i.linked_document_id);
+              const kontoOk = itemsOhneLink.length ? itemsOhneLink.every((i) => i.ledger_account || d.ledger_account) : !!d.ledger_account;
+              const schluesselOk = itemsOhneLink.length ? itemsOhneLink.every((i) => i.tax_code_id) : !!d.tax_code_id;
+              const summenOk = Math.abs(Number(d.net_amount ?? 0) + Number(d.tax_amount ?? 0) - Number(d.gross_amount ?? 0)) <= 0.02;
+              const offen = d.status === "captured" || d.status === "extracted";
+              const bereit =
+                !isHint && offen && ["invoice", "credit_note", "receipt"].includes(d.doc_type) &&
+                kontoOk && schluesselOk && summenOk && !!(d.payment_method || orgMethod) && d.ust_status !== "vorschlag";
               return (
                 <tr key={d.id}>
+                  {!isHint && (
+                    <td>
+                      {offen && ["invoice", "credit_note", "receipt"].includes(d.doc_type) ? (
+                        <input type="checkbox" className="row-check" data-id={d.id} data-bereit={bereit ? "1" : "0"} aria-label="auswählen" />
+                      ) : null}
+                    </td>
+                  )}
                   <td className="wrap">
                     <Link href={`/eingangsrechnungen/${d.id}${listeQuery ? `?l=${encodeURIComponent(listeQuery)}` : ""}`}>
                       {d.doc_number ?? d.file_name ?? d.id.slice(0, 8)}
@@ -307,16 +342,26 @@ export default async function EingangsrechnungenPage({
                     {fmtEur(d.doc_type === "credit_note" ? -Math.abs(d.gross_amount ?? 0) : d.gross_amount)}
                   </td>
                   {!isHint && (
-                    <td>
-                      <span
-                        className={
-                          "bd-status " +
-                          (d.status === "booked" || d.status === "exported" ? "t-success" : d.status === "reviewed" ? "t-info" : "t-warning")
-                        }
-                      >
+                    <td className="wrap">
+                      <span className={"bd-status " + (isBooked || d.status === "reviewed" ? "t-success" : "t-warning")}>
                         <span className="bd-status-mark" />
                         {STATUS[d.status] ?? d.status}
                       </span>
+                      {bereit && (
+                        <span className="bd-status t-info" style={{ marginLeft: 6 }} title="Konto, Steuerschlüssel, Zahlart und Summen sind vollständig - bereit zum Buchen">
+                          <span className="bd-status-mark" />
+                          bereit
+                        </span>
+                      )}
+                      {d.colleague_checked_at && (
+                        <span
+                          className="bd-sub"
+                          style={{ marginLeft: 6 }}
+                          title={`von Kollegen gesehen: ${new Date(d.colleague_checked_at).toLocaleDateString("de-DE")}${d.colleague_checked_by && kollegenName.get(d.colleague_checked_by) ? `, ${kollegenName.get(d.colleague_checked_by)}` : ""}`}
+                        >
+                          👁
+                        </span>
+                      )}
                     </td>
                   )}
                   {!isHint && (
@@ -327,6 +372,11 @@ export default async function EingangsrechnungenPage({
                         const label = (nr: string) => `${nr}${kontoName.get(nr) ? ` ${kontoName.get(nr)}` : ""}`;
                         return k.length === 1 ? label(k[0]) : `${label(k[0])} +${k.length - 1}`;
                       })()}
+                      {["captured", "extracted"].includes(d.status) && (
+                        <button type="button" className="konto-edit" data-id={d.id} data-konto={kontenVon(d)[0] ?? ""} title="Konto für alle Positionen setzen" style={{ marginLeft: 6, border: "none", background: "none", cursor: "pointer" }}>
+                          ✎
+                        </button>
+                      )}
                     </td>
                   )}
                   <td className="wrap">
@@ -350,18 +400,6 @@ export default async function EingangsrechnungenPage({
                           </span>
                         );
                       })()
-                    )}
-                  </td>
-                  <td>
-                    {isHint ? (
-                      ""
-                    ) : isBooked ? (
-                      <span className="bd-status t-success">
-                        <span className="bd-status-mark" />
-                        gebucht
-                      </span>
-                    ) : (
-                      "–"
                     )}
                   </td>
                 </tr>

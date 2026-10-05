@@ -312,10 +312,10 @@ export async function uploadIncoming(
 export async function setIncomingStatus(fd: FormData): Promise<void> {
   const id = String(fd.get("id") ?? "");
   const status = String(fd.get("status") ?? "");
-  if (!id || !["extracted", "reviewed", "booked", "rejected"].includes(status)) return;
+  if (!id || !["extracted", "booked", "rejected"].includes(status)) return;
   const supabase = await createClient();
   const patch: Record<string, unknown> = { status };
-  if (status === "reviewed") patch.reviewed_at = new Date().toISOString();
+  if (status === "booked") patch.reviewed_at = new Date().toISOString();
   await supabase.from("incoming_document").update(patch).eq("id", id);
   revalidatePath("/eingangsrechnungen");
   revalidatePath(`/eingangsrechnungen/${id}`);
@@ -376,7 +376,7 @@ export async function bestaetigeUst(fd: FormData): Promise<void> {
     .eq("incoming_document_id", id);
   const kontenOk = (konten ?? []).every((k) => k.linked_document_id || k.ledger_account || doc?.ledger_account);
   if (doc && ["captured", "extracted"].includes(doc.status) && kontenOk && ((konten ?? []).length > 0 || doc.ledger_account)) {
-    patch.status = "reviewed";
+    patch.status = "booked";
     patch.reviewed_at = new Date().toISOString();
   }
   await supabase.from("incoming_document").update(patch).eq("id", id);
@@ -427,4 +427,50 @@ export async function alsSonstigesBehandeln(fd: FormData): Promise<void> {
     .eq("id", id);
   revalidatePath(`/eingangsrechnungen/${id}`);
   revalidatePath("/eingangsrechnungen");
+}
+
+/** Mehrere Belege auf einmal als gebucht markieren (Sichtprüfung in der Liste). Nur offene Rechnungen/Gutschriften. */
+export async function buchenMehrere(ids: string[]): Promise<{ gebucht: number }> {
+  const clean = ids.filter((x) => /^[0-9a-f-]{36}$/i.test(x));
+  if (!clean.length) return { gebucht: 0 };
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("incoming_document")
+    .update({ status: "booked", reviewed_at: new Date().toISOString() })
+    .in("id", clean)
+    .in("status", ["captured", "extracted"])
+    .in("doc_type", ["invoice", "credit_note", "receipt"])
+    .select("id");
+  revalidatePath("/eingangsrechnungen");
+  return { gebucht: (data ?? []).length };
+}
+
+/** Konto am Beleg und an allen Positionen setzen (Schnellbutton in der Liste). */
+export async function setzeKontoAlle(id: string, konto: string): Promise<void> {
+  const k = konto.trim();
+  if (!id || !k) return;
+  const supabase = await createClient();
+  await supabase.from("incoming_document").update({ ledger_account: k }).eq("id", id);
+  await supabase.from("incoming_document_item").update({ ledger_account: k }).eq("incoming_document_id", id).is("linked_document_id", null);
+  revalidatePath("/eingangsrechnungen");
+  revalidatePath(`/eingangsrechnungen/${id}`);
+}
+
+/** Vermerk "von Kollegen gesehen" (wer, wann) setzen bzw. zurücknehmen. */
+export async function kollegenGesehen(fd: FormData): Promise<void> {
+  const id = String(fd.get("id") ?? "");
+  const gesehen = String(fd.get("gesehen") ?? "") === "1";
+  if (!id) return;
+  const supabase = await createClient();
+  const { data: u } = await supabase.auth.getUser();
+  await supabase
+    .from("incoming_document")
+    .update(
+      gesehen
+        ? { colleague_checked_at: new Date().toISOString(), colleague_checked_by: u.user?.id ?? null }
+        : { colleague_checked_at: null, colleague_checked_by: null },
+    )
+    .eq("id", id);
+  revalidatePath("/eingangsrechnungen");
+  revalidatePath(`/eingangsrechnungen/${id}`);
 }
