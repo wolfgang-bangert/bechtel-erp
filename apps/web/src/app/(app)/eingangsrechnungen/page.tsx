@@ -226,10 +226,13 @@ export default async function EingangsrechnungenPage({
         <div className="bd-field">
           <label className="bd-field-label">Status</label>
           <select className="bd-field-input" name="status" defaultValue={status}>
-            <option value="">offene Rechnungen</option>
-            {Object.entries(STATUS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
+            <option value="">Rechnungen (ohne verworfen/Avis/Sonstiges)</option>
+            <option value="alle">Alle</option>
+            {Object.entries(STATUS)
+              .filter(([k]) => k !== "reviewed")
+              .map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
           </select>
         </div>
         <div className="bd-field">
