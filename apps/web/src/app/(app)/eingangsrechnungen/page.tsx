@@ -31,7 +31,7 @@ const PAYMENT_LABEL: Record<string, string> = {
 const PAGE_SIZE = 200;
 
 const LISTEN_SELECT =
-  "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date, ledger_account, tax_code_id, net_amount, tax_amount, colleague_checked_at, colleague_checked_by, ust_status:extraction->_ust->>status, incoming_document_item!incoming_document_item_incoming_document_id_fkey ( ledger_account, tax_code_id, linked_document_id )" as const;
+  "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date, ledger_account, tax_code_id, net_amount, tax_amount, created_at, colleague_checked_at, colleague_checked_by, ust_status:extraction->_ust->>status, incoming_document_item!incoming_document_item_incoming_document_id_fkey ( ledger_account, tax_code_id, linked_document_id )" as const;
 
 export default async function EingangsrechnungenPage({
   searchParams,
@@ -59,7 +59,7 @@ export default async function EingangsrechnungenPage({
   const isHint = HINT.has(status);
   const isAdvice = status === "advice";
   const isDunning = status === "dunning";
-  const sort = sp.sort === "supplier" ? "supplier" : "date";
+  const sort = sp.sort === "supplier" ? "supplier" : sp.sort === "eingang" ? "eingang" : "date";
   const dir = sp.dir === "asc" ? "asc" : "desc";
   const ascending = dir === "asc";
 
@@ -144,7 +144,7 @@ export default async function EingangsrechnungenPage({
     return u;
   };
   const listeQuery = baseParams().toString();
-  const sortHref = (field: "date" | "supplier") => {
+  const sortHref = (field: "date" | "supplier" | "eingang") => {
     const u = baseParams();
     u.set("sort", field);
     u.set("dir", sort === field && dir === "asc" ? "desc" : "asc");
@@ -156,7 +156,7 @@ export default async function EingangsrechnungenPage({
     return `/eingangsrechnungen?${u.toString()}`;
   };
   const pages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
-  const sortIndicator = (field: "date" | "supplier") => (sort === field ? (dir === "asc" ? " ▲" : " ▼") : "");
+  const sortIndicator = (field: "date" | "supplier" | "eingang") => (sort === field ? (dir === "asc" ? " ▲" : " ▼") : "");
 
   const [{ count: adviceCount }, { count: dunningCount }, { count: openCount }, { count: ustCount }] = await Promise.all([
     supabase.from("incoming_document").select("id", { count: "exact", head: true }).eq("status", "advice"),
@@ -309,6 +309,9 @@ export default async function EingangsrechnungenPage({
                   {sortIndicator("date")}
                 </Link>
               </th>
+              <th>
+                <Link href={sortHref("eingang")}>Eingang{sortIndicator("eingang")}</Link>
+              </th>
               <th className="bd-num">
                 {isAdvice ? "Lastschrift" : isDunning ? "Betrag" : "Brutto"}
               </th>
@@ -352,6 +355,7 @@ export default async function EingangsrechnungenPage({
                   </td>
                   <td className="wrap">{d.supplier_name ?? d.email_from ?? "–"}</td>
                   <td>{fmtDate(isAdvice ? d.advice_debit_date : d.doc_date)}</td>
+                  <td className="bd-sub" title={new Date(d.created_at).toLocaleString("de-DE")}>{fmtDate(d.created_at)}</td>
                   <td className="bd-num">
                     {fmtEur(d.doc_type === "credit_note" ? -Math.abs(d.gross_amount ?? 0) : d.gross_amount)}
                   </td>

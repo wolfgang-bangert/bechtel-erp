@@ -52,7 +52,7 @@ export function applyListFilters<T extends { eq: Function; not: Function; gte: F
 }
 
 export function sortSpec(sp: ListeParams): { column: string; ascending: boolean } {
-  const sort = sp.sort === "supplier" ? "supplier" : "date";
   const dateColumn = sp.status === "advice" ? "advice_debit_date" : "doc_date";
-  return { column: sort === "supplier" ? "supplier_name" : dateColumn, ascending: sp.dir === "asc" };
+  const column = sp.sort === "supplier" ? "supplier_name" : sp.sort === "eingang" ? "created_at" : dateColumn;
+  return { column, ascending: sp.dir === "asc" };
 }
