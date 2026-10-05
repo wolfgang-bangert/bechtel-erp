@@ -105,8 +105,8 @@ export async function incomingDubletten({ dryRun }: { dryRun: boolean }) {
     const score = (d: Doc) => [
       d.doc_type === "payment_advice" ? 1 : 0, // ein erkanntes Zahlungsavis bleibt gegenüber einer als Rechnung importierten Kopie
       RANK[d.status] ?? 0,
+      d.dedup_key.startsWith("bb:") ? 0 : 1, // Mail/Upload (KI gelesen, richtige USt/Lieferant) vor BB-Import
       d.doc_type === "invoice" ? 1 : 0,
-      d.dedup_key.startsWith("bb:") ? 0 : 1,
       matchCount.get(d.id) ?? 0,
       d.ledger_account ? 1 : 0,
       d.tax_code_id ? 1 : 0,
