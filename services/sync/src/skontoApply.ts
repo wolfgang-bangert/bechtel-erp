@@ -9,6 +9,8 @@ type Options = {
   maxAbs?: number; // absolute Obergrenze je Beleg
   /** nur eine Seite bearbeiten (sonst beide): Eingangsrechnungen (kreditoren) oder Ausgangsrechnungen (debitoren) */
   seite?: "kreditoren" | "debitoren";
+  /** nur Ausgangsrechnungen von Kunden, deren Name diesen Text enthält (z.B. "Festool") */
+  kunde?: string;
 };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -57,7 +59,7 @@ async function refreshTxStatus(txId: string) {
  * 3730/3731/3736) und Debitoren (gewährtes, 8730/8731/8736) Skonto.
  */
 export async function skontoApply(opts: Options = {}) {
-  const { from, to, dryRun = false, maxPercent = 0.03, maxAbs = 300, seite } = opts;
+  const { from, to, dryRun = false, maxPercent = 0.03, maxAbs = 300, seite, kunde } = opts;
   const inRange = (d: string | null) => (!from || !d || d >= from) && (!to || !d || d <= to);
 
   type BelegMatch = { id: string; bank_transaction_id: string; amount: number; created_at: string };
@@ -142,14 +144,23 @@ export async function skontoApply(opts: Options = {}) {
     tax_total: number | null;
     open_amount: number | null;
     payment_status: string;
+    organization_id: string | null;
   }>(
     "sales_invoice",
-    "id, invoice_number, invoice_date, gross_total, net_total, tax_total, open_amount, payment_status",
+    "id, invoice_number, invoice_date, gross_total, net_total, tax_total, open_amount, payment_status, organization_id",
     ["payment_status", "partly_paid"],
   );
+  const kundeIds = kunde
+    ? new Set(
+        (await pagedSelect<{ id: string; name: string }>("organization", "id, name"))
+          .filter((o) => o.name.toLowerCase().includes(kunde.toLowerCase()))
+          .map((o) => o.id),
+      )
+    : null;
   const salesHits: Hit[] = [];
   for (const s of seite === "kreditoren" ? [] : sInv) {
     if (!inRange(s.invoice_date)) continue;
+    if (kundeIds && !(s.organization_id && kundeIds.has(s.organization_id))) continue;
     const gross = r2(s.gross_total ?? 0);
     const gap = r2(s.open_amount ?? 0);
     if (gap <= 0.005 || gross <= 0) continue;

@@ -117,6 +117,8 @@ export default async function OrganisationDetail({
               ? "Ware (kein §13b, USt von Hand)"
               : "Standard (USD-Rechnung ohne USt = Dienstleistung)"}
         </dd>
+        <dt>Gutschriftverfahren</dt>
+        <dd>{org.gutschriftverfahren ? "ja - Abrechnungen dieses Kunden werden als Ausgangsrechnung übernommen" : "nein"}</dd>
         <dt>Herkunft</dt>
         <dd>
           {org.vorkontierung_source === "learned"
