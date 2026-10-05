@@ -1,0 +1,1550 @@
+[
+ {
+  "datum": "2026-01-07",
+  "txId": "06d8a30f-374e-42a8-bcde-259eadcc7e19",
+  "richtung": "zahlung",
+  "text": "AMAZON PAYMENTS EUROPE S.C.A.",
+  "belege": [
+   {
+    "id": "30e2e672-8dfe-4e40-8bb3-282a0617de3c",
+    "nr": "CZ6000098PR591",
+    "brutto": 27.79,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "742683a8-c4ba-4847-a665-b61c1746645f",
+    "nr": "CZ600002BY7QTI",
+    "brutto": 5.03,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-01-07",
+  "txId": "ca0b5609-5ab3-4cb9-aa7a-04fbc814971a",
+  "richtung": "eingang",
+  "text": "MERCEDES-BENZ GROUP AG",
+  "belege": [
+   {
+    "id": "a55464cd-b798-4263-97c5-f486c83c0c50",
+    "nr": "250204002",
+    "brutto": 247.72,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "48a40838-5339-49c2-806d-427990440eda",
+    "nr": "251128006",
+    "brutto": 1709.03,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "bb65bacf-e94c-4797-9007-0309ab6afd4b",
+    "nr": "251128009",
+    "brutto": 703.31,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-01-26",
+  "txId": "dd7b8c93-5cd9-4e9c-a140-c842758812ce",
+  "richtung": "zahlung",
+  "text": "ANZAHL 1",
+  "belege": [
+   {
+    "id": "d4aa3ea0-f7c4-4e29-b9b3-69a4e079fb2a",
+    "nr": "WEB20860 / KD3081745Z0",
+    "brutto": 350.79,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-01-29",
+  "txId": "74a3d9a3-1aea-4890-82e8-6ed20562ce05",
+  "richtung": "eingang",
+  "text": "E. Klett Sprachen GmbH Stuttgart",
+  "belege": [
+   {
+    "id": "404d3658-e568-4739-9ed2-0b2aeaf678c8",
+    "nr": "260126006",
+    "brutto": 6240.36,
+    "skonto": 124.81,
+    "satz": 19
+   },
+   {
+    "id": "233559dc-3b7d-4563-92da-453fcb70449f",
+    "nr": "260126005",
+    "brutto": 16303.0,
+    "skonto": 326.06,
+    "satz": 19
+   },
+   {
+    "id": "f1b46bc2-9fa0-4c96-82eb-b1c860821c47",
+    "nr": "260126004",
+    "brutto": 6771.1,
+    "skonto": 135.42,
+    "satz": 19
+   },
+   {
+    "id": "eab11c3e-3e93-4c2c-9b97-1749bf18ec44",
+    "nr": "260126003",
+    "brutto": 6135.64,
+    "skonto": 122.71,
+    "satz": 19
+   },
+   {
+    "id": "ac8dd922-6eae-41ed-89fd-7b244353016b",
+    "nr": "260126001",
+    "brutto": 10838.52,
+    "skonto": 216.77,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-01-30",
+  "txId": "8a77cade-9191-4a2b-9e49-4ccdb54c6a52",
+  "richtung": "zahlung",
+  "text": "Carl Berberich GmbH",
+  "belege": [
+   {
+    "id": "c752ba3d-0778-4832-9e1a-a39174cacf32",
+    "nr": "2101471",
+    "brutto": 3029.74,
+    "skonto": 90.89,
+    "satz": 19
+   },
+   {
+    "id": "e82b884c-ba48-4c06-a114-0f7dc899de90",
+    "nr": "2100690",
+    "brutto": 194.41,
+    "skonto": 5.83,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-01-30",
+  "txId": "716a778c-52d9-46a4-b268-fcae7d5bb69f",
+  "richtung": "eingang",
+  "text": "Robert Bosch Gesellschaft mit beschränkter Haftung Robert-Bosch-Platz ",
+  "belege": [
+   {
+    "id": "517ce161-6feb-4d40-be4d-7f51d6db56b0",
+    "nr": "251231012",
+    "brutto": 57.95,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "76cde7a4-8473-4c64-862c-7879d076c6c6",
+    "nr": "251231011",
+    "brutto": 286.97,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "c3b0eca6-bc6c-4505-b666-f09070c568d8",
+    "nr": "251231014",
+    "brutto": 261.25,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "e0a97cb2-a2d4-4c71-babe-3c3e517ed32a",
+    "nr": "251231013",
+    "brutto": 440.54,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-02-06",
+  "txId": "f4135d64-42e0-4e35-b5a7-b63aa991326c",
+  "richtung": "zahlung",
+  "text": "AMAZON PAYMENTS EUROPE S.C.A.",
+  "belege": [
+   {
+    "id": "3d21980c-7c35-48bf-b8aa-1e18a980f180",
+    "nr": "DE60007AQBJ6JI",
+    "brutto": 6.99,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "67f01375-98e5-4206-a65b-85811e7b16fc",
+    "nr": "DE6000941JTE7I",
+    "brutto": 15.98,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-02-06",
+  "txId": "51a043c9-f6b3-41e6-992f-272358036a36",
+  "richtung": "zahlung",
+  "text": "Carl Berberich GmbH",
+  "belege": [
+   {
+    "id": "370838c4-9163-49ca-b33e-a680fc50c6f9",
+    "nr": "2105335",
+    "brutto": 2908.55,
+    "skonto": 87.26,
+    "satz": 19
+   },
+   {
+    "id": "b7da9bb0-b714-4933-932a-f4ec49cd590d",
+    "nr": "2103754",
+    "brutto": 1177.71,
+    "skonto": 35.33,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-02-06",
+  "txId": "971e287f-8561-4b61-899c-07e5b95b06d3",
+  "richtung": "zahlung",
+  "text": "Geiger GmbH + Co. KG",
+  "belege": [
+   {
+    "id": "65166402-36d8-4d68-b2d8-9960d4194044",
+    "nr": "61003010",
+    "brutto": 991.25,
+    "skonto": 29.74,
+    "satz": 19
+   },
+   {
+    "id": "e1b08984-63db-43b0-985d-35d714ea08c8",
+    "nr": "61002138",
+    "brutto": 879.01,
+    "skonto": 26.37,
+    "satz": 19
+   },
+   {
+    "id": "44d006ba-c177-43ed-928a-dc0eb4d7abbd",
+    "nr": "61002011",
+    "brutto": 5315.04,
+    "skonto": 159.45,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-02-10",
+  "txId": "1f934fb5-ce09-4722-abd7-2447c43a512b",
+  "richtung": "zahlung",
+  "text": "Geiger GmbH + Co. KG",
+  "belege": [
+   {
+    "id": "68754ceb-f3db-4434-908b-c9be8e2c8b08",
+    "nr": "61003764",
+    "brutto": 1661.12,
+    "skonto": 49.84,
+    "satz": 19
+   },
+   {
+    "id": "5b2497c4-215e-44a6-8fe9-b4aec7f24f5f",
+    "nr": "61003512",
+    "brutto": 787.01,
+    "skonto": 23.61,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-02-12",
+  "txId": "2c8edbeb-c0f1-45d4-a147-d3487a0b4f34",
+  "richtung": "zahlung",
+  "text": "L. Wackler Wwe. Nachf. GmbH",
+  "belege": [
+   {
+    "id": "2a7ffa66-ceeb-41db-bb94-c64ee140e0d2",
+    "nr": "10337337",
+    "brutto": 66.24,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "edb1761f-3b47-4b82-adc1-69b70032ab91",
+    "nr": "10337768",
+    "brutto": 335.29,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-02-13",
+  "txId": "a56d16b3-8c2e-4f77-b594-b575a9f89967",
+  "richtung": "zahlung",
+  "text": "Carl Berberich GmbH",
+  "belege": [
+   {
+    "id": "fcffc844-c652-43c8-80a1-f6c9fd1d304f",
+    "nr": "2106767",
+    "brutto": 605.95,
+    "skonto": 18.18,
+    "satz": 19
+   },
+   {
+    "id": "d001a549-b4bf-4d18-bdec-67f6caae0f07",
+    "nr": "2106055",
+    "brutto": 121.19,
+    "skonto": 3.64,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-02-13",
+  "txId": "f61d27af-a2e4-4350-a062-bea225db0385",
+  "richtung": "zahlung",
+  "text": "Geiger GmbH + Co. KG",
+  "belege": [
+   {
+    "id": "55bc350e-2a9b-430b-a4df-c69709c186ae",
+    "nr": "61004772",
+    "brutto": 459.55,
+    "skonto": 13.79,
+    "satz": 19
+   },
+   {
+    "id": "9ebef9a4-d67d-409e-998f-f8ca63357e16",
+    "nr": "61004231",
+    "brutto": 2789.81,
+    "skonto": 83.69,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-02-20",
+  "txId": "bbe385c9-07e9-43bb-b9b4-b8220b001aa3",
+  "richtung": "eingang",
+  "text": "DAIMLER TRUCK AG FASANENWEG 10 70771 LEINFELDEN-ECHTERDINGEN",
+  "belege": [
+   {
+    "id": "147e6b88-d845-4175-979f-eef7f3ea2b61",
+    "nr": "260126002",
+    "brutto": 2675.3,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "e20c2983-2e47-494f-9bc5-c967e266202f",
+    "nr": "260211001",
+    "brutto": 9168.08,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-02-20",
+  "txId": "028a209f-6059-4dc4-8244-ca2c8f401a98",
+  "richtung": "zahlung",
+  "text": "Geiger GmbH + Co. KG",
+  "belege": [
+   {
+    "id": "50787bde-29cc-4dd5-b90e-81468e462b54",
+    "nr": "61006857",
+    "brutto": 868.58,
+    "skonto": 26.06,
+    "satz": 19
+   },
+   {
+    "id": "d8c41d65-a1c8-4bbe-9637-0f7b7d591d7a",
+    "nr": "61006410",
+    "brutto": 1315.88,
+    "skonto": 39.48,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-02-27",
+  "txId": "0eae9fde-ea9c-4936-bf56-0a95e923d93c",
+  "richtung": "zahlung",
+  "text": "Carl Berberich GmbH",
+  "belege": [
+   {
+    "id": "aa1d7e3c-2693-4182-9526-8d5ec25da1f7",
+    "nr": "2114497",
+    "brutto": 102.86,
+    "skonto": 3.09,
+    "satz": 19
+   },
+   {
+    "id": "1fc64bfa-0f49-49f5-aae1-b16d9160d8c6",
+    "nr": "2115197",
+    "brutto": 386.49,
+    "skonto": 11.59,
+    "satz": 19
+   },
+   {
+    "id": "35d79f30-413a-46bb-a97f-bc169d94b371",
+    "nr": "2113048",
+    "brutto": 615.11,
+    "skonto": 18.45,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-02-27",
+  "txId": "6dd82ac4-2757-4e3a-aa2e-5775851471c8",
+  "richtung": "zahlung",
+  "text": "Geiger GmbH + Co. KG",
+  "belege": [
+   {
+    "id": "6c16c575-8c10-4cb1-9c3d-aef224c2f573",
+    "nr": "61009161",
+    "brutto": 870.9,
+    "skonto": 26.13,
+    "satz": 19
+   },
+   {
+    "id": "91417e0e-8b7d-40d8-95e5-c11bce84f75b",
+    "nr": "61008370",
+    "brutto": 583.12,
+    "skonto": 17.49,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-03-03",
+  "txId": "06de7491-31e3-4f70-b482-9c2777f137d2",
+  "richtung": "eingang",
+  "text": "STB Marketing und Event GmbH",
+  "belege": [
+   {
+    "id": "16c0ccf0-7fa8-497a-a9d9-1900cae02775",
+    "nr": "260227011",
+    "brutto": 1795.5,
+    "skonto": 12.96,
+    "satz": 19
+   },
+   {
+    "id": "de7a133c-b9f9-4723-847f-f13f2a7983bf",
+    "nr": "260227010",
+    "brutto": 1014.7,
+    "skonto": 7.33,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-03-05",
+  "txId": "ae6e83eb-4524-467e-a66d-7d526a92bc1b",
+  "richtung": "zahlung",
+  "text": "DATUM 05.03.2026, 19.07 UHR ANZAHL 2",
+  "belege": [
+   {
+    "id": "f4162a4a-4bce-4b8b-ad66-4b80c9e37d71",
+    "nr": "042282",
+    "brutto": 261.21,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "261576d3-0f85-4784-9cc4-29fcc0cc3543",
+    "nr": "701253856",
+    "brutto": 101.84,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-03-06",
+  "txId": "ef65c944-67ed-488d-b356-c7f4d9afaedf",
+  "richtung": "zahlung",
+  "text": "Geiger GmbH + Co. KG",
+  "belege": [
+   {
+    "id": "ea2ae63e-0e0f-417b-883a-5007c7dd4000",
+    "nr": "61010765",
+    "brutto": 5470.53,
+    "skonto": 164.12,
+    "satz": 19
+   },
+   {
+    "id": "83a441e4-810c-4f23-97a3-6474c127a984",
+    "nr": "61011204",
+    "brutto": 839.6,
+    "skonto": 25.19,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-03-17",
+  "txId": "c833fcfb-6775-41eb-abea-9251d8cf230c",
+  "richtung": "zahlung",
+  "text": "Geiger GmbH + Co. KG",
+  "belege": [
+   {
+    "id": "8c408cb9-4b3b-454b-a108-571a06f5db42",
+    "nr": "61013430",
+    "brutto": 226.5,
+    "skonto": 6.79,
+    "satz": 19
+   },
+   {
+    "id": "25722bb9-031e-4444-b815-78fc4e4d4c84",
+    "nr": "61013836",
+    "brutto": 363.95,
+    "skonto": 10.92,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-03-18",
+  "txId": "6f7c4a5d-f92c-493c-a301-71024e59d52e",
+  "richtung": "zahlung",
+  "text": "SEPA Sammel-Ueberweisung mit 5 Ueberweisungen und folgenden zusaetzlic",
+  "belege": [
+   {
+    "id": "0bdf7027-a3a8-4012-b64c-df37570557c7",
+    "nr": "260366",
+    "brutto": 327.25,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "dd13e7c1-9f09-4e2b-a77c-9772e0dec7a1",
+    "nr": "260367",
+    "brutto": 267.75,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "62b406be-c462-4061-a321-63c6f403f412",
+    "nr": "260368",
+    "brutto": 747.46,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "6e8629f9-c8cf-46de-89d6-c19e618a0cb2",
+    "nr": "66221366",
+    "brutto": 416.5,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "7f29b2c1-69a8-428e-9c49-73ad015b305d",
+    "nr": "66221365",
+    "brutto": 17255.0,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-03-18",
+  "txId": "34c300cf-d98d-4019-acb1-6485c881b30c",
+  "richtung": "zahlung",
+  "text": "DATUM 18.03.2026, 15.42 UHR ANZAHL 2",
+  "belege": [
+   {
+    "id": "bbb93226-6648-4d24-ba04-0b4c31275244",
+    "nr": "2026001332",
+    "brutto": 302.74,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "ad6e1160-e1d7-4d7f-8160-7b12a92fd2a7",
+    "nr": "2026001244",
+    "brutto": 1816.44,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-03-20",
+  "txId": "e2753048-55e6-4719-aaa9-8a5511b616db",
+  "richtung": "zahlung",
+  "text": "Carl Berberich GmbH",
+  "belege": [
+   {
+    "id": "8734c402-30ab-4ec3-9014-f96392128a14",
+    "nr": "2123778",
+    "brutto": 365.9,
+    "skonto": 10.98,
+    "satz": 19
+   },
+   {
+    "id": "752d857e-2d86-4661-8fcc-d0e99de6e840",
+    "nr": "2124531",
+    "brutto": 530.5,
+    "skonto": 15.92,
+    "satz": 19
+   },
+   {
+    "id": "17aafa08-5015-4580-a7c8-5e79202f8099",
+    "nr": "2125210",
+    "brutto": 302.26,
+    "skonto": 9.07,
+    "satz": 19
+   },
+   {
+    "id": "24488ae4-5e3d-45e2-9746-e2c2f784a5fb",
+    "nr": "2125924",
+    "brutto": 136.04,
+    "skonto": 4.08,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-03-27",
+  "txId": "7d49d0f9-a6c5-4ff5-be2f-54c16890b86f",
+  "richtung": "zahlung",
+  "text": "Carl Berberich GmbH",
+  "belege": [
+   {
+    "id": "ea9a7248-84cc-4315-9109-a18516ca0b2e",
+    "nr": "2127304",
+    "brutto": 4350.58,
+    "skonto": 130.52,
+    "satz": 19
+   },
+   {
+    "id": "5306b7b8-392b-4093-84f2-1e4b7b00277b",
+    "nr": "2129481",
+    "brutto": 198.9,
+    "skonto": 5.97,
+    "satz": 19
+   },
+   {
+    "id": "813589cb-d4ac-4d3a-a1e7-0c27435e083c",
+    "nr": "2127217",
+    "brutto": 701.78,
+    "skonto": 21.05,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-03-31",
+  "txId": "69d7ab8f-ef7b-43c1-8172-8ff326837a9d",
+  "richtung": "zahlung",
+  "text": "OVOL Papier DE GmbH Osterbekstrasse 90a",
+  "belege": [
+   {
+    "id": "b2afc707-451c-47ff-adaf-ee21f5fb337b",
+    "nr": "9002569628",
+    "brutto": 87.86,
+    "skonto": 2.64,
+    "satz": 19
+   },
+   {
+    "id": "9ae07db2-46a6-40b4-820d-86b9f8b6dcd5",
+    "nr": "9002568001",
+    "brutto": 227.59,
+    "skonto": 6.83,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-04-07",
+  "txId": "6419fb29-1014-4a04-8501-b22b276100de",
+  "richtung": "eingang",
+  "text": "EUCHNER GmbH + Co. KG Leinfelden-Echterdingen",
+  "belege": [
+   {
+    "id": "87eea29e-468b-480c-9e20-90cb176b3177",
+    "nr": "26LB01417",
+    "brutto": 5597.76,
+    "skonto": 167.93,
+    "satz": 19
+   },
+   {
+    "id": "7f47534d-81d2-48c4-bac2-b1ba86dd0b18",
+    "nr": "26LB01418",
+    "brutto": 54.19,
+    "skonto": 1.63,
+    "satz": 19
+   },
+   {
+    "id": "20b66e0c-44b6-4594-add1-aeefb563bbfa",
+    "nr": "26LB01419",
+    "brutto": 248.71,
+    "skonto": 7.46,
+    "satz": 19
+   },
+   {
+    "id": "ff455488-32ca-43be-bf5d-2c9878675367",
+    "nr": "26LB01420",
+    "brutto": 1277.58,
+    "skonto": 38.33,
+    "satz": 19
+   },
+   {
+    "id": "cfb293c2-3ba4-4e0c-8b43-5e67fc0349f1",
+    "nr": "26LB01421",
+    "brutto": 1066.72,
+    "skonto": 32.0,
+    "satz": 19
+   },
+   {
+    "id": "4d9e9400-cf45-496d-abbd-9489dd3fb938",
+    "nr": "26LB01422",
+    "brutto": 227.77,
+    "skonto": 6.83,
+    "satz": 19
+   },
+   {
+    "id": "6546ab11-9612-49ed-a39e-029b4f01ba78",
+    "nr": "26LB01423",
+    "brutto": 211.93,
+    "skonto": 6.36,
+    "satz": 19
+   },
+   {
+    "id": "caa608c3-d3b1-414d-861c-5b7eca41048c",
+    "nr": "26LB01424",
+    "brutto": 266.25,
+    "skonto": 7.99,
+    "satz": 19
+   },
+   {
+    "id": "2120949f-96bd-4d10-a1ab-8fb501b32948",
+    "nr": "26LB01426",
+    "brutto": 5333.58,
+    "skonto": 160.01,
+    "satz": 19
+   },
+   {
+    "id": "376f37cb-baec-4593-b826-a400e3811bfc",
+    "nr": "26LB01425",
+    "brutto": 225.28,
+    "skonto": 6.76,
+    "satz": 19
+   },
+   {
+    "id": "24df027b-eb53-41c9-948d-96d735ce7c2d",
+    "nr": "26LB01427",
+    "brutto": 90.32,
+    "skonto": 2.71,
+    "satz": 19
+   },
+   {
+    "id": "0894696e-7f26-4626-a95b-30c61c7a3081",
+    "nr": "26LB01428",
+    "brutto": 222.4,
+    "skonto": 6.67,
+    "satz": 19
+   },
+   {
+    "id": "8ed42c55-5f6f-4fbd-9b7a-45f368ea620d",
+    "nr": "26LB01429",
+    "brutto": 543.24,
+    "skonto": 16.3,
+    "satz": 19
+   },
+   {
+    "id": "5a4e03f5-edf7-40bd-a3fe-1c6541ee0f95",
+    "nr": "26LB01430",
+    "brutto": 132.54,
+    "skonto": 3.98,
+    "satz": 19
+   },
+   {
+    "id": "b4248bbd-c32e-4dd9-a936-c997d2e0f3ee",
+    "nr": "26LB01431",
+    "brutto": 222.4,
+    "skonto": 6.67,
+    "satz": 19
+   },
+   {
+    "id": "4823b2e3-336f-49dc-9a98-65f1398730c5",
+    "nr": "26LB01432",
+    "brutto": 117.68,
+    "skonto": 3.53,
+    "satz": 19
+   },
+   {
+    "id": "63cd0a0e-f879-4760-be18-5bec8cc8f714",
+    "nr": "26LB01433",
+    "brutto": 112.49,
+    "skonto": 3.37,
+    "satz": 19
+   },
+   {
+    "id": "b3e967d6-5d2f-4951-bdfe-1cd67a70ed2e",
+    "nr": "26LB01434",
+    "brutto": 3721.01,
+    "skonto": 111.63,
+    "satz": 19
+   },
+   {
+    "id": "3f7b1f72-ba89-4981-9ed6-de082480c403",
+    "nr": "26LB01435",
+    "brutto": 241.62,
+    "skonto": 7.25,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-04-08",
+  "txId": "6e5b10bf-1a91-4fcd-9822-8e590175b230",
+  "richtung": "zahlung",
+  "text": "DATUM 08.04.2026, 10.58 UHR ANZAHL 2",
+  "belege": [
+   {
+    "id": "944a61d5-a181-41f2-9e6c-1cbde56f3f7a",
+    "nr": "27906018",
+    "brutto": 652.12,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "c690bb46-82aa-4dcc-81c9-39d440f0ab68",
+    "nr": "27878489",
+    "brutto": 65.21,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-04-09",
+  "txId": "fe91337e-299a-4663-b84a-b6040afc49e7",
+  "richtung": "zahlung",
+  "text": "DATUM 09.04.2026, 10.33 UHR ANZAHL 5",
+  "belege": [
+   {
+    "id": "f313c263-c6e4-466a-b2e1-09b13bc13616",
+    "nr": "2026.3103.1",
+    "brutto": 999.6,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "a3a6bc6d-8533-4dc9-bf80-f4fd949653c0",
+    "nr": "19115",
+    "brutto": 68.07,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "19638f3f-6740-4df4-b283-6255c19929db",
+    "nr": "232182",
+    "brutto": 892.5,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "064c9bd8-fb63-439d-a63c-b72e709cdd9a",
+    "nr": "920742673",
+    "brutto": 194.42,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "9a74700b-5c07-4e44-aa8f-8844c4e4507b",
+    "nr": "150180880",
+    "brutto": 35.06,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-04-13",
+  "txId": "e78f27d1-fb04-4c68-a2f3-3cb50a225a5a",
+  "richtung": "zahlung",
+  "text": "ROTH Offset Owen OHG",
+  "belege": [
+   {
+    "id": "f8ded598-6d84-41ae-b24c-fa61d87e7a3f",
+    "nr": "2603-1130",
+    "brutto": 2525.18,
+    "skonto": 50.49,
+    "satz": 19
+   },
+   {
+    "id": "cc87bbfd-a054-4a67-b358-38f32ccabe00",
+    "nr": "2603-1129",
+    "brutto": 221.34,
+    "skonto": 4.43,
+    "satz": 19
+   },
+   {
+    "id": "954fb755-3a87-4fb7-a733-57ef1096754e",
+    "nr": "2603-1128",
+    "brutto": 2165.8,
+    "skonto": 43.32,
+    "satz": 19
+   },
+   {
+    "id": "1e6161e7-bf3f-4f0f-a3c3-f4ff9eacc0ad",
+    "nr": "2603-1127",
+    "brutto": 907.97,
+    "skonto": 18.16,
+    "satz": 19
+   },
+   {
+    "id": "30de2dab-050e-4773-ae25-86a188f6384d",
+    "nr": "2603-1126",
+    "brutto": 2165.8,
+    "skonto": 43.32,
+    "satz": 19
+   },
+   {
+    "id": "e9a4e8d8-d0bf-4ef3-a341-8bd411f5b90c",
+    "nr": "2603-1125",
+    "brutto": 737.8,
+    "skonto": 14.76,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-04-16",
+  "txId": "8844c0f5-846c-425c-810d-148c3c0378ba",
+  "richtung": "zahlung",
+  "text": "L. Wackler Wwe. Nachf. GmbH",
+  "belege": [
+   {
+    "id": "6ab0400c-c1be-48cc-94de-4ef87d76390c",
+    "nr": "10345048",
+    "brutto": 333.7,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "9d5b06bf-af3d-4944-b754-1635f55d0eb5",
+    "nr": "10345683",
+    "brutto": 318.62,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-04-21",
+  "txId": "6526c6a5-175d-4441-b713-8d5581140f5f",
+  "richtung": "zahlung",
+  "text": "OVOL Papier DE GmbH Osterbekstrasse 90a",
+  "belege": [
+   {
+    "id": "c26d3626-85e1-47f2-ac17-fcdf7340496d",
+    "nr": "9002581950",
+    "brutto": 1958.91,
+    "skonto": 58.77,
+    "satz": 19
+   },
+   {
+    "id": "1e7a4dfa-1d64-41ee-b24b-3a5544f88709",
+    "nr": "9002581085",
+    "brutto": 2172.3,
+    "skonto": 65.17,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-04-30",
+  "txId": "b2b6db9c-a63f-43e4-9b3e-6959b0d8f35a",
+  "richtung": "zahlung",
+  "text": "L. Wackler Wwe. Nachf. GmbH",
+  "belege": [
+   {
+    "id": "ac67d477-aa80-46fb-963c-bb5041681828",
+    "nr": "10347581",
+    "brutto": 137.86,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "c7c46b09-b420-4205-bac6-5193e2cea02c",
+    "nr": "10347142",
+    "brutto": 192.72,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "db2fd6d5-3da0-4241-b8aa-37afb2d06c45",
+    "nr": "10346952",
+    "brutto": 463.3,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "cee7a509-1c83-451c-977d-abd667efe516",
+    "nr": "10346329",
+    "brutto": 902.76,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-05-04",
+  "txId": "2e245db7-d657-479c-bb34-e52fbcffa140",
+  "richtung": "zahlung",
+  "text": "Carl Berberich GmbH",
+  "belege": [
+   {
+    "id": "45242de3-db38-4289-b7a0-2342e4395fe7",
+    "nr": "2143944",
+    "brutto": 178.3,
+    "skonto": 5.35,
+    "satz": 19
+   },
+   {
+    "id": "f806e7cd-e7f2-48b2-8c46-bd5586383fe4",
+    "nr": "2143310",
+    "brutto": 341.05,
+    "skonto": 10.23,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-05-13",
+  "txId": "8fccad93-08ca-409b-a934-8c5c74cc944a",
+  "richtung": "zahlung",
+  "text": "SEPA Sammel-Ueberweisung mit 4 Ueberweisungen und folgenden zusaetzlic",
+  "belege": [
+   {
+    "id": "305d03dc-6681-4ce2-b7d6-e944db246fbc",
+    "nr": "042560",
+    "brutto": 103.41,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "ca917437-b0f1-443f-b147-e5b90b50d7d4",
+    "nr": "042578",
+    "brutto": 65.93,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "89f65210-7341-4af7-8c34-7777c71c9559",
+    "nr": "042522",
+    "brutto": 99.37,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "35319a24-5d58-4bda-afb5-225eb82286b8",
+    "nr": "042459",
+    "brutto": 102.22,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-05-15",
+  "txId": "3e0c8faa-2c9b-4255-950c-c74252a5ab3d",
+  "richtung": "zahlung",
+  "text": "Carl Berberich GmbH",
+  "belege": [
+   {
+    "id": "d5a519b9-3239-4a65-87b4-a7409242f8e2",
+    "nr": "2150859",
+    "brutto": 473.72,
+    "skonto": 14.21,
+    "satz": 19
+   },
+   {
+    "id": "03e479ab-17ee-4fbb-8924-64b3d4004a70",
+    "nr": "2150960",
+    "brutto": 3186.23,
+    "skonto": 95.59,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-05-22",
+  "txId": "5c537e78-7e52-4c65-b725-4d5fc58b44ec",
+  "richtung": "zahlung",
+  "text": "Carl Berberich GmbH",
+  "belege": [
+   {
+    "id": "34542909-2f56-46b5-ad7c-769bdf8e932b",
+    "nr": "2153791",
+    "brutto": 1157.95,
+    "skonto": 34.74,
+    "satz": 19
+   },
+   {
+    "id": "fc1318dc-1f21-4781-b83b-906b98bd050e",
+    "nr": "2153870",
+    "brutto": 4445.54,
+    "skonto": 133.37,
+    "satz": 19
+   },
+   {
+    "id": "bcb9c292-e5d8-4967-b81d-056f9b01963a",
+    "nr": "2154422",
+    "brutto": 205.48,
+    "skonto": 6.16,
+    "satz": 19
+   },
+   {
+    "id": "dd783964-6fef-47ed-92fe-b56ec9804730",
+    "nr": "2155289",
+    "brutto": 19492.2,
+    "skonto": 584.77,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-05-29",
+  "txId": "056e133d-79d8-40e8-a9d1-4e77272f9034",
+  "richtung": "zahlung",
+  "text": "Geiger GmbH + Co. KG",
+  "belege": [
+   {
+    "id": "b803c996-4541-47c1-92c9-136bdd19d124",
+    "nr": "61033337",
+    "brutto": 550.62,
+    "skonto": 16.52,
+    "satz": 19
+   },
+   {
+    "id": "7ce4ecfd-e4e3-4393-ab44-857cf1ac47da",
+    "nr": "61033688",
+    "brutto": 3615.54,
+    "skonto": 108.47,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-06-05",
+  "txId": "d60a023e-8dfa-45c9-b27a-cf0e0a47acdd",
+  "richtung": "zahlung",
+  "text": "L. Wackler Wwe. Nachf. GmbH",
+  "belege": [
+   {
+    "id": "66320f4c-fc82-4746-8e3d-b40f982f0f38",
+    "nr": "10351077",
+    "brutto": 86.88,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "bd9dda4e-4b22-4678-adc1-854c61af7c31",
+    "nr": "10351501",
+    "brutto": 1176.07,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-06-08",
+  "txId": "e1a8f7a4-fcd5-4ac2-8907-4b7d591cfeff",
+  "richtung": "zahlung",
+  "text": "DATUM 08.06.2026, 11.30 UHR ANZAHL 2",
+  "belege": [
+   {
+    "id": "a3cb0d79-36cc-4f7b-9864-ce8762112f6d",
+    "nr": "26-367",
+    "brutto": 3598.56,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "dd48fbf0-3669-4654-b807-87ad9050468b",
+    "nr": "26-387",
+    "brutto": 6747.3,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-06-10",
+  "txId": "12be7b10-673a-4765-bceb-c6deaa7f7697",
+  "richtung": "eingang",
+  "text": "DAIMLER TRUCK AG",
+  "belege": [
+   {
+    "id": "a2688eea-fb97-4247-827e-77ae9e295a68",
+    "nr": "260513008",
+    "brutto": 373.23,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "687d0d5e-0924-430d-841b-c8ce74a6b046",
+    "nr": "260513009",
+    "brutto": 343.41,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-06-12",
+  "txId": "52a873f1-6f50-4d65-a578-030a0639830e",
+  "richtung": "zahlung",
+  "text": "Carl Berberich GmbH",
+  "belege": [
+   {
+    "id": "98e5bc75-0a2a-43c8-ac99-45717a30d391",
+    "nr": "2164864",
+    "brutto": 372.51,
+    "skonto": 11.18,
+    "satz": 19
+   },
+   {
+    "id": "aa08565e-5c4b-4dae-953d-7518d09d9717",
+    "nr": "2164160",
+    "brutto": 1256.27,
+    "skonto": 37.69,
+    "satz": 19
+   },
+   {
+    "id": "e9f0c3d8-ac61-45fe-8179-0a0f9e31b494",
+    "nr": "2162736",
+    "brutto": 212.09,
+    "skonto": 6.36,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-06-17",
+  "txId": "9f2990c8-0861-4b87-bf3b-ad6bd52ef3ab",
+  "richtung": "eingang",
+  "text": "EUCHNER GmbH + Co. KG",
+  "belege": [
+   {
+    "id": "13c88910-b71f-4d2d-b4dd-c634eb268591",
+    "nr": "26LB01436",
+    "brutto": 2057.75,
+    "skonto": 61.73,
+    "satz": 19
+   },
+   {
+    "id": "ffc0c06e-816a-496c-bdf1-c1ec4dfecc5f",
+    "nr": "26LB01437",
+    "brutto": 1066.72,
+    "skonto": 32.0,
+    "satz": 19
+   },
+   {
+    "id": "928a4583-bbb1-4814-831e-a9cfe5b24956",
+    "nr": "26LB01438",
+    "brutto": 259.9,
+    "skonto": 7.8,
+    "satz": 19
+   },
+   {
+    "id": "f7718d31-6eef-4c2b-bbe7-5ad80d2bd57f",
+    "nr": "26LB01439",
+    "brutto": 628.32,
+    "skonto": 18.85,
+    "satz": 19
+   },
+   {
+    "id": "fee2f71d-76d8-43ec-a740-3011282ca544",
+    "nr": "26LB01440",
+    "brutto": 496.94,
+    "skonto": 14.91,
+    "satz": 19
+   },
+   {
+    "id": "c8fdca1c-7b7d-4b72-80ea-6699f4ce1d9c",
+    "nr": "26LB01441",
+    "brutto": 129.66,
+    "skonto": 3.89,
+    "satz": 19
+   },
+   {
+    "id": "fd3092c6-66dd-467e-a748-b7c18e815a8f",
+    "nr": "26LB01442",
+    "brutto": 244.27,
+    "skonto": 7.33,
+    "satz": 19
+   },
+   {
+    "id": "53606031-65e7-40e0-a57a-266e6b253f46",
+    "nr": "26LB01443",
+    "brutto": 235.36,
+    "skonto": 7.06,
+    "satz": 19
+   },
+   {
+    "id": "ecb1e46c-022b-432f-a492-32079c92db19",
+    "nr": "26LB01444",
+    "brutto": 3200.15,
+    "skonto": 96.0,
+    "satz": 19
+   },
+   {
+    "id": "0c5ae227-cc16-45b9-bd12-de05c3aa983c",
+    "nr": "26LB01445",
+    "brutto": 3721.01,
+    "skonto": 111.63,
+    "satz": 19
+   },
+   {
+    "id": "d81a9343-0ee8-4f63-a62a-e5c6fa309325",
+    "nr": "26LB01446",
+    "brutto": 222.4,
+    "skonto": 6.67,
+    "satz": 19
+   },
+   {
+    "id": "38b6ab9d-3a55-41e8-9e8a-5e685b3192c3",
+    "nr": "26LB01447",
+    "brutto": 69.27,
+    "skonto": 2.08,
+    "satz": 19
+   },
+   {
+    "id": "f648776f-9d8b-44f1-a22e-4067e6712d15",
+    "nr": "26LB01448",
+    "brutto": 738.93,
+    "skonto": 22.17,
+    "satz": 19
+   },
+   {
+    "id": "864b8672-c786-4247-b21e-6488728dce9a",
+    "nr": "26LB01449",
+    "brutto": 1439.42,
+    "skonto": 43.18,
+    "satz": 19
+   },
+   {
+    "id": "84ad6a85-3547-4c6f-a26b-291f12766e39",
+    "nr": "26LB01450",
+    "brutto": 809.68,
+    "skonto": 24.29,
+    "satz": 19
+   },
+   {
+    "id": "5bf2a4f1-5138-4ad5-b6e2-3be9f7a97461",
+    "nr": "26LB01451",
+    "brutto": 227.77,
+    "skonto": 6.83,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-07-22",
+  "txId": "877eb5a2-a278-4f91-85d9-ed46a08649be",
+  "richtung": "zahlung",
+  "text": "DATUM 22.07.2026, 17.08 UHR ANZAHL 2",
+  "belege": [
+   {
+    "id": "84645ba3-8ad1-4d2c-9072-d75496a345ee",
+    "nr": "R185198",
+    "brutto": 2113.44,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "bb4fc74c-e1c1-4989-a8b1-ece5590330cf",
+    "nr": "R185199",
+    "brutto": 2463.3,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-07-22",
+  "txId": "9f1723e8-806a-4516-a281-c127daadb44d",
+  "richtung": "zahlung",
+  "text": "DATUM 22.07.2026, 17.21 UHR ANZAHL 2",
+  "belege": [
+   {
+    "id": "2c0cd63a-4c19-467c-b75a-e696065cb49f",
+    "nr": "2606014",
+    "brutto": 794.09,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "65e898b8-42de-404b-9821-50860f5d60f6",
+    "nr": "2606059",
+    "brutto": 2023.48,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-05-20",
+  "txId": "ba2f4f0b-b274-4788-8f5d-bf0b1decb99d",
+  "richtung": "zahlung",
+  "text": "GO Druck Sammelzahlung",
+  "belege": [
+   {
+    "id": "ac7fc080-ced8-4b4f-9f3e-59099625caf9",
+    "nr": "260620",
+    "brutto": 2582.3,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "c4615474-0672-4129-990c-6ab55ac5e429",
+    "nr": "260438",
+    "brutto": 3074.96,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "f73fa471-6e15-4016-8202-ad208e0d4c5e",
+    "nr": "260610",
+    "brutto": 1065.47,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "3af1ee27-5b70-4164-baa6-a3da8620d754",
+    "nr": "260524",
+    "brutto": 1724.31,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-05-20",
+  "txId": "88f7cbec-4beb-490f-be74-480266d8d366",
+  "richtung": "zahlung",
+  "text": "GO Druck Sammelzahlung",
+  "belege": [
+   {
+    "id": "1ec26d53-c5ca-47f9-8ce4-1cef868d36d7",
+    "nr": "260889",
+    "brutto": 1120.8,
+    "skonto": 22.42,
+    "satz": 19
+   },
+   {
+    "id": "2d6c5b46-5d80-4723-8c21-79b8560ac721",
+    "nr": "260890",
+    "brutto": 3251.85,
+    "skonto": 65.04,
+    "satz": 19
+   },
+   {
+    "id": "66c844eb-1c24-4aaf-b8f7-5bae23c9c4a3",
+    "nr": "260891",
+    "brutto": 4724.78,
+    "skonto": 94.5,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-06-08",
+  "txId": "e129e77b-4c49-4ede-a146-25a8880cdd2e",
+  "richtung": "zahlung",
+  "text": "GO Druck Sammelzahlung",
+  "belege": [
+   {
+    "id": "6ea32596-d307-4dd8-8ec8-297af9829469",
+    "nr": "260966",
+    "brutto": 4081.56,
+    "skonto": 81.63,
+    "satz": 19
+   },
+   {
+    "id": "4ac6ac02-f434-42c1-9308-9e35a9412e14",
+    "nr": "260960",
+    "brutto": 10171.53,
+    "skonto": 203.43,
+    "satz": 19
+   },
+   {
+    "id": "55bfb937-b89d-4966-9149-f6df779b9573",
+    "nr": "260961",
+    "brutto": 10858.75,
+    "skonto": 217.18,
+    "satz": 19
+   },
+   {
+    "id": "9a1e69e6-4dee-4739-a01e-f31e2adfe8ad",
+    "nr": "260918",
+    "brutto": 2146.76,
+    "skonto": 42.94,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-06-10",
+  "txId": "f4e0138a-7886-4d36-ae17-d1a71d6892d1",
+  "richtung": "zahlung",
+  "text": "GO Druck Sammelzahlung",
+  "belege": [
+   {
+    "id": "6d3d2245-df0b-431e-96ff-9d8d87d91192",
+    "nr": "261029",
+    "brutto": 558.15,
+    "skonto": 11.16,
+    "satz": 19
+   },
+   {
+    "id": "b327595d-d250-4ed3-a7e4-77439e7cf74d",
+    "nr": "261048",
+    "brutto": 2553.38,
+    "skonto": 51.07,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-06-10",
+  "txId": "b5002a1c-a38a-431b-affd-1e2ce6aa7563",
+  "richtung": "zahlung",
+  "text": "GO Druck Sammelzahlung",
+  "belege": [
+   {
+    "id": "2580aef6-5197-43e4-8fc9-e413be4a007b",
+    "nr": "260742",
+    "brutto": 560.61,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "027f8463-c919-472a-965b-c7aef1ed6980",
+    "nr": "260805",
+    "brutto": 619.75,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "2d854c9d-458a-40fc-aa2d-a09c2d3a502b",
+    "nr": "260807",
+    "brutto": 3074.96,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ }
+]
