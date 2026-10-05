@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { fmtDate, fmtEur } from "@/lib/format";
 import { ladeUstva } from "@/lib/ustva";
+import { elsterWerte } from "@/lib/elsterXml";
 
 export const dynamic = "force-dynamic";
 
@@ -29,13 +30,7 @@ export default async function UstvaPage({
   const zahllastTon = e.zahllast > 0 ? "danger" : e.zahllast < 0 ? "ok" : "";
 
   // Wie ELSTER rechnet: Steuer aus abgerundeter Bemessungsgrundlage (Kz 81/86/89), Vorsteuer auf den Cent
-  const kzMap = new Map(e.kennzahlen.map((k) => [k.kz, k]));
-  const r2 = (n: number) => Math.round(n * 100) / 100;
-  const basis = (kz: string) => Math.trunc(kzMap.get(kz)?.basis ?? 0);
-  const steuerKz = (kz: string) => kzMap.get(kz)?.steuer ?? 0;
-  const ust = r2(basis("81") * 0.19) + r2(basis("86") * 0.07) + r2(basis("89") * 0.19) + steuerKz("46 / 47") + steuerKz("52 / 53");
-  const vst = steuerKz("66") + steuerKz("61") + steuerKz("62") + steuerKz("67");
-  const elster = { ust: r2(ust), vst: r2(vst), zahllast: r2(ust - vst) };
+  const elster = elsterWerte(e);
   // Fälligkeit: 10. des Folgemonats, mit Dauerfristverlängerung 10. des übernächsten Monats
   const [yy, mm] = monat.split("-").map(Number);
   const faelligOhneD = new Date(Date.UTC(yy, mm, 10));
@@ -112,6 +107,18 @@ export default async function UstvaPage({
             <tr><td><strong>Kz 83 laut ELSTER-Rechnung</strong></td><td className="bd-num"><strong>{fmtEur(elster.zahllast)}</strong></td></tr>
           </tbody>
         </table>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0" }}>
+          <a className="bd-btn" href={`/api/ustva/xml?monat=${monat}${versteuerung === "ist" ? "&versteuerung=ist" : ""}`}>
+            ELSTER-XML herunterladen
+          </a>
+          <a className="bd-btn bd-btn-secondary" href={`/api/ustva/xml?monat=${monat}${versteuerung === "ist" ? "&versteuerung=ist" : ""}&berichtigt=1`}>
+            als berichtigte Anmeldung (Kz 10)
+          </a>
+        </div>
+        <p className="bd-mute" style={{ marginTop: 0 }}>
+          In Mein ELSTER: Formular „Umsatzsteuer-Voranmeldung“ → Jahr wählen → „XML-Import“ bzw. „Formulardaten hochladen“. Die Datei füllt nur
+          das Formular vor, gesendet wird erst in Mein ELSTER. Danach Zahlen und Kz 83 mit der Anzeige dort abgleichen.
+        </p>
         <p className="bd-mute" style={{ marginBottom: 0 }}>
           Fälligkeit mit Dauerfristverlängerung: <strong>{fmtDate(faellig)}</strong>
           {faelligTage < 0 ? ` (seit ${-faelligTage} Tagen überfällig)` : faelligTage === 0 ? " (heute)" : ` (in ${faelligTage} Tagen)`}
