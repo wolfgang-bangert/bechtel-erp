@@ -40,6 +40,8 @@ type Pos = {
   supplier_sku: string;
   /** Referenz-/Kommissionstext der Position laut Beleg. */
   order_reference: string;
+  /** Buchungstext für DATEV (max. 60 Zeichen), leer = Standardtext. */
+  booking_text: string;
   /** Bereits separat erfasster Beleg, der diese Position erklärt (z.B.
    *  SaaS-Rechnung, die zusätzlich auf der Kreditkartenabrechnung auftaucht)
    *  - Bridge statt Doppelerfassung. */
@@ -131,6 +133,7 @@ export function ReviewForm({
             material_ref: "",
             supplier_sku: "",
             order_reference: "",
+            booking_text: "",
             linked_document_id: "",
             allocations: [],
           },
@@ -160,6 +163,7 @@ export function ReviewForm({
         material_ref: "",
         supplier_sku: "",
         order_reference: "",
+        booking_text: "",
         linked_document_id: "",
         allocations: [],
       },
@@ -516,6 +520,9 @@ export function ReviewForm({
                       <div className="bd-sub" style={{ paddingTop: 1 }}>{p.position ?? pi + 1}</div>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 600 }}>{title || "(ohne Text)"}</div>
+                        {p.booking_text && (
+                          <div className="bd-sub" style={{ marginTop: 2 }}>Buchungstext: {p.booking_text}</div>
+                        )}
                         {rest.length > 0 && (
                           <div className="bd-sub" style={{ marginTop: 2, whiteSpace: "pre-line", lineHeight: 1.45 }}>
                             {rest.join("\n")}
@@ -791,6 +798,17 @@ function PositionModal({
               <label className="bd-field-label">Material-Referenz</label>
               <input className="bd-field-input" value={pos.material_ref} onChange={(e) => onPatch({ material_ref: e.target.value })} />
             </div>
+          </div>
+
+          <div className="bd-field" style={{ marginTop: 10 }}>
+            <label className="bd-field-label">Buchungstext (für DATEV, max. 60 Zeichen - leer = „ER Belegnr. Lieferant“)</label>
+            <input
+              className="bd-field-input"
+              maxLength={60}
+              value={pos.booking_text}
+              placeholder="z.B. Tanken Dienstwagen / Horizon StitchLiner"
+              onChange={(e) => onPatch({ booking_text: e.target.value })}
+            />
           </div>
 
           <div style={{ marginTop: 10 }}>

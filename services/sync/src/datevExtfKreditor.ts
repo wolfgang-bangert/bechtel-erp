@@ -25,6 +25,7 @@ type Item = {
   tax_code_id: string | null;
   cost_center_id: string | null;
   linked_document_id: string | null;
+  booking_text: string | null;
   incoming_document_allocation: Alloc[];
 };
 type Doc = {
@@ -47,7 +48,7 @@ type Doc = {
   incoming_document_item: Item[];
 };
 
-type Unit = { net: number; konto: string; rate: number; taxKey: string; kost: string };
+type Unit = { net: number; konto: string; rate: number; taxKey: string; kost: string; text: string };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -88,7 +89,7 @@ export async function exportDatevKreditor(opts: Options) {
         "id, doc_type, status, doc_number, doc_date, net_amount, tax_amount, gross_amount, tax_breakdown, " +
           "ledger_account, tax_code_id, cost_center_id, pdf_storage_key, file_name, supplier_name, " +
           "organization:supplier_organization_id ( supplier_number ), " +
-          "incoming_document_item!incoming_document_item_incoming_document_id_fkey ( net_amount, tax_rate, ledger_account, tax_code_id, cost_center_id, linked_document_id, " +
+          "incoming_document_item!incoming_document_item_incoming_document_id_fkey ( net_amount, tax_rate, ledger_account, tax_code_id, cost_center_id, linked_document_id, booking_text, " +
           "incoming_document_allocation ( amount, cost_center_id ) )",
       )
       .gte("doc_date", from)
@@ -155,6 +156,7 @@ export async function exportDatevKreditor(opts: Options) {
         const taxKey = taxKeyById.get(it.tax_code_id ?? "") || dTaxKey;
         const baseKost = kostById.get(it.cost_center_id ?? "") || dKost;
         const net = it.net_amount ?? 0;
+        const bt = it.booking_text?.trim() ?? "";
         const allocs = (it.incoming_document_allocation ?? []).filter((a) => (a.amount ?? 0) !== 0);
         if (allocs.length) {
           let used = 0;
@@ -167,16 +169,17 @@ export async function exportDatevKreditor(opts: Options) {
               rate,
               taxKey,
               kost: kostById.get(a.cost_center_id ?? "") || baseKost,
+              text: bt,
             });
           }
           const rest = r2(net - used);
-          if (Math.abs(rest) >= 0.01) units.push({ net: rest, konto, rate, taxKey, kost: baseKost });
+          if (Math.abs(rest) >= 0.01) units.push({ net: rest, konto, rate, taxKey, kost: baseKost, text: bt });
         } else {
-          units.push({ net, konto, rate, taxKey, kost: baseKost });
+          units.push({ net, konto, rate, taxKey, kost: baseKost, text: bt });
         }
       }
     } else {
-      units.push({ net: d.net_amount ?? 0, konto: dKonto, rate: dRate, taxKey: dTaxKey, kost: dKost });
+      units.push({ net: d.net_amount ?? 0, konto: dKonto, rate: dRate, taxKey: dTaxKey, kost: dKost, text: "" });
     }
 
     if (units.some((u) => !u.konto)) {
@@ -189,7 +192,7 @@ export async function exportDatevKreditor(opts: Options) {
     for (const u of units) {
       const vst = r2(u.net * (u.rate / 100));
       const gross = r2(u.net + vst);
-      const k = `${u.konto}|${u.taxKey}|${u.kost}|${u.rate}`;
+      const k = `${u.konto}|${u.taxKey}|${u.kost}|${u.rate}|${u.text}`;
       const cur = agg.get(k);
       if (cur) cur.gross = r2(cur.gross + gross);
       else agg.set(k, { ...u, gross });
@@ -221,7 +224,7 @@ export async function exportDatevKreditor(opts: Options) {
       cells[8] = u.taxKey ? raw(u.taxKey) : ""; // BU-Schlüssel (Vorsteuer), sonst leer = Automatik
       cells[9] = raw(beleg);
       cells[10] = q(num);
-      cells[13] = q(text);
+      cells[13] = q(u.text ? clean(u.text, 60) : text);
       if (d.pdf_storage_key) {
         cells[20] = q("Belegname");
         cells[21] = q(pdfName);

@@ -46,6 +46,7 @@ type Item = {
   tax_code_id: string | null;
   cost_center_id: string | null;
   linked_document_id: string | null;
+  booking_text: string | null;
   incoming_document_allocation: Alloc[];
 };
 type IncDoc = {
@@ -81,7 +82,7 @@ export async function kreditorPreview(from: string, to: string): Promise<Preview
         "id, doc_type, status, doc_number, doc_date, net_amount, tax_amount, gross_amount, tax_breakdown, " +
           "ledger_account, tax_code_id, cost_center_id, supplier_name, " +
           "organization:supplier_organization_id ( supplier_number ), " +
-          "incoming_document_item!incoming_document_item_incoming_document_id_fkey ( net_amount, tax_rate, ledger_account, tax_code_id, cost_center_id, linked_document_id, " +
+          "incoming_document_item!incoming_document_item_incoming_document_id_fkey ( net_amount, tax_rate, ledger_account, tax_code_id, cost_center_id, linked_document_id, booking_text, " +
           "incoming_document_allocation ( amount, cost_center_id ) )",
       )
       .gte("doc_date", from)
@@ -119,7 +120,7 @@ export async function kreditorPreview(from: string, to: string): Promise<Preview
     const dBu = buKey.get(d.tax_code_id ?? "") ?? "";
     const dKost = kostNum.get(d.cost_center_id ?? "") ?? "";
 
-    type U = { net: number; konto: string; rate: number; bu: string; kost: string };
+    type U = { net: number; konto: string; rate: number; bu: string; kost: string; text: string };
     // Mit einem anderen Beleg verknüpfte Positionen (z.B. Kreditkartenzeile,
     // deren Originalrechnung separat gebucht wird) nicht nochmal buchen -
     // sonst doppelt. Ihr Bruttoanteil wird vom Rechnungs-Gesamtbetrag
@@ -141,19 +142,20 @@ export async function kreditorPreview(from: string, to: string): Promise<Preview
         const bu = buKey.get(it.tax_code_id ?? "") || dBu;
         const baseKost = kostNum.get(it.cost_center_id ?? "") || dKost;
         const net = it.net_amount ?? 0;
+        const bt = it.booking_text?.trim() ?? "";
         const al = (it.incoming_document_allocation ?? []).filter((a) => (a.amount ?? 0) !== 0);
         if (al.length) {
           let used = 0;
           for (const a of al) {
             used += a.amount ?? 0;
-            units.push({ net: a.amount ?? 0, konto, rate, bu, kost: kostNum.get(a.cost_center_id ?? "") || baseKost });
+            units.push({ net: a.amount ?? 0, konto, rate, bu, kost: kostNum.get(a.cost_center_id ?? "") || baseKost, text: bt });
           }
           const rest = r2(net - used);
-          if (Math.abs(rest) >= 0.01) units.push({ net: rest, konto, rate, bu, kost: baseKost });
-        } else units.push({ net, konto, rate, bu, kost: baseKost });
+          if (Math.abs(rest) >= 0.01) units.push({ net: rest, konto, rate, bu, kost: baseKost, text: bt });
+        } else units.push({ net, konto, rate, bu, kost: baseKost, text: bt });
       }
     } else {
-      units.push({ net: d.net_amount ?? 0, konto: dKonto, rate: dRate, bu: dBu, kost: dKost });
+      units.push({ net: d.net_amount ?? 0, konto: dKonto, rate: dRate, bu: dBu, kost: dKost, text: "" });
     }
 
     if (units.some((u) => !u.konto)) {
@@ -164,7 +166,7 @@ export async function kreditorPreview(from: string, to: string): Promise<Preview
     const agg = new Map<string, U & { gross: number }>();
     for (const u of units) {
       const gross = r2(u.net + r2(u.net * (u.rate / 100)));
-      const k = `${u.konto}|${u.bu}|${u.kost}|${u.rate}`;
+      const k = `${u.konto}|${u.bu}|${u.kost}|${u.rate}|${u.text}`;
       const cur = agg.get(k);
       if (cur) cur.gross = r2(cur.gross + gross);
       else agg.set(k, { ...u, gross });
@@ -192,7 +194,7 @@ export async function kreditorPreview(from: string, to: string): Promise<Preview
         gegenkontoName: partner,
         bu: u.bu,
         kost: u.kost,
-        text: `${isCredit ? "GS" : "ER"} ${d.doc_number} ${partner}`.slice(0, 60),
+        text: (u.text || `${isCredit ? "GS" : "ER"} ${d.doc_number} ${partner}`).slice(0, 60),
         brutto: u.gross,
         href: `/eingangsrechnungen/${d.id}`,
       });
