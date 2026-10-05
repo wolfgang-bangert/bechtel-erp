@@ -278,6 +278,7 @@ export default async function EingangsrechnungenPage({
               <th className="bd-num">
                 {isAdvice ? "Lastschrift" : isDunning ? "Betrag" : "Brutto"}
               </th>
+              {!isHint && <th>Status</th>}
               {!isHint && <th>Konto</th>}
               <th>{isHint ? "bezieht sich auf" : "bezahlt"}</th>
               <th>{isHint ? "" : "gebucht"}</th>
@@ -305,6 +306,19 @@ export default async function EingangsrechnungenPage({
                   <td className="bd-num">
                     {fmtEur(d.doc_type === "credit_note" ? -Math.abs(d.gross_amount ?? 0) : d.gross_amount)}
                   </td>
+                  {!isHint && (
+                    <td>
+                      <span
+                        className={
+                          "bd-status " +
+                          (d.status === "booked" || d.status === "exported" ? "t-success" : d.status === "reviewed" ? "t-info" : "t-warning")
+                        }
+                      >
+                        <span className="bd-status-mark" />
+                        {STATUS[d.status] ?? d.status}
+                      </span>
+                    </td>
+                  )}
                   {!isHint && (
                     <td className="wrap bd-sub">
                       {(() => {
