@@ -365,6 +365,14 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
       text: `${ergebnis.unzugeordnet.length} steuerfreie Ausgangszeile(n) ohne Kennzahl-Zuordnung (Erlöskonto nicht in den Erlöskonten-Einstellungen für igL/EU/Drittland) - nicht enthalten.`,
       belege: ergebnis.unzugeordnet.map((z) => ({ label: `${z.belegNr} · ${z.partner}`, href: z.href })),
     });
+  if (ergebnis.steuerfreiOhneKz.length) {
+    const summe = r2(ergebnis.steuerfreiOhneKz.reduce((a, z) => a + z.vorzeichen * z.netto, 0));
+    hinweise.push({
+      ton: "info",
+      text: `${ergebnis.steuerfreiOhneKz.length} steuerfreie Ausgangszeile(n) auf dem Konto „steuerfrei sonstige“ (z. B. Porto/Auslagen, 0 %), zusammen ${summe.toLocaleString("de-DE", { minimumFractionDigits: 2 })} € netto - keine Kennzahl, nicht gemeldet.`,
+      belege: ergebnis.steuerfreiOhneKz.map((z) => ({ label: `${z.belegNr} · ${z.partner}`, href: z.href })),
+    });
+  }
   if (versteuerung === "ist")
     hinweise.push({
       ton: "info",
