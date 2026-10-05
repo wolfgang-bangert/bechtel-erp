@@ -30,15 +30,17 @@ const nm = (x: string | null | undefined) => (x ?? "").toLowerCase().replace(/[^
 const RANK: Record<string, number> = { booked: 5, exported: 5, reviewed: 4, extracted: 3, captured: 2 };
 
 export async function incomingDubletten({ dryRun }: { dryRun: boolean }) {
-  const docs = (
+  const alle = (
     await pagedSelect<Doc>(
       "incoming_document",
       "id, doc_number, doc_type, status, gross_amount, supplier_name, supplier_organization_id, file_sha256, dedup_key, ledger_account, tax_code_id, created_at",
     )
-  ).filter((d) => d.status !== "rejected" && ["invoice", "credit_note", "receipt"].includes(d.doc_type) && d.doc_number?.trim());
+  ).filter((d) => d.status !== "rejected" && ["invoice", "credit_note", "receipt", "payment_advice", "unknown"].includes(d.doc_type));
+  // Nummernbasierte Paare: nur Rechnungen/Gutschriften/Quittungen mit Nummer
+  const docs = alle.filter((d) => ["invoice", "credit_note", "receipt"].includes(d.doc_type) && d.doc_number?.trim());
 
   // Union-Find über Paare
-  const parent = new Map<string, string>(docs.map((d) => [d.id, d.id]));
+  const parent = new Map<string, string>(alle.map((d) => [d.id, d.id]));
   const find = (x: string): string => (parent.get(x) === x ? x : (parent.set(x, find(parent.get(x)!)), parent.get(x)!));
   const byNr = new Map<string, Doc[]>();
   for (const d of docs) byNr.set(nm(d.doc_number), [...(byNr.get(nm(d.doc_number)) ?? []), d]);
@@ -57,8 +59,20 @@ export async function incomingDubletten({ dryRun }: { dryRun: boolean }) {
         if (sameFile || sameOrg || similar) parent.set(find(a.id), find(b.id));
       }
   }
+  // Dieselbe Datei (SHA-256) unter anderer Nummer/Art (z.B. BB-Int-… neben Mail-Beleg, Avis als Rechnung importiert)
+  // ist derselbe Beleg, wenn der Betrag zusammenpasst.
+  const bySha = new Map<string, Doc[]>();
+  for (const d of alle) if (d.file_sha256) bySha.set(d.file_sha256, [...(bySha.get(d.file_sha256) ?? []), d]);
+  for (const g of bySha.values())
+    for (let i = 0; i < g.length; i++)
+      for (let j = i + 1; j < g.length; j++) {
+        const a = g[i], b = g[j];
+        const ga = a.gross_amount, gb = b.gross_amount;
+        if (ga != null && gb != null && Math.abs(Math.abs(ga) - Math.abs(gb)) > 0.02) continue;
+        parent.set(find(a.id), find(b.id));
+      }
   const groups = new Map<string, Doc[]>();
-  for (const d of docs) groups.set(find(d.id), [...(groups.get(find(d.id)) ?? []), d]);
+  for (const d of alle) groups.set(find(d.id), [...(groups.get(find(d.id)) ?? []), d]);
   const dupGroups = [...groups.values()].filter((g) => g.length > 1);
 
   const ids = dupGroups.flat().map((d) => d.id);
@@ -82,13 +96,14 @@ export async function incomingDubletten({ dryRun }: { dryRun: boolean }) {
 
   const out = { dryRun, gruppen: dupGroups.length, verworfen: 0, uebersprungen: [] as string[], liste: [] as string[] };
   for (const g of dupGroups) {
-    const label = `${g[0].doc_number} · ${g[0].supplier_name} · ${g[0].gross_amount}`;
+    const label = `${g[0].doc_number ?? g[1].doc_number} · ${g[0].supplier_name} · ${g[0].gross_amount}`;
     const withMatch = g.filter((d) => (matchCount.get(d.id) ?? 0) > 0);
     if (withMatch.length > 1) {
       out.uebersprungen.push(`${label}: mehrere Belege mit Bankzuordnung`);
       continue;
     }
     const score = (d: Doc) => [
+      d.doc_type === "payment_advice" ? 1 : 0, // ein erkanntes Zahlungsavis bleibt gegenüber einer als Rechnung importierten Kopie
       RANK[d.status] ?? 0,
       d.doc_type === "invoice" ? 1 : 0,
       d.dedup_key.startsWith("bb:") ? 0 : 1,
