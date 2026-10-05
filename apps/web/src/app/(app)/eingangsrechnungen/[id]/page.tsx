@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { ReviewForm } from "./ui";
 import { setIncomingStatus, bestaetigeUst, alsRechnungBehandeln, alsSonstigesBehandeln, kollegenGesehen } from "../actions";
-import { applyListFilters, sortSpec, type ListeParams } from "../_liste";
+import { applyListFilters, kontoJoin, sortSpec, type ListeParams } from "../_liste";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +60,7 @@ export default async function IncomingDetail({
   let ausserhalb = false;
   if (liste) {
     const { column, ascending } = sortSpec(liste);
-    const { data: ids } = await applyListFilters(supabase.from("incoming_document").select(`id, sort_value:${column}`), liste)
+    const { data: ids } = await applyListFilters(supabase.from("incoming_document").select(`id, sort_value:${column}${kontoJoin(liste)}`), liste)
       .order(column, { ascending, nullsFirst: false })
       .order("id")
       .range(0, 4999);
