@@ -150,6 +150,10 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
   const igeCode = new Set(
     (tcs ?? []).filter((t) => t.direction === "input" && t.treatment === "intra_community_acquisition").map((t) => t.id),
   );
+  // Ausdrücklich als "steuerfrei/keine Vorsteuer" (VST0) bestätigte Belege: kein Reverse-Charge-Verdacht mehr
+  const freiCode = new Set(
+    (tcs ?? []).filter((t) => t.direction === "input" && t.treatment === "tax_free_other").map((t) => t.id),
+  );
   const konten = ((settings ?? [])[0]?.value ?? {}) as UstvaErloesKonten;
 
   const zeilen: UstvaZeile[] = [];
@@ -278,7 +282,10 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
       }
     }
     if (hatRc && herkunft === "unklar") rcUnklar.push({ label, href });
-    if (!hatRc && !hatIge && istAuslaender(d) && (d.tax_amount ?? 0) < 0.005 && Math.abs(d.net_amount ?? 0) >= 0.005)
+    const bestaetigtFrei =
+      (!!d.tax_code_id && freiCode.has(d.tax_code_id)) ||
+      (items.length > 0 && items.every((it) => (it.tax_code_id ? freiCode.has(it.tax_code_id) : !!d.tax_code_id && freiCode.has(d.tax_code_id))));
+    if (!hatRc && !hatIge && !bestaetigtFrei && istAuslaender(d) && (d.tax_amount ?? 0) < 0.005 && Math.abs(d.net_amount ?? 0) >= 0.005)
       auslandOhneRc.push({ label, href });
     if (!d.doc_date) ohneDatum.push({ label, href });
   }
