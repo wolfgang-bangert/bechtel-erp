@@ -111,6 +111,7 @@ export function ReviewForm({
   // (z.B. wenn die KI-Extraktion keine Positionsliste erkannt hat) bekäme
   // sonst gar keine Stelle mehr zum Kontieren. Deshalb hier eine Position
   // aus den Dokument-Summen vorbelegen, statt "+ Position" zu erzwingen.
+  const [docType, setDocType] = useState<string>(v("doc_type") || "invoice");
   const [positions, setPositions] = useState<Pos[]>(() =>
     items.length
       ? items
@@ -204,6 +205,22 @@ export function ReviewForm({
       ),
     );
 
+  // Summen aus den Belegzeilen: Netto/USt/Brutto werden immer aus den Positionen berechnet (Gutschrift: positive Beträge).
+  const r2c = (n: number) => Math.round(n * 100) / 100;
+  const calc = (() => {
+    if (!positions.length) return null;
+    const byRate = new Map<number, number>();
+    for (const p of positions) {
+      const rate = p.tax_rate == null ? 0 : Number(p.tax_rate);
+      byRate.set(rate, (byRate.get(rate) ?? 0) + Number(p.net_amount ?? 0));
+    }
+    let net = r2c([...byRate.values()].reduce((a, b) => a + b, 0));
+    let tax = r2c([...byRate.entries()].reduce((a, [rate, n]) => a + r2c((n * rate) / 100), 0));
+    const flip = net + tax < 0 && (docType === "credit_note" || docType === "invoice");
+    if (flip) { net = -net; tax = -tax; }
+    return { net: net.toFixed(2), tax: tax.toFixed(2), gross: r2c(net + tax).toFixed(2) };
+  })();
+
   const F = ({
     name,
     label,
@@ -214,12 +231,20 @@ export function ReviewForm({
     label: string;
     type?: string;
     w?: number;
-  }) => (
-    <div className="bd-field" style={w ? { width: w } : undefined}>
-      <label className="bd-field-label" htmlFor={name}>{label}</label>
-      <input className="bd-field-input" id={name} name={name} type={type} defaultValue={v(name)} />
-    </div>
-  );
+  }) => {
+    const computed = calc && (name === "net_amount" ? calc.net : name === "tax_amount" ? calc.tax : name === "gross_amount" ? calc.gross : null);
+    return (
+      <div className="bd-field" style={w ? { width: w } : undefined}>
+        <label className="bd-field-label" htmlFor={name}>{label}</label>
+        {computed != null ? (
+          <input className="bd-field-input" id={name} name={name} type={type} value={computed} readOnly
+            title="aus den Belegzeilen berechnet" style={{ background: "var(--bd-line, #f1f1f1)" }} />
+        ) : (
+          <input className="bd-field-input" id={name} name={name} type={type} defaultValue={v(name)} />
+        )}
+      </div>
+    );
+  };
 
   return (
     <form action={action}>
@@ -380,6 +405,7 @@ export function ReviewForm({
                   id="doc_type"
                   name="doc_type"
                   defaultValue={v("doc_type") || "invoice"}
+                  onChange={(e) => setDocType(e.target.value)}
                 >
                   <option value="invoice">Rechnung</option>
                   <option value="credit_note">Gutschrift</option>

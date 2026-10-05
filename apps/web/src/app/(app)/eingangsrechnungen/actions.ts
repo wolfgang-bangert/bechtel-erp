@@ -177,6 +177,50 @@ export async function saveIncoming(
     }
   }
 
+  // Summen immer aus den Positionen neu berechnen (Netto, USt je Satz, Brutto, Skonto). Gutschrift (und Rechnung mit
+  // negativem Gesamtbetrag): alle Beträge positiv - das Vorzeichen steckt im Belegtyp "Gutschrift".
+  if (positions.length) {
+    const r2n = (x: number) => Math.round(x * 100) / 100;
+    let nets = positions.map((p) => Number(p.net_amount ?? 0));
+    const rates = positions.map((p) => Number(p.tax_rate ?? 0));
+    const sumOf = (ns: number[]) => {
+      const g = new Map<number, number>();
+      ns.forEach((n, i) => g.set(rates[i], (g.get(rates[i]) ?? 0) + n));
+      const net = r2n([...g.values()].reduce((a, b) => a + b, 0));
+      const taxBy: Record<string, number> = {};
+      let tax = 0;
+      for (const [rate, n] of g) {
+        const t = r2n((n * rate) / 100);
+        taxBy[String(rate)] = t;
+        tax = r2n(tax + t);
+      }
+      return { net, tax, taxBy };
+    };
+    let sums = sumOf(nets);
+    let docType = s(fd, "doc_type") ?? "invoice";
+    if (sums.net + sums.tax < -0.004 && (docType === "credit_note" || docType === "invoice")) {
+      nets = nets.map((x) => -x);
+      sums = sumOf(nets);
+      docType = "credit_note";
+      // Positionen mit vertauschtem Vorzeichen ablegen
+      const { data: its } = await supabase.from("incoming_document_item").select("id, net_amount").eq("incoming_document_id", id);
+      for (const it of its ?? []) await supabase.from("incoming_document_item").update({ net_amount: -Number(it.net_amount ?? 0) }).eq("id", it.id);
+    }
+    const gross = r2n(sums.net + sums.tax);
+    const pct = n(fd, "discount_percent");
+    await supabase
+      .from("incoming_document")
+      .update({
+        doc_type: docType,
+        net_amount: sums.net,
+        tax_amount: sums.tax,
+        gross_amount: gross,
+        tax_breakdown: sums.taxBy,
+        ...(pct != null && pct > 0 ? { discount_amount: r2n((gross * pct) / 100) } : {}),
+      })
+      .eq("id", id);
+  }
+
   // Hat der Nutzer jede Position selbst mit einem Steuerschlüssel versehen, gilt ein offener
   // USt-Vorschlag als erledigt.
   if (positions.length && positions.every((p) => emptyToNull(p.tax_code_id))) {
