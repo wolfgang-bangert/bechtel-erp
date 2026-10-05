@@ -454,9 +454,10 @@ export default async function IncomingDetail({
       {!isHint && (
         <div className="content-wide">
           <ReviewForm
-            // Neu aufbauen, sobald die USt bestätigt wurde: sonst behält das Formular seinen alten
-            // Zustand (leere Schlüssel) und würde sie beim Speichern wieder überschreiben.
-            key={`${doc.id}:${ust?.status ?? ""}:${doc.tax_code_id ?? ""}`}
+            // Neu aufbauen, sobald die USt bestätigt oder der Beleg gespeichert wurde: sonst setzt React 19 die
+            // Formularfelder nach dem Speichern auf die alten Werte zurück (neuer Wert erst nach erneutem Öffnen sichtbar)
+            // und das Formular würde z.B. leere Schlüssel beim nächsten Speichern wieder überschreiben.
+            key={`${doc.id}:${ust?.status ?? ""}:${doc.tax_code_id ?? ""}:${doc.updated_at ?? ""}`}
             doc={doc as Record<string, unknown>}
             items={items}
             taxCodes={(taxCodes ?? []).map((t) => ({ id: t.id, label: `${t.code} – ${t.name}` }))}
