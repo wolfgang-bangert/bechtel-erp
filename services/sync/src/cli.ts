@@ -41,6 +41,7 @@ import { skontoApply } from "./skontoApply";
 import { sammelZuordnen } from "./sammelZuordnen";
 import { bankGebuehren } from "./bankGebuehren";
 import { fxEcb } from "./fxEcb";
+import { bbOpUebernahme } from "./bbOpUebernahme";
 import { syncMailbox } from "./syncMailbox";
 import { extractIncoming } from "./extractIncoming";
 import { purgeIncoming } from "./purgeIncoming";
@@ -217,6 +218,11 @@ async function main() {
       console.log(`EZB-Wechselkurse laden${dryRun ? "  (DRY RUN)" : ""}`);
       const ab = process.argv.find((a) => a.startsWith("--ab="))?.split("=")[1];
       console.log(JSON.stringify(await fxEcb({ alle: flags.has("--alle"), ab, dryRun }), null, 1));
+      break;
+    }
+    case "bb:op-uebernahme": {
+      console.log(`Offene Eingangsrechnungen zum 31.12.2025 aus BB übernehmen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await bbOpUebernahme({ dryRun }), null, 1));
       break;
     }
     case "incoming:dubletten": {
