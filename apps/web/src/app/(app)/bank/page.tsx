@@ -296,7 +296,7 @@ export default async function BankPage({
   if (hasCredits) {
     const { data: inv } = await supabase
       .from("sales_invoice")
-      .select("invoice_number, open_amount, organization:organization(name)")
+      .select("invoice_number, invoice_date, open_amount, organization:organization(name)")
       .eq("kind", "invoice")
       .in("payment_status", ["open", "partly_paid"])
       .gt("open_amount", 0)
@@ -305,6 +305,7 @@ export default async function BankPage({
       .limit(800);
     const rows = ((inv ?? []) as unknown as {
       invoice_number: string;
+      invoice_date: string | null;
       open_amount: number | null;
       organization: { name: string } | null;
     }[]).map((i) => ({
@@ -312,7 +313,7 @@ export default async function BankPage({
       amount: i.open_amount,
       label: `${i.invoice_number} — ${
         (i.organization as unknown as { name: string } | null)?.name ?? "?"
-      } — ${fmtEur(i.open_amount)}`,
+      } — vom ${fmtDate(i.invoice_date)} — ${fmtEur(i.open_amount)}`,
     }));
     arCandidates = rows.map(({ number, label }) => ({ number, label }));
     arPrefill = uniqueByAmount(rows.map((r) => ({ c: cents(r.amount), label: r.label })));
@@ -323,7 +324,7 @@ export default async function BankPage({
   if (hasDebits) {
     const { data: inc } = await supabase
       .from("incoming_document")
-      .select("doc_number, open_amount, supplier_name")
+      .select("doc_number, doc_date, open_amount, supplier_name")
       .in("doc_type", ["invoice", "credit_note"])
       .in("payment_status", ["open", "partly_paid"])
       .gt("open_amount", 0)
@@ -332,12 +333,13 @@ export default async function BankPage({
       .limit(800);
     const rows = ((inc ?? []) as unknown as {
       doc_number: string;
+      doc_date: string | null;
       open_amount: number | null;
       supplier_name: string | null;
     }[]).map((i) => ({
       number: i.doc_number,
       amount: i.open_amount,
-      label: `${i.doc_number} — ${i.supplier_name ?? "?"} — ${fmtEur(i.open_amount)}`,
+      label: `${i.doc_number} — ${i.supplier_name ?? "?"} — vom ${fmtDate(i.doc_date)} — ${fmtEur(i.open_amount)}`,
     }));
     erCandidates = rows.map(({ number, label }) => ({ number, label }));
     erPrefill = uniqueByAmount(rows.map((r) => ({ c: cents(r.amount), label: r.label })));
