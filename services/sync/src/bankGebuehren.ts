@@ -125,7 +125,16 @@ export async function bankGebuehren(opts: { dryRun?: boolean; from?: string } = 
     await pagedSelect<Tx>("bank_transaction", "id, bank_account_id, booking_date, amount, counterparty_name, purpose, match_status")
   ).filter((t) => (t.match_status === "unmatched" || (dryRun && altTx.has(t.id))) && t.amount < 0 && t.booking_date >= from);
 
+  // Info-Zeilen der Bank ohne Betrag (0,00 €) gibt es nichts zu buchen -> als ignoriert markieren
+  let ignoriert = 0;
+  {
+    const { data: nullzeilen } = await supabase.from("bank_transaction").select("id").eq("amount", 0).eq("match_status", "unmatched");
+    ignoriert = (nullzeilen ?? []).length;
+    if (!dryRun && ignoriert) await supabase.from("bank_transaction").update({ match_status: "ignored" }).in("id", (nullzeilen ?? []).map((z) => z.id));
+  }
+
   const ergebnis = {
+    null_betrag_ignoriert: ignoriert,
     zurueckgenommen_2110_darlehenszinsen: korrigiert.length,
     geprueft: txs.length,
     gebucht: 0,

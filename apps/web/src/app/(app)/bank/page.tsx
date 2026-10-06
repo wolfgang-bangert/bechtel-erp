@@ -13,7 +13,7 @@ import {
   NoteEditForm,
   type Candidate,
 } from "./ui";
-import { unmatchTransaction } from "./actions";
+import { setzeIgnoriert, unmatchTransaction } from "./actions";
 import { BankSyncButton } from "./BankSyncButton";
 import { BankAvatar, BankNameEdit, BankTransactionsBody, type BankRow } from "./TransactionRow";
 
@@ -162,7 +162,7 @@ export default async function BankPage({
     // dürfen auch über einen von Hand gebauten ?account=-Link nicht auftauchen.
     if (account && accountIds.has(account)) r = r.eq("bank_account_id", account);
     else r = r.in("bank_account_id", [...accountIds]);
-    if (hideMatched) r = r.neq("match_status", "matched");
+    if (hideMatched) r = r.in("match_status", ["unmatched", "partial"]);
     if (range) r = r.gte("booking_date", range.from).lt("booking_date", range.to);
     if (q) {
       const like = `%${q.replace(/[%,]/g, "")}%`;
@@ -566,7 +566,17 @@ export default async function BankPage({
             </span>
           </div>
 
-          {remaining > 0.01 && (
+          {tx.matches.length === 0 && (
+            <form action={setzeIgnoriert} style={{ margin: "6px 0" }}>
+              <input type="hidden" name="tx_id" value={tx.id} />
+              <input type="hidden" name="ignorieren" value={tx.match_status === "ignored" ? "0" : "1"} />
+              <button className="ghost" style={{ padding: "2px 10px" }} title="Info-Zeile ohne Buchung (z. B. 0,00 € von der Bank): zählt nicht mehr als offen">
+                {tx.match_status === "ignored" ? "wieder aufnehmen" : "ignorieren (keine Buchung nötig)"}
+              </button>
+            </form>
+          )}
+
+          {remaining > 0.01 && tx.match_status !== "ignored" && (
             <div className="rows" style={{ gap: 8 }}>
               <MatchForm
                 txId={tx.id}
@@ -708,8 +718,8 @@ export default async function BankPage({
           style={{ minWidth: 260 }}
         />
         <label className="chk">
-          <input type="checkbox" name="hide_matched" value="1" defaultChecked={hideMatched} /> zugeordnete
-          ausblenden
+          <input type="checkbox" name="hide_matched" value="1" defaultChecked={hideMatched} /> erledigte
+          (zugeordnete/ignorierte) ausblenden
         </label>
         <button type="submit">Anzeigen</button>
         {(account || hideMatched || q || range) && <Link href="/bank">zurücksetzen</Link>}
