@@ -25,6 +25,9 @@
 # Danach bank:match/skonto:apply wie bei Keyline.
 20 6 * * *   cd /app/services/sync && pnpm ninox:rechnungen-extern && pnpm bank:match && pnpm skonto:apply
 
+# Bankgebühren/Zinsen (Kontoführung, Spesen, Kartenentgelt, Sollzinsen, Kreditbereitstellung ...) als Sonderbuchung buchen
+40 6 * * *   cd /app/services/sync && pnpm bank:gebuehren
+
 # Eingangsrechnungen aus dem Postfach + KI-Vorerfassung (war stündlich)
 15 * * * *   cd /app/services/sync && pnpm mail:fetch --since=7 && pnpm incoming:extract --limit=100
 
