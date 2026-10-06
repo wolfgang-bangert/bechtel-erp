@@ -9,6 +9,8 @@ export type ListeParams = {
   ust?: string;
   /** "leer": nur Belege, bei denen mindestens eine Position (ohne verknüpften Beleg) kein Konto hat und am Beleg keins steht */
   konto?: string;
+  /** "1": verworfene Belege mit anzeigen (sonst immer ausgeblendet, außer Status "verworfen" ist ausdrücklich gewählt) */
+  verworfen?: string;
 };
 
 /** Zusatz fürs select(): Join, auf dem der Filter "ohne Konto" arbeitet. */
@@ -35,11 +37,13 @@ export function applyListFilters<T extends { eq: Function; not: Function; gte: F
   const status = sp.status ?? "";
   const search = (sp.q ?? "").trim();
   const range = monthRange(sp.monat ?? "");
+  const zeigeVerworfen = sp.verworfen === "1";
   if (status === "alle") {
-    // "Alle": keine Einschränkung nach Status (auch verworfene, Avis und Sonstiges)
+    // "Alle": keine Einschränkung nach Status (Avis und Sonstiges inklusive); verworfene nur mit Haken
+    if (!zeigeVerworfen) r = r.not("status", "eq", "rejected");
   } else if (status) r = r.eq("status", status);
-  // Ohne Filter: Hinweisbelege und verworfene Belege (Dubletten u.a.) raus aus der Rechnungs-Prüfliste.
-  else r = r.not("status", "in", "(advice,dunning,rejected)");
+  // Ohne Filter: Hinweisbelege (Avis/Sonstiges) raus aus der Rechnungs-Prüfliste; verworfene nur mit Haken.
+  else r = r.not("status", "in", zeigeVerworfen ? "(advice,dunning)" : "(advice,dunning,rejected)");
   if (sp.payment_method) r = r.eq("payment_method", sp.payment_method);
   if (sp.ust === "offen") r = r.eq("extraction->_ust->>status", "vorschlag");
   if (range) r = r.gte("doc_date", range.from).lt("doc_date", range.to);

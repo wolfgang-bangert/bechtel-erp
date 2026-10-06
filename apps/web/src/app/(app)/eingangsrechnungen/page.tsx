@@ -46,6 +46,7 @@ export default async function EingangsrechnungenPage({
     seite?: string;
     ust?: string;
     konto?: string;
+    verworfen?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -66,6 +67,7 @@ export default async function EingangsrechnungenPage({
   const supabase = await createClient();
   // Gleiche Filter für die Liste und die Summenzeile (alle Seiten, nicht nur die angezeigte).
   const kontoLeer = sp.konto === "leer";
+  const zeigeVerworfen = sp.verworfen === "1";
   const applyFilters = <T extends { eq: Function; not: Function; gte: Function; lt: Function; or: Function; is: Function }>(q: T): T =>
     applyListFilters(q, sp);
   let query = applyFilters(
@@ -139,6 +141,7 @@ export default async function EingangsrechnungenPage({
     if (range) u.set("monat", monat);
     if (ustOffen) u.set("ust", "offen");
     if (kontoLeer) u.set("konto", "leer");
+    if (zeigeVerworfen) u.set("verworfen", "1");
     if (sort !== "date") u.set("sort", sort);
     if (dir !== "desc") u.set("dir", dir);
     return u;
@@ -226,7 +229,7 @@ export default async function EingangsrechnungenPage({
         <div className="bd-field">
           <label className="bd-field-label">Status</label>
           <select className="bd-field-input" name="status" defaultValue={status}>
-            <option value="">Rechnungen (ohne verworfen/Avis/Sonstiges)</option>
+            <option value="">Rechnungen (ohne Avis/Sonstiges)</option>
             <option value="alle">Alle</option>
             {Object.entries(STATUS)
               .filter(([k]) => k !== "reviewed")
@@ -256,11 +259,14 @@ export default async function EingangsrechnungenPage({
             <option value="leer">ohne Konto</option>
           </select>
         </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--bd-ink-muted)", alignSelf: "flex-end", paddingBottom: 8 }}>
+          <input type="checkbox" name="verworfen" value="1" defaultChecked={zeigeVerworfen} /> verworfene anzeigen
+        </label>
         {ustOffen && <input type="hidden" name="ust" value="offen" />}
         {sort !== "date" && <input type="hidden" name="sort" value={sort} />}
         {dir !== "desc" && <input type="hidden" name="dir" value={dir} />}
         <button className="bd-btn bd-btn-secondary" type="submit">Filtern</button>
-        {(status || search || paymentMethod || range || ustOffen || kontoLeer) && <Link href="/eingangsrechnungen">zurücksetzen</Link>}
+        {(status || search || paymentMethod || range || ustOffen || kontoLeer || zeigeVerworfen) && <Link href="/eingangsrechnungen">zurücksetzen</Link>}
         <div className="bd-spacer" />
         <span style={{ color: "var(--bd-ink-muted)", fontSize: 13, fontFamily: "var(--font-bd-sans)" }}>
           {count ?? 0} Belege · Netto {fmtEur(netSum)}
