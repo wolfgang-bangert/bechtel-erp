@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { ReviewForm } from "./ui";
 import { buchungsProbleme, schluesselInfo } from "@/lib/belegPruefung";
+import type { BankKandidat } from "./BankZuordnen";
 import { setIncomingStatus, bestaetigeUst, alsRechnungBehandeln, alsSonstigesBehandeln, kollegenGesehen } from "../actions";
 import { applyListFilters, kontoJoin, sortSpec, type ListeParams } from "../_liste";
 
@@ -185,6 +186,46 @@ export default async function IncomingDetail({
     auto: m.auto,
     tx: Array.isArray(m.bank_transaction) ? (m.bank_transaction[0] ?? null) : m.bank_transaction,
   }));
+
+  // Kandidaten für "Bankzeile zuordnen": noch nicht (voll) zugeordnete Bankzeilen, passend sortiert
+  const bezahltSumme = bankMatches.reduce((a, m) => a + Math.abs(m.amount), 0);
+  const offenBeleg = Math.round((Math.abs(Number(doc.gross_amount ?? 0)) - bezahltSumme) * 100) / 100;
+  let bankKandidaten: BankKandidat[] = [];
+  if (["invoice", "credit_note"].includes(doc.doc_type) && doc.status !== "rejected" && offenBeleg > 0.005) {
+    const ab = new Date(new Date(doc.doc_date ?? doc.created_at).getTime() - 14 * 86400000).toISOString().slice(0, 10);
+    let q = supabase
+      .from("bank_transaction")
+      .select("id, booking_date, amount, counterparty_name, purpose")
+      .in("match_status", ["unmatched", "partial"])
+      .gte("booking_date", ab)
+      .order("booking_date", { ascending: false })
+      .limit(400);
+    q = doc.doc_type === "invoice" ? q.lt("amount", 0) : q;
+    const { data: txs } = await q;
+    const ids = (txs ?? []).map((t) => t.id);
+    const { data: tm } = ids.length
+      ? await supabase.from("bank_transaction_match").select("bank_transaction_id, amount, ledger_account, sales_invoice_id, incoming_document_id").in("bank_transaction_id", ids)
+      : { data: [] as { bank_transaction_id: string; amount: number; ledger_account: string | null; sales_invoice_id: string | null; incoming_document_id: string | null }[] };
+    const belegt = new Map<string, number>();
+    for (const m of tm ?? []) {
+      if (m.ledger_account && (m.sales_invoice_id || m.incoming_document_id)) continue;
+      belegt.set(m.bank_transaction_id, (belegt.get(m.bank_transaction_id) ?? 0) + Math.abs(m.amount ?? 0));
+    }
+    const lieferant = String(doc.supplier_name ?? "").toLowerCase().split(/[^a-zäöüß0-9]+/).filter((w) => w.length > 3);
+    const nr = String(doc.doc_number ?? "");
+    bankKandidaten = (txs ?? [])
+      .map((t) => {
+        const frei = Math.round((Math.abs(t.amount) - (belegt.get(t.id) ?? 0)) * 100) / 100;
+        const text = `${t.counterparty_name ?? ""} ${t.purpose ?? ""}`.toLowerCase();
+        const nameTreffer = lieferant.some((w) => text.includes(w)) || (nr.length > 3 && text.includes(nr.toLowerCase()));
+        const betragTreffer = Math.abs(frei - offenBeleg) < 0.02;
+        return { id: t.id, booking_date: t.booking_date, amount: t.amount, frei, counterparty_name: t.counterparty_name, purpose: t.purpose, passt: nameTreffer || betragTreffer, rang: (betragTreffer ? 0 : 2) + (nameTreffer ? 0 : 1) };
+      })
+      .filter((k) => k.frei > 0.005)
+      .sort((a, b) => a.rang - b.rang || b.booking_date.localeCompare(a.booking_date))
+      .slice(0, 15)
+      .map(({ rang: _r, ...k }) => k);
+  }
 
   // Gelernte/von Hand gesetzte Vorkontierung des Lieferanten (Standardkonto/Zahlart an der
   // Organisation, siehe /einstellungen/vorkontierung) - nur ein Vorschlag fürs Formular, greift
@@ -503,6 +544,7 @@ export default async function IncomingDetail({
             }))}
             suggestion={suggestion}
             bankMatches={bankMatches}
+            bankKandidaten={bankKandidaten}
             pdfUrl={pdfUrl}
             pdfLabel={doc.doc_number ?? doc.file_name ?? "Beleg.pdf"}
           />

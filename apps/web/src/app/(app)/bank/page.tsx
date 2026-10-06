@@ -38,7 +38,7 @@ const kontoLabel = (a: { label: string; bank_name: string | null; iban: string }
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 100;
-type Search = { account?: string; hide_matched?: string; q?: string; page?: string; monat?: string };
+type Search = { account?: string; hide_matched?: string; q?: string; page?: string; monat?: string; tx?: string };
 
 // "2026-03" -> [2026-03-01, 2026-04-01)
 function monthRange(m: string): { from: string; to: string } | null {
@@ -58,6 +58,8 @@ export default async function BankPage({
 }) {
   const sp = await searchParams;
   const account = sp.account ?? "";
+  // Einzelansicht einer Bankzeile (Direktlink z. B. aus dem Eingangsbeleg): alle anderen Filter ruhen
+  const einzelTx = /^[0-9a-f-]{36}$/i.test(sp.tx ?? "") ? (sp.tx as string) : "";
   // Immer alle Status zeigen, nur "zugeordnete ausblenden" als einziger Schalter.
   const hideMatched = sp.hide_matched === "1";
   const q = (sp.q ?? "").trim();
@@ -155,6 +157,7 @@ export default async function BankPage({
   // Gleiche Filter für die Liste und die Summenzeile (alle Seiten, nicht nur die angezeigte).
   const applyFilters = <T extends { eq: Function; in: Function; neq: Function; or: Function; gte: Function; lt: Function }>(qb: T): T => {
     let r = qb;
+    if (einzelTx) return r.eq("id", einzelTx) as T;
     // Nur echte Girokonten - Darlehenskonten (accountIds enthält sie nicht)
     // dürfen auch über einen von Hand gebauten ?account=-Link nicht auftauchen.
     if (account && accountIds.has(account)) r = r.eq("bank_account_id", account);
@@ -605,6 +608,13 @@ export default async function BankPage({
         <strong> Abgänge</strong> → Eingangsrechnung. Der Rest folgt automatisch
         beim nächsten <code>bank:match</code>.
       </p>
+
+      {einzelTx && (
+        <div className="lead" style={{ marginBottom: 12, padding: "8px 12px", background: "var(--bd-surface-2, #f3f3f3)", borderRadius: 6 }}>
+          Einzelne Bankzeile. Die Zuordnung hebst du in der Zeile unten auf („aufheben“).{" "}
+          <a className="bd-link" href="/bank">alle Bankzeilen anzeigen</a>
+        </div>
+      )}
 
       {(accounts ?? []).length === 0 && (
         <div className="banner-err">
