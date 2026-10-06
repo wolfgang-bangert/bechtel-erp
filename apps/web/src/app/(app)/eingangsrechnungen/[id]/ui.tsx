@@ -106,6 +106,14 @@ export function ReviewForm({
 }) {
   const [state, action, pending] = useActionState(saveIncoming, empty);
   const v = (k: string) => (doc[k] == null ? "" : String(doc[k]));
+  // Beträge in der Währung des Belegs anzeigen (Fremdwährungsbelege tragen die Originalbeträge, z. B. USD)
+  const cur = (v("currency") || "EUR").toUpperCase();
+  const money = (n: number | null | undefined) =>
+    n == null
+      ? "–"
+      : cur === "EUR"
+        ? fmtEur(n)
+        : `${n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur}`;
 
   const [organizationId, setOrganizationId] = useState(v("supplier_organization_id"));
   const [payeeDiffers, setPayeeDiffers] = useState(v("payee_differs") === "true");
@@ -562,10 +570,10 @@ export function ReviewForm({
                         )}
                       </div>
                       <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                        <div style={{ fontWeight: 600 }}>{p.net_amount != null ? fmtEur(p.net_amount) : "–"}</div>
+                        <div style={{ fontWeight: 600 }}>{money(p.net_amount)}</div>
                         {p.unit_price != null && (
                           <div className="bd-sub">
-                            {p.quantity != null ? p.quantity : "–"} × {p.unit_price != null ? fmtEur(p.unit_price) : "–"}
+                            {p.quantity != null ? p.quantity : "–"} × {money(p.unit_price)}
                           </div>
                         )}
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 6 }}>
@@ -614,22 +622,22 @@ export function ReviewForm({
                       {rows.map((g, i) => (
                         <tr key={i}>
                           <td>{g.rate == null ? "?" : `${g.rate} %`}</td>
-                          <td className="bd-num">{fmtEur(r2(g.net))}</td>
-                          <td className="bd-num">{fmtEur(r2((g.net * (g.rate ?? 0)) / 100))}</td>
+                          <td className="bd-num">{money(r2(g.net))}</td>
+                          <td className="bd-num">{money(r2((g.net * (g.rate ?? 0)) / 100))}</td>
                           <td className="bd-sub">{[...g.codes].join(", ")}</td>
                         </tr>
                       ))}
                       <tr style={{ fontWeight: 600 }}>
                         <td>Summe</td>
-                        <td className="bd-num">{fmtEur(sumNet)}</td>
-                        <td className="bd-num">{fmtEur(sumTax)}</td>
-                        <td className="bd-sub">Brutto {fmtEur(r2(sumNet + sumTax))}</td>
+                        <td className="bd-num">{money(sumNet)}</td>
+                        <td className="bd-num">{money(sumTax)}</td>
+                        <td className="bd-sub">Brutto {money(r2(sumNet + sumTax))}</td>
                       </tr>
                     </tbody>
                   </table>
                   {(!netOk || !taxOk) && (
                     <p className="bd-hint" style={{ color: "#a86800", marginTop: 6 }}>
-                      Weicht vom Beleg ab: Netto {fmtEur(hdrNet ?? 0)} / USt {fmtEur(hdrTax ?? 0)} laut Kopfdaten.
+                      Weicht vom Beleg ab: Netto {money(hdrNet ?? 0)} / USt {money(hdrTax ?? 0)} laut Kopfdaten.
                     </p>
                   )}
                 </div>
