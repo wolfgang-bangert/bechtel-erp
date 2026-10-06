@@ -40,6 +40,7 @@ import { exportDatevZahlungen } from "./datevExtfZahlungen";
 import { skontoApply } from "./skontoApply";
 import { sammelZuordnen } from "./sammelZuordnen";
 import { bankGebuehren } from "./bankGebuehren";
+import { fxEcb } from "./fxEcb";
 import { syncMailbox } from "./syncMailbox";
 import { extractIncoming } from "./extractIncoming";
 import { purgeIncoming } from "./purgeIncoming";
@@ -210,6 +211,12 @@ async function main() {
       const fromArg = process.argv.find((a) => a.startsWith("--from="))?.split("=")[1];
       console.log(`Bankgebühren und Zinsen buchen${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await bankGebuehren({ dryRun, from: fromArg }), null, 1));
+      break;
+    }
+    case "fx:ecb": {
+      console.log(`EZB-Wechselkurse laden${dryRun ? "  (DRY RUN)" : ""}`);
+      const ab = process.argv.find((a) => a.startsWith("--ab="))?.split("=")[1];
+      console.log(JSON.stringify(await fxEcb({ alle: flags.has("--alle"), ab, dryRun }), null, 1));
       break;
     }
     case "incoming:dubletten": {

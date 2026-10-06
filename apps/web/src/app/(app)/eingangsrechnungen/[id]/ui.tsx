@@ -477,12 +477,16 @@ export function ReviewForm({
               {v("currency") && v("currency") !== "EUR" && (
                 <F name="fx_gross_amount" label={`Original-Brutto (${v("currency")})`} w={160} />
               )}
+              {v("currency") && v("currency") !== "EUR" && (
+                <F name="exchange_rate" label={`Kurs (1 EUR = … ${v("currency")})`} w={150} />
+              )}
             </div>
             {v("currency") && v("currency") !== "EUR" && (
               <p className="bd-hint">
-                Netto/USt/Brutto sind die tatsächlich in EUR gebuchten Beträge (z.B. vom
-                Kontoauszug/der Kreditkartenabrechnung) — Original-Brutto ist nur der auf dem
-                Beleg selbst ausgewiesene Fremdwährungsbetrag zur Anzeige.
+                Mit <strong>Original-Brutto</strong> gelten Netto/USt/Brutto als in EUR (z. B. vom Kontoauszug oder der
+                Kartenabrechnung). <strong>Ohne</strong> Original-Brutto stehen die Beträge in {v("currency")} und werden in der
+                UStVA zum EZB-Kurs des Belegdatums umgerechnet; einen abweichenden Kurs trägst du im Feld „Kurs“ ein
+                (1 EUR = x {v("currency")}).
               </p>
             )}
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}>

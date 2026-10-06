@@ -86,6 +86,7 @@ export async function saveIncoming(
       tax_amount: n(fd, "tax_amount"),
       gross_amount: n(fd, "gross_amount"),
       fx_gross_amount: n(fd, "fx_gross_amount"),
+      exchange_rate: n(fd, "exchange_rate"),
       payment_method: s(fd, "payment_method"),
       ledger_account: s(fd, "ledger_account"),
       tax_code_id: s(fd, "tax_code_id"),
