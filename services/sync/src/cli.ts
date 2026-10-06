@@ -204,7 +204,7 @@ async function main() {
       // Sicherheitshalber umgekehrt zu den anderen Befehlen: ohne --apply nur Probelauf
       const apply = flags.has("--apply");
       console.log(`Sammelüberweisungen zuordnen${apply ? "" : "  (PROBELAUF, mit --apply wird geschrieben)"}`);
-      console.log(JSON.stringify(await sammelZuordnen({ apply }), null, 1));
+      console.log(JSON.stringify(await sammelZuordnen({ apply, plan: process.argv.find((a) => a.startsWith("--plan="))?.split("=")[1] }), null, 1));
       break;
     }
     case "bank:gebuehren": {

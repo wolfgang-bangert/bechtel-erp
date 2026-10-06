@@ -1,0 +1,186 @@
+[
+ {
+  "datum": "2026-04-07",
+  "txId": "c332a78f-0847-4b5a-b920-27a6307d2327",
+  "richtung": "eingang",
+  "text": "Daimler Truck Avis 02.04.2026",
+  "belege": [
+   {
+    "id": "010610e5-430c-4007-b13b-9195b99a2fff",
+    "nr": "260326012",
+    "brutto": 1604.35,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-04-30",
+  "txId": "ce2b2195-6d72-4870-b9e8-22011834e9b0",
+  "richtung": "eingang",
+  "text": "Daimler Truck Avis 30.04.2026",
+  "belege": [
+   {
+    "id": "c895fb82-8be0-45b3-862c-77d03f394513",
+    "nr": "260417005",
+    "brutto": 1751.8,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-03-31",
+  "txId": "2988acc4-2c37-42f3-a62b-df23c6cfc767",
+  "richtung": "eingang",
+  "text": "Belden Avis 30.03.2026",
+  "belege": [
+   {
+    "id": "3520fdd8-4332-423b-877d-92cc47dcad57",
+    "nr": "260223004",
+    "brutto": 1056.72,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "514f9587-5315-4931-a818-bac911aada82",
+    "nr": "250731014",
+    "brutto": 152.12,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "ed6975ef-08c9-40b0-8d37-54cbc3d5331e",
+    "nr": "260326006",
+    "brutto": 92.46,
+    "skonto": 1.85,
+    "satz": 19
+   },
+   {
+    "id": "fdc93fe0-816b-47d0-bd76-746c58a77599",
+    "nr": "260326005",
+    "brutto": 92.46,
+    "skonto": 1.85,
+    "satz": 19
+   },
+   {
+    "id": "90d29c71-0ae7-437c-aee5-ecff577c43b7",
+    "nr": "260326007",
+    "brutto": 152.12,
+    "skonto": 3.04,
+    "satz": 19
+   },
+   {
+    "id": "f32e9158-5c40-4812-93c5-c978359bb5b4",
+    "nr": "260326008",
+    "brutto": 287.39,
+    "skonto": 5.75,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-04-09",
+  "txId": "b09041fc-0dce-4a87-ac26-dc108eb7fd80",
+  "richtung": "zahlung",
+  "text": "Wackler Avis 02.04.2026",
+  "belege": [
+   {
+    "id": "1704e364-5dc3-4567-bdd0-e6e6601fa181",
+    "nr": "10344919",
+    "brutto": 286.12,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-06-11",
+  "txId": "5e98c579-ea33-4cb6-bea4-ae502508f199",
+  "richtung": "zahlung",
+  "text": "Wackler Avis 03.06.2026",
+  "belege": [
+   {
+    "id": "86a6b40f-0b9c-4de9-8e2a-28e49cdecd93",
+    "nr": "10352313",
+    "brutto": 732.14,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-07-02",
+  "txId": "ead56b9f-01d9-4b24-8890-c631f5af47e3",
+  "richtung": "zahlung",
+  "text": "Wackler Avis 25.06.2026",
+  "belege": [
+   {
+    "id": "f530ce22-a017-4ab3-9dc3-3f9f929bb278",
+    "nr": "10354552",
+    "brutto": 543.34,
+    "skonto": 0.0,
+    "satz": 19
+   },
+   {
+    "id": "bb96752e-d074-4ae0-84d1-4b4a0a67eae5",
+    "nr": "10354759",
+    "brutto": 62.03,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-06-26",
+  "txId": "6a201c2f-d04d-4081-89cc-8eca6327443d",
+  "richtung": "zahlung",
+  "text": "Berberich Avis 23.06.2026",
+  "belege": [
+   {
+    "id": "21fabd88-edd9-4cf4-897d-9c64d50d1e8a",
+    "nr": "2169477",
+    "brutto": 263.59,
+    "skonto": 7.91,
+    "satz": 19
+   },
+   {
+    "id": "dcca3021-cbad-4931-a751-ebef877d2595",
+    "nr": "2170602",
+    "brutto": 1264.91,
+    "skonto": 37.95,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-03-06",
+  "txId": "50aa29b0-03d4-4c0f-893a-b3016d9ef84d",
+  "richtung": "zahlung",
+  "text": "PDFMonkey Avis",
+  "belege": [
+   {
+    "id": "cfd4fc97-0f4c-4b93-b049-3a6348366db9",
+    "nr": "NCNAKHR2-0002",
+    "brutto": 15.0,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ },
+ {
+  "datum": "2026-04-10",
+  "txId": "3fc0551c-9f46-4d8c-8f64-ba5315382dce",
+  "richtung": "zahlung",
+  "text": "PDFMonkey Avis",
+  "belege": [
+   {
+    "id": "12435305-f635-43fb-9811-c7c1fa0a2ecd",
+    "nr": "NCNAKHR2-0003",
+    "brutto": 15.0,
+    "skonto": 0.0,
+    "satz": 19
+   }
+  ]
+ }
+]

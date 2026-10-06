@@ -21,9 +21,10 @@ function skontoKonto(richtung: "zahlung" | "eingang", satz: number): string {
   return richtung === "zahlung" ? "3736" : "8736";
 }
 
-export async function sammelZuordnen(opts: { apply?: boolean } = {}) {
+export async function sammelZuordnen(opts: { apply?: boolean; plan?: string } = {}) {
   const apply = !!opts.apply;
-  const plan = JSON.parse(readFileSync(new URL("../data/sammel-plan.json", import.meta.url), "utf8")) as PlanGruppe[];
+  const planName = /^[a-z0-9-]+$/.test(opts.plan ?? "") ? (opts.plan as string) : "sammel-plan";
+  const plan = JSON.parse(readFileSync(new URL(`../data/${planName}.json`, import.meta.url), "utf8")) as PlanGruppe[];
 
   const ergebnis = { gruppen: plan.length, zugeordnet: 0, belege: 0, uebersprungen: [] as string[], fehler: [] as string[] };
 
