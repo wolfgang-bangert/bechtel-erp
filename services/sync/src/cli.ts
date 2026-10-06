@@ -39,6 +39,7 @@ import { exportDatevKreditor } from "./datevExtfKreditor";
 import { exportDatevZahlungen } from "./datevExtfZahlungen";
 import { skontoApply } from "./skontoApply";
 import { sammelZuordnen } from "./sammelZuordnen";
+import { bankGebuehren } from "./bankGebuehren";
 import { syncMailbox } from "./syncMailbox";
 import { extractIncoming } from "./extractIncoming";
 import { purgeIncoming } from "./purgeIncoming";
@@ -203,6 +204,12 @@ async function main() {
       const apply = flags.has("--apply");
       console.log(`Sammelüberweisungen zuordnen${apply ? "" : "  (PROBELAUF, mit --apply wird geschrieben)"}`);
       console.log(JSON.stringify(await sammelZuordnen({ apply }), null, 1));
+      break;
+    }
+    case "bank:gebuehren": {
+      const fromArg = process.argv.find((a) => a.startsWith("--from="))?.split("=")[1];
+      console.log(`Bankgebühren und Zinsen buchen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await bankGebuehren({ dryRun, from: fromArg }), null, 1));
       break;
     }
     case "incoming:dubletten": {
