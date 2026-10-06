@@ -63,6 +63,8 @@ type IncDoc = {
   doc_number: string | null;
   doc_date: string | null;
   currency: string | null;
+  fx_gross_amount: number | null;
+  exchange_rate: number | null;
   ledger_account: string | null;
   net_amount: number | null;
   tax_amount: number | null;
@@ -117,7 +119,7 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
     supabase
       .from("incoming_document")
       .select(
-        "id, doc_type, status, doc_number, doc_date, currency, ledger_account, net_amount, tax_amount, tax_breakdown, tax_code_id, " +
+        "id, doc_type, status, doc_number, doc_date, currency, fx_gross_amount, exchange_rate, ledger_account, net_amount, tax_amount, tax_breakdown, tax_code_id, " +
           "supplier_name, supplier_vat_id, organization:supplier_organization_id ( tax_country ), " +
           "incoming_document_item!incoming_document_item_incoming_document_id_fkey ( ledger_account, net_amount, tax_rate, tax_code_id, linked_document_id )",
       )
@@ -206,7 +208,33 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
   const rcUnklar: { label: string; href: string }[] = [];
   const ohneDatum: { label: string; href: string }[] = [];
 
-  for (const d of (incRaw ?? []) as unknown as IncDoc[]) {
+  // Fremdwährungsbelege (ohne Original-Brutto am Beleg) tragen die Beträge in der Belegwährung - zum EZB-Kurs
+  // des Belegdatums (oder dem am Beleg hinterlegten Kurs) nach EUR umrechnen. Mit Original-Brutto sind die
+  // Beträge schon in EUR (vom Kontoauszug/der Kartenabrechnung).
+  const incDocs = (incRaw ?? []) as unknown as IncDoc[];
+  const fremd = incDocs.filter((d) => (d.currency ?? "EUR").toUpperCase() !== "EUR" && d.fx_gross_amount == null);
+  const kurse = new Map<string, { date: string; rate: number }[]>();
+  if (fremd.length) {
+    const waehrungen = [...new Set(fremd.map((d) => (d.currency ?? "").toUpperCase()))];
+    const von10 = new Date(new Date(von).getTime() - 10 * 86400000).toISOString().slice(0, 10);
+    const { data: fx } = await supabase
+      .from("fx_rate")
+      .select("rate_date, currency, units_per_eur")
+      .in("currency", waehrungen)
+      .gte("rate_date", von10)
+      .lte("rate_date", bis)
+      .order("rate_date", { ascending: false });
+    for (const r of fx ?? []) {
+      const l = kurse.get(r.currency) ?? [];
+      l.push({ date: r.rate_date, rate: Number(r.units_per_eur) });
+      kurse.set(r.currency, l);
+    }
+  }
+  const umgerechnet: { label: string; href: string }[] = [];
+  const ohneKurs: { label: string; href: string }[] = [];
+  let umrechnungSumme = 0;
+
+  for (const d of incDocs) {
     const href = `/eingangsrechnungen/${d.id}`;
     const partner = d.supplier_name ?? "?";
     const label = `${d.doc_number ?? d.id.slice(0, 8)} · ${partner}`;
@@ -218,6 +246,18 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
       continue;
     }
 
+    // Umrechnungsfaktor Belegwährung -> EUR
+    let faktor = 1;
+    if (fremd.includes(d)) {
+      const cur = (d.currency ?? "").toUpperCase();
+      const stichtag = d.doc_date ?? "";
+      const k = d.exchange_rate ?? kurse.get(cur)?.find((x) => x.date <= stichtag)?.rate ?? null;
+      if (k && k > 0) {
+        faktor = 1 / Number(k);
+        umgerechnet.push({ label: `${label} · ${cur} → EUR zum Kurs ${Number(k).toLocaleString("de-DE", { maximumFractionDigits: 4 })}`, href });
+        umrechnungSumme = r2(umrechnungSumme + (d.net_amount ?? 0) * (faktor - 1));
+      } else ohneKurs.push({ label: `${label} (${cur})`, href });
+    }
     const dRate = dominantRate(d.tax_breakdown, d.net_amount ?? 0, d.tax_amount ?? 0);
     const dRc = d.tax_code_id ? rcCode.has(d.tax_code_id) : false;
     // Mit einem anderen Beleg verknüpfte Positionen (z.B. Kreditkartenzeile) zählen hier nicht.
@@ -227,7 +267,7 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
     if ((d.incoming_document_item ?? []).length) {
       for (const it of items) {
         units.push({
-          net: it.net_amount ?? 0,
+          net: (it.net_amount ?? 0) * faktor,
           rate: it.tax_rate != null ? Math.round(Number(it.tax_rate)) : dRate,
           rc: it.tax_code_id ? rcCode.has(it.tax_code_id) : dRc,
           ige: it.tax_code_id ? igeCode.has(it.tax_code_id) : dIge,
@@ -236,7 +276,7 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
         });
       }
     } else {
-      units.push({ net: d.net_amount ?? 0, rate: dRate, rc: dRc, ige: dIge, eust: d.ledger_account === EUST_KONTO, konto: d.ledger_account });
+      units.push({ net: (d.net_amount ?? 0) * faktor, rate: dRate, rc: dRc, ige: dIge, eust: d.ledger_account === EUST_KONTO, konto: d.ledger_account });
     }
 
     const herkunft = rcHerkunft(d);
@@ -307,6 +347,19 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
       ton: "warn",
       text: `${rcUnklar.length} §13b-Beleg(e) mit unklarem Lieferantenland (keine USt-IdNr, Land DE) - als Drittland (Kz 52/53) gezählt. EU-Lieferanten bitte Kz 46/47 zuordnen (USt-IdNr am Beleg/Organisation ergänzen).`,
       belege: rcUnklar,
+    });
+
+  if (umgerechnet.length)
+    hinweise.push({
+      ton: "info",
+      text: `${umgerechnet.length} Fremdwährungsbeleg(e) mit Beträgen in Belegwährung zum EZB-Kurs des Belegdatums nach EUR umgerechnet (Nettoeffekt ${umrechnungSumme.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €).`,
+      belege: umgerechnet,
+    });
+  if (ohneKurs.length)
+    hinweise.push({
+      ton: "warn",
+      text: `${ohneKurs.length} Fremdwährungsbeleg(e) ohne Wechselkurs - Beträge unverändert als EUR gezählt. Kurse laden (fx:ecb) oder am Beleg einen Kurs eintragen.`,
+      belege: ohneKurs,
     });
 
   // ---- Skonto ------------------------------------------------------------

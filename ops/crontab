@@ -25,6 +25,9 @@
 # Danach bank:match/skonto:apply wie bei Keyline.
 20 6 * * *   cd /app/services/sync && pnpm ninox:rechnungen-extern && pnpm bank:match && pnpm skonto:apply
 
+# EZB-Wechselkurse (Fremdwährungsbelege in der UStVA umrechnen) - werktäglich nach der Veröffentlichung
+30 17 * * 1-5   cd /app/services/sync && pnpm fx:ecb
+
 # Bankgebühren/Zinsen (Kontoführung, Spesen, Kartenentgelt, Sollzinsen, Kreditbereitstellung ...) als Sonderbuchung buchen
 40 6 * * *   cd /app/services/sync && pnpm bank:gebuehren
 
