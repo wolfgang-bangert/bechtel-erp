@@ -477,3 +477,21 @@ export async function updateMatchNote(_prev: GroupMatchState, formData: FormData
   revalidateAll();
   return { ok: true };
 }
+
+/**
+ * Bankzeile als "ignoriert" markieren (z. B. reine Info-Zeile der Bank mit 0,00 €, nichts zu buchen) bzw. wieder
+ * aufnehmen. Nur Zeilen ohne Buchung; ignorierte Zeilen zählen nicht mehr als offen.
+ */
+export async function setzeIgnoriert(formData: FormData): Promise<void> {
+  const txId = String(formData.get("tx_id") ?? "");
+  const ignorieren = String(formData.get("ignorieren") ?? "") === "1";
+  if (!/^[0-9a-f-]{36}$/i.test(txId)) return;
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from("bank_transaction_match")
+    .select("id", { count: "exact", head: true })
+    .eq("bank_transaction_id", txId);
+  if (count) return; // gebuchte Zeilen bleiben unberührt
+  await supabase.from("bank_transaction").update({ match_status: ignorieren ? "ignored" : "unmatched" }).eq("id", txId);
+  revalidatePath("/bank");
+}
