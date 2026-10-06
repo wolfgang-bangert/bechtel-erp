@@ -111,7 +111,7 @@ export default async function IncomingDetail({
       )
       .eq("incoming_document_id", id)
       .order("position", { nullsFirst: false }),
-    supabase.from("tax_code").select("id, code, name").eq("direction", "input").order("code"),
+    supabase.from("tax_code").select("id, code, name, rate, treatment").eq("direction", "input").order("code"),
     supabase.from("cost_center").select("id, number, name").eq("is_active", true).order("number"),
     supabase.from("ledger_account").select("number, name").eq("is_active", true).order("number"),
     // Lieferanten (auch "Kunde + Lieferant") komplett laden - PostgREST liefert sonst nur die ersten
@@ -488,7 +488,7 @@ export default async function IncomingDetail({
             key={`${doc.id}:${ust?.status ?? ""}:${doc.tax_code_id ?? ""}:${doc.updated_at ?? ""}`}
             doc={doc as Record<string, unknown>}
             items={items}
-            taxCodes={(taxCodes ?? []).map((t) => ({ id: t.id, label: `${t.code} – ${t.name}` }))}
+            taxCodes={(taxCodes ?? []).map((t) => ({ id: t.id, label: `${t.code} – ${t.name}`, rate: t.treatment === "standard_de" && t.rate != null ? Number(t.rate) : 0 }))}
             costCenters={(costCenters ?? []).map((c) => ({ id: c.id, label: `${c.number} – ${c.name}` }))}
             ledgerAccounts={(ledgerAccounts ?? []).map((a) => ({
               value: a.number,

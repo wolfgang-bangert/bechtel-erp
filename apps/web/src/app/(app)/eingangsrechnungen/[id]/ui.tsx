@@ -12,7 +12,7 @@ import { fmtDate, fmtEur } from "@/lib/format";
 
 const empty: SaveState = {};
 
-type Opt = { id: string; label: string };
+type Opt = { id: string; label: string; rate?: number | null };
 type AccountOpt = { value: string; label: string };
 
 type Alloc = {
@@ -780,7 +780,14 @@ function PositionModal({
             </div>
             <div className="bd-field" style={{ width: 80 }}>
               <label className="bd-field-label">USt %</label>
-              <input className="bd-field-input" value={pos.tax_rate ?? ""} onChange={(e) => onPatch({ tax_rate: numOrNull(e.target.value) })} />
+              <input
+                className="bd-field-input"
+                value={pos.tax_rate ?? ""}
+                readOnly
+                tabIndex={-1}
+                style={{ background: "var(--bd-surface-2, #f3f3f3)", color: "var(--bd-ink-muted)" }}
+                title="Ergibt sich aus dem Steuerschlüssel (rechts) - dort ändern"
+              />
             </div>
             <div className="bd-field" style={{ width: 120 }}>
               <label className="bd-field-label">Netto</label>
@@ -811,7 +818,15 @@ function PositionModal({
             </div>
             <div className="bd-field" style={{ width: 200 }}>
               <label className="bd-field-label">Steuerschlüssel</label>
-              <select className="bd-field-input" value={pos.tax_code_id} onChange={(e) => onPatch({ tax_code_id: e.target.value })}>
+              <select
+                className="bd-field-input"
+                value={pos.tax_code_id}
+                onChange={(e) => {
+                  // Der Steuersatz der Position folgt dem Schlüssel (kein zweites, widersprüchliches Feld)
+                  const rate = taxCodes.find((t) => t.id === e.target.value)?.rate;
+                  onPatch(rate != null ? { tax_code_id: e.target.value, tax_rate: rate } : { tax_code_id: e.target.value });
+                }}
+              >
                 <option value="">(Vorgabe)</option>
                 {taxCodes.map((t) => (
                   <option key={t.id} value={t.id}>{t.label}</option>
