@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
 import { UploadForm } from "./UploadForm";
 import { ListeSteuerung } from "./ListeSteuerung";
+import { buchungsProbleme } from "@/lib/belegPruefung";
 import { applyListFilters, kontoJoin, monthRange, sortSpec } from "./_liste";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ const PAYMENT_LABEL: Record<string, string> = {
 const PAGE_SIZE = 200;
 
 const LISTEN_SELECT =
-  "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date, ledger_account, tax_code_id, net_amount, tax_amount, created_at, colleague_checked_at, colleague_checked_by, ust_status:extraction->_ust->>status, incoming_document_item!incoming_document_item_incoming_document_id_fkey ( ledger_account, tax_code_id, linked_document_id )" as const;
+  "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date, ledger_account, tax_code_id, net_amount, tax_amount, created_at, colleague_checked_at, colleague_checked_by, ust_status:extraction->_ust->>status, incoming_document_item!incoming_document_item_incoming_document_id_fkey ( ledger_account, tax_code_id, linked_document_id, net_amount, tax_rate )" as const;
 
 export default async function EingangsrechnungenPage({
   searchParams,
@@ -331,14 +332,11 @@ export default async function EingangsrechnungenPage({
               const isPaid = d.payment_status === "paid" || d.payment_status === "overpaid";
               const isBooked = d.status === "booked" || d.status === "exported";
               const orgMethod = d.supplier_organization_id ? ruleMethodByOrg.get(d.supplier_organization_id) : null;
-              const itemsOhneLink = (d.incoming_document_item ?? []).filter((i) => !i.linked_document_id);
-              const kontoOk = itemsOhneLink.length ? itemsOhneLink.every((i) => i.ledger_account || d.ledger_account) : !!d.ledger_account;
-              const schluesselOk = itemsOhneLink.length ? itemsOhneLink.every((i) => i.tax_code_id) : !!d.tax_code_id;
-              const summenOk = Math.abs(Number(d.net_amount ?? 0) + Number(d.tax_amount ?? 0) - Number(d.gross_amount ?? 0)) <= 0.02;
+              const probleme = buchungsProbleme({ ...d, items: d.incoming_document_item ?? [] }, { ohneUst: true });
               const offen = d.status === "captured" || d.status === "extracted";
               const bereit =
                 !isHint && offen && ["invoice", "credit_note", "receipt"].includes(d.doc_type) &&
-                kontoOk && schluesselOk && summenOk && !!(d.payment_method || orgMethod) && d.ust_status !== "vorschlag";
+                probleme.length === 0 && !!(d.payment_method || orgMethod) && d.ust_status !== "vorschlag";
               return (
                 <tr key={d.id}>
                   {!isHint && (
@@ -375,6 +373,12 @@ export default async function EingangsrechnungenPage({
                         <span className="bd-status t-info" style={{ marginLeft: 6 }} title="Konto, Steuerschlüssel, Zahlart und Summen sind vollständig - bereit zum Buchen">
                           <span className="bd-status-mark" />
                           bereit
+                        </span>
+                      )}
+                      {isBooked && probleme.length > 0 && (
+                        <span className="bd-status t-danger" style={{ marginLeft: 6 }} title={probleme.join("\n")}>
+                          <span className="bd-status-mark" />
+                          Abweichung
                         </span>
                       )}
                       {d.colleague_checked_at && (

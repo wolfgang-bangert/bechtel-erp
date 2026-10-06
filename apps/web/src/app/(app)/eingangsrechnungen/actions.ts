@@ -3,6 +3,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { buchungsProbleme } from "@/lib/belegPruefung";
 import { putObject, signedGetUrl } from "@/lib/storage";
 
 export type SaveState = { ok?: boolean; error?: string; note?: string };
@@ -312,13 +313,34 @@ export async function uploadIncoming(
   return { ok: true, count, uploaded };
 }
 
+const BUCHUNG_SELECT =
+  "id, doc_number, supplier_name, ledger_account, tax_code_id, net_amount, tax_amount, gross_amount, ust_status:extraction->_ust->>status, incoming_document_item!incoming_document_item_incoming_document_id_fkey ( ledger_account, tax_code_id, linked_document_id, net_amount, tax_rate )" as const;
+
+/** Probleme je Beleg-ID (leer = buchbar). */
+async function buchbarkeit(ids: string[]): Promise<Map<string, { label: string; probleme: string[] }>> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("incoming_document").select(BUCHUNG_SELECT).in("id", ids);
+  const out = new Map<string, { label: string; probleme: string[] }>();
+  for (const d of data ?? []) {
+    out.set(d.id, {
+      label: `${d.doc_number ?? d.id.slice(0, 8)} · ${d.supplier_name ?? "?"}`,
+      probleme: buchungsProbleme({ ...d, items: d.incoming_document_item ?? [] }),
+    });
+  }
+  return out;
+}
+
 export async function setIncomingStatus(fd: FormData): Promise<void> {
   const id = String(fd.get("id") ?? "");
   const status = String(fd.get("status") ?? "");
   if (!id || !["extracted", "booked", "rejected"].includes(status)) return;
   const supabase = await createClient();
   const patch: Record<string, unknown> = { status };
-  if (status === "booked") patch.reviewed_at = new Date().toISOString();
+  if (status === "booked") {
+    // Sperre: nur korrekt kontierte Belege mit stimmigen Summen buchen
+    if ((await buchbarkeit([id])).get(id)?.probleme.length !== 0) return;
+    patch.reviewed_at = new Date().toISOString();
+  }
   await supabase.from("incoming_document").update(patch).eq("id", id);
   revalidatePath("/eingangsrechnungen");
   revalidatePath(`/eingangsrechnungen/${id}`);
@@ -432,20 +454,30 @@ export async function alsSonstigesBehandeln(fd: FormData): Promise<void> {
   revalidatePath("/eingangsrechnungen");
 }
 
-/** Mehrere Belege auf einmal als gebucht markieren (Sichtprüfung in der Liste). Nur offene Rechnungen/Gutschriften. */
-export async function buchenMehrere(ids: string[]): Promise<{ gebucht: number }> {
+/**
+ * Mehrere Belege auf einmal als gebucht markieren (Sichtprüfung in der Liste). Nur offene Rechnungen/Gutschriften,
+ * und nur solche, die Konto, Steuerschlüssel und stimmige Summen haben - die übrigen werden mit Grund zurückgemeldet.
+ */
+export async function buchenMehrere(
+  ids: string[],
+): Promise<{ gebucht: number; abgelehnt: { label: string; probleme: string[] }[] }> {
   const clean = ids.filter((x) => /^[0-9a-f-]{36}$/i.test(x));
-  if (!clean.length) return { gebucht: 0 };
+  if (!clean.length) return { gebucht: 0, abgelehnt: [] };
+  const check = await buchbarkeit(clean);
+  const ok = clean.filter((id) => check.get(id)?.probleme.length === 0);
+  const abgelehnt = clean.filter((id) => !ok.includes(id) && check.has(id)).map((id) => check.get(id)!);
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("incoming_document")
-    .update({ status: "booked", reviewed_at: new Date().toISOString() })
-    .in("id", clean)
-    .in("status", ["captured", "extracted"])
-    .in("doc_type", ["invoice", "credit_note", "receipt"])
-    .select("id");
+  const { data } = ok.length
+    ? await supabase
+        .from("incoming_document")
+        .update({ status: "booked", reviewed_at: new Date().toISOString() })
+        .in("id", ok)
+        .in("status", ["captured", "extracted"])
+        .in("doc_type", ["invoice", "credit_note", "receipt"])
+        .select("id")
+    : { data: [] as { id: string }[] };
   revalidatePath("/eingangsrechnungen");
-  return { gebucht: (data ?? []).length };
+  return { gebucht: (data ?? []).length, abgelehnt };
 }
 
 /** Konto am Beleg und an allen Positionen setzen (Schnellbutton in der Liste). */
