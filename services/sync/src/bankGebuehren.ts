@@ -9,7 +9,7 @@ import { pagedSelect } from "./db";
  * Buchungstext (DATEV): "<Kontonummer> <Bank> <Art der Gebühr>", z. B. "0667 Oberbank Kontoführung".
  * Darlehen Oberbank 1801-1118.55 (Sonderbetriebsvermögen): Zinsen ("Sollzinsen W/KTO 1801-1118.55") und die monatliche Rate
  * ("Rate Darl. Nr. 1801.1118.55") werden nicht als Aufwand gebucht, sondern nach festem Schlüssel aufgeteilt:
- * 80,16 % -> 1705 Verrechnungskonto Sonderbetriebsvermögen, 19,84 % -> 1900 Privatentnahmen (Teilhafter).
+ * 80,16 % -> 1705 Verrechnungskonto Sonderbetriebsvermögen, 19,84 % -> 1800 Privatentnahmen allgemein (nie 1900: das war nur ein Behelf in BuchhaltungsButler).
  * Sammelposten wie "ABSCHLUSS PER ..." oder "Abrechnung ... Information zur Abrechnung" enthalten Zinsen und Entgelte
  * gemischt und werden NICHT automatisch gebucht (stehen im Ergebnis unter "manuell").
  */
@@ -18,7 +18,7 @@ const KONTO_ZINSEN = "2110";
 /** Aufteilung des Oberbank-Darlehens (wie in BuchhaltungsButler): Anteil Sonderbetriebsvermögen, Rest privat. */
 const SBV_ANTEIL = 0.8016;
 const KONTO_SBV = "1705";
-const KONTO_PRIVAT = "1900";
+const KONTO_PRIVAT = "1800";
 const KONTO_GEBUEHREN = "4970";
 
 type Tx = {
