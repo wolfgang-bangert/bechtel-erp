@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { ReviewForm } from "./ui";
+import { buchungsProbleme } from "@/lib/belegPruefung";
 import { setIncomingStatus, bestaetigeUst, alsRechnungBehandeln, alsSonstigesBehandeln, kollegenGesehen } from "../actions";
 import { applyListFilters, kontoJoin, sortSpec, type ListeParams } from "../_liste";
 
@@ -223,6 +224,22 @@ export default async function IncomingDetail({
     ?._ust ?? null);
   const ustOpen = !isHint && ust?.status === "vorschlag" && ["captured", "extracted", "booked"].includes(doc.status);
 
+  const probleme = buchungsProbleme({
+    ledger_account: doc.ledger_account,
+    tax_code_id: doc.tax_code_id,
+    net_amount: doc.net_amount,
+    tax_amount: doc.tax_amount,
+    gross_amount: doc.gross_amount,
+    ust_status: ust?.status ?? null,
+    items: ((itemsRaw ?? []) as unknown as ItemRow[]).map((it) => ({
+      ledger_account: it.ledger_account,
+      tax_code_id: it.tax_code_id,
+      linked_document_id: it.linked_document_id,
+      net_amount: it.net_amount,
+      tax_rate: it.tax_rate,
+    })),
+  });
+
   const items = ((itemsRaw ?? []) as unknown as ItemRow[]).map((it) => ({
     id: it.id,
     position: it.position,
@@ -366,6 +383,15 @@ export default async function IncomingDetail({
         </div>
       )}
 
+      {!isHint && ["captured", "extracted", "booked", "exported"].includes(doc.status) && probleme.length > 0 && (
+        <div className="bd-card" style={{ borderColor: "var(--bd-danger, #b3261e)" }}>
+          <strong>{["booked", "exported"].includes(doc.status) ? "Abweichungen am gebuchten Beleg" : "Buchen gesperrt - bitte zuerst beheben"}</strong>
+          <ul style={{ margin: "6px 0 0 18px" }}>
+            {probleme.map((p, i) => <li key={i}>{p}</li>)}
+          </ul>
+        </div>
+      )}
+
       <div className="toolbar">
         {pdfUrl ? (
           <a className="ghost" href={pdfUrl} target="_blank" rel="noreferrer"
@@ -379,7 +405,9 @@ export default async function IncomingDetail({
           <form action={setIncomingStatus}>
             <input type="hidden" name="id" value={doc.id} />
             <input type="hidden" name="status" value="booked" />
-            <button type="submit">als gebucht markieren</button>
+            <button type="submit" disabled={probleme.length > 0} title={probleme.length ? "Erst die Abweichungen beheben" : undefined}>
+              als gebucht markieren
+            </button>
           </form>
         )}
         {!isHint && ["booked", "exported"].includes(doc.status) && (

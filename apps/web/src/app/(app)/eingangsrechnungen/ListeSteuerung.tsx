@@ -58,7 +58,12 @@ export function ListeSteuerung({ konten }: { konten: { value: string; label: str
   const buchen = (nurBereit: boolean) =>
     start(async () => {
       const r = await buchenMehrere(ids(nurBereit));
-      setMsg(`${r.gebucht} Beleg(e) als gebucht markiert.`);
+      const grund = r.abgelehnt.length
+        ? ` ${r.abgelehnt.length} nicht gebucht: ` +
+          r.abgelehnt.slice(0, 3).map((a) => `${a.label} (${a.probleme.join("; ")})`).join(" | ") +
+          (r.abgelehnt.length > 3 ? ` … und ${r.abgelehnt.length - 3} weitere` : "")
+        : "";
+      setMsg(`${r.gebucht} Beleg(e) als gebucht markiert.${grund}`);
       router.refresh();
       setTimeout(zaehlen, 400);
     });
