@@ -10,6 +10,9 @@ import { pagedSelect } from "./db";
  * Darlehen Oberbank 1801-1118.55 (Sonderbetriebsvermögen): Zinsen ("Sollzinsen W/KTO 1801-1118.55") und die monatliche Rate
  * ("Rate Darl. Nr. 1801.1118.55") werden nicht als Aufwand gebucht, sondern nach festem Schlüssel aufgeteilt:
  * 80,16 % -> 1705 Verrechnungskonto Sonderbetriebsvermögen, 19,84 % -> 1800 Privatentnahmen allgemein (nie 1900: das war nur ein Behelf in BuchhaltungsButler).
+ * Weitere Banken: BW Bank (EBICS/ZV-App, Kontoauszug für Dritte), Volksbank (Abschluss netto + gesonderte USt-Zeile -> Vorsteuer 1576),
+ * Kreissparkasse (Rechnungen Firmenkundenportal/Auslandszahlungsverkehr "siehe Anlage" mit 19 % USt -> netto 4970 + Vorsteuer 1576;
+ * liegt der Beleg schon als Eingangsrechnung vor, wird dieser bezahlt).
  * Sammelposten wie "ABSCHLUSS PER ..." oder "Abrechnung ... Information zur Abrechnung" enthalten Zinsen und Entgelte
  * gemischt und werden NICHT automatisch gebucht (stehen im Ergebnis unter "manuell").
  */
@@ -20,6 +23,9 @@ const SBV_ANTEIL = 0.8016;
 const KONTO_SBV = "1705";
 const KONTO_PRIVAT = "1800";
 const KONTO_GEBUEHREN = "4970";
+const KONTO_VST19 = "1576";
+const KONTO_VST7 = "1571";
+const MONATSNAMEN = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 
 type Tx = {
   id: string;
@@ -41,7 +47,17 @@ const OBERBANK_ENTGELTE: [RegExp, string][] = [
 ];
 
 /** Art der Gebühr und Konto; null = keine eindeutige Bankgebühr. */
-export type Klasse = { konto: string; art: string; teilung?: { sbv: string; privat: string } };
+export type Klasse = {
+  konto: string;
+  art: string;
+  teilung?: { sbv: string; privat: string };
+  /** Betrag enthält USt (brutto): in Netto (Gebührenkonto) und Vorsteuer (1576/1571) aufteilen */
+  mitUst?: number;
+  /** Zeile ist selbst nur die USt zu einer anderen Gebührenzeile (Netto aus dem Text) */
+  nurUst?: { satz: number; netto: number };
+  /** Rechnungsnummer der Bank (BWxxx-...) - existiert ein Eingangsbeleg, wird dieser bezahlt statt Gebühr gebucht */
+  belegNr?: string;
+};
 
 /** Darlehen 1801-1118.55: Zinsen bzw. Rate nach Schlüssel auf Sonderbetriebsvermögen/Privat aufteilen. */
 export function darlehenKlasse(tx: Pick<Tx, "counterparty_name" | "purpose">): Klasse | null {
@@ -68,6 +84,26 @@ export function klassifiziere(tx: Pick<Tx, "counterparty_name" | "purpose">): Kl
     return { konto: KONTO_ZINSEN, art: "Überziehungsprovision" };
   const soll = /^(Sollzinsen)(?:\s+W\/KTO\s*([\d.\-]+))?/i.exec(cp) ?? /^(Sollzinsen)(?:\s+W\/KTO\s*([\d.\-]+))?/i.exec(pu);
   if (soll) return { konto: KONTO_ZINSEN, art: soll[2] ? `Sollzinsen Kto ${soll[2]}` : "Sollzinsen" };
+
+  // Volksbank: Abschluss (netto) + gesonderte Zeile "19% Umsatzsteuer auf EUR x" (Vorsteuer)
+  const abschl = /^ABSCHLUSS PER (\d{2})\.(\d{2})\.(\d{4})/i.exec(cp) ?? /^ABSCHLUSS PER (\d{2})\.(\d{2})\.(\d{4})/i.exec(pu);
+  if (abschl) return { konto: KONTO_GEBUEHREN, art: `Abschluss ${MONATSNAMEN[Number(abschl[2]) - 1]} ${abschl[3]}` };
+  const ustZeile = /^(\d{1,2})%\s*Umsatzsteuer auf EUR\s*([\d.]+,\d{2})/i.exec(cp) ?? /^(\d{1,2})%\s*Umsatzsteuer auf EUR\s*([\d.]+,\d{2})/i.exec(pu);
+  if (ustZeile) {
+    const satz = Number(ustZeile[1]);
+    const netto = Number(ustZeile[2].replace(/\./g, "").replace(",", "."));
+    return { konto: satz === 7 ? KONTO_VST7 : KONTO_VST19, art: `Umsatzsteuer ${satz} % auf Abschluss`, nurUst: { satz, netto } };
+  }
+  // BW Bank: Pauschalen
+  const ebics = /EBICS\/ZV-App\s+(\S+)/i.exec(text);
+  if (ebics && (/^EBICS\/ZV-App/i.test(cp) || /^EBICS\/ZV-App/i.test(pu))) return { konto: KONTO_GEBUEHREN, art: `EBICS/ZV-App ${ebics[1]}` };
+  if (/^Kontoausz\.?\s*f\.?\s*Dritte/i.test(cp) || /^Kontoausz\.?\s*f\.?\s*Dritte/i.test(pu)) {
+    const m = MONATE.exec(text);
+    return { konto: KONTO_GEBUEHREN, art: m ? `Kontoauszug für Dritte ${m[1]}` : "Kontoauszug für Dritte" };
+  }
+  // Kreissparkasse: Rechnungen der Bank "siehe Anlage" (Firmenkundenportal, Auslandszahlungsverkehr) enthalten 19 % USt
+  const ksk = /Rechnung\s*(Firmenkundenportal|Auslandszahlungsverkehr)\s*(\d{8})-(BW\d{3}-\d+)/i.exec(text.replace(/\s+/g, " "));
+  if (ksk) return { konto: KONTO_GEBUEHREN, art: `${ksk[1]} ${ksk[3]}`, mitUst: 19, belegNr: ksk[3] };
 
   // Entgelte -> 4970
   if (/^Kontoführung$/i.test(cp) || /^Kontoführung$/i.test(pu)) return { konto: KONTO_GEBUEHREN, art: "Kontoführung" };
@@ -141,6 +177,7 @@ export async function bankGebuehren(opts: { dryRun?: boolean; from?: string } = 
     summe: 0,
     nach_konto: {} as Record<string, { anzahl: number; summe: number }>,
     beispiele: [] as string[],
+    beleg_bezahlt: [] as string[],
     manuell: [] as string[],
     fehler: [] as string[],
   };
@@ -149,13 +186,14 @@ export async function bankGebuehren(opts: { dryRun?: boolean; from?: string } = 
     const k = klassifiziere(t);
     const text = `${t.counterparty_name ?? ""} ${t.purpose ?? ""}`;
     if (!k) {
-      if (/^ABSCHLUSS PER|Information\s*zur\s*Abrechnung/i.test(text.replace(/\s+/g, " ")))
+      if (/Information\s*zur\s*Abrechnung/i.test(text.replace(/\s+/g, " ")))
         ergebnis.manuell.push(`${t.booking_date} ${t.amount.toFixed(2)} ${clean(text, 50)}`);
       continue;
     }
     const b = konto.get(t.bank_account_id) ?? { nr: "", bank: "Bank" };
     const buchungstext = clean(`${b.nr} ${b.bank} ${k.art}`, 60);
-    const teile = k.teilung
+    type Teil = { konto: string; betrag: number; text: string; net_amount?: number; tax_rate?: number; tax_amount?: number };
+    const teile: Teil[] = k.teilung
       ? (() => {
           const sbv = Math.round(Math.abs(t.amount) * SBV_ANTEIL * 100) / 100;
           const privat = Math.round((Math.abs(t.amount) - sbv) * 100) / 100;
@@ -164,7 +202,40 @@ export async function bankGebuehren(opts: { dryRun?: boolean; from?: string } = 
             { konto: KONTO_PRIVAT, betrag: -privat, text: k.teilung.privat },
           ];
         })()
-      : [{ konto: k.konto, betrag: t.amount, text: buchungstext }];
+      : k.nurUst
+        ? (() => {
+            const ust = Math.round(Math.abs(t.amount) * 100) / 100;
+            return [{ konto: k.konto, betrag: t.amount, text: buchungstext, net_amount: k.nurUst.netto, tax_rate: k.nurUst.satz, tax_amount: ust }];
+          })()
+        : k.mitUst
+          ? (() => {
+              const brutto = Math.abs(t.amount);
+              const netto = Math.round((brutto / (1 + k.mitUst! / 100)) * 100) / 100;
+              const ust = Math.round((brutto - netto) * 100) / 100;
+              return [
+                { konto: KONTO_GEBUEHREN, betrag: -netto, text: buchungstext },
+                { konto: KONTO_VST19, betrag: -ust, text: clean(`${buchungstext} USt ${k.mitUst} %`, 60), net_amount: netto, tax_rate: k.mitUst, tax_amount: ust },
+              ];
+            })()
+          : [{ konto: k.konto, betrag: t.amount, text: buchungstext }];
+    // Rechnung der Bank liegt schon als Eingangsbeleg vor (gleiche Nummer, gleicher Betrag) -> diesen bezahlen statt Gebühr buchen
+    if (k.belegNr) {
+      const { data: docs } = await supabase
+        .from("incoming_document")
+        .select("id, gross_amount")
+        .eq("doc_number", k.belegNr)
+        .neq("status", "rejected");
+      if (docs?.length === 1 && Math.abs(Number(docs[0].gross_amount) - Math.abs(t.amount)) < 0.02) {
+        ergebnis.beleg_bezahlt.push(`${t.booking_date} ${t.amount} → Beleg ${k.belegNr}`);
+        if (!dryRun) {
+          await supabase
+            .from("bank_transaction_match")
+            .insert({ bank_transaction_id: t.id, incoming_document_id: docs[0].id, amount: t.amount, auto: true });
+          await supabase.from("bank_transaction").update({ match_status: "matched" }).eq("id", t.id);
+        }
+        continue;
+      }
+    }
     ergebnis.gebucht += 1;
     ergebnis.summe = Math.round((ergebnis.summe + t.amount) * 100) / 100;
     for (const p of teile) {
@@ -183,6 +254,7 @@ export async function bankGebuehren(opts: { dryRun?: boolean; from?: string } = 
         amount: p.betrag,
         note: p.text,
         auto: true,
+        ...(p.net_amount != null ? { net_amount: p.net_amount, tax_rate: p.tax_rate, tax_amount: p.tax_amount } : {}),
       })),
     );
     if (error) {

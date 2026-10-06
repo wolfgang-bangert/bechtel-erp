@@ -362,6 +362,43 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
       belege: ohneKurs,
     });
 
+  // ---- Vorsteuer aus Bankbuchungen ohne Beleg (z. B. USt auf Bankentgelte laut Kontoauszug) ---------------
+  {
+    const { data: bankVst } = await supabase
+      .from("bank_transaction_match")
+      .select(
+        "id, amount, ledger_account, net_amount, tax_rate, tax_amount, bank_transaction_id, bank_transaction!inner ( booking_date, counterparty_name )",
+      )
+      .in("ledger_account", ["1570", "1571", "1576"])
+      .is("sales_invoice_id", null)
+      .is("incoming_document_id", null)
+      .eq("kind", "sonstige")
+      .gte("bank_transaction.booking_date", von)
+      .lte("bank_transaction.booking_date", bis);
+    let summe = 0;
+    const belege: { label: string; href: string }[] = [];
+    for (const m of bankVst ?? []) {
+      const bt = Array.isArray(m.bank_transaction) ? m.bank_transaction[0] : m.bank_transaction;
+      const steuer = Math.abs(Number(m.tax_amount ?? m.amount));
+      if (steuer < 0.005) continue;
+      const satz = m.tax_rate != null ? Number(m.tax_rate) : m.ledger_account === "1571" ? 7 : 19;
+      const netto = m.net_amount != null ? Number(m.net_amount) : r2(steuer / (satz / 100));
+      const href = `/bank?tx=${m.bank_transaction_id}`;
+      zeilen.push({
+        richtung: "eingang", belegId: m.id, belegNr: "Bank", partner: bt?.counterparty_name?.trim() || "Bankbuchung",
+        datum: bt?.booking_date ?? null, href, netto, satz, vorzeichen: 1,
+      });
+      summe = r2(summe + steuer);
+      belege.push({ label: `${bt?.booking_date ?? ""} · ${bt?.counterparty_name?.trim() || "Bank"} · ${steuer.toLocaleString("de-DE", { minimumFractionDigits: 2 })} € USt`, href });
+    }
+    if (belege.length)
+      hinweise.push({
+        ton: "info",
+        text: `${belege.length} Vorsteuer-Buchung(en) aus Bankzeilen ohne Beleg (USt auf Bankentgelte u. ä., Konto 1570/1571/1576) im Monat der Bankbuchung berücksichtigt: ${summe.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €.`,
+        belege,
+      });
+  }
+
   // ---- Skonto ------------------------------------------------------------
   type SkontoRow = {
     amount: number;
