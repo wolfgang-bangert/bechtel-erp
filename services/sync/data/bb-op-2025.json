@@ -1,0 +1,1271 @@
+[
+ {
+  "kreditor": "99151",
+  "nr": "3277864",
+  "datum": "2024-02-16",
+  "lieferant": "WM SE",
+  "offen": 88.35,
+  "zeilen": [
+   {
+    "buchung": "84",
+    "betrag": 88.35,
+    "satz": 19.0,
+    "konto": "4250",
+    "text": "Ölbinder"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71274",
+  "nr": "2512-1691",
+  "datum": "2025-02-20",
+  "lieferant": "Roth Offset Owen OHG",
+  "offen": 2103.92,
+  "zeilen": [
+   {
+    "buchung": "11566",
+    "betrag": 2103.92,
+    "satz": 19.0,
+    "konto": "3001",
+    "text": "Euchner"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70059",
+  "nr": "701250448/2025",
+  "datum": "2025-04-01",
+  "lieferant": "ECO3 BV",
+  "offen": 1111.47,
+  "zeilen": [
+   {
+    "buchung": "16845",
+    "betrag": 1111.47,
+    "satz": 19.0,
+    "konto": "4964",
+    "text": "ECO3 BV"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70059",
+  "nr": "701250962/2025",
+  "datum": "2025-06-02",
+  "lieferant": "ECO3 BV",
+  "offen": 1111.47,
+  "zeilen": [
+   {
+    "buchung": "16847",
+    "betrag": 1111.47,
+    "satz": 19.0,
+    "konto": "4964",
+    "text": "ECO3 BV"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99154",
+  "nr": "2000068891",
+  "datum": "2025-09-03",
+  "lieferant": "STACKIT GmbH & Co. KG",
+  "offen": 6.83,
+  "zeilen": [
+   {
+    "buchung": "12885",
+    "betrag": 6.83,
+    "satz": 19.0,
+    "konto": "4964",
+    "text": "S3 Storage SQL"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "75091",
+  "nr": "3200891346",
+  "datum": "2025-09-18",
+  "lieferant": "Flyeralarm GmbH",
+  "offen": 18.39,
+  "zeilen": [
+   {
+    "buchung": "8243",
+    "betrag": 18.39,
+    "satz": 0.0,
+    "konto": "3201",
+    "text": "Flyeralarm GmbH"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71201",
+  "nr": "R1R2111899",
+  "datum": "2025-10-13",
+  "lieferant": "Deutsche Post AG",
+  "offen": 2023.0,
+  "zeilen": [
+   {
+    "buchung": "12838",
+    "betrag": 2023.0,
+    "satz": 19.0,
+    "konto": "3100",
+    "text": "Personalüberlassung Susanne Bangert-Pienkoss 10/25"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70073",
+  "nr": "320255696627",
+  "datum": "2025-10-16",
+  "lieferant": "Böttcher AG",
+  "offen": 183.5,
+  "zeilen": [
+   {
+    "buchung": "2040",
+    "betrag": 183.5,
+    "satz": 19.0,
+    "konto": "3033",
+    "text": "Gummiringe"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70073",
+  "nr": "320255729427",
+  "datum": "2025-10-17",
+  "lieferant": "Böttcher AG",
+  "offen": 167.89,
+  "zeilen": [
+   {
+    "buchung": "2023",
+    "betrag": 167.89,
+    "satz": 19.0,
+    "konto": "4653",
+    "text": "Kaffee"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71274",
+  "nr": "2510-1584",
+  "datum": "2025-10-24",
+  "lieferant": "Roth Offset Owen OHG",
+  "offen": 1382.78,
+  "zeilen": [
+   {
+    "buchung": "8247",
+    "betrag": 1382.78,
+    "satz": 19.0,
+    "konto": "3001",
+    "text": "Euchner"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99163",
+  "nr": "776050842219",
+  "datum": "2025-11-17",
+  "lieferant": "Apple Distribution International Ltd.",
+  "offen": 98.99,
+  "zeilen": [
+   {
+    "buchung": "8253",
+    "betrag": 98.99,
+    "satz": 19.0,
+    "konto": "4964",
+    "text": "Apple Developer program"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70046",
+  "nr": "1858890853",
+  "datum": "2025-11-17",
+  "lieferant": "Heidelberger Druckmaschinen Vertrieb Deutschland GmbH",
+  "offen": 113.31,
+  "zeilen": [
+   {
+    "buchung": "8258",
+    "betrag": 113.31,
+    "satz": 19.0,
+    "konto": "4800",
+    "text": "Schutz für Schneideleiste"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99174",
+  "nr": "RE11251970",
+  "datum": "2025-11-21",
+  "lieferant": "Fink GmbH - Druck und Verlag",
+  "offen": 193.74,
+  "zeilen": [
+   {
+    "buchung": "9339",
+    "betrag": 193.74,
+    "satz": 19.0,
+    "konto": "3001",
+    "text": "Olymp"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99174",
+  "nr": "RE11251969",
+  "datum": "2025-11-21",
+  "lieferant": "Fink GmbH - Druck und Verlag",
+  "offen": 103.1,
+  "zeilen": [
+   {
+    "buchung": "9338",
+    "betrag": 103.1,
+    "satz": 19.0,
+    "konto": "3001",
+    "text": "Olymp"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99174",
+  "nr": "RE11252034",
+  "datum": "2025-11-27",
+  "lieferant": "Fink GmbH - Druck und Verlag",
+  "offen": 276.08,
+  "zeilen": [
+   {
+    "buchung": "9340",
+    "betrag": 276.08,
+    "satz": 19.0,
+    "konto": "3001",
+    "text": "Olymp"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70016",
+  "nr": "51087754",
+  "datum": "2025-12-02",
+  "lieferant": "Gelger GmbH & Co. KG",
+  "offen": 1032.15,
+  "zeilen": [
+   {
+    "buchung": "8583",
+    "betrag": 1032.15,
+    "satz": 19.0,
+    "konto": "3032",
+    "text": "Magno natural"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71201",
+  "nr": "R1R2112238",
+  "datum": "2025-12-03",
+  "lieferant": "Deutsche Post AG",
+  "offen": 2023.0,
+  "zeilen": [
+   {
+    "buchung": "12836",
+    "betrag": 2023.0,
+    "satz": 19.0,
+    "konto": "3100",
+    "text": "Personalüberlassung Susanne Bangert-Pienkoss 12/25"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70016",
+  "nr": "51088601",
+  "datum": "2025-12-04",
+  "lieferant": "Gelger GmbH & Co. KG",
+  "offen": 2714.91,
+  "zeilen": [
+   {
+    "buchung": "8585",
+    "betrag": 2714.91,
+    "satz": 19.0,
+    "konto": "3032",
+    "text": "Magno Satin"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99032",
+  "nr": "RG-25-21598",
+  "datum": "2025-12-04",
+  "lieferant": "Otto Theobald GmbH",
+  "offen": 913.47,
+  "zeilen": [
+   {
+    "buchung": "9349",
+    "betrag": 913.47,
+    "satz": 19.0,
+    "konto": "3201",
+    "text": "Otto Theobald GmbH"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70270",
+  "nr": "9002532299",
+  "datum": "2025-12-05",
+  "lieferant": "OVOL Papier Deutschland GmbH",
+  "offen": 250.95,
+  "zeilen": [
+   {
+    "buchung": "8435",
+    "betrag": 250.95,
+    "satz": 19.0,
+    "konto": "3032",
+    "text": "Offset"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70016",
+  "nr": "51089608",
+  "datum": "2025-12-08",
+  "lieferant": "Gelger GmbH & Co. KG",
+  "offen": 170.6,
+  "zeilen": [
+   {
+    "buchung": "8594",
+    "betrag": 170.6,
+    "satz": 19.0,
+    "konto": "3032",
+    "text": "icon"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70016",
+  "nr": "51090277",
+  "datum": "2025-12-10",
+  "lieferant": "Gelger GmbH & Co. KG",
+  "offen": 1474.12,
+  "zeilen": [
+   {
+    "buchung": "8218",
+    "betrag": 1474.12,
+    "satz": 19.0,
+    "konto": "3032",
+    "text": "Magno Satin"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "75030",
+  "nr": "6087520",
+  "datum": "2025-12-10",
+  "lieferant": "Metapaper GmbH Co. KG",
+  "offen": 339.21,
+  "zeilen": [
+   {
+    "buchung": "9353",
+    "betrag": 339.21,
+    "satz": 19.0,
+    "konto": "3032",
+    "text": "Warmwhite"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99174",
+  "nr": "RE12252129",
+  "datum": "2025-12-10",
+  "lieferant": "Fink GmbH - Druck und Verlag",
+  "offen": 1647.67,
+  "zeilen": [
+   {
+    "buchung": "9343",
+    "betrag": 1647.67,
+    "satz": 19.0,
+    "konto": "3001",
+    "text": "Olymp"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70100",
+  "nr": "451353168/36",
+  "datum": "2025-12-11",
+  "lieferant": "Telefónica Germany GmbH & Co. OHG",
+  "offen": 28.56,
+  "zeilen": [
+   {
+    "buchung": "8238",
+    "betrag": 28.56,
+    "satz": 19.0,
+    "konto": "4920",
+    "text": "O2 Telefonica 11_25"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70016",
+  "nr": "51090796",
+  "datum": "2025-12-11",
+  "lieferant": "Gelger GmbH & Co. KG",
+  "offen": 61.69,
+  "zeilen": [
+   {
+    "buchung": "8588",
+    "betrag": 61.69,
+    "satz": 19.0,
+    "konto": "3032",
+    "text": "caribic"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71833",
+  "nr": "10334024",
+  "datum": "2025-12-12",
+  "lieferant": "L. WACKLER WWE. NACHF. GMBH",
+  "offen": 1349.29,
+  "zeilen": [
+   {
+    "buchung": "11625",
+    "betrag": 1349.29,
+    "satz": 19.0,
+    "konto": "4730",
+    "text": "L. WACKLER WWE. NACHF. GMBH"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70016",
+  "nr": "51091790",
+  "datum": "2025-12-15",
+  "lieferant": "Gelger GmbH & Co. KG",
+  "offen": 427.51,
+  "zeilen": [
+   {
+    "buchung": "8586",
+    "betrag": 427.51,
+    "satz": 19.0,
+    "konto": "3032",
+    "text": "Autocopy"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70128",
+  "nr": "139049",
+  "datum": "2025-12-16",
+  "lieferant": "VORARLBERGER VERLAGSANSTALT GmbH",
+  "offen": 7790.0,
+  "zeilen": [
+   {
+    "buchung": "8213",
+    "betrag": 7790.0,
+    "satz": 19.0,
+    "konto": "3425",
+    "text": "Warenlieferung EU"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70128",
+  "nr": "139032 51756",
+  "datum": "2025-12-16",
+  "lieferant": "VORARLBERGER VERLAGSANSTALT GmbH",
+  "offen": 10899.85,
+  "zeilen": [
+   {
+    "buchung": "8215",
+    "betrag": 10899.85,
+    "satz": 19.0,
+    "konto": "3425",
+    "text": "vdwf"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71303",
+  "nr": "25120853",
+  "datum": "2025-12-16",
+  "lieferant": "G. Heise GmbH",
+  "offen": 101.15,
+  "zeilen": [
+   {
+    "buchung": "9341",
+    "betrag": 101.15,
+    "satz": 19.0,
+    "konto": "3002",
+    "text": "Stanzform"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99114",
+  "nr": "2118",
+  "datum": "2025-12-16",
+  "lieferant": "ETL Liebrich & Kollegen GmbH",
+  "offen": 5292.38,
+  "zeilen": [
+   {
+    "buchung": "9510",
+    "betrag": 5292.38,
+    "satz": 19.0,
+    "konto": "4950",
+    "text": "Buchführung"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99114",
+  "nr": "2119",
+  "datum": "2025-12-16",
+  "lieferant": "ETL Liebrich & Kollegen GmbH",
+  "offen": 3168.23,
+  "zeilen": [
+   {
+    "buchung": "9515",
+    "betrag": 3168.23,
+    "satz": 19.0,
+    "konto": "4950",
+    "text": "Buchführung"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71204",
+  "nr": "2025012994",
+  "datum": "2025-12-16",
+  "lieferant": "Fedrigoni Deutschland GmbH",
+  "offen": 302.74,
+  "zeilen": [
+   {
+    "buchung": "11745",
+    "betrag": 302.74,
+    "satz": 19.0,
+    "konto": "3032",
+    "text": "Old Mill"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70270",
+  "nr": "9002538860",
+  "datum": "2025-12-17",
+  "lieferant": "OVOL Papier Deutschland GmbH",
+  "offen": 773.27,
+  "zeilen": [
+   {
+    "buchung": "8459",
+    "betrag": 773.27,
+    "satz": 19.0,
+    "konto": "3032",
+    "text": "pino"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "90007",
+  "nr": "042048",
+  "datum": "2025-12-17",
+  "lieferant": "J. Scheer GmbH",
+  "offen": 102.22,
+  "zeilen": [
+   {
+    "buchung": "9342",
+    "betrag": 102.22,
+    "satz": 19.0,
+    "konto": "4800",
+    "text": "Messer schleifen"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71833",
+  "nr": "10334484",
+  "datum": "2025-12-17",
+  "lieferant": "L. WACKLER WWE. NACHF. GMBH",
+  "offen": 195.76,
+  "zeilen": [
+   {
+    "buchung": "11622",
+    "betrag": 195.76,
+    "satz": 19.0,
+    "konto": "4730",
+    "text": "L. WACKLER WWE. NACHF. GMBH"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99188",
+  "nr": "591989888",
+  "datum": "2025-12-17",
+  "lieferant": "ROLAND Rechtsschutz-Versicherungs-AG",
+  "offen": 870.06,
+  "zeilen": [
+   {
+    "buchung": "12887",
+    "betrag": 870.06,
+    "satz": 0.0,
+    "konto": "4360",
+    "text": "Roland Rechtsschutz"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71214",
+  "nr": "ENCW-ARV-2025-2012225",
+  "datum": "2025-12-18",
+  "lieferant": "Energie Calw GmbH",
+  "offen": 5474.37,
+  "zeilen": [
+   {
+    "buchung": "8225",
+    "betrag": 5474.37,
+    "satz": 19.0,
+    "konto": "4240",
+    "text": "Strom 11/2025"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71122",
+  "nr": "2348317",
+  "datum": "2025-12-18",
+  "lieferant": "Beck Servicepack GmbH",
+  "offen": 1238.82,
+  "zeilen": [
+   {
+    "buchung": "8235",
+    "betrag": 1238.82,
+    "satz": 19.0,
+    "konto": "3100",
+    "text": "imSpiel Versand"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70270",
+  "nr": "9002539408",
+  "datum": "2025-12-18",
+  "lieferant": "OVOL Papier Deutschland GmbH",
+  "offen": 1993.51,
+  "zeilen": [
+   {
+    "buchung": "8461",
+    "betrag": 1993.51,
+    "satz": 19.0,
+    "konto": "3032",
+    "text": "pino"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99160",
+  "nr": "956297/50EBEF",
+  "datum": "2025-12-18",
+  "lieferant": "Degenkolbe Recycling GmbH",
+  "offen": 545.02,
+  "zeilen": [
+   {
+    "buchung": "11404",
+    "betrag": 545.02,
+    "satz": 19.0,
+    "konto": "4969",
+    "text": "Degenkolbe Recycling GmbH"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70073",
+  "nr": "320257223242",
+  "datum": "2025-12-19",
+  "lieferant": "Böttcher AG",
+  "offen": 178.3,
+  "zeilen": [
+   {
+    "buchung": "7236",
+    "betrag": 106.95,
+    "satz": 7.0,
+    "konto": "4653",
+    "text": "Kaffee"
+   },
+   {
+    "buchung": "7237",
+    "betrag": 71.35,
+    "satz": 19.0,
+    "konto": "4930",
+    "text": "Bürobedarf"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99167",
+  "nr": "BB-Int-435",
+  "datum": "2025-12-19",
+  "lieferant": "Gaststätte Albstadion",
+  "offen": 362.5,
+  "zeilen": [
+   {
+    "buchung": "7306",
+    "betrag": 362.5,
+    "satz": 19.0,
+    "konto": "4653",
+    "text": "Weihnachtsessen 2025"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99168",
+  "nr": "157244/140 2",
+  "datum": "2025-12-19",
+  "lieferant": "Getränke Göbel GmbH",
+  "offen": 154.13,
+  "zeilen": [
+   {
+    "buchung": "7308",
+    "betrag": 154.13,
+    "satz": 19.0,
+    "konto": "4653",
+    "text": "Getränke Weihnachtsfeier 2025"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99049",
+  "nr": "RE25/823",
+  "datum": "2025-12-19",
+  "lieferant": "Alexander Huber",
+  "offen": 328.12,
+  "zeilen": [
+   {
+    "buchung": "7310",
+    "betrag": 328.12,
+    "satz": 19.0,
+    "konto": "4260",
+    "text": "WC UG"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70270",
+  "nr": "9002540128",
+  "datum": "2025-12-19",
+  "lieferant": "OVOL Papier Deutschland GmbH",
+  "offen": 655.62,
+  "zeilen": [
+   {
+    "buchung": "8458",
+    "betrag": 655.62,
+    "satz": 19.0,
+    "konto": "3032",
+    "text": "lona"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71530",
+  "nr": "RE2500635",
+  "datum": "2025-12-19",
+  "lieferant": "NVS Netzwerk Vertriebs & Service GmbH",
+  "offen": 5872.65,
+  "zeilen": [
+   {
+    "buchung": "9313",
+    "betrag": 5872.65,
+    "satz": 19.0,
+    "konto": "4800",
+    "text": "Server"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71274",
+  "nr": "2512-1692",
+  "datum": "2025-12-19",
+  "lieferant": "Roth Offset Owen OHG",
+  "offen": 942.48,
+  "zeilen": [
+   {
+    "buchung": "11558",
+    "betrag": 942.48,
+    "satz": 19.0,
+    "konto": "3001",
+    "text": "Euchner"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71274",
+  "nr": "2512-1693",
+  "datum": "2025-12-19",
+  "lieferant": "Roth Offset Owen OHG",
+  "offen": 1398.25,
+  "zeilen": [
+   {
+    "buchung": "11562",
+    "betrag": 1398.25,
+    "satz": 19.0,
+    "konto": "3001",
+    "text": "Euchner"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71833",
+  "nr": "10334901",
+  "datum": "2025-12-19",
+  "lieferant": "L. WACKLER WWE. NACHF. GMBH",
+  "offen": 1004.99,
+  "zeilen": [
+   {
+    "buchung": "11627",
+    "betrag": 1004.99,
+    "satz": 19.0,
+    "konto": "4730",
+    "text": "L. WACKLER WWE. NACHF. GMBH"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70079",
+  "nr": "9505",
+  "datum": "2025-12-21",
+  "lieferant": "Horst Füllemann",
+  "offen": 119.0,
+  "zeilen": [
+   {
+    "buchung": "7304",
+    "betrag": 119.0,
+    "satz": 19.0,
+    "konto": "4530",
+    "text": "Benzinkosten"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99050",
+  "nr": "251819",
+  "datum": "2025-12-22",
+  "lieferant": "Stoll Farbtreu Druckerei GmbH",
+  "offen": 246.92,
+  "zeilen": [
+   {
+    "buchung": "7277",
+    "betrag": 246.92,
+    "satz": 19.0,
+    "konto": "3001",
+    "text": "Stoll Farbtreu Druckerei GmbH"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70000",
+  "nr": "BB-Int-426",
+  "datum": "2025-12-22",
+  "lieferant": "JET SB STATION",
+  "offen": 116.69,
+  "zeilen": [
+   {
+    "buchung": "7311",
+    "betrag": 116.69,
+    "satz": 19.0,
+    "konto": "4530",
+    "text": "Benzinkosten"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70000",
+  "nr": "Nr.80624",
+  "datum": "2025-12-22",
+  "lieferant": "Hotel Maximilians",
+  "offen": 124.6,
+  "zeilen": [
+   {
+    "buchung": "7318",
+    "betrag": 92.0,
+    "satz": 7.0,
+    "konto": "4676",
+    "text": "Übernachtung"
+   },
+   {
+    "buchung": "7319",
+    "betrag": 4.6,
+    "satz": 0.0,
+    "konto": "4676",
+    "text": "Beherbergungssteuer"
+   },
+   {
+    "buchung": "7320",
+    "betrag": 28.0,
+    "satz": 19.0,
+    "konto": "4676",
+    "text": "Frühstück, Parkgebühren"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99176",
+  "nr": "BB-Int-432",
+  "datum": "2025-12-22",
+  "lieferant": "SIGNAL IDUNA Gruppe",
+  "offen": 4493.18,
+  "zeilen": [
+   {
+    "buchung": "7511",
+    "betrag": 2295.13,
+    "satz": 0.0,
+    "konto": "4360",
+    "text": "Betriebspolice"
+   },
+   {
+    "buchung": "7512",
+    "betrag": 2198.05,
+    "satz": 0.0,
+    "konto": "4360",
+    "text": "Gebäudeversicherung"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70121",
+  "nr": "RE2503873",
+  "datum": "2025-12-22",
+  "lieferant": "RIEKER Druckveredelung GmbH+Co",
+  "offen": 9909.86,
+  "zeilen": [
+   {
+    "buchung": "9326",
+    "betrag": 9909.86,
+    "satz": 19.0,
+    "konto": "3100",
+    "text": "Softtouchfolie"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71328",
+  "nr": "2025.2212.2",
+  "datum": "2025-12-22",
+  "lieferant": "HEIMISCH KOMMUNIKATION",
+  "offen": 476.0,
+  "zeilen": [
+   {
+    "buchung": "9356",
+    "betrag": 476.0,
+    "satz": 19.0,
+    "konto": "3100",
+    "text": "Korrekturlesen"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71122",
+  "nr": "2348333",
+  "datum": "2025-12-22",
+  "lieferant": "Beck Servicepack GmbH",
+  "offen": 1657.32,
+  "zeilen": [
+   {
+    "buchung": "12822",
+    "betrag": 1657.32,
+    "satz": 19.0,
+    "konto": "3100",
+    "text": "VDWF 4/25"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71227",
+  "nr": "25162",
+  "datum": "2025-12-23",
+  "lieferant": "Di Pilla Buchbinderei GmbH",
+  "offen": 1128.12,
+  "zeilen": [
+   {
+    "buchung": "9355",
+    "betrag": 1128.12,
+    "satz": 19.0,
+    "konto": "3100",
+    "text": "Klebebindung PUR"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71833",
+  "nr": "10335369",
+  "datum": "2025-12-23",
+  "lieferant": "L. WACKLER WWE. NACHF. GMBH",
+  "offen": 749.65,
+  "zeilen": [
+   {
+    "buchung": "11626",
+    "betrag": 749.65,
+    "satz": 19.0,
+    "konto": "4730",
+    "text": "L. WACKLER WWE. NACHF. GMBH"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71010",
+  "nr": "086000594213",
+  "datum": "2025-12-24",
+  "lieferant": "Hetzner Online GmbH",
+  "offen": 188.03,
+  "zeilen": [
+   {
+    "buchung": "8640",
+    "betrag": 188.03,
+    "satz": 19.0,
+    "konto": "4925",
+    "text": "Hostingkosten"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99013",
+  "nr": "AS-6000196486 2025/002368095",
+  "datum": "2025-12-26",
+  "lieferant": "Allianz Esa GmbH",
+  "offen": 2407.72,
+  "zeilen": [
+   {
+    "buchung": "12886",
+    "betrag": 2407.72,
+    "satz": 0.0,
+    "konto": "4360",
+    "text": "Technikversicherung"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99114",
+  "nr": "2303",
+  "datum": "2025-12-30",
+  "lieferant": "ETL Liebrich & Kollegen GmbH",
+  "offen": 5200.3,
+  "zeilen": [
+   {
+    "buchung": "7495",
+    "betrag": 5200.3,
+    "satz": 19.0,
+    "konto": "4950",
+    "text": "Steuerberatung 2025"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71808",
+  "nr": "253039",
+  "datum": "2025-12-30",
+  "lieferant": "V4 Veredelung GmbH",
+  "offen": 737.8,
+  "zeilen": [
+   {
+    "buchung": "9335",
+    "betrag": 737.8,
+    "satz": 19.0,
+    "konto": "3100",
+    "text": "Heißfolienprägung"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71808",
+  "nr": "253038",
+  "datum": "2025-12-30",
+  "lieferant": "V4 Veredelung GmbH",
+  "offen": 1940.83,
+  "zeilen": [
+   {
+    "buchung": "9334",
+    "betrag": 1940.83,
+    "satz": 19.0,
+    "konto": "3100",
+    "text": "Heißfolienprägung"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99114",
+  "nr": "2284",
+  "datum": "2025-12-30",
+  "lieferant": "ETL Liebrich & Kollegen GmbH",
+  "offen": 1057.91,
+  "zeilen": [
+   {
+    "buchung": "9949",
+    "betrag": 1057.91,
+    "satz": 19.0,
+    "konto": "4950",
+    "text": "Beratung  Steuer"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99164",
+  "nr": "1133275737",
+  "datum": "2025-12-31",
+  "lieferant": "DHL Paket GmbH",
+  "offen": 11.65,
+  "zeilen": [
+   {
+    "buchung": "2021",
+    "betrag": 11.65,
+    "satz": 19.0,
+    "konto": "4730",
+    "text": "Ausgangsfrachten"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70058",
+  "nr": "275001768208",
+  "datum": "2025-12-31",
+  "lieferant": "DPD Deutschland GmbH",
+  "offen": 2101.33,
+  "zeilen": [
+   {
+    "buchung": "7372",
+    "betrag": 2101.33,
+    "satz": 19.0,
+    "konto": "4730",
+    "text": "DPD Deutschland GmbH"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71514",
+  "nr": "RE9381",
+  "datum": "2025-12-31",
+  "lieferant": "natureOffice GmbH",
+  "offen": 58.31,
+  "zeilen": [
+   {
+    "buchung": "8205",
+    "betrag": 58.31,
+    "satz": 19.0,
+    "konto": "3106",
+    "text": "natureOffice GmbH"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "71514",
+  "nr": "RE9638",
+  "datum": "2025-12-31",
+  "lieferant": "natureOffice GmbH",
+  "offen": 364.35,
+  "zeilen": [
+   {
+    "buchung": "7410",
+    "betrag": 364.35,
+    "satz": 19.0,
+    "konto": "3106",
+    "text": "natureOffice GmbH"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "70106",
+  "nr": "31923",
+  "datum": "2025-12-31",
+  "lieferant": "LiHa Dienstleistungs- und",
+  "offen": 840.85,
+  "zeilen": [
+   {
+    "buchung": "9348",
+    "betrag": 840.85,
+    "satz": 19.0,
+    "konto": "4250",
+    "text": "LiHa"
+   }
+  ],
+  "bezahlt2026": []
+ },
+ {
+  "kreditor": "99182",
+  "nr": "5446915720",
+  "datum": "2025-12-31",
+  "lieferant": "Google Cloud EMEA Limited",
+  "offen": 50.6,
+  "zeilen": [
+   {
+    "buchung": "12805",
+    "betrag": 50.6,
+    "satz": 19.0,
+    "konto": "4964",
+    "text": "Google workspace 12/25"
+   }
+  ],
+  "bezahlt2026": []
+ }
+]
