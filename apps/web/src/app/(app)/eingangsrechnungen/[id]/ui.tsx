@@ -9,6 +9,7 @@ import { AuftragPicker } from "../../_shared/AuftragPicker";
 import { Card } from "../../_shared/Card";
 import { OrganizationLink } from "../../_shared/OrganizationLink";
 import { fmtDate, fmtEur } from "@/lib/format";
+import { BankZuordnen, type BankKandidat } from "./BankZuordnen";
 
 const empty: SaveState = {};
 
@@ -66,6 +67,7 @@ export function ReviewForm({
   documents,
   suggestion,
   bankMatches,
+  bankKandidaten,
   pdfUrl,
   pdfLabel,
 }: {
@@ -86,6 +88,7 @@ export function ReviewForm({
     payment_method: string | null;
   } | null;
   /** Bereits mit diesem Beleg verknüpfte Bankzeile (falls vorhanden). */
+  bankKandidaten?: BankKandidat[];
   bankMatches?: {
     id: string;
     amount: number;
@@ -373,6 +376,7 @@ export function ReviewForm({
                     <div className="bd-hint">
                       Noch keiner Bankzeile zugeordnet
                       {num("gross_amount") ? ` - offen ${fmtEur(num("gross_amount"))}` : ""}.
+                      <BankZuordnen docId={String(doc.id)} kandidaten={bankKandidaten ?? []} />
                     </div>
                   ) : (
                     <>
@@ -386,7 +390,7 @@ export function ReviewForm({
                       {zahlungen.map((m) => (
                         <div key={m.id} className="bd-hint" style={{ margin: "2px 0" }}>
                           {m.tx ? (
-                            <Link className="bd-link" style={{ margin: 0 }} href={`/bank?account=${m.tx.bank_account_id}`}>
+                            <Link className="bd-link" style={{ margin: 0 }} href={`/bank?tx=${m.tx.id}`}>
                               {fmtDate(m.tx.booking_date)} · {fmtEur(Math.abs(m.tx.amount))} · {m.tx.counterparty_name ?? "–"}
                             </Link>
                           ) : (
@@ -404,6 +408,9 @@ export function ReviewForm({
                           {m.tx ? ` - zur Zahlung vom ${fmtDate(m.tx.booking_date)}` : ""}
                         </div>
                       ))}
+                    {offenBetrag > 0.005 && String(doc.doc_type) !== "payment_advice" && (
+                        <BankZuordnen docId={String(doc.id)} kandidaten={bankKandidaten ?? []} />
+                      )}
                     </>
                   )}
                 </div>

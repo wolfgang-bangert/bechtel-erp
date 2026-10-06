@@ -524,3 +524,49 @@ export async function zahlartMehrere(ids: string[], method: string): Promise<{ g
   revalidatePath("/eingangsrechnungen");
   return { gesetzt: (data ?? []).length };
 }
+
+/**
+ * Eine Bankzeile am Eingangsbeleg zuordnen (Gegenstück zur Zuordnung auf der Bank-Seite). Verbucht höchstens den
+ * noch freien Betrag der Bankzeile und höchstens den offenen Betrag des Belegs.
+ */
+export async function ordneBankzeileZu(docId: string, txId: string): Promise<{ ok?: boolean; error?: string }> {
+  if (!/^[0-9a-f-]{36}$/i.test(docId) || !/^[0-9a-f-]{36}$/i.test(txId)) return { error: "Ungültige Angabe." };
+  const supabase = await createClient();
+  const [{ data: doc }, { data: tx }, { data: tmatches }, { data: dmatches }] = await Promise.all([
+    supabase.from("incoming_document").select("id, doc_type, status, gross_amount").eq("id", docId).maybeSingle(),
+    supabase.from("bank_transaction").select("id, amount").eq("id", txId).maybeSingle(),
+    supabase.from("bank_transaction_match").select("amount, ledger_account, sales_invoice_id, incoming_document_id").eq("bank_transaction_id", txId),
+    supabase.from("bank_transaction_match").select("amount").eq("incoming_document_id", docId),
+  ]);
+  if (!doc || !tx) return { error: "Beleg oder Bankzeile nicht gefunden." };
+  if (!["invoice", "credit_note"].includes(doc.doc_type) || doc.status === "rejected")
+    return { error: "Nur offene Rechnungen/Gutschriften können zugeordnet werden." };
+  if (doc.doc_type === "invoice" && tx.amount >= 0) return { error: "Eine Rechnung wird mit einem Abgang (Soll) bezahlt." };
+
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const belegt = r2(
+    (tmatches ?? []).filter((m) => !(m.ledger_account && (m.sales_invoice_id || m.incoming_document_id))).reduce((a, m) => a + Math.abs(m.amount ?? 0), 0),
+  );
+  const frei = r2(Math.abs(tx.amount) - belegt);
+  if (frei <= 0.005) return { error: "Die Bankzeile ist schon vollständig zugeordnet." };
+  const bezahlt = r2((dmatches ?? []).reduce((a, m) => a + Math.abs(m.amount ?? 0), 0));
+  const offen = r2(Math.abs(Number(doc.gross_amount ?? 0)) - bezahlt);
+  if (offen <= 0.005) return { error: "Der Beleg ist schon vollständig bezahlt." };
+
+  const amt = r2(Math.min(frei, offen));
+  const { error } = await supabase.from("bank_transaction_match").insert({
+    bank_transaction_id: txId,
+    incoming_document_id: docId,
+    amount: doc.doc_type === "credit_note" ? amt : -amt,
+    auto: false,
+  });
+  if (error) return { error: error.code === "23505" ? "Diese Zuordnung gibt es schon." : error.message };
+  await supabase
+    .from("bank_transaction")
+    .update({ match_status: belegt + amt + 0.005 >= Math.abs(tx.amount) ? "matched" : "partial" })
+    .eq("id", txId);
+  revalidatePath(`/eingangsrechnungen/${docId}`);
+  revalidatePath("/eingangsrechnungen");
+  revalidatePath("/bank");
+  return { ok: true };
+}
