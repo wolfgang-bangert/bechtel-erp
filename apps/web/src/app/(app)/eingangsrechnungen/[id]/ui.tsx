@@ -157,8 +157,15 @@ export function ReviewForm({
   const patchPos = (i: number, p: Partial<Pos>) =>
     setPositions((xs) => xs.map((x, k) => (k === i ? { ...x, ...p } : x)));
   // Konto der geöffneten Position auf alle Positionen übernehmen (mit anderem Beleg verknüpfte bleiben unberührt).
-  const applyAccountAll = (account: string) =>
-    setPositions((xs) => xs.map((x) => (x.linked_document_id ? x : { ...x, ledger_account: account })));
+  // Konto - und, wenn an der Ausgangsposition gesetzt, auch Steuerschlüssel samt Satz - auf alle Positionen (ohne verknüpften Beleg) übertragen
+  const applyAccountAll = (account: string, taxCodeId: string, taxRate: number | null) =>
+    setPositions((xs) =>
+      xs.map((x) =>
+        x.linked_document_id
+          ? x
+          : { ...x, ledger_account: account, ...(taxCodeId ? { tax_code_id: taxCodeId, tax_rate: taxRate } : {}) },
+      ),
+    );
   const addPos = () =>
     setPositions((xs) => [
       ...xs,
@@ -709,7 +716,7 @@ function PositionModal({
   pos: Pos;
   onClose: () => void;
   onPatch: (p: Partial<Pos>) => void;
-  onApplyAccountAll: (account: string) => void;
+  onApplyAccountAll: (account: string, taxCodeId: string, taxRate: number | null) => void;
   positionCount: number;
   onDelete: () => void;
   onAddAlloc: () => void;
@@ -828,10 +835,10 @@ function PositionModal({
                   className="bd-btn bd-btn-secondary"
                   style={{ marginTop: 6, fontSize: 12, padding: "3px 10px" }}
                   disabled={!pos.ledger_account}
-                  onClick={() => onApplyAccountAll(pos.ledger_account)}
-                  title="Setzt dieses Konto bei allen Positionen (ohne verknüpften Beleg); danach noch speichern"
+                  onClick={() => onApplyAccountAll(pos.ledger_account, pos.tax_code_id, pos.tax_rate)}
+                  title="Setzt dieses Konto und den Steuerschlüssel (samt Satz) bei allen Positionen (ohne verknüpften Beleg); danach noch speichern"
                 >
-                  dieses Konto auf alle {positionCount} Positionen anwenden
+                  Konto und Steuerschlüssel auf alle {positionCount} Positionen anwenden
                 </button>
               )}
             </div>
