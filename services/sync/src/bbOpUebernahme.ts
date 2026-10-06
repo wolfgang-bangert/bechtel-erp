@@ -25,6 +25,15 @@ export async function bbOpUebernahme(opts: { dryRun?: boolean } = {}) {
     const dedupKey = `bb:${op.zeilen[0]?.buchung}`;
     // Org über Kreditorennummer
     let { data: org } = await supabase.from("organization").select("id, name, vat_id").eq("supplier_number", op.kreditor).maybeSingle();
+    // Sammelkreditor 70000 ("diverse"): keine Organisation, nur der Name am Beleg
+    // Sonst Lieferant über den Namen finden, bevor ein neuer angelegt wird
+    if (!org && op.kreditor !== "70000" && op.lieferant) {
+      const kern = op.lieferant.replace(/\b(gmbh|mbh|kg|ag|co|ug|e\.k\.|ohg|se|&)\b/gi, "").replace(/[%,]/g, "").trim().split(/\s+/).slice(0, 2).join(" ");
+      if (kern.length > 3) {
+        const { data: kand } = await supabase.from("organization").select("id, name, vat_id").eq("relation", "supplier").ilike("name", `%${kern}%`).limit(2);
+        if (kand?.length === 1) org = kand[0];
+      }
+    }
     const vorhanden = await supabase
       .from("incoming_document")
       .select("id")
@@ -34,7 +43,7 @@ export async function bbOpUebernahme(opts: { dryRun?: boolean } = {}) {
       out.vorhanden += 1;
       continue;
     }
-    if (!org) {
+    if (!org && op.kreditor !== "70000") {
       out.lieferantAngelegt.push(`${op.kreditor} ${op.lieferant}`);
       if (!dryRun) {
         const { data: neu, error } = await supabase
