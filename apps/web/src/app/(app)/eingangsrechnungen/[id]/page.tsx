@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { ReviewForm } from "./ui";
-import { buchungsProbleme } from "@/lib/belegPruefung";
+import { buchungsProbleme, schluesselInfo } from "@/lib/belegPruefung";
 import { setIncomingStatus, bestaetigeUst, alsRechnungBehandeln, alsSonstigesBehandeln, kollegenGesehen } from "../actions";
 import { applyListFilters, kontoJoin, sortSpec, type ListeParams } from "../_liste";
 
@@ -238,7 +238,7 @@ export default async function IncomingDetail({
       net_amount: it.net_amount,
       tax_rate: it.tax_rate,
     })),
-  });
+  }, { schluessel: schluesselInfo((taxCodes ?? []).map((t) => ({ id: t.id, code: t.code, rate: t.rate == null ? null : Number(t.rate), treatment: t.treatment }))) });
 
   const items = ((itemsRaw ?? []) as unknown as ItemRow[]).map((it) => ({
     id: it.id,

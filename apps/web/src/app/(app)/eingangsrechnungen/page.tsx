@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
 import { UploadForm } from "./UploadForm";
 import { ListeSteuerung } from "./ListeSteuerung";
-import { buchungsProbleme } from "@/lib/belegPruefung";
+import { buchungsProbleme, schluesselInfo } from "@/lib/belegPruefung";
 import { applyListFilters, kontoJoin, monthRange, sortSpec } from "./_liste";
 
 export const dynamic = "force-dynamic";
@@ -102,6 +102,8 @@ export default async function EingangsrechnungenPage({
   const orgIds = Array.from(
     new Set((data ?? []).map((d) => d.supplier_organization_id).filter((x): x is string => !!x)),
   );
+  const { data: steuerCodes } = await supabase.from("tax_code").select("id, code, rate, treatment");
+  const schluessel = schluesselInfo(steuerCodes ?? []);
   const ruleMethodByOrg = new Map<string, string>();
   if (orgIds.length) {
     const { data: orgs } = await supabase
@@ -332,7 +334,7 @@ export default async function EingangsrechnungenPage({
               const isPaid = d.payment_status === "paid" || d.payment_status === "overpaid";
               const isBooked = d.status === "booked" || d.status === "exported";
               const orgMethod = d.supplier_organization_id ? ruleMethodByOrg.get(d.supplier_organization_id) : null;
-              const probleme = buchungsProbleme({ ...d, items: d.incoming_document_item ?? [] }, { ohneUst: true });
+              const probleme = buchungsProbleme({ ...d, items: d.incoming_document_item ?? [] }, { ohneUst: true, schluessel });
               const offen = d.status === "captured" || d.status === "extracted";
               const bereit =
                 !isHint && offen && ["invoice", "credit_note", "receipt"].includes(d.doc_type) &&

@@ -3,7 +3,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { buchungsProbleme } from "@/lib/belegPruefung";
+import { buchungsProbleme, schluesselInfo } from "@/lib/belegPruefung";
 import { putObject, signedGetUrl } from "@/lib/storage";
 
 export type SaveState = { ok?: boolean; error?: string; note?: string };
@@ -319,12 +319,16 @@ const BUCHUNG_SELECT =
 /** Probleme je Beleg-ID (leer = buchbar). */
 async function buchbarkeit(ids: string[]): Promise<Map<string, { label: string; probleme: string[] }>> {
   const supabase = await createClient();
-  const { data } = await supabase.from("incoming_document").select(BUCHUNG_SELECT).in("id", ids);
+  const [{ data }, { data: codes }] = await Promise.all([
+    supabase.from("incoming_document").select(BUCHUNG_SELECT).in("id", ids),
+    supabase.from("tax_code").select("id, code, rate, treatment"),
+  ]);
+  const schluessel = schluesselInfo(codes ?? []);
   const out = new Map<string, { label: string; probleme: string[] }>();
   for (const d of data ?? []) {
     out.set(d.id, {
       label: `${d.doc_number ?? d.id.slice(0, 8)} · ${d.supplier_name ?? "?"}`,
-      probleme: buchungsProbleme({ ...d, items: d.incoming_document_item ?? [] }),
+      probleme: buchungsProbleme({ ...d, items: d.incoming_document_item ?? [] }, { schluessel }),
     });
   }
   return out;

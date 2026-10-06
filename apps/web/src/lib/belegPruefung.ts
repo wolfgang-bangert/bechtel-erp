@@ -22,10 +22,24 @@ export type PruefBeleg = {
   items: PruefPosition[];
 };
 
+/** Steuerschlüssel für die Satz-Prüfung: nur Inlandsschlüssel (19/7/0 %) werden gegen den Positionssatz geprüft. */
+export type SchluesselInfo = Map<string, { code: string; rate: number; pruefen: boolean }>;
+
+export function schluesselInfo(
+  codes: { id: string; code: string; rate: number | null; treatment: string | null }[],
+): SchluesselInfo {
+  return new Map(
+    codes.map((c) => [
+      c.id,
+      { code: c.code, rate: Number(c.rate ?? 0), pruefen: c.treatment === "standard_de" || c.treatment === "tax_free_other" },
+    ]),
+  );
+}
+
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const eur = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 
-export function buchungsProbleme(d: PruefBeleg, opts: { ohneUst?: boolean } = {}): string[] {
+export function buchungsProbleme(d: PruefBeleg, opts: { ohneUst?: boolean; schluessel?: SchluesselInfo } = {}): string[] {
   const p: string[] = [];
   const pos = d.items.filter((i) => !i.linked_document_id);
   const net = Number(d.net_amount ?? 0);
@@ -36,6 +50,20 @@ export function buchungsProbleme(d: PruefBeleg, opts: { ohneUst?: boolean } = {}
   if (!kontoOk) p.push("Konto fehlt (Beleg oder Position)");
   const schluesselOk = pos.length ? pos.every((i) => i.tax_code_id) : !!d.tax_code_id;
   if (!schluesselOk) p.push("Steuerschlüssel fehlt (Beleg oder Position)");
+
+  // Satz der Position muss zum Steuerschlüssel passen (nur Inlandsschlüssel; §13b/igE haben keinen Steuerbetrag)
+  if (opts.schluessel) {
+    const falsch = pos.filter((i) => {
+      const k = i.tax_code_id ? opts.schluessel!.get(i.tax_code_id) : null;
+      return k?.pruefen && i.tax_rate != null && Math.abs(Number(i.tax_rate) - k.rate) > 0.5;
+    });
+    if (falsch.length) {
+      const k = opts.schluessel.get(falsch[0].tax_code_id!)!;
+      p.push(
+        `Steuersatz passt nicht zum Steuerschlüssel (${falsch.length} Position${falsch.length > 1 ? "en" : ""}, z. B. ${Number(falsch[0].tax_rate)} % bei ${k.code} = ${k.rate} %)`,
+      );
+    }
+  }
 
   const kopf = r2(net + tax - gross);
   if (Math.abs(kopf) > 0.02) p.push(`Netto + USt ≠ Brutto (Differenz ${eur(kopf)})`);
