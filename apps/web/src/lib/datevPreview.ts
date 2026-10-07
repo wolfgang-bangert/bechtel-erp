@@ -240,6 +240,7 @@ export async function debitorPreview(from: string, to: string): Promise<Preview>
       )
       .gte("invoice_date", from)
       .lte("invoice_date", to)
+      .eq("ohne_buchhaltung", false)
       .in("kind", ["invoice", "credit_note"])
       .order("invoice_date"),
     supabase.from("setting").select("key, value"),

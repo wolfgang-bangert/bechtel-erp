@@ -26,14 +26,14 @@ export async function generateInvoiceBooking(invoiceId: string, map?: ErloesKont
   const revenueAccounts = map ?? (await loadRevenueAccounts());
   const { data: inv, error: ie } = await supabase
     .from("sales_invoice")
-    .select("organization_id, net_total, tax_total, gross_total, organization:organization(tax_country)")
+    .select("organization_id, invoice_number, net_total, tax_total, gross_total, organization:organization(tax_country)")
     .eq("id", invoiceId)
     .maybeSingle();
   if (ie || !inv) throw new Error(ie?.message ?? "Rechnung nicht gefunden");
 
   const { data: items } = await supabase
     .from("sales_invoice_item")
-    .select("tax_rate, net_amount")
+    .select("tax_rate, net_amount, description")
     .eq("sales_invoice_id", invoiceId);
 
   let revenueOverride: string | null = null;
@@ -48,7 +48,7 @@ export async function generateInvoiceBooking(invoiceId: string, map?: ErloesKont
 
   const org = inv.organization as unknown as { tax_country: string | null } | null;
   const zeilen = berechneRechnungsBuchungszeilen(
-    { net_total: inv.net_total, tax_total: inv.tax_total, tax_country: org?.tax_country },
+    { net_total: inv.net_total, tax_total: inv.tax_total, tax_country: org?.tax_country, invoice_number: inv.invoice_number },
     (items ?? []) as RechnungsPosition[],
     revenueAccounts,
     revenueOverride,
@@ -96,6 +96,7 @@ export async function syncInvoiceBookings(opts: Options = {}) {
       .from("sales_invoice")
       .select("id")
       .in("kind", ["invoice", "credit_note"])
+      .eq("ohne_buchhaltung", false)
       .not("invoice_number", "is", null)
       .gte("invoice_date", yearStart)
       .range(fromRow, fromRow + size - 1);
@@ -130,4 +131,40 @@ export async function syncInvoiceBookings(opts: Options = {}) {
 
   await setSyncState("datev", "invoice_bookings", startedAt, fehler.length ? `${fehler.length} Fehler` : null);
   return { gesamt: invoices.length, offen: pending.length, erzeugt, zeilen, fehler, dryRun };
+}
+
+/**
+ * Buchungszeilen neu erzeugen (ersetzt vorhandene): z. B. nach einer Änderung der Erlöskonten-Regeln.
+ * `ab`: Rechnungsdatum ab; `muster`: nur Rechnungsnummern, die dem Regex entsprechen (z. B. "^\\d{2}CE\\d+$");
+ * `nurOhne`: nur Rechnungen ohne Buchungszeilen (auch aus früheren Jahren); `nummern`: nur diese Rechnungsnummern.
+ */
+export async function neuBuchen(opts: { dryRun?: boolean; ab?: string; muster?: string; nurOhne?: boolean; nummern?: Set<string> }) {
+  const { dryRun = false, ab = "2026-01-01", nurOhne = false } = opts;
+  const map = await loadRevenueAccounts();
+  const re = opts.muster ? new RegExp(opts.muster) : null;
+  const rows = await pagedSelect<{ id: string; invoice_number: string | null; invoice_date: string | null; kind: string; ohne_buchhaltung: boolean }>(
+    "sales_invoice",
+    "id, invoice_number, invoice_date, kind, ohne_buchhaltung",
+  );
+  const existing = nurOhne ? new Set((await pagedSelect<{ sales_invoice_id: string }>("sales_invoice_booking", "sales_invoice_id")).map((r) => r.sales_invoice_id)) : null;
+  const ziel = rows.filter(
+    (r) =>
+      ["invoice", "credit_note"].includes(r.kind) &&
+      !r.ohne_buchhaltung &&
+      r.invoice_number &&
+      (opts.nummern ? opts.nummern.has(r.invoice_number) : (r.invoice_date ?? "") >= ab) &&
+      (!re || re.test(r.invoice_number)) &&
+      (!existing || !existing.has(r.id)),
+  );
+  if (dryRun) return { ziel: ziel.length, dryRun };
+  let zeilen = 0;
+  const fehler: string[] = [];
+  for (const r of ziel) {
+    try {
+      zeilen += (await generateInvoiceBooking(r.id, map)).zeilen;
+    } catch (e) {
+      fehler.push(`${r.invoice_number}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return { ziel: ziel.length, zeilen, fehler, dryRun };
 }

@@ -115,6 +115,7 @@ export async function ladeUstva(monat: string, versteuerung: "soll" | "ist"): Pr
       )
       .gte(dateCol, von)
       .lte(dateCol, bis)
+      .eq("ohne_buchhaltung", false)
       .in("kind", ["invoice", "credit_note"]),
     supabase
       .from("incoming_document")

@@ -43,6 +43,7 @@ import { bankGebuehren } from "./bankGebuehren";
 import { fxEcb } from "./fxEcb";
 import { bbOpUebernahme } from "./bbOpUebernahme";
 import { opForderungsNummern } from "./opNummern";
+import { neuBuchen } from "./syncInvoiceBookings";
 import { syncMailbox } from "./syncMailbox";
 import { extractIncoming } from "./extractIncoming";
 import { purgeIncoming } from "./purgeIncoming";
@@ -224,6 +225,19 @@ async function main() {
     case "bb:op-uebernahme": {
       console.log(`Offene Eingangsrechnungen zum 31.12.2025 aus BB übernehmen${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await bbOpUebernahme({ dryRun }), null, 1));
+      break;
+    }
+    case "invoice:bookings-neu": {
+      const ab = process.argv.find((a) => a.startsWith("--ab="))?.split("=")[1];
+      const muster = process.argv.find((a) => a.startsWith("--muster="))?.slice("--muster=".length);
+      console.log(`Rechnungs-Buchungszeilen neu erzeugen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(
+        JSON.stringify(
+          await neuBuchen({ dryRun, ab, muster, nurOhne: flags.has("--nur-ohne"), nummern: flags.has("--nur-op") ? opForderungsNummern() : undefined }),
+          null,
+          1,
+        ),
+      );
       break;
     }
     case "incoming:dubletten": {
