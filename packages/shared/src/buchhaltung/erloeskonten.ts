@@ -20,13 +20,21 @@ export type ErloesKontenMap = {
   intra_community_supply?: string;
   export_third_country?: string;
   tax_free_other?: string;
+  /** Kalender-Vertrieb (Ninox-Rechnungen "..CE..") */
+  kalender?: string;
+  /** Porto/Versand mit USt */
+  porto?: string;
   fallback: string;
 };
 
 export type RechnungsPosition = {
   tax_rate: number | null;
   net_amount: number | null;
+  description?: string | null;
 };
+
+const PORTO = /^\s*(porto|portokosten|versandkosten|versand\b|dialogpost)/i;
+const KALENDER_NR = /^\d{2}CE\d+$/;
 
 export type RechnungsBuchungszeile = {
   ledger_account: string;
@@ -60,8 +68,11 @@ function buchungszeilenAusPositionen(
   positionen: RechnungsPosition[],
   taxCountry: string | null,
   map: ErloesKontenMap,
+  rechnungsnummer?: string | null,
 ): RechnungsBuchungszeile[] {
-  const byRate = new Map<number, number>();
+  const kalender = KALENDER_NR.test((rechnungsnummer ?? "").trim());
+  // Gruppe = Steuersatz + Porto-Kennzeichen (Porto/Versand mit USt kommt auf ein eigenes Erlöskonto)
+  const byKey = new Map<string, { rate: number; porto: boolean; net: number }>();
   let unbekannt = 0;
   for (const p of positionen) {
     const net = p.net_amount ?? 0;
@@ -70,24 +81,29 @@ function buchungszeilenAusPositionen(
       continue;
     }
     const rate = r2(p.tax_rate);
-    byRate.set(rate, r2((byRate.get(rate) ?? 0) + net));
+    const porto = rate >= 6 && PORTO.test(p.description ?? "");
+    const key = `${rate}|${porto ? "p" : ""}`;
+    const g = byKey.get(key) ?? { rate, porto, net: 0 };
+    g.net = r2(g.net + net);
+    byKey.set(key, g);
   }
   if (Math.abs(unbekannt) >= 0.005) {
-    const leitsatz = [...byRate.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 19;
-    byRate.set(leitsatz, r2((byRate.get(leitsatz) ?? 0) + unbekannt));
+    const leit = [...byKey.values()].filter((g) => !g.porto).sort((a, b) => b.net - a.net)[0];
+    const rate = leit?.rate ?? 19;
+    const key = `${rate}|`;
+    const g = byKey.get(key) ?? { rate, porto: false, net: 0 };
+    g.net = r2(g.net + unbekannt);
+    byKey.set(key, g);
   }
 
   const out: RechnungsBuchungszeile[] = [];
-  for (const [rate, net] of byRate) {
-    if (Math.abs(net) < 0.005) continue;
-    const tax = r2(net * (rate / 100));
-    out.push({
-      ledger_account: revenueAccount(rate, taxCountry ?? "DE", map),
-      tax_rate: rate,
-      net_amount: net,
-      tax_amount: tax,
-      gross_amount: r2(net + tax),
-    });
+  for (const g of byKey.values()) {
+    if (Math.abs(g.net) < 0.005) continue;
+    const tax = r2(g.net * (g.rate / 100));
+    let konto = revenueAccount(g.rate, taxCountry ?? "DE", map);
+    if (g.porto && map.porto) konto = map.porto;
+    else if (kalender && map.kalender && (konto === map.standard_19 || konto === map.standard_7)) konto = map.kalender;
+    out.push({ ledger_account: konto, tax_rate: g.rate, net_amount: g.net, tax_amount: tax, gross_amount: r2(g.net + tax) });
   }
   return out.sort((a, b) => b.gross_amount - a.gross_amount);
 }
@@ -100,7 +116,7 @@ function buchungszeilenAusPositionen(
  * Näherung, wie die alte Export-Logik es getan hat).
  */
 export function berechneRechnungsBuchungszeilen(
-  kopf: { net_total: number | null; tax_total: number | null; tax_country?: string | null },
+  kopf: { net_total: number | null; tax_total: number | null; tax_country?: string | null; invoice_number?: string | null },
   positionen: RechnungsPosition[],
   map: ErloesKontenMap,
   /**
@@ -113,7 +129,7 @@ export function berechneRechnungsBuchungszeilen(
 ): RechnungsBuchungszeile[] {
   const zeilen =
     positionen.length > 0
-      ? buchungszeilenAusPositionen(positionen, kopf.tax_country ?? null, map)
+      ? buchungszeilenAusPositionen(positionen, kopf.tax_country ?? null, map, kopf.invoice_number)
       : (() => {
           const net = r2(kopf.net_total ?? 0);
           if (Math.abs(net) < 0.005) return [];

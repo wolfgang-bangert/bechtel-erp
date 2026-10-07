@@ -69,6 +69,7 @@ export async function exportDatevExtf(opts: Options) {
       )
       .gte("invoice_date", from)
       .lte("invoice_date", to)
+      .eq("ohne_buchhaltung", false)
       .in("kind", ["invoice", "credit_note"])
       .order("invoice_date")
       .range(fromRow, fromRow + size - 1);
