@@ -171,7 +171,7 @@ async function main() {
           (full ? "  (voller Bestand)" : sinceArg ? `  (ab ${sinceArg})` : "  (dieses Jahr)") +
           (dryRun ? "  (DRY RUN)" : ""),
       );
-      const r = await syncNinoxInvoices({ dryRun, full, since: sinceArg, nurNummern: flags.has("--nur-op") ? opForderungsNummern() : undefined });
+      const r = await syncNinoxInvoices({ dryRun, full, since: sinceArg, nurNummern: flags.has("--nur-op") ? opForderungsNummern() : undefined, ohneFreigabe: flags.has("--ohne-freigabe") });
       console.log(
         `\nFertig. ${r.seen} Rechnungen (${r.uebersprungen} übersprungen), ` +
           `${"items" in r ? r.items : 0} Positionen, ohne Org ${r.noOrg}` +
