@@ -44,6 +44,7 @@ import { fxEcb } from "./fxEcb";
 import { bbOpUebernahme } from "./bbOpUebernahme";
 import { opForderungsNummern } from "./opNummern";
 import { neuBuchen } from "./syncInvoiceBookings";
+import { festoolArchiv } from "./festoolArchiv";
 import { syncMailbox } from "./syncMailbox";
 import { extractIncoming } from "./extractIncoming";
 import { purgeIncoming } from "./purgeIncoming";
@@ -238,6 +239,11 @@ async function main() {
           1,
         ),
       );
+      break;
+    }
+    case "festool:archiv": {
+      console.log(`Festool-Archiv (Konsilagergutschriften) ohne Buchhaltung ablegen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await festoolArchiv({ dryRun }), null, 1));
       break;
     }
     case "incoming:dubletten": {

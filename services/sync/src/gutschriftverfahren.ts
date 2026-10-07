@@ -9,7 +9,7 @@ import { generateInvoiceBooking } from "./syncInvoiceBookings";
  * -------------------------------------------------------------------------- */
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-export async function gutschriftverfahrenPruefen(docId: string): Promise<boolean> {
+export async function gutschriftverfahrenPruefen(docId: string, opts: { ohneBuchhaltung?: boolean } = {}): Promise<boolean> {
   const { data: doc } = await supabase
     .from("incoming_document")
     .select(
@@ -60,6 +60,8 @@ export async function gutschriftverfahrenPruefen(docId: string): Promise<boolean
       pdf_storage_key: doc.pdf_storage_key,
       pdf_status: doc.pdf_storage_key ? "available" : "none",
       raw: { quelle: `Gutschriftverfahren ${org.name} (per Mail)`, eingangsbeleg: docId },
+      ohne_buchhaltung: !!opts.ohneBuchhaltung,
+      ohne_buchhaltung_grund: opts.ohneBuchhaltung ? "Archiv: Abrechnung bereits 2025 bezahlt und gebucht (nur zum Auffinden abgelegt)" : null,
       synced_at: new Date().toISOString(),
     })
     .select("id")
@@ -100,7 +102,7 @@ export async function gutschriftverfahrenPruefen(docId: string): Promise<boolean
         },
       ];
   await supabase.from("sales_invoice_item").insert(positionen);
-  await generateInvoiceBooking(inv.id);
+  if (!opts.ohneBuchhaltung) await generateInvoiceBooking(inv.id);
   await supabase
     .from("incoming_document")
     .update({

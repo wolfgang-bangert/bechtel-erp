@@ -27,6 +27,7 @@ export default async function OffenePostenPage({
       { count: "exact" },
     )
     .eq("kind", "invoice")
+    .eq("ohne_buchhaltung", false)
     .in("payment_status", ["open", "partly_paid"])
     .gt("open_amount", 0)
     .gte("invoice_date", `${year}-01-01`)
