@@ -234,7 +234,7 @@ async function main() {
       const vonArg = process.argv.find((a) => a.startsWith("--von="))?.split("=")[1];
       const bisArg = process.argv.find((a) => a.startsWith("--bis="))?.split("=")[1];
       console.log(`Ausgangsrechnungen aus BuchhaltungsButler nachholen${dryRun ? "  (DRY RUN)" : ""}`);
-      console.log(JSON.stringify(await bbAusgangNachholen({ dryRun, von: vonArg, bis: bisArg }), null, 1));
+      console.log(JSON.stringify(await bbAusgangNachholen({ dryRun, von: vonArg, bis: bisArg, nurOp: flags.has("--nur-op") }), null, 1));
       break;
     }
     case "bb:ust-korrigieren": {

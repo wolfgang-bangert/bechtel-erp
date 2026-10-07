@@ -1,6 +1,7 @@
 import { bbGetAll } from "./bbutler";
 import { supabase } from "./supabase";
 import { pagedSelect } from "./db";
+import { readFileSync } from "node:fs";
 
 /* --------------------------------------------------------------------------
  * Ausgangsrechnungen, die nur in BuchhaltungsButler als Erlös gebucht sind (z.B. Festool-
@@ -32,7 +33,22 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9äöüß]/g, "");
 const AUSGESCHLOSSEN_KONTO = /^(873|8590|852|8900|8910|892|8949)/;
 
-export async function bbAusgangNachholen({ dryRun, von = "2026-01-01", bis = "2026-05-31" }: { dryRun: boolean; von?: string; bis?: string }) {
+export async function bbAusgangNachholen({
+  dryRun,
+  von = "2026-01-01",
+  bis = "2026-05-31",
+  nurOp = false,
+}: {
+  dryRun: boolean;
+  von?: string;
+  bis?: string;
+  /** nur die zum 31.12.2025 offenen Posten (data/bb-op-forderungen-2025.json); fehlende Kunden werden angelegt */
+  nurOp?: boolean;
+}) {
+  const opListe = nurOp
+    ? (JSON.parse(readFileSync(new URL("../data/bb-op-forderungen-2025.json", import.meta.url), "utf8")) as { nr: string; debitor: string }[])
+    : [];
+  const opNr = new Map(opListe.map((o) => [o.nr, o.debitor]));
   // BB-Buchungen monatsweise (kleine Seiten)
   const posts: Posting[] = [];
   for (let d = new Date(`${von.slice(0, 7)}-01T00:00:00Z`); d.toISOString().slice(0, 10) <= bis; d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))) {
@@ -69,9 +85,10 @@ export async function bbAusgangNachholen({ dryRun, von = "2026-01-01", bis = "20
     proNr.set(nr, e);
   }
 
-  const kandidaten = [...proNr.entries()].filter(([nr]) => !haveNr.has(nr)).sort((a, b) => a[1].datum.localeCompare(b[1].datum));
+  const kandidaten = [...proNr.entries()].filter(([nr]) => !haveNr.has(nr) && (!nurOp || opNr.has(nr))).sort((a, b) => a[1].datum.localeCompare(b[1].datum));
 
-  const orgs = await pagedSelect<{ id: string; name: string }>("organization", "id, name");
+  const orgs = await pagedSelect<{ id: string; name: string; customer_number: string | null }>("organization", "id, name, customer_number");
+  const byDebitor = new Map(orgs.filter((o) => o.customer_number).map((o) => [String(o.customer_number), o.id]));
   const byName = new Map<string, string[]>();
   for (const o of orgs) byName.set(norm(o.name), [...(byName.get(norm(o.name)) ?? []), o.id]);
 
@@ -105,6 +122,23 @@ export async function bbAusgangNachholen({ dryRun, von = "2026-01-01", bis = "20
       if (l.length === 1) cand = [l[0].id];
     }
     if (cand.length !== 1) out.ohneOrganisation.push(`${nr} · ${e.kunde} (${cand.length === 0 ? "nicht gefunden" : "mehrdeutig"})`);
+    if (nurOp && cand.length === 0) {
+      // zuerst über die Debitorennummer, sonst neuen Kunden anlegen
+      const deb = opNr.get(nr) ?? "";
+      const viaNr = deb ? byDebitor.get(deb) : undefined;
+      if (viaNr) cand = [viaNr];
+      else if (!dryRun) {
+        const { data: neu, error: ne } = await supabase
+          .from("organization")
+          .insert({ relation: "customer", name: e.kunde, customer_number: deb || null })
+          .select("id, name")
+          .single();
+        if (ne || !neu) throw new Error(`${nr}: Kunde ${e.kunde}: ${ne?.message}`);
+        orgs.push({ id: neu.id, name: neu.name, customer_number: deb || null });
+        byName.set(norm(neu.name), [neu.id]);
+        cand = [neu.id];
+      }
+    }
     out.liste.push(`${e.datum} ${nr} · ${e.kunde}${cand.length === 1 ? ` → ${orgs.find((o) => o.id === cand[0])?.name}` : ""} · netto ${net.toFixed(2)} · ${zeilen.map((z) => `${z.konto}/${z.satz}%`).join(",")}`);
     if (dryRun) continue;
 
