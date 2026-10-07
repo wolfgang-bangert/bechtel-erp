@@ -7,7 +7,7 @@ import {
   setSyncState,
 } from "./db";
 
-type Options = { dryRun?: boolean; since?: string | null; full?: boolean };
+type Options = { dryRun?: boolean; since?: string | null; full?: boolean; nurNummern?: Set<string> };
 
 const FREIGEGEBEN_FELD = "Rechnung für Buchhaltung freigegeben";
 // "Steuersatz in %" wird in Ninox so gut wie nie gepflegt (nur 5 von
@@ -86,6 +86,10 @@ export async function syncNinoxInvoices(opts: Options = {}) {
       }
       const dt0 = dateOnly(f["Datum"]);
       if (since && dt0 && dt0 < since) {
+        uebersprungen += 1;
+        continue;
+      }
+      if (opts.nurNummern && !(dt0 && opts.nurNummern.has(`${dt0.slice(2, 4)}CE${rec.id}`))) {
         uebersprungen += 1;
         continue;
       }

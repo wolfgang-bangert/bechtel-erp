@@ -42,6 +42,7 @@ import { sammelZuordnen } from "./sammelZuordnen";
 import { bankGebuehren } from "./bankGebuehren";
 import { fxEcb } from "./fxEcb";
 import { bbOpUebernahme } from "./bbOpUebernahme";
+import { opForderungsNummern } from "./opNummern";
 import { syncMailbox } from "./syncMailbox";
 import { extractIncoming } from "./extractIncoming";
 import { purgeIncoming } from "./purgeIncoming";
@@ -169,7 +170,7 @@ async function main() {
           (full ? "  (voller Bestand)" : sinceArg ? `  (ab ${sinceArg})` : "  (dieses Jahr)") +
           (dryRun ? "  (DRY RUN)" : ""),
       );
-      const r = await syncNinoxInvoices({ dryRun, full, since: sinceArg });
+      const r = await syncNinoxInvoices({ dryRun, full, since: sinceArg, nurNummern: flags.has("--nur-op") ? opForderungsNummern() : undefined });
       console.log(
         `\nFertig. ${r.seen} Rechnungen (${r.uebersprungen} übersprungen), ` +
           `${"items" in r ? r.items : 0} Positionen, ohne Org ${r.noOrg}` +
@@ -188,7 +189,7 @@ async function main() {
       );
       console.log(
         JSON.stringify(
-          await syncNinoxExterneRechnungen({ dryRun, since: sinceArg, quelle: quelleArg, limit: limArg ? Number(limArg.split("=")[1]) : undefined }),
+          await syncNinoxExterneRechnungen({ dryRun, since: sinceArg, quelle: quelleArg, limit: limArg ? Number(limArg.split("=")[1]) : undefined, nurNummern: flags.has("--nur-op") ? opForderungsNummern() : undefined }),
           null,
           1,
         ),
