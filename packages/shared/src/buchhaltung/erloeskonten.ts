@@ -148,8 +148,12 @@ export function berechneRechnungsBuchungszeilen(
         })();
 
   if (!revenueAccountOverride) return zeilen;
+  // Kundenspezifisches Erlöskonto hat Vorrang vor Standard- und Kategorie-Konten (Kalender/Porto)
   return zeilen.map((z) =>
-    z.ledger_account === map.standard_19 || z.ledger_account === map.standard_7
+    z.ledger_account === map.standard_19 ||
+    z.ledger_account === map.standard_7 ||
+    (map.kalender && z.ledger_account === map.kalender) ||
+    (map.porto && z.ledger_account === map.porto)
       ? { ...z, ledger_account: revenueAccountOverride }
       : z,
   );
