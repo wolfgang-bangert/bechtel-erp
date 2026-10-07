@@ -82,7 +82,8 @@ export async function syncNinoxInvoices(opts: Options = {}) {
       // gesetzt) - alles andere ist noch in Bearbeitung/Entwurf.
       const dt0 = dateOnly(f["Datum"]);
       // --ohne-freigabe (nur zusammen mit --nur-op): auch nicht freigegebene Rechnungen mit passender Nummer holen
-      const trotzFreigabe = !!opts.ohneFreigabe && !!opts.nurNummern && !!dt0 && opts.nurNummern.has(`${dt0.slice(2, 4)}CE${rec.id}`);
+      const nrKandidaten = dt0 ? [Number(dt0.slice(2, 4)), Number(dt0.slice(2, 4)) + 1].map((y) => `${String(y).padStart(2, "0")}CE${rec.id}`) : [];
+      const trotzFreigabe = !!opts.ohneFreigabe && !!opts.nurNummern && nrKandidaten.some((n) => opts.nurNummern!.has(n));
       if (!f[FREIGEGEBEN_FELD] && !trotzFreigabe) {
         uebersprungen += 1;
         continue;
@@ -91,7 +92,7 @@ export async function syncNinoxInvoices(opts: Options = {}) {
         uebersprungen += 1;
         continue;
       }
-      if (opts.nurNummern && !(dt0 && opts.nurNummern.has(`${dt0.slice(2, 4)}CE${rec.id}`))) {
+      if (opts.nurNummern && !(dt0 && [Number(dt0.slice(2, 4)), Number(dt0.slice(2, 4)) + 1].some((y) => opts.nurNummern!.has(`${String(y).padStart(2, "0")}CE${rec.id}`)))) {
         uebersprungen += 1;
         continue;
       }
