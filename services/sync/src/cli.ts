@@ -662,6 +662,7 @@ async function main() {
             all: process.argv.includes("--all"),
             ordner: process.argv.find((a) => a.startsWith("--ordner="))?.slice("--ordner=".length),
             absender: process.argv.find((a) => a.startsWith("--absender="))?.slice("--absender=".length),
+            betreff: process.argv.find((a) => a.startsWith("--betreff="))?.slice("--betreff=".length),
           }),
           null,
           1,

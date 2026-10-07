@@ -13,6 +13,8 @@ type Options = {
   ordner?: string;
   /** nur Mails, deren Absender diesen Text enthält (z. B. "festool") */
   absender?: string;
+  /** nur Mails, deren Betreff diesen Text enthält (z. B. "FESTOOL" oder eine Belegnummer) */
+  betreff?: string;
   all?: boolean;
 };
 
@@ -97,11 +99,11 @@ export async function syncMailbox(opts: Options = {}) {
   const lock = await client.getMailboxLock(opts.ordner || env.imap.folder());
   try {
     const since = new Date(Date.now() - sinceDays * 86400_000);
-    const uids = opts.absender
-      ? await client.search(all ? { from: opts.absender } : { from: opts.absender, since }, { uid: true })
-      : all
-        ? await client.search({ all: true }, { uid: true })
-        : await client.search({ since }, { uid: true });
+    const kriterium: Record<string, unknown> = opts.absender || opts.betreff ? {} : all ? { all: true } : { since };
+    if (opts.absender) kriterium.from = opts.absender;
+    if (opts.betreff) kriterium.subject = opts.betreff;
+    if ((opts.absender || opts.betreff) && !all) kriterium.since = since;
+    const uids = await client.search(kriterium as never, { uid: true });
     const list = (uids || []).slice(-1 * (limit ?? 10_000));
 
     for (const uid of list) {
