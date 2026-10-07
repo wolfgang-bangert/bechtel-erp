@@ -83,7 +83,7 @@ export async function erstelleAbrechnung(
   const { data: orders } = await sb
     .from("portal_order")
     .select(
-      "id, external_reference, description, quantity, preis_netto, berechnet, ist_rekla, rekla_vermerk, resolve_result",
+      "id, external_reference, description, quantity, preis_netto, berechnet, ist_rekla, rekla_vermerk, betrag_abweichend, resolve_result",
     )
     .in("id", (ordersHead ?? []).map((o) => o.id as string));
 
@@ -95,9 +95,11 @@ export async function erstelleAbrechnung(
     const rr = (o.resolve_result ?? null) as { gruppe?: string; attribute?: Record<string, unknown> } | null;
     const attr = rr?.attribute ?? {};
     const nichtBerechnen = o.berechnet === false || o.ist_rekla === true;
-    const betrag = nichtBerechnen ? 0 : Number(o.preis_netto ?? 0);
+    // abweichender Betrag (Teil-Rekla) hat Vorrang vor Listenpreis/0 €
+    const abweichend = o.betrag_abweichend != null ? Number(o.betrag_abweichend) : null;
+    const betrag = abweichend ?? (nichtBerechnen ? 0 : Number(o.preis_netto ?? 0));
     if (o.ist_rekla) rekla++;
-    if (!nichtBerechnen && (o.preis_netto == null || Number(o.preis_netto) === 0)) ohnePreis++;
+    if (abweichend == null && !nichtBerechnen && (o.preis_netto == null || Number(o.preis_netto) === 0)) ohnePreis++;
 
     const { error } = await sb.from("abrechnung_position").insert({
       abrechnung_id: abrechnungId,
@@ -112,7 +114,7 @@ export async function erstelleAbrechnung(
       betrag_netto: betrag,
       ist_rekla: o.ist_rekla ?? false,
       rekla_vermerk: o.rekla_vermerk ?? null,
-      manuell: false,
+      manuell: abweichend != null,
     });
     if (error) throw new Error(`position ${o.external_reference}: ${error.message}`);
 

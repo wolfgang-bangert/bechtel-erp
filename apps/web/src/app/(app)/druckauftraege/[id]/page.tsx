@@ -105,6 +105,7 @@ type Detail = {
   berechnet: boolean;
   ist_rekla: boolean;
   rekla_vermerk: string | null;
+  betrag_abweichend: number | null;
   flux_order_id: string | null;
   flux_sent_at: string | null;
   flux_payload: unknown;
@@ -168,7 +169,7 @@ export default async function DruckauftragPage({
     .select(
       "id, external_id, external_reference, reference_type, portal_state, description, quantity, " +
         "deliver_date, currency, total_net, total_gross, ship_to, sender, received_at, raw, resolve_result, resolved_at, " +
-        "versand_datum, preis_netto, preis_quelle, berechnet, ist_rekla, rekla_vermerk, " +
+        "versand_datum, preis_netto, preis_quelle, berechnet, ist_rekla, rekla_vermerk, betrag_abweichend, " +
         "flux_order_id, flux_sent_at, flux_payload, flux_response, pdf_seiten_tausch, " +
         "abrechnung:abrechnung_id(id, jahr, kw, status), " +
         "portal:portal_id(code, name), " +
@@ -482,6 +483,7 @@ export default async function DruckauftragPage({
               berechnet={data.berechnet}
               istRekla={data.ist_rekla}
               reklaVermerk={data.rekla_vermerk}
+              betragAbweichend={data.betrag_abweichend}
               preisNetto={data.preis_netto}
               preisQuelle={data.preis_quelle}
             />

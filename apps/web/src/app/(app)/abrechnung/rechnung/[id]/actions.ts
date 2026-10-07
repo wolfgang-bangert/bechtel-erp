@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { putObject } from "@/lib/storage";
 import { erzeugeRechnungPdf } from "@werk/shared/pdf/rechnung";
+import { erzeugeAufstellungPdf, pdfAnhaengen } from "@werk/shared/pdf/aufstellung";
+import { ladeAufstellungWochen } from "@/lib/abrechnung/aufstellung";
 import { erzeugeZugferdPdf } from "@werk/shared/fakturierung/zugferd";
 import { erzeugeOnlineprintersCsv } from "@werk/shared/fakturierung/csv";
 
@@ -68,7 +70,7 @@ export async function rechnungAbschliessenAction(_p: State, fd: FormData): Promi
     : null;
 
   // 1) Basis-PDF (werk-nativ, pdf-lib)
-  const basisPdf = await erzeugeRechnungPdf({
+  const rechnungPdf = await erzeugeRechnungPdf({
     absender: {
       name: profile.name ?? "Bechtel Druck",
       legal_name: profile.legal_name,
@@ -103,6 +105,16 @@ export async function rechnungAbschliessenAction(_p: State, fd: FormData): Promi
     invoiceNumber,
     invoiceDate,
   );
+
+  // 2b) Aufstellung (je Woche alle Aufträge mit Listenpreis, Betrag, Begründung) als Anlage anhängen
+  const { wochen } = await ladeAufstellungWochen(supabase, abrechnungIds);
+  const aufstellungPdf = await erzeugeAufstellungPdf({
+    absenderName: profile.legal_name || profile.name || "Bechtel Druck",
+    empfaengerName: org.name,
+    rechnungsnummer: invoiceNumber,
+    wochen,
+  });
+  const basisPdf = await pdfAnhaengen(rechnungPdf, aufstellungPdf);
 
   // 3) ZUGFeRD-XML + CSV als Anhang einbetten (PDF/A-3b)
   const { pdf: finalBytes, validationWarning } = await erzeugeZugferdPdf(

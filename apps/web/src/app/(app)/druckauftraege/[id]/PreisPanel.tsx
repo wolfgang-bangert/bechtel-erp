@@ -11,6 +11,7 @@ export function PreisPanel({
   berechnet,
   istRekla,
   reklaVermerk,
+  betragAbweichend,
   preisNetto,
   preisQuelle,
 }: {
@@ -19,6 +20,7 @@ export function PreisPanel({
   berechnet: boolean;
   istRekla: boolean;
   reklaVermerk: string | null;
+  betragAbweichend: number | null;
   preisNetto: number | null;
   preisQuelle: string | null;
 }) {
@@ -67,7 +69,20 @@ export function PreisPanel({
           <input type="checkbox" name="ist_rekla" defaultChecked={istRekla} /> Reklamation (nicht berechnen)
         </label>
         <div className="bd-field">
-          <label className="bd-field-label" htmlFor="rekla_vermerk">Rekla-Vermerk</label>
+          <label className="bd-field-label" htmlFor="betrag_abweichend">
+            Abweichender Betrag (netto) – z. B. bei Teil-Reklamation; leer = Listenpreis
+          </label>
+          <input
+            className="bd-field-input"
+            id="betrag_abweichend"
+            name="betrag_abweichend"
+            inputMode="decimal"
+            defaultValue={betragAbweichend != null ? Number(betragAbweichend).toFixed(2) : ""}
+            style={{ width: 140 }}
+          />
+        </div>
+        <div className="bd-field">
+          <label className="bd-field-label" htmlFor="rekla_vermerk">Begründung / Vermerk (erscheint auf der Aufstellung)</label>
           <textarea
             className="bd-field-input"
             id="rekla_vermerk"
