@@ -9,6 +9,10 @@ type Options = {
   dryRun?: boolean;
   limit?: number;
   sinceDays?: number;
+  /** anderer IMAP-Ordner als IMAP_FOLDER (z. B. "Archive") */
+  ordner?: string;
+  /** nur Mails, deren Absender diesen Text enthält (z. B. "festool") */
+  absender?: string;
   all?: boolean;
 };
 
@@ -90,12 +94,14 @@ export async function syncMailbox(opts: Options = {}) {
 
   const ignoreSenders = env.imap.ignoreSenders();
 
-  const lock = await client.getMailboxLock(env.imap.folder());
+  const lock = await client.getMailboxLock(opts.ordner || env.imap.folder());
   try {
     const since = new Date(Date.now() - sinceDays * 86400_000);
-    const uids = all
-      ? await client.search({ all: true }, { uid: true })
-      : await client.search({ since }, { uid: true });
+    const uids = opts.absender
+      ? await client.search(all ? { from: opts.absender } : { from: opts.absender, since }, { uid: true })
+      : all
+        ? await client.search({ all: true }, { uid: true })
+        : await client.search({ since }, { uid: true });
     const list = (uids || []).slice(-1 * (limit ?? 10_000));
 
     for (const uid of list) {
