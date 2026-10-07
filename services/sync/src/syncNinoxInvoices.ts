@@ -7,7 +7,7 @@ import {
   setSyncState,
 } from "./db";
 
-type Options = { dryRun?: boolean; since?: string | null; full?: boolean; nurNummern?: Set<string>; ohneFreigabe?: boolean };
+type Options = { dryRun?: boolean; since?: string | null; full?: boolean; nurNummern?: Set<string>; ohneFreigabe?: boolean; kunde?: string };
 
 const FREIGEGEBEN_FELD = "Rechnung für Buchhaltung freigegeben";
 // "Steuersatz in %" wird in Ninox so gut wie nie gepflegt (nur 5 von
@@ -81,9 +81,17 @@ export async function syncNinoxInvoices(opts: Options = {}) {
       // Nur Rechnungen, die die Buchhaltung freigegeben hat (Zeitstempel
       // gesetzt) - alles andere ist noch in Bearbeitung/Entwurf.
       const dt0 = dateOnly(f["Datum"]);
-      // --ohne-freigabe (nur zusammen mit --nur-op): auch nicht freigegebene Rechnungen mit passender Nummer holen
+      // --kunde=<Text>: nur Rechnungen, deren Rechnungsname den Text enthält
+      if (opts.kunde && !s(f["Name oder Firma"]).toLowerCase().includes(opts.kunde.toLowerCase())) {
+        uebersprungen += 1;
+        continue;
+      }
+      // --ohne-freigabe: auch nicht freigegebene Rechnungen holen, aber nur mit --nur-op (passende Nummer)
+      // oder --kunde (dieser Kunde)
       const nrKandidaten = dt0 ? [Number(dt0.slice(2, 4)), Number(dt0.slice(2, 4)) + 1].map((y) => `${String(y).padStart(2, "0")}CE${rec.id}`) : [];
-      const trotzFreigabe = !!opts.ohneFreigabe && !!opts.nurNummern && nrKandidaten.some((n) => opts.nurNummern!.has(n));
+      const trotzFreigabe =
+        !!opts.ohneFreigabe &&
+        ((!!opts.nurNummern && nrKandidaten.some((n) => opts.nurNummern!.has(n))) || (!!opts.kunde && !opts.nurNummern));
       if (!f[FREIGEGEBEN_FELD] && !trotzFreigabe) {
         uebersprungen += 1;
         continue;
