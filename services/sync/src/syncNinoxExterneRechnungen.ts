@@ -93,6 +93,7 @@ export async function syncNinoxExterneRechnungen(opts: {
   since?: string;
   quelle?: string;
   limit?: number;
+  nurNummern?: Set<string>;
 }) {
   const since = opts.since ?? `${new Date().getFullYear()}-01-01`;
   const client = new Anthropic({ apiKey: env.anthropicKey() });
@@ -153,6 +154,7 @@ export async function syncNinoxExterneRechnungen(opts: {
       const nr = q.numberField
         ? String(r.fields[q.numberField]).trim()
         : (/^Rechnung\s+(\S+)\s+vom\b/i.exec(fileName0)?.[1] ?? "");
+      if (opts.nurNummern && !(nr && opts.nurNummern.has(nr))) continue;
       if (haveExt.has(ext) || (nr && haveNr.has(nr))) stat.schonVorhanden++;
       else todo.push(r);
     }
