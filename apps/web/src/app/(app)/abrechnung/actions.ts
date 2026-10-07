@@ -30,16 +30,32 @@ export async function setBetragAction(_p: State, fd: FormData): Promise<State> {
   const raw = String(fd.get("betrag_netto") ?? "").trim().replace(",", ".");
   const betrag = raw === "" ? 0 : Number(raw);
   if (!Number.isFinite(betrag)) return { error: "Betrag ungültig" };
+  const vermerk = String(fd.get("rekla_vermerk") ?? "").trim() || null;
 
   const supabase = await createClient();
   const { data: abr } = await supabase.from("abrechnung").select("status").eq("id", abrechnungId).maybeSingle();
   if (abr?.status === "festgeschrieben") return { error: "Abrechnung ist festgeschrieben" };
 
+  const { data: pos } = await supabase
+    .from("abrechnung_position")
+    .select("preis_netto, portal_order_id")
+    .eq("id", id)
+    .maybeSingle();
+  const betragRund = Math.round(betrag * 100) / 100;
+  const weichtAb = Math.abs(betragRund - Number(pos?.preis_netto ?? 0)) > 0.004;
+
   const { error } = await supabase
     .from("abrechnung_position")
-    .update({ betrag_netto: Math.round(betrag * 100) / 100, manuell: true, rekla_vermerk: String(fd.get("rekla_vermerk") ?? "").trim() || null })
+    .update({ betrag_netto: betragRund, manuell: weichtAb, rekla_vermerk: vermerk })
     .eq("id", id);
   if (error) return { error: error.message };
+  // Auftrag spiegelt Betrag + Begründung (bleibt erhalten, wenn die Position wieder herausgenommen wird)
+  if (pos?.portal_order_id) {
+    await supabase
+      .from("portal_order")
+      .update({ betrag_abweichend: weichtAb ? betragRund : null, rekla_vermerk: vermerk })
+      .eq("id", pos.portal_order_id);
+  }
   await abrechnungNeuSummieren(supabase, abrechnungId);
   revalidatePath(`/abrechnung/${abrechnungId}`);
   return { ok: true };

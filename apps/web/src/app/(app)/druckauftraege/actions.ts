@@ -30,6 +30,12 @@ export async function savePreisFelderAction(_prev: State, fd: FormData): Promise
       berechnet: fd.get("berechnet") != null,
       ist_rekla: fd.get("ist_rekla") != null,
       rekla_vermerk: str(fd, "rekla_vermerk"),
+      betrag_abweichend: (() => {
+        const raw = str(fd, "betrag_abweichend");
+        if (raw == null) return null;
+        const n = Number(raw.replace(",", "."));
+        return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+      })(),
     })
     .eq("id", id);
   if (error) return { error: error.message };
