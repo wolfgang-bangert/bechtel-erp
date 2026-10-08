@@ -11,7 +11,8 @@ const datumDe = (iso: string) => iso.split("-").reverse().join(".");
 /**
  * Versendet abgeschlossene werk-Rechnungen (invoice.mail_status = 'vorgemerkt') per E-Mail
  * mit PDF (ZUGFeRD) und Auftrags-CSV im Anhang. Vorgemerkt wird nur auf Klick in der Oberfläche.
- * Absender: INVOICE_MAIL_FROM (Standard m.weber@bechtel-druck.de), Kopie an den Absender.
+ * Absender: INVOICE_MAIL_FROM (Standard m.weber@bechtel-druck.de); Kopie (Bcc) an den Absender und an INVOICE_MAIL_BCC
+ * (Standard w.bangert@bechtel-druck.de, solange die Anbindung entwickelt wird).
  */
 export async function sendInvoiceMails(opts: Options = {}) {
   const { dryRun = false } = opts;
@@ -24,6 +25,8 @@ export async function sendInvoiceMails(opts: Options = {}) {
   if (!mailerConfigured()) return { pending: rows.length, sent: 0, failed: 0, inactive: "SMTP_* fehlt" };
 
   const from = (process.env.INVOICE_MAIL_FROM || "m.weber@bechtel-druck.de").trim();
+  // Entwicklungsphase: Kopie aller Rechnungsmails an w.bangert@ (INVOICE_MAIL_BCC="" schaltet das ab)
+  const bcc = [...new Set([from, ...(process.env.INVOICE_MAIL_BCC ?? "w.bangert@bechtel-druck.de").split(",").map((s) => s.trim()).filter(Boolean)])].join(", ");
   const { data: setting } = await supabase.from("setting").select("value").eq("key", "company.profile").maybeSingle();
   const profile = (setting?.value ?? {}) as { name?: string; legal_name?: string };
   const firma = profile.legal_name || profile.name || "Bechtel Druck";
@@ -70,7 +73,7 @@ export async function sendInvoiceMails(opts: Options = {}) {
       await sendMail({
         to,
         from,
-        bcc: from,
+        bcc,
         subject,
         text,
         attachments: [
