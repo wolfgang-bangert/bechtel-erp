@@ -105,6 +105,28 @@ export async function saveIncoming(
     positions = [];
   }
 
+  // Mit einem anderen Beleg verknüpfte Positionen (z. B. Kreditkartenzeile): Steuerschlüssel, Satz und Konto
+  // kommen vom verknüpften Beleg - dort steht die tatsächliche Steuer (z. B. Reverse Charge §13b).
+  const linkedIds = [...new Set(positions.map((p) => emptyToNull(p.linked_document_id)).filter((x): x is string => !!x))];
+  if (linkedIds.length) {
+    const { data: ld } = await supabase.from("incoming_document").select("id, tax_code_id, ledger_account").in("id", linkedIds);
+    const codeIds = [...new Set((ld ?? []).map((d) => d.tax_code_id).filter((x): x is string => !!x))];
+    const { data: codes } = codeIds.length ? await supabase.from("tax_code").select("id, rate, treatment").in("id", codeIds) : { data: [] };
+    const codeBy = new Map((codes ?? []).map((c) => [c.id as string, c]));
+    const docBy = new Map((ld ?? []).map((d) => [d.id as string, d]));
+    positions = positions.map((p) => {
+      const d = p.linked_document_id ? docBy.get(p.linked_document_id) : undefined;
+      if (!d) return p;
+      const c = d.tax_code_id ? codeBy.get(d.tax_code_id as string) : undefined;
+      return {
+        ...p,
+        tax_code_id: (d.tax_code_id as string | null) ?? p.tax_code_id,
+        ledger_account: (d.ledger_account as string | null) ?? p.ledger_account,
+        tax_rate: c ? (c.treatment === "standard_de" && c.rate != null ? Number(c.rate) : 0) : p.tax_rate,
+      };
+    });
+  }
+
   await supabase.from("incoming_document_item").delete().eq("incoming_document_id", id);
 
   let unresolved = 0;
