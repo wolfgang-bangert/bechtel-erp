@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
 import { AbschliessenButton } from "./AbschliessenButton";
+import { MailButton } from "./MailButton";
 
 export const dynamic = "force-dynamic";
 
@@ -13,16 +14,19 @@ export default async function RechnungDetail({ params }: { params: Promise<{ id:
   const { data: rechnung } = await supabase
     .from("invoice")
     .select(
-      "id, invoice_number, status, invoice_date, net_total, tax_total, gross_total, pdf_storage_key, finalized_at, organization:organization_id(name)",
+      "id, invoice_number, status, invoice_date, net_total, tax_total, gross_total, pdf_storage_key, finalized_at, mail_status, mail_to, mail_sent_at, mail_error, organization:organization_id(name, invoice_email)",
     )
     .eq("id", id)
     .maybeSingle();
   if (!rechnung) notFound();
 
-  const org = (
-    rechnung.organization as unknown as { name: string }[] | { name: string } | null
-  );
-  const orgName = Array.isArray(org) ? org[0]?.name : org?.name;
+  const orgRaw = rechnung.organization as unknown as
+    | { name: string; invoice_email: string | null }[]
+    | { name: string; invoice_email: string | null }
+    | null;
+  const org = Array.isArray(orgRaw) ? orgRaw[0] : orgRaw;
+  const orgName = org?.name;
+  const invoiceEmail = org?.invoice_email?.trim() || null;
 
   const { data: items } = await supabase
     .from("invoice_item")
@@ -67,6 +71,30 @@ export default async function RechnungDetail({ params }: { params: Promise<{ id:
             Rechnungs-PDF (ZUGFeRD) herunterladen
           </a>
           <Link href={`/api/rechnung/${rechnung.id}/csv`}>CSV separat herunterladen</Link>
+        </div>
+      )}
+      {locked && (
+        <div className="toolbar" style={{ gap: 12, flexWrap: "wrap" }}>
+          {rechnung.mail_status === "gesendet" ? (
+            <span className="msg-ok">
+              ✓ Per E-Mail gesendet an {rechnung.mail_to}
+              {rechnung.mail_sent_at ? ` am ${rechnung.mail_sent_at.slice(0, 16).replace("T", " ")}` : ""}
+            </span>
+          ) : rechnung.mail_status === "vorgemerkt" ? (
+            <span className="count">Versand an {rechnung.mail_to} vorgemerkt – wird in Kürze gesendet.</span>
+          ) : invoiceEmail ? (
+            <MailButton
+              id={rechnung.id}
+              to={invoiceEmail}
+              label={rechnung.mail_status === "fehler" ? "Erneut per E-Mail senden" : `Per E-Mail senden an ${invoiceEmail}`}
+            />
+          ) : (
+            <span className="count">
+              Keine Rechnungs-E-Mail hinterlegt – bitte bei der Organisation (Onlineprinters) eintragen, dann kann die
+              Rechnung hier per E-Mail versendet werden.
+            </span>
+          )}
+          {rechnung.mail_status === "fehler" && <span className="msg-err">Letzter Versand fehlgeschlagen: {rechnung.mail_error}</span>}
         </div>
       )}
 

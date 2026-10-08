@@ -22,13 +22,16 @@ export type Attachment = { filename: string; content: Buffer; contentType?: stri
 
 export async function sendMail(opts: {
   to: string;
+  from?: string;
+  bcc?: string;
   subject: string;
   text: string;
   attachments?: Attachment[];
 }): Promise<void> {
   await transport().sendMail({
-    from: env.smtp.from(),
+    from: opts.from || env.smtp.from(),
     to: opts.to,
+    bcc: opts.bcc,
     subject: opts.subject,
     text: opts.text,
     attachments: opts.attachments,

@@ -50,6 +50,7 @@ import { extractIncoming } from "./extractIncoming";
 import { purgeIncoming } from "./purgeIncoming";
 import { pruneReceiptDuplicates } from "./pruneReceipts";
 import { forwardDunnings } from "./forwardDunnings";
+import { sendInvoiceMails } from "./invoiceMail";
 import { fintsSetup, fintsPull, fixCounterpartyNames } from "./fints";
 import { importFracht } from "./importFracht";
 import { supabase } from "./supabase";
@@ -795,6 +796,11 @@ async function main() {
     case "incoming:forward-dunning": {
       console.log(`Mahnungen weiterleiten${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await forwardDunnings({ dryRun }), null, 1));
+      break;
+    }
+    case "invoice:mail": {
+      console.log(`Rechnungen per E-Mail versenden (vorgemerkte)${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await sendInvoiceMails({ dryRun }), null, 1));
       break;
     }
     case "dedupe:orgs": {

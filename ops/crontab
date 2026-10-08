@@ -40,3 +40,6 @@
 # Abarbeiter für JEDE sync_request – egal ob von n8n, dem "Banken
 # aktualisieren"-Button oder künftig anderen Quellen angelegt.
 */2 * * * *  cd /app/services/sync && pnpm requests:process
+
+# Rechnungen (werk-nativ, z. B. Onlineprinters-Sammelrechnung) per E-Mail versenden - nur auf Klick vorgemerkte
+*/5 * * * *  cd /app/services/sync && pnpm invoice:mail

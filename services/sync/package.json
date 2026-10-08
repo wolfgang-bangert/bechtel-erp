@@ -67,7 +67,8 @@
     "incoming:extract": "tsx src/cli.ts incoming:extract",
     "incoming:purge": "tsx src/cli.ts incoming:purge",
     "incoming:prune-receipts": "tsx src/cli.ts incoming:prune-receipts",
-    "incoming:forward-dunning": "tsx src/cli.ts incoming:forward-dunning"
+    "incoming:forward-dunning": "tsx src/cli.ts incoming:forward-dunning",
+    "invoice:mail": "tsx src/cli.ts invoice:mail"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",

@@ -13,6 +13,32 @@ export type State = { ok?: boolean; error?: string; note?: string };
 
 const TAX_RATE = 19;
 
+/** Rechnung zum Versand per E-Mail vormerken - der Versand selbst läuft über den Cron invoice:mail. */
+export async function rechnungMailVormerkenAction(_p: State, fd: FormData): Promise<State> {
+  const id = String(fd.get("id") ?? "");
+  if (!id) return { error: "id fehlt" };
+  const supabase = await createClient();
+  const { data: inv } = await supabase
+    .from("invoice")
+    .select("status, pdf_storage_key, mail_status, organization:organization_id(invoice_email)")
+    .eq("id", id)
+    .maybeSingle();
+  if (!inv) return { error: "Rechnung nicht gefunden" };
+  if (inv.status !== "festgeschrieben" || !inv.pdf_storage_key) return { error: "Rechnung ist noch nicht abgeschlossen" };
+  if (inv.mail_status === "gesendet") return { error: "Rechnung wurde bereits gesendet" };
+  const org = inv.organization as unknown as { invoice_email: string | null } | { invoice_email: string | null }[] | null;
+  const to = (Array.isArray(org) ? org[0]?.invoice_email : org?.invoice_email)?.trim();
+  if (!to) return { error: "Bei der Organisation ist keine Rechnungs-E-Mail hinterlegt" };
+
+  const { error } = await supabase
+    .from("invoice")
+    .update({ mail_status: "vorgemerkt", mail_to: to, mail_error: null })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath(`/abrechnung/rechnung/${id}`);
+  return { ok: true, note: `Versand an ${to} vorgemerkt (läuft innerhalb weniger Minuten)` };
+}
+
 export async function rechnungAbschliessenAction(_p: State, fd: FormData): Promise<State> {
   const id = String(fd.get("id") ?? "");
   if (!id) return { error: "id fehlt" };
@@ -140,6 +166,44 @@ export async function rechnungAbschliessenAction(_p: State, fd: FormData): Promi
   const key = `rechnungen/${invoiceDate.slice(0, 4)}/${invoiceNumber}.pdf`;
   await putObject(key, Buffer.from(finalBytes), "application/pdf");
 
+  // Ausgangsrechnung für die Buchhaltung (UStVA, Offene Posten, Bank-Zuordnung). Die Buchungszeilen
+  // (Debitor an 8400, 19 %) erzeugt der Cron invoice:bookings.
+  const { data: si, error: siErr } = await supabase
+    .from("sales_invoice")
+    .insert({
+      source: "werk",
+      external_id: `werk:invoice:${id}`,
+      organization_id: invoice.organization_id,
+      invoice_number: invoiceNumber,
+      kind: "invoice",
+      invoice_date: invoiceDate,
+      net_total: Number(invoice.net_total),
+      tax_total: Number(invoice.tax_total),
+      gross_total: Number(invoice.gross_total),
+      currency: "EUR",
+      pdf_storage_key: key,
+      pdf_status: "available",
+      billing_address_snapshot: { name: org.name, ...(empfaengerAddress ?? {}) },
+    })
+    .select("id")
+    .single();
+  if (siErr) return { error: `Ausgangsrechnung anlegen: ${siErr.message}` };
+  const { data: itemIds } = await supabase.from("invoice_item").select("id, position").eq("invoice_id", id).order("position");
+  const { error: sitErr } = await supabase.from("sales_invoice_item").insert(
+    items.map((i, idx) => ({
+      sales_invoice_id: si.id,
+      source: "werk",
+      external_id: `werk:invoice_item:${itemIds?.[idx]?.id ?? `${id}:${idx}`}`,
+      position: idx + 1,
+      description: i.description,
+      quantity: 1,
+      unit_price: Number(i.net_amount),
+      tax_rate: TAX_RATE,
+      net_amount: Number(i.net_amount),
+    })),
+  );
+  if (sitErr) return { error: `Ausgangsrechnung Positionen: ${sitErr.message}` };
+
   const { error: updErr } = await supabase
     .from("invoice")
     .update({
@@ -148,6 +212,7 @@ export async function rechnungAbschliessenAction(_p: State, fd: FormData): Promi
       status: "festgeschrieben",
       finalized_at: new Date().toISOString(),
       pdf_storage_key: key,
+      sales_invoice_id: si.id,
     })
     .eq("id", id);
   if (updErr) return { error: updErr.message };
