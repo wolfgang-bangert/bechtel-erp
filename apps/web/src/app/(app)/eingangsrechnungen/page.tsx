@@ -216,6 +216,9 @@ export default async function EingangsrechnungenPage({
 
       <div style={{ marginBottom: 14 }}>
         <UploadForm />
+        <div style={{ marginTop: 6, fontSize: 13 }}>
+          Papierrechnung? <Link href="/scannen">📷 Mit dem Handy scannen →</Link>
+        </div>
       </div>
 
       <form className="bd-toolbar" method="get">

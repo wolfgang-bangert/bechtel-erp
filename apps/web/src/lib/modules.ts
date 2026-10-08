@@ -36,6 +36,8 @@ const ERSTES_SEGMENT: Record<string, ModuleKey> = {
   ustva: "buchhaltung",
   darlehen: "buchhaltung",
   zahlungen: "buchhaltung",
+  dokumente: "buchhaltung",
+  scannen: "buchhaltung",
   versand: "versand",
   werkzeuge: "werkzeuge",
 };

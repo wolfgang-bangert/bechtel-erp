@@ -705,6 +705,24 @@ Eingangsbeleg (Lieferantenrechnung, Kassenbon, Bewirtung, Fahrtkosten).
 | captured_by / reviewed_by | uuid → app_user, null | |
 | notes | text, null | |
 
+### dokument
+Ablage für Papierdokumente ohne Buchung (Handwerker-Rapporte, Lieferscheine, Verträge), meist per Handy
+über `/scannen` erfasst. PDF im S3-Speicher unter `dokumente/<Jahr>/<uuid>.pdf`.
+
+| Feld | Typ | Notiz |
+|---|---|---|
+| id | uuid PK | |
+| kategorie | text | `rapport`,`lieferschein`,`vertrag`,`sonstiges` |
+| titel | text | |
+| dokument_datum | date, null | |
+| partner_name | text, null | Firma wie eingegeben |
+| organization_id | uuid → organization, null | nur bei eindeutigem Namenstreffer |
+| notiz | text, null | |
+| file_name / storage_key / file_sha256 | text | sha256 gegen Doppel-Upload |
+| seiten | int, null | |
+| quelle | text | `scan`,`upload` |
+| erfasst_von | uuid → app_user, null | |
+
 ### datev_export
 Protokoll jedes an den Steuerberater übergebenen Exports (unveränderlich).
 
