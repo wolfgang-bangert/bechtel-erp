@@ -13,8 +13,9 @@ import { pagedSelect } from "./db";
  * Weitere Banken: BW Bank (EBICS/ZV-App, Kontoauszug für Dritte), Volksbank (Abschluss netto + gesonderte USt-Zeile -> Vorsteuer 1576),
  * Kreissparkasse (Rechnungen Firmenkundenportal/Auslandszahlungsverkehr "siehe Anlage" mit 19 % USt -> netto 4970 + Vorsteuer 1576;
  * liegt der Beleg schon als Eingangsrechnung vor, wird dieser bezahlt).
- * Sammelposten wie "ABSCHLUSS PER ..." oder "Abrechnung ... Information zur Abrechnung" enthalten Zinsen und Entgelte
- * gemischt und werden NICHT automatisch gebucht (stehen im Ergebnis unter "manuell").
+ * BW Bank "Abrechnung ... Information zur Abrechnung" (Quartalsabschluss): Kreditprovision/Zinsen -> 2110, Entgelte -> 4970, sofern die
+ * Teile genau den Betrag ergeben (bwAbrechnung); sonst, und bei anderen gemischten Sammelposten, NICHT automatisch gebucht
+ * (stehen im Ergebnis unter "manuell").
  */
 
 const KONTO_ZINSEN = "2110";
@@ -57,7 +58,34 @@ export type Klasse = {
   nurUst?: { satz: number; netto: number };
   /** Rechnungsnummer der Bank (BWxxx-...) - existiert ein Eingangsbeleg, wird dieser bezahlt statt Gebühr gebucht */
   belegNr?: string;
+  /** Sammelposten mit mehreren Bestandteilen (BW Bank Quartalsabrechnung): je Teil Konto, Betrag (positiv) und Art */
+  mehrere?: { konto: string; betrag: number; art: string }[];
 };
+
+const zahl = (s: string) => Number(s.replace(/\./g, "").replace(",", "."));
+
+/**
+ * BW Bank "Abrechnung <Datum> - Information zur Abrechnung" (Quartalsabschluss): Kreditprovision (nicht in Anspruch genommener
+ * Kredit) und/oder Zinsen -> 2110, "Entgelte vom ... bis ..." (Kontoführung, Dauerauftrag, Basis-Lastschrift ..., abzüglich Erstattung)
+ * -> 4970. Umsatzsteuerfrei. Nur wenn die Teile genau den Abrechnungsbetrag ergeben, sonst manuell.
+ */
+export function bwAbrechnung(text: string, betrag: number): Klasse | null {
+  const t = text.replace(/\s+/g, " ");
+  if (!/Information\s*zur\s*Abrechnung/i.test(t)) return null;
+  const gesamt = /Abrechnung\s+\d{2}\.\d{2}\.\d{4}\s+([\d.]+,\d{2})-/i.exec(t.replace(/^.*?Abrechnungszeitraum[^]*?(?=Kreditprovision|Entgelte|Zinsen)/i, ""));
+  const teile: { konto: string; betrag: number; art: string }[] = [];
+  const kp = /Kreditprovision\s+([\d.]+,\d{2})-/i.exec(t);
+  if (kp) teile.push({ konto: KONTO_ZINSEN, betrag: zahl(kp[1]), art: "Kreditprovision" });
+  const zi = /(?:Soll|Überziehungs)?zinsen\s+(?:vom [\d.]+ bis [\d.]+\s+)?([\d.]+,\d{2})-/i.exec(t.replace(/Kreditprovision[^]*?(?=Entgelte|Abrechnung \d)/i, ""));
+  if (zi) teile.push({ konto: KONTO_ZINSEN, betrag: zahl(zi[1]), art: "Zinsen" });
+  const en = /Entgelte vom [\d.]+ bis [\d.]+\s+([\d.]+,\d{2})-/i.exec(t);
+  if (en) teile.push({ konto: KONTO_GEBUEHREN, betrag: zahl(en[1]), art: "Kontoführung und Entgelte" });
+  if (!teile.length || !gesamt) return null;
+  const summe = Math.round(teile.reduce((a, x) => a + x.betrag, 0) * 100) / 100;
+  if (Math.abs(summe - zahl(gesamt[1])) > 0.005 || Math.abs(summe - Math.abs(betrag)) > 0.005) return null;
+  if (/zuzüglich\s+\d+\s*%?\s*Umsatzsteuer|Umsatzsteuer\s+\d+/i.test(t) && !/umsatzsteuerfreie/i.test(t)) return null;
+  return { konto: teile[0].konto, art: teile.map((x) => x.art).join(" + "), mehrere: teile };
+}
 
 /** Darlehen 1801-1118.55: Zinsen bzw. Rate nach Schlüssel auf Sonderbetriebsvermögen/Privat aufteilen. */
 export function darlehenKlasse(tx: Pick<Tx, "counterparty_name" | "purpose">): Klasse | null {
@@ -70,12 +98,15 @@ export function darlehenKlasse(tx: Pick<Tx, "counterparty_name" | "purpose">): K
   return null;
 }
 
-export function klassifiziere(tx: Pick<Tx, "counterparty_name" | "purpose">): Klasse | null {
+export function klassifiziere(tx: Pick<Tx, "counterparty_name" | "purpose"> & { amount?: number }): Klasse | null {
   const dl = darlehenKlasse(tx);
   if (dl) return dl;
   const cp = (tx.counterparty_name ?? "").replace(/\s+/g, " ").trim();
   const pu = (tx.purpose ?? "").replace(/\s+/g, " ").trim();
   const text = `${cp} ${pu}`;
+
+  const bw = bwAbrechnung(text, (tx as { amount?: number }).amount ?? NaN);
+  if (bw) return bw;
 
   // Zinsen / Kreditbereitstellung -> 2110
   if (/^Kreditbereitstellungsprovision/i.test(cp) || /^Kreditbereitstellungsprovision/i.test(pu))
@@ -183,7 +214,7 @@ export async function bankGebuehren(opts: { dryRun?: boolean; from?: string } = 
   };
 
   for (const t of txs) {
-    const k = klassifiziere(t);
+    const k = klassifiziere({ ...t });
     const text = `${t.counterparty_name ?? ""} ${t.purpose ?? ""}`;
     if (!k) {
       if (/Information\s*zur\s*Abrechnung/i.test(text.replace(/\s+/g, " ")))
@@ -193,7 +224,9 @@ export async function bankGebuehren(opts: { dryRun?: boolean; from?: string } = 
     const b = konto.get(t.bank_account_id) ?? { nr: "", bank: "Bank" };
     const buchungstext = clean(`${b.nr} ${b.bank} ${k.art}`, 60);
     type Teil = { konto: string; betrag: number; text: string; net_amount?: number; tax_rate?: number; tax_amount?: number };
-    const teile: Teil[] = k.teilung
+    const teile: Teil[] = k.mehrere
+      ? k.mehrere.map((m) => ({ konto: m.konto, betrag: -m.betrag, text: clean(`${b.nr} ${b.bank} ${m.art}`, 60) }))
+      : k.teilung
       ? (() => {
           const sbv = Math.round(Math.abs(t.amount) * SBV_ANTEIL * 100) / 100;
           const privat = Math.round((Math.abs(t.amount) - sbv) * 100) / 100;
