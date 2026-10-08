@@ -13,11 +13,14 @@ const STORAGE_KEY = "werk.sidebar.open";
  *  die Gruppe der aktuellen Seite ist immer offen - unabhängig vom
  *  gespeicherten Zustand, damit man nie "verloren" wirkt. */
 export function Sidebar({
+  pinned,
   groups,
   userEmail,
   roles,
   signOutAction,
 }: {
+  /** Einzelpunkte direkt unter "Start" (ohne Gruppe) */
+  pinned: NavLink[];
   groups: NavGroup[];
   userEmail: string;
   roles: string;
@@ -73,6 +76,11 @@ export function Sidebar({
         <Link href="/start" className={"nav-pinned" + (isActive("/start") ? " active" : "")}>
           Start
         </Link>
+        {pinned.map((l) => (
+          <Link key={l.href} href={l.href} className={"nav-pinned" + (isActive(l.href) ? " active" : "")}>
+            {l.label}
+          </Link>
+        ))}
 
         {groups.map((g, i) => (
           <details

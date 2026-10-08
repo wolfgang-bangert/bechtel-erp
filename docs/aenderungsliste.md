@@ -551,7 +551,8 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   (KI-Extraktion); Ziel „Rapport / Dokument" → neue Tabelle `dokument`
   (Migration `20261008170000_dokument.sql`, Kategorien Handwerker-Rapport,
   Lieferschein, Vertrag, Sonstiges; Firma wird bei eindeutigem Namen mit
-  `organization` verknüpft). Modulrecht: Buchhaltung.
+  `organization` verknüpft). Modulrecht: Buchhaltung. Menü: eigene Punkte
+  „📷 Scannen" und „Dokumente" ganz oben unter „Start".
   Automatisches Zuschneiden: Blatt wird erkannt (Otsu-Schwelle, größte helle
   Fläche, Ecken über Diagonal-Extrema, Plausibilitätsprüfungen) und
   perspektivisch entzerrt (`scannen/zuschnitt.ts`, ohne Zusatzbibliothek);
