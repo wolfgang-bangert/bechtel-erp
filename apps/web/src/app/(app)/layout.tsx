@@ -1,4 +1,5 @@
-import { requireStaff } from "@/lib/auth";
+import { requireStaff, getModuleLevels } from "@/lib/auth";
+import { darfAnsehen, moduleForPath } from "@/lib/modules";
 import { signOut } from "../login/actions";
 import { NotificationBanner } from "./_notifications/NotificationBanner";
 import { Sidebar, type NavGroup } from "./_shared/Sidebar";
@@ -96,12 +97,18 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const { user, roles } = await requireStaff();
+  const levels = await getModuleLevels();
+  // Menü: nur Seiten aus Modulen, die der Nutzer sehen darf; leere Gruppen entfallen
+  const navGroups = NAV_GROUPS.map((g) => ({
+    ...g,
+    links: g.links.filter((l) => darfAnsehen(levels, moduleForPath(l.href))),
+  })).filter((g) => g.links.length > 0);
   const navLabels = Object.fromEntries(NAV_GROUPS.flatMap((g) => g.links.map((l) => [l.href, l.label])));
 
   return (
     <div className="shell">
       <Sidebar
-        groups={NAV_GROUPS}
+        groups={navGroups}
         userEmail={user.email ?? ""}
         roles={roles.join(", ")}
         signOutAction={signOut}
