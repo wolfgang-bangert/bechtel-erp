@@ -51,6 +51,7 @@ import { purgeIncoming } from "./purgeIncoming";
 import { pruneReceiptDuplicates } from "./pruneReceipts";
 import { forwardDunnings } from "./forwardDunnings";
 import { sendInvoiceMails } from "./invoiceMail";
+import { erstelleAbrechnung } from "@werk/shared/abrechnung/erstellen";
 import { fintsSetup, fintsPull, fixCounterpartyNames } from "./fints";
 import { importFracht } from "./importFracht";
 import { supabase } from "./supabase";
@@ -796,6 +797,14 @@ async function main() {
     case "incoming:forward-dunning": {
       console.log(`Mahnungen weiterleiten${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await forwardDunnings({ dryRun }), null, 1));
+      break;
+    }
+    case "abrechnung:erstellen": {
+      // Wochen-Abrechnungen (Onlineprinters) anlegen: --jahr=2026 --kw=30,31,32  (bleiben 'offen', nichts wird festgeschrieben)
+      const jahr = Number(process.argv.find((a) => a.startsWith("--jahr="))?.slice(7));
+      const kws = (process.argv.find((a) => a.startsWith("--kw="))?.slice(5) ?? "").split(",").map(Number).filter(Boolean);
+      if (!jahr || !kws.length) throw new Error("Aufruf: abrechnung:erstellen --jahr=2026 --kw=30,31");
+      for (const kw of kws) console.log(JSON.stringify(await erstelleAbrechnung(supabase, jahr, kw)));
       break;
     }
     case "invoice:mail": {
