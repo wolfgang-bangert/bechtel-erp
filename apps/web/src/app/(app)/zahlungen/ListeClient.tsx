@@ -27,10 +27,24 @@ export function ListeClient({ vorschlaege, konten, heute }: { vorschlaege: Vorsc
   const kontoIban = konten.find((k) => k.id === konto)?.iban ?? "";
   const [bic, setBic] = useState(KONTO_BIC[kontoIban.slice(4, 12)] ?? "");
 
+  const [suche, setSuche] = useState("");
   const num = (s: string) => Number(s.replace(",", ".")) || 0;
   const summe = useMemo(() => Math.round(vorschlaege.filter((v) => sel.has(v.id)).reduce((a, v) => a + num(betraege[v.id] ?? "0"), 0) * 100) / 100, [sel, betraege, vorschlaege]);
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const gruppen = (["ueberfaellig", "skonto", "faellig", "spaeter"] as const).map((g) => ({ g, rows: vorschlaege.filter((v) => v.dringlichkeit === g) })).filter((x) => x.rows.length);
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+  const treffer = useMemo(() => {
+    const q = norm(suche);
+    return q ? vorschlaege.filter((v) => norm(v.supplier_name).includes(q) || norm(v.doc_number ?? "").includes(q)) : vorschlaege;
+  }, [suche, vorschlaege]);
+  const waehlbar = treffer.filter((v) => !v.bereits_im_lauf && v.iban_gueltig);
+  const alleAngehakt = waehlbar.length > 0 && waehlbar.every((v) => sel.has(v.id));
+  const setzeAlle = (an: boolean) =>
+    setSel((s) => {
+      const n = new Set(s);
+      for (const v of waehlbar) an ? n.add(v.id) : n.delete(v.id);
+      return n;
+    });
+  const gruppen = (["ueberfaellig", "skonto", "faellig", "spaeter"] as const).map((g) => ({ g, rows: treffer.filter((v) => v.dringlichkeit === g) })).filter((x) => x.rows.length);
 
   return (
     <form action={action}>
@@ -57,16 +71,35 @@ export function ListeClient({ vorschlaege, konten, heute }: { vorschlaege: Vorsc
           </select>
         </label>
         <button type="submit" disabled={pending || sel.size === 0}>
-          {pending ? "…" : `SEPA-Datei erzeugen (${sel.size} · ${eur(summe)} €)`}
+          {pending ? "…" : `SEPA-Datei erzeugen (${sel.size} gewählt · ${eur(summe)} €)`}
         </button>
         {state.error && <span className="msg-err">{state.error}</span>}
+      </div>
+
+      <div className="toolbar" style={{ gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+        <input
+          type="search"
+          placeholder="Suchen: Lieferant oder Rechnungsnummer"
+          value={suche}
+          onChange={(e) => setSuche(e.target.value)}
+          style={{ width: 320 }}
+        />
+        <button type="button" className="ghost" onClick={() => setzeAlle(true)} style={{ padding: "5px 10px" }}>
+          Alle anwählen
+        </button>
+        <button type="button" className="ghost" onClick={() => setzeAlle(false)} style={{ padding: "5px 10px" }}>
+          Alle abwählen
+        </button>
+        <span className="count">
+          {suche ? `${treffer.length} von ${vorschlaege.length} Treffern · ` : ""}Anwählen/Abwählen gilt für die angezeigten Rechnungen
+        </span>
       </div>
 
       <div className="table-scroll" style={{ marginTop: 10 }}>
         <table className="data">
           <thead>
             <tr>
-              <th></th><th>Lieferant</th><th>Rechnung</th><th>Datum</th><th>Fällig</th><th>Skonto bis</th>
+              <th><input type="checkbox" checked={alleAngehakt} onChange={(e) => setzeAlle(e.target.checked)} aria-label="Alle angezeigten wählen" /></th><th>Lieferant</th><th>Rechnung</th><th>Datum</th><th>Fällig</th><th>Skonto bis</th>
               <th style={{ textAlign: "right" }}>offen</th><th style={{ textAlign: "right" }}>zu zahlen</th><th>Hinweis</th>
             </tr>
           </thead>
@@ -108,10 +141,19 @@ export function ListeClient({ vorschlaege, konten, heute }: { vorschlaege: Vorsc
                 ))}
               </GruppeRows>
             ))}
-            {!vorschlaege.length && <tr><td colSpan={9} style={{ color: "var(--muted)" }}>Keine offenen Eingangsrechnungen.</td></tr>}
+            {!treffer.length && <tr><td colSpan={9} style={{ color: "var(--muted)" }}>{suche ? "Keine Treffer." : "Keine offenen Eingangsrechnungen."}</td></tr>}
           </tbody>
         </table>
       </div>
+      {/* ausgeblendete (durch die Suche gefilterte) angehakte Rechnungen bleiben im Formular */}
+      {vorschlaege
+        .filter((v) => sel.has(v.id) && !treffer.includes(v))
+        .map((v) => (
+          <span key={v.id}>
+            <input type="hidden" name="sel" value={v.id} />
+            <input type="hidden" name={`betrag_${v.id}`} value={betraege[v.id] ?? ""} />
+          </span>
+        ))}
     </form>
   );
 }
