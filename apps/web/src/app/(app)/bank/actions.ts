@@ -74,6 +74,7 @@ export async function matchTransaction(
       .select("id, gross_amount")
       .eq("doc_number", number)
       .in("doc_type", ["invoice", "credit_note"])
+      .neq("status", "rejected") // verworfene Dubletten nie zuordnen
       .limit(1)
       .maybeSingle();
     if (de) return { error: de.message };
