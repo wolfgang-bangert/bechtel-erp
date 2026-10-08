@@ -20,7 +20,7 @@ export type Konto = { id: string; iban: string; label: string };
 
 export function ListeClient({ vorschlaege, konten, heute }: { vorschlaege: Vorschlag[]; konten: Konto[]; heute: string }) {
   const [state, action, pending] = useActionState(zahlungslaufErzeugen, empty);
-  const vorauswahl = (v: Vorschlag) => !v.bereits_im_lauf && v.iban_gueltig && v.dringlichkeit !== "spaeter" && !v.iban_warnung;
+  const vorauswahl = (v: Vorschlag) => !v.bereits_im_lauf && v.iban_gueltig && v.iban_quelle === "beleg" && v.dringlichkeit !== "spaeter" && !v.iban_warnung;
   const [sel, setSel] = useState<Set<string>>(new Set(vorschlaege.filter(vorauswahl).map((v) => v.id)));
   const [betraege, setBetraege] = useState<Record<string, string>>(() => Object.fromEntries(vorschlaege.map((v) => [v.id, v.betrag.toFixed(2).replace(".", ",")])));
   const [konto, setKonto] = useState(konten.find((k) => /GOPS|61050000/.test(k.iban + k.label) || /^DE\d{2}61050000/.test(k.iban))?.id ?? konten[0]?.id ?? "");
@@ -101,6 +101,8 @@ export function ListeClient({ vorschlaege, konten, heute }: { vorschlaege: Vorsc
                       {!v.iban && <span className="msg-err">IBAN fehlt</span>}
                       {v.iban && !v.iban_gueltig && <span className="msg-err">IBAN ungültig</span>}
                       {v.iban_warnung && <span className="msg-err">⚠ {v.iban_warnung}</span>}
+                      {v.iban_quelle === "zahlung" && <span className="tag" title="Beleg enthält keine IBAN">IBAN aus früherer Zahlung</span>}{" "}
+                      {v.letzte_zahlung && <span title="Letzte zugeordnete Zahlung an diesen Lieferanten">letzte Zahlung {de(v.letzte_zahlung.datum)} ({eur(v.letzte_zahlung.betrag)} €)</span>}
                     </td>
                   </tr>
                 ))}
