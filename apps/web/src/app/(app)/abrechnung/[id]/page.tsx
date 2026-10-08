@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { PositionRow, abweichung, type Pos } from "./PositionRow";
+import { PositionRow, type Pos } from "./PositionRow";
+import { abweichung } from "@/lib/abrechnung/abweichung";
 import { FestschreibenButton } from "./FestschreibenButton";
 
 export const dynamic = "force-dynamic";
