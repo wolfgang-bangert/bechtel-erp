@@ -1232,3 +1232,294 @@ a.bd-tab:hover {
   cursor: pointer;
 }
 .zurueck-knopf:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
+
+/* ---- Scannen mit dem Handy (/scannen) ------------------------------------ */
+.scan-shell {
+  min-height: 100dvh;
+  background: var(--bg);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.scan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--bd-ink);
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+}
+.scan-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #f1efe9;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+.scan-brand img {
+  height: 22px;
+  width: auto;
+}
+.scan-headlink {
+  color: #f1efe9;
+  font-size: 14px;
+  text-decoration: none;
+}
+.scan-main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+}
+.scan {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-family: var(--font-bd-sans, inherit);
+}
+.scan button {
+  font-size: 16px;
+  min-height: 44px;
+}
+.scan-ziel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--bd-line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.scan-ziel button {
+  border: 0;
+  border-radius: 0;
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 600;
+}
+.scan-ziel button.aktiv {
+  background: var(--bd-ink);
+  color: #fff;
+}
+.scan-hinweis,
+.scan-tipp {
+  margin: -4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.scan-ok,
+.scan-err {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 15px;
+}
+.scan-ok {
+  background: #e7f4ea;
+  color: var(--bd-success);
+}
+.scan-err {
+  background: #fbe9ea;
+  color: var(--bd-rot);
+}
+.scan-ok a {
+  color: inherit;
+  font-weight: 600;
+}
+.scan-aufnahme {
+  display: grid;
+  gap: 8px;
+}
+.scan .scan-kamera {
+  min-height: 64px;
+  font-size: 18px;
+  font-weight: 700;
+  border-radius: 12px;
+  background: var(--bd-rot);
+  border-color: var(--bd-rot);
+  color: #fff;
+}
+.scan .scan-sekundaer {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--bd-line);
+  border-radius: 10px;
+}
+.scan-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.scan-filter button {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--bd-line);
+  border-radius: 999px;
+  padding: 0 14px;
+  min-height: 36px !important;
+  font-size: 14px !important;
+}
+.scan-filter button.aktiv {
+  background: var(--bd-ink);
+  border-color: var(--bd-ink);
+  color: #fff;
+}
+.scan-seiten {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+.scan-seite {
+  background: var(--panel);
+  border: 1px solid var(--bd-line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.scan-bild {
+  position: relative;
+  aspect-ratio: 1;
+  background: #3a3a39;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ccc;
+  font-size: 13px;
+}
+.scan-bild img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 0.15s;
+}
+.scan-nr {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  border-radius: 999px;
+  min-width: 24px;
+  padding: 2px 7px;
+  font-size: 13px;
+  text-align: center;
+}
+.scan-werkzeuge {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+}
+.scan-werkzeuge button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0;
+  min-height: 40px !important;
+}
+.scan-werkzeuge button.weg {
+  color: var(--bd-rot);
+}
+.scan-form {
+  display: grid;
+  gap: 12px;
+}
+.scan-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.scan-form input,
+.scan-form select,
+.scan-form textarea {
+  font-size: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--bd-line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  width: 100%;
+  box-sizing: border-box;
+}
+.scan .scan-speichern {
+  min-height: 56px;
+  font-size: 17px;
+  font-weight: 700;
+  border-radius: 12px;
+  background: var(--bd-ink);
+  position: sticky;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+.scan-auto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.scan-auto input {
+  width: 20px;
+  height: 20px;
+}
+.scan-bild {
+  cursor: pointer;
+}
+.scan-editor {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #111;
+  color: #f1efe9;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+.scan-editor-kopf {
+  padding: 12px 16px;
+  font-size: 14px;
+  display: grid;
+  gap: 4px;
+}
+.scan-editor-hinweis {
+  color: var(--bd-orange);
+}
+.scan-editor-bild {
+  flex: 1;
+  min-height: 0;
+  padding: 24px;
+}
+.scan-editor-bild svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.scan-editor-leiste {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 12px 16px 16px;
+}
+.scan-editor-leiste button {
+  min-height: 48px;
+  font-size: 15px;
+  background: #2b2b2a;
+  color: #f1efe9;
+  border: 1px solid #555;
+  border-radius: 10px;
+  padding: 0 4px;
+}
+.scan-editor-leiste button.haupt {
+  grid-column: 1 / -1;
+  background: var(--bd-rot);
+  border-color: var(--bd-rot);
+  font-weight: 700;
+}

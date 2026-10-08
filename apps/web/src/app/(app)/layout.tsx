@@ -2,8 +2,14 @@ import { requireStaff, getModuleLevels } from "@/lib/auth";
 import { darfAnsehen, moduleForPath } from "@/lib/modules";
 import { signOut } from "../login/actions";
 import { NotificationBanner } from "./_notifications/NotificationBanner";
-import { Sidebar, type NavGroup } from "./_shared/Sidebar";
+import { Sidebar, type NavGroup, type NavLink } from "./_shared/Sidebar";
 import { ZurueckLeiste } from "./_shared/ZurueckLeiste";
+
+// Einzelpunkte ganz oben, direkt unter "Start"
+const NAV_PINNED: NavLink[] = [
+  { href: "/scannen", label: "📷 Scannen" },
+  { href: "/dokumente", label: "Dokumente" },
+];
 
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -104,11 +110,15 @@ export default async function AppLayout({
     ...g,
     links: g.links.filter((l) => darfAnsehen(levels, moduleForPath(l.href))),
   })).filter((g) => g.links.length > 0);
-  const navLabels = Object.fromEntries(NAV_GROUPS.flatMap((g) => g.links.map((l) => [l.href, l.label])));
+  const navPinned = NAV_PINNED.filter((l) => darfAnsehen(levels, moduleForPath(l.href)));
+  const navLabels = Object.fromEntries(
+    [...NAV_PINNED, ...NAV_GROUPS.flatMap((g) => g.links)].map((l) => [l.href, l.label]),
+  );
 
   return (
     <div className="shell">
       <Sidebar
+        pinned={navPinned}
         groups={navGroups}
         userEmail={user.email ?? ""}
         roles={roles.join(", ")}

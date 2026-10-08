@@ -542,3 +542,19 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   (option_match = kalenderaufhäng, Katalog „Kalenderaufhänger", Menge Auflage)
   angelegt. 665708106: Wire-O ¼ Zoll 3:1, 22 Schlaufen/Expl. · 2.200 gesamt,
   plus 100× Kalenderaufhänger.
+- [x] **Scannen mit dem Handy (`/scannen`) + Dokumentablage (`/dokumente`).**
+  Handyoptimierte Seite ohne Sidebar: Seiten mit der Kamera fotografieren (oder
+  aus Fotos wählen), drehen, umsortieren, löschen, Filter „Dokument" (Papier
+  weiß, Schrift kräftig) / Graustufen / Farbe. Der Browser setzt alles zu einem
+  PDF zusammen (`apps/web/src/app/scannen/bild.ts`, pdf-lib). Ziel
+  „Eingangsrechnung" → derselbe Weg wie der Upload auf `/eingangsrechnungen`
+  (KI-Extraktion); Ziel „Rapport / Dokument" → neue Tabelle `dokument`
+  (Migration `20261008170000_dokument.sql`, Kategorien Handwerker-Rapport,
+  Lieferschein, Vertrag, Sonstiges; Firma wird bei eindeutigem Namen mit
+  `organization` verknüpft). Modulrecht: Buchhaltung. Menü: eigene Punkte
+  „📷 Scannen" und „Dokumente" ganz oben unter „Start".
+  Automatisches Zuschneiden: Blatt wird erkannt (Otsu-Schwelle, größte helle
+  Fläche, Ecken über Diagonal-Extrema, Plausibilitätsprüfungen) und
+  perspektivisch entzerrt (`scannen/zuschnitt.ts`, ohne Zusatzbibliothek);
+  Ecken-Editor zum Nachziehen per Finger (`EckenEditor.tsx`). Filter
+  „Dokument" gleicht Schatten lokal aus (Papierhelligkeit je Bildbereich).
