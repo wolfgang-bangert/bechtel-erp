@@ -138,7 +138,7 @@ export default async function IncomingDetail({
   // Doppelerfassung, siehe PositionModal "Verknüpfter Beleg".
   const { data: otherDocsRaw } = await supabase
     .from("incoming_document")
-    .select("id, doc_number, file_name, supplier_name, gross_amount, doc_date")
+    .select("id, doc_number, file_name, supplier_name, gross_amount, doc_date, tax_code_id, ledger_account")
     .neq("id", id)
     .not("status", "in", "(advice,dunning)")
     .order("doc_date", { ascending: false, nullsFirst: false })
@@ -538,6 +538,10 @@ export default async function IncomingDetail({
             organizations={(organizations ?? []).map((o) => ({ value: o.id, label: o.name }))}
             documents={(otherDocsRaw ?? []).map((d) => ({
               value: d.id,
+              hinweis: [
+                d.tax_code_id ? (taxCodes ?? []).find((t) => t.id === d.tax_code_id)?.code : null,
+                d.ledger_account ? `Konto ${d.ledger_account}` : null,
+              ].filter(Boolean).join(" · ") || null,
               label: `${d.doc_number ?? d.file_name ?? d.id.slice(0, 8)} · ${d.supplier_name ?? "–"} · ${
                 d.gross_amount != null ? `${Number(d.gross_amount).toFixed(2)} €` : "–"
               }${d.doc_date ? ` · ${d.doc_date}` : ""}`,

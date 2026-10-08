@@ -14,7 +14,7 @@ import { BankZuordnen, type BankKandidat } from "./BankZuordnen";
 const empty: SaveState = {};
 
 type Opt = { id: string; label: string; rate?: number | null };
-type AccountOpt = { value: string; label: string };
+type AccountOpt = { value: string; label: string; hinweis?: string | null };
 
 type Alloc = {
   id?: string;
@@ -595,6 +595,10 @@ export function ReviewForm({
                           </div>
                         )}
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 6 }}>
+                          {p.linked_document_id && (() => {
+                            const h = documents.find((d) => d.value === p.linked_document_id)?.hinweis;
+                            return h ? chip(`vom verknüpften Beleg: ${h}`) : null;
+                          })()}
                           {!p.linked_document_id && chip(p.ledger_account ? `Konto ${p.ledger_account}` : "Konto (Vorgabe)")}
                           {!p.linked_document_id && (ust ? chip(ust) : chip("USt fehlt", true))}
                         </div>
