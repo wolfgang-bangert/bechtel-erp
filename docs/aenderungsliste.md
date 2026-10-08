@@ -552,4 +552,8 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   (Migration `20261008170000_dokument.sql`, Kategorien Handwerker-Rapport,
   Lieferschein, Vertrag, Sonstiges; Firma wird bei eindeutigem Namen mit
   `organization` verknüpft). Modulrecht: Buchhaltung.
-  → Offen: automatisches Zuschneiden/Entzerren des Blatts (Kantenerkennung).
+  Automatisches Zuschneiden: Blatt wird erkannt (Otsu-Schwelle, größte helle
+  Fläche, Ecken über Diagonal-Extrema, Plausibilitätsprüfungen) und
+  perspektivisch entzerrt (`scannen/zuschnitt.ts`, ohne Zusatzbibliothek);
+  Ecken-Editor zum Nachziehen per Finger (`EckenEditor.tsx`). Filter
+  „Dokument" gleicht Schatten lokal aus (Papierhelligkeit je Bildbereich).

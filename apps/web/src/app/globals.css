@@ -1411,7 +1411,7 @@ a.bd-tab:hover {
 }
 .scan-werkzeuge {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
 }
 .scan-werkzeuge button {
   border: 0;
@@ -1456,4 +1456,70 @@ a.bd-tab:hover {
   position: sticky;
   bottom: calc(12px + env(safe-area-inset-bottom));
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+.scan-auto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.scan-auto input {
+  width: 20px;
+  height: 20px;
+}
+.scan-bild {
+  cursor: pointer;
+}
+.scan-editor {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #111;
+  color: #f1efe9;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+.scan-editor-kopf {
+  padding: 12px 16px;
+  font-size: 14px;
+  display: grid;
+  gap: 4px;
+}
+.scan-editor-hinweis {
+  color: var(--bd-orange);
+}
+.scan-editor-bild {
+  flex: 1;
+  min-height: 0;
+  padding: 24px;
+}
+.scan-editor-bild svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.scan-editor-leiste {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 12px 16px 16px;
+}
+.scan-editor-leiste button {
+  min-height: 48px;
+  font-size: 15px;
+  background: #2b2b2a;
+  color: #f1efe9;
+  border: 1px solid #555;
+  border-radius: 10px;
+  padding: 0 4px;
+}
+.scan-editor-leiste button.haupt {
+  grid-column: 1 / -1;
+  background: var(--bd-rot);
+  border-color: var(--bd-rot);
+  font-weight: 700;
 }

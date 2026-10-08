@@ -3,7 +3,28 @@
 import { useActionState, useEffect, useRef, useState, startTransition } from "react";
 import { DOKUMENT_KATEGORIEN } from "@/lib/dokumente";
 import { scanSpeichern, type ScanState } from "./actions";
-import { FILTER_CSS, FILTER_LABEL, fotoVorbereiten, heute, pdfErzeugen, type Filter, type Seite } from "./bild";
+import {
+  FILTER_CSS,
+  FILTER_LABEL,
+  fotoVorbereiten,
+  heute,
+  pdfErzeugen,
+  vorschauErzeugen,
+  type Filter,
+  type Seite,
+} from "./bild";
+import { EckenEditor } from "./EckenEditor";
+import type { Ecken } from "./zuschnitt";
+
+// Seiten-IDs per Zähler: crypto.randomUUID gibt es nur auf HTTPS und erst ab iOS 15.4
+let naechsteId = 0;
+const neueId = () => `s${++naechsteId}`;
+
+/** Vorschau-/Foto-URLs einer Seite freigeben */
+const freigeben = (s: Seite) => {
+  URL.revokeObjectURL(s.url);
+  if (s.vorschau) URL.revokeObjectURL(s.vorschau);
+};
 
 type Ziel = "eingangsrechnung" | "dokument";
 const leer: ScanState = {};
@@ -13,6 +34,8 @@ export function ScanClient({ startZiel, firmen }: { startZiel: Ziel; firmen: str
   const [ziel, setZiel] = useState<Ziel>(startZiel);
   const [seiten, setSeiten] = useState<Seite[]>([]);
   const [standardFilter, setStandardFilter] = useState<Filter>("dokument");
+  const [autoZuschnitt, setAutoZuschnitt] = useState(true);
+  const [bearbeiten, setBearbeiten] = useState<string | null>(null);
   const [laedt, setLaedt] = useState(0);
   const [pdfSeite, setPdfSeite] = useState(0);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -24,13 +47,13 @@ export function ScanClient({ startZiel, firmen }: { startZiel: Ziel; firmen: str
   seitenRef.current = seiten;
 
   // Vorschau-Bilder beim Verlassen der Seite freigeben
-  useEffect(() => () => seitenRef.current.forEach((s) => URL.revokeObjectURL(s.url)), []);
+  useEffect(() => () => seitenRef.current.forEach(freigeben), []);
 
   // Nach erfolgreichem Speichern: Seiten leeren, Erfolg anzeigen - bereit fürs nächste Dokument
   useEffect(() => {
     if (!state.ok) return;
     setErledigt(state);
-    seitenRef.current.forEach((s) => URL.revokeObjectURL(s.url));
+    seitenRef.current.forEach(freigeben);
     setSeiten([]);
     formRef.current?.reset();
   }, [state]);
@@ -45,8 +68,8 @@ export function ScanClient({ startZiel, firmen }: { startZiel: Ziel; firmen: str
     setLaedt((x) => x + dateien.length);
     for (const f of dateien) {
       try {
-        const b = await fotoVorbereiten(f);
-        setSeiten((alt) => [...alt, { ...b, id: crypto.randomUUID(), drehung: 0, filter: standardFilter }]);
+        const b = await fotoVorbereiten(f, autoZuschnitt);
+        setSeiten((alt) => [...alt, { ...b, id: neueId(), drehung: 0, filter: standardFilter }]);
       } catch {
         setFehler(`„${f.name}“ konnte nicht gelesen werden (Format wird vom Browser nicht unterstützt).`);
       } finally {
@@ -69,9 +92,24 @@ export function ScanClient({ startZiel, firmen }: { startZiel: Ziel; firmen: str
   const entfernen = (id: string) =>
     setSeiten((alt) => {
       const weg = alt.find((s) => s.id === id);
-      if (weg) URL.revokeObjectURL(weg.url);
+      if (weg) freigeben(weg);
       return alt.filter((s) => s.id !== id);
     });
+  const zuschnittUebernehmen = async (id: string, ecken: Ecken | null) => {
+    setBearbeiten(null);
+    const s = seitenRef.current.find((x) => x.id === id);
+    if (!s) return;
+    const vorschau = await vorschauErzeugen(s.url, s.w, s.h, ecken);
+    setSeiten((alt) =>
+      alt.map((x) => {
+        if (x.id !== id) return x;
+        if (x.vorschau) URL.revokeObjectURL(x.vorschau);
+        return { ...x, ecken, vorschau };
+      }),
+    );
+  };
+  const bearbeitet = seiten.find((s) => s.id === bearbeiten);
+
   const filterFuerAlle = (f: Filter) => {
     setStandardFilter(f);
     setSeiten((alt) => alt.map((s) => ({ ...s, filter: f })));
@@ -161,9 +199,14 @@ export function ScanClient({ startZiel, firmen }: { startZiel: Ziel; firmen: str
         />
         <input ref={fotosRef} type="file" accept="image/*" multiple hidden onChange={(e) => fotosHinzufuegen(e.target.files)} />
       </div>
+      <label className="scan-auto">
+        <input type="checkbox" checked={autoZuschnitt} onChange={(e) => setAutoZuschnitt(e.target.checked)} />
+        Blatt automatisch zuschneiden und gerade ziehen
+      </label>
       {!seiten.length && !laedt && (
         <p className="scan-tipp">
-          Tipp: Blatt auf dunklen Untergrund legen, von oben fotografieren, Blatt möglichst formatfüllend. Mehrseitige
+          Tipp: Blatt auf einen dunkleren Untergrund legen und ganz aufs Foto nehmen – dann wird es automatisch
+          ausgeschnitten und gerade gezogen. Antippen einer Seite öffnet den Zuschnitt zum Nachkorrigieren. Mehrseitige
           Dokumente einfach Seite für Seite aufnehmen – alles wird zu einem PDF.
         </p>
       )}
@@ -188,16 +231,19 @@ export function ScanClient({ startZiel, firmen }: { startZiel: Ziel; firmen: str
           <ol className="scan-seiten">
             {seiten.map((s, i) => (
               <li key={s.id} className="scan-seite">
-                <div className="scan-bild">
+                <div className="scan-bild" onClick={() => !beschaeftigt && setBearbeiten(s.id)} title="Zuschnitt bearbeiten">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={s.url}
+                    src={s.vorschau ?? s.url}
                     alt={`Seite ${i + 1}`}
                     style={{ transform: `rotate(${s.drehung}deg)`, filter: FILTER_CSS[s.filter] }}
                   />
                   <span className="scan-nr">{i + 1}</span>
                 </div>
                 <div className="scan-werkzeuge">
+                  <button type="button" title="Zuschnitt bearbeiten" onClick={() => setBearbeiten(s.id)} disabled={beschaeftigt}>
+                    ✂
+                  </button>
                   <button type="button" title="nach links drehen" onClick={() => drehen(s.id, -90)} disabled={beschaeftigt}>
                     ↺
                   </button>
@@ -284,6 +330,14 @@ export function ScanClient({ startZiel, firmen }: { startZiel: Ziel; firmen: str
                 : "Speichern"}
         </button>
       </form>
+      {bearbeitet && (
+        <EckenEditor
+          key={bearbeitet.id}
+          seite={bearbeitet}
+          onUebernehmen={(e) => zuschnittUebernehmen(bearbeitet.id, e)}
+          onAbbrechen={() => setBearbeiten(null)}
+        />
+      )}
     </div>
   );
 }
