@@ -21,7 +21,7 @@ export default async function ZahlungenPage({ searchParams }: { searchParams: Pr
   const girokonten = ((konten ?? []) as unknown as (Konto & { kind: string | null })[]).filter((k) => k.kind !== "darlehen");
 
   return (
-    <>
+    <div className="content-wide">
       <h1>Zahlungen</h1>
       <p className="lead">
         Offene Eingangsrechnungen auswählen, Beträge bei Bedarf ändern (Skonto ist vorgeschlagen, solange die Frist läuft) und
@@ -57,6 +57,6 @@ export default async function ZahlungenPage({ searchParams }: { searchParams: Pr
           </tbody>
         </table>
       </div>
-    </>
+    </div>
   );
 }
