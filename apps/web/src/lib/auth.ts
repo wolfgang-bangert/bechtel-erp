@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import type { ModuleLevels } from "@/lib/modules";
 
 export type AppRole =
   | "admin"
@@ -50,6 +51,13 @@ export async function getRoles(): Promise<AppRole[]> {
 
   const { data } = await supabase.from("user_role").select("role");
   return (data ?? []).map((r) => r.role as AppRole);
+}
+
+/** Modulrechte des angemeldeten Nutzers ({modul: "view"|"edit"}, Admin: alle + admin=true). */
+export async function getModuleLevels(): Promise<ModuleLevels> {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("my_module_levels");
+  return (data ?? {}) as ModuleLevels;
 }
 
 /** Interner Bereich: eingeloggt UND Mitarbeiterrolle. */

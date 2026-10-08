@@ -1,82 +1,38 @@
 "use client";
 
 import { useActionState } from "react";
-import type { AppRole } from "@/lib/auth";
-import {
-  ladeEin,
-  linkErneutSenden,
-  nachtragen,
-  rolleEntfernen,
-  rolleHinzufuegen,
-  zugriffUmschalten,
-  type RowState,
-} from "./actions";
+import { MODULES, type ModuleKey, type ModuleLevel } from "@/lib/modules";
+import { ladeEin, linkErneutSenden, nachtragen, setzeRechte, zugriffUmschalten, type RowState } from "./actions";
 
-export const ROLLEN_LABEL: Record<AppRole, string> = {
-  admin: "Admin (volle Rechte)",
-  office: "Vertrieb / Auftragsbearbeitung",
-  accounting: "Buchhaltung",
-  production: "Produktion",
-  shipping: "Versand",
-  employee: "Mitarbeiter (allgemein)",
-  customer: "Kunde",
-  supplier: "Lieferant",
-};
-const STAFF_ROLLEN: AppRole[] = ["admin", "office", "accounting", "production", "shipping", "employee"];
-
-export type Rolle = { id: string; role: AppRole };
 export type Mitarbeiter = {
   id: string;
   display_name: string | null;
   email: string | null;
   is_active: boolean;
-  rollen: Rolle[];
+  isAdmin: boolean;
+  module: Partial<Record<ModuleKey, ModuleLevel>>;
 };
 
 const empty: RowState = {};
 
-function RolleBadge({ rolle }: { rolle: Rolle }) {
-  const [state, action, pending] = useActionState(rolleEntfernen, empty);
+/** Je Modul: kein Zugriff / ansehen / bearbeiten + Admin-Haken (Admin = alle Module). */
+function RechteFelder({ module, isAdmin }: { module: Mitarbeiter["module"]; isAdmin: boolean }) {
   return (
-    <form action={action} style={{ display: "inline" }}>
-      <input type="hidden" name="user_role_id" value={rolle.id} />
-      <span className="tag" style={{ marginRight: 4 }}>
-        {ROLLEN_LABEL[rolle.role]}{" "}
-        <button
-          type="submit"
-          className="ghost"
-          disabled={pending}
-          style={{ padding: "0 4px", marginLeft: 2 }}
-          title="Rolle entfernen"
-        >
-          ✕
-        </button>
-      </span>
-      {state.error && <span className="msg-err">{state.error}</span>}
-    </form>
-  );
-}
-
-function RolleHinzufuegenForm({ userId }: { userId: string }) {
-  const [state, action, pending] = useActionState(rolleHinzufuegen, empty);
-  return (
-    <form action={action} className="toolbar" style={{ gap: 4, display: "inline-flex" }}>
-      <input type="hidden" name="user_id" value={userId} />
-      <select name="rolle" style={{ width: 170 }} defaultValue="">
-        <option value="" disabled>
-          + Rolle …
-        </option>
-        {STAFF_ROLLEN.map((r) => (
-          <option key={r} value={r}>
-            {ROLLEN_LABEL[r]}
-          </option>
-        ))}
-      </select>
-      <button type="submit" className="ghost" disabled={pending}>
-        {pending ? "…" : "+"}
-      </button>
-      {state.error && <span className="msg-err">{state.error}</span>}
-    </form>
+    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+      {MODULES.map((m) => (
+        <label key={m.key} className="count" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {m.label}
+          <select name={`m_${m.key}`} defaultValue={module[m.key] ?? ""} style={{ width: 130 }}>
+            <option value="">kein Zugriff</option>
+            <option value="view">ansehen</option>
+            <option value="edit">bearbeiten</option>
+          </select>
+        </label>
+      ))}
+      <label className="chk" style={{ paddingBottom: 6 }}>
+        <input type="checkbox" name="admin" value="1" defaultChecked={isAdmin} /> Admin (alles, auch Mitarbeiter-Verwaltung)
+      </label>
+    </div>
   );
 }
 
@@ -89,7 +45,7 @@ function ZugriffButton({ userId, aktiv }: { userId: string; aktiv: boolean }) {
       <button type="submit" className="ghost" disabled={pending}>
         {pending ? "…" : aktiv ? "Zugriff entziehen" : "Reaktivieren"}
       </button>
-      {state.error && <span className="msg-err">{state.error}</span>}
+      {state.error && <span className="msg-err"> {state.error}</span>}
     </form>
   );
 }
@@ -102,30 +58,35 @@ function ErneutSendenButton({ email }: { email: string }) {
       <button type="submit" className="ghost" disabled={pending} title="Neuen Anmeldelink per Mail schicken">
         {pending ? "…" : "Einladungsmail erneut senden"}
       </button>
-      {state.ok && <span className="msg-ok">✓ verschickt</span>}
-      {state.error && <span className="msg-err">{state.error}</span>}
+      {state.ok && <span className="msg-ok"> ✓ verschickt</span>}
+      {state.error && <span className="msg-err"> {state.error}</span>}
     </form>
   );
 }
 
 export function MitarbeiterZeile({ m }: { m: Mitarbeiter }) {
+  const [state, action, pending] = useActionState(setzeRechte, empty);
   return (
-    <div className="row" style={{ flexWrap: "wrap", opacity: m.is_active ? 1 : 0.5 }}>
-      <span className="w-name">
-        {m.display_name ?? "—"}
-        {!m.is_active && <span className="tag" style={{ marginLeft: 6 }}>deaktiviert</span>}
-      </span>
-      <span className="count" style={{ width: 220 }}>
-        {m.email}
-      </span>
-      <span>
-        {m.rollen.map((r) => (
-          <RolleBadge key={r.id} rolle={r} />
-        ))}
-        <RolleHinzufuegenForm userId={m.id} />
-      </span>
-      {m.email && <ErneutSendenButton email={m.email} />}
-      <ZugriffButton userId={m.id} aktiv={m.is_active} />
+    <div className="row" style={{ flexDirection: "column", alignItems: "stretch", gap: 8, opacity: m.is_active ? 1 : 0.55 }}>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <strong>{m.display_name ?? "—"}</strong>
+        <span className="count">{m.email}</span>
+        {m.isAdmin && <span className="tag">Admin</span>}
+        {!m.is_active && <span className="tag">deaktiviert</span>}
+        <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          {m.email && <ErneutSendenButton email={m.email} />}
+          <ZugriffButton userId={m.id} aktiv={m.is_active} />
+        </span>
+      </div>
+      <form action={action} style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <input type="hidden" name="user_id" value={m.id} />
+        <RechteFelder module={m.module} isAdmin={m.isAdmin} />
+        <button type="submit" disabled={pending}>
+          {pending ? "…" : "Rechte speichern"}
+        </button>
+        {state.ok && <span className="msg-ok">✓ gespeichert</span>}
+        {state.error && <span className="msg-err">{state.error}</span>}
+      </form>
     </div>
   );
 }
@@ -133,21 +94,20 @@ export function MitarbeiterZeile({ m }: { m: Mitarbeiter }) {
 export function EinladenForm() {
   const [state, action, pending] = useActionState(ladeEin, empty);
   return (
-    <form action={action} className="row new" style={{ flexWrap: "wrap" }}>
-      <input name="name" placeholder="Name" className="w-name" required />
-      <input name="email" type="email" placeholder="E-Mail" style={{ width: 220 }} required />
-      <select name="rolle" defaultValue="office" style={{ width: 220 }}>
-        {STAFF_ROLLEN.map((r) => (
-          <option key={r} value={r}>
-            {ROLLEN_LABEL[r]}
-          </option>
-        ))}
-      </select>
-      <button type="submit" disabled={pending}>
-        {pending ? "…" : "Einladen"}
-      </button>
-      {state.ok && <span className="msg-ok">✓ Einladung verschickt</span>}
-      {state.error && <span className="msg-err">{state.error}</span>}
+    <form action={action} className="row new" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+      <strong>Neuen Mitarbeiter einladen</strong>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input name="name" placeholder="Name" className="w-name" required />
+        <input name="email" type="email" placeholder="E-Mail" style={{ width: 240 }} required />
+      </div>
+      <RechteFelder module={{}} isAdmin={false} />
+      <div>
+        <button type="submit" disabled={pending}>
+          {pending ? "…" : "Einladen"}
+        </button>
+        {state.ok && <span className="msg-ok"> ✓ Einladung verschickt</span>}
+        {state.error && <span className="msg-err"> {state.error}</span>}
+      </div>
     </form>
   );
 }
@@ -159,21 +119,19 @@ export function NachtragenForm() {
       <summary className="count" style={{ cursor: "pointer" }}>
         Bestehendes Konto nachtragen (schon im Supabase-Dashboard angelegt)
       </summary>
-      <form action={action} className="row" style={{ flexWrap: "wrap", marginTop: 6 }}>
-        <input name="name" placeholder="Name" className="w-name" required />
-        <input name="email" type="email" placeholder="E-Mail (wie im Dashboard)" style={{ width: 220 }} required />
-        <select name="rolle" defaultValue="office" style={{ width: 220 }}>
-          {STAFF_ROLLEN.map((r) => (
-            <option key={r} value={r}>
-              {ROLLEN_LABEL[r]}
-            </option>
-          ))}
-        </select>
-        <button type="submit" disabled={pending}>
-          {pending ? "…" : "Nachtragen"}
-        </button>
-        {state.ok && <span className="msg-ok">✓ ergänzt</span>}
-        {state.error && <span className="msg-err">{state.error}</span>}
+      <form action={action} className="row" style={{ flexDirection: "column", alignItems: "stretch", gap: 8, marginTop: 6 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input name="name" placeholder="Name" className="w-name" required />
+          <input name="email" type="email" placeholder="E-Mail (wie im Dashboard)" style={{ width: 240 }} required />
+        </div>
+        <RechteFelder module={{}} isAdmin={false} />
+        <div>
+          <button type="submit" disabled={pending}>
+            {pending ? "…" : "Nachtragen"}
+          </button>
+          {state.ok && <span className="msg-ok"> ✓ ergänzt</span>}
+          {state.error && <span className="msg-err"> {state.error}</span>}
+        </div>
       </form>
       <p className="count" style={{ marginTop: 4 }}>
         Verschickt keine neue Mail - für Konten, die vor dieser Funktion direkt im Supabase-Dashboard entstanden sind.

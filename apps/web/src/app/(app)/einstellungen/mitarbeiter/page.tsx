@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getRoles, hasRole } from "@/lib/auth";
+import type { ModuleKey, ModuleLevel } from "@/lib/modules";
 import { EinladenForm, MitarbeiterZeile, NachtragenForm, type Mitarbeiter } from "./ui";
 
 export const dynamic = "force-dynamic";
@@ -18,27 +19,39 @@ export default async function MitarbeiterPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("app_user")
-    .select("id, display_name, email, is_active, rollen:user_role(id, role)")
+    .select("id, display_name, email, is_active, rollen:user_role(role), rechte:user_module_access(module, level)")
     .eq("kind", "employee")
     .order("display_name");
-  const mitarbeiter = (data ?? []) as unknown as Mitarbeiter[];
+  const mitarbeiter: Mitarbeiter[] = (
+    (data ?? []) as unknown as {
+      id: string;
+      display_name: string | null;
+      email: string | null;
+      is_active: boolean;
+      rollen: { role: string }[];
+      rechte: { module: ModuleKey; level: ModuleLevel }[];
+    }[]
+  ).map((u) => ({
+    id: u.id,
+    display_name: u.display_name,
+    email: u.email,
+    is_active: u.is_active,
+    isAdmin: u.rollen.some((r) => r.role === "admin"),
+    module: Object.fromEntries(u.rechte.map((r) => [r.module, r.level])),
+  }));
 
   return (
     <>
       <h1>Mitarbeiter</h1>
       <p className="lead">
-        Neue Kollegen einladen (verschickt eine E-Mail mit Link zum Passwort-Setzen), Rollen vergeben, Zugriff
-        entziehen.
+        Neue Kollegen einladen (verschickt eine E-Mail mit Link zum Passwort-Setzen) und pro Modul festlegen,
+        was sie dürfen: <strong>kein Zugriff</strong> (Bereich ist unsichtbar und gesperrt), <strong>ansehen</strong>{" "}
+        (nur lesen, Speichern und Ändern sind gesperrt) oder <strong>bearbeiten</strong>. Admins haben alles.
       </p>
 
       {error && <div className="banner-err">Fehler beim Laden: {error.message}</div>}
 
       <div className="rows">
-        <div className="row head">
-          <span className="w-name">Name</span>
-          <span style={{ width: 220 }}>E-Mail</span>
-          <span>Rollen</span>
-        </div>
         {mitarbeiter.map((m) => (
           <MitarbeiterZeile key={m.id} m={m} />
         ))}
