@@ -6,8 +6,9 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+// "A3 halb" (Portal) = "A3H" (Preisliste); "halb" vor dem Entfernen der Leerzeichen zu "h" kürzen
 const fmtKey = (s: string | null | undefined) =>
-  (s ?? "").toLowerCase().replace(/cm|mm/g, "").replace(/[\s×x,._-]/g, "");
+  (s ?? "").toLowerCase().replace(/halb/g, "h").replace(/cm|mm/g, "").replace(/[\s×x,._-]/g, "");
 
 function sorteKey(attr: Record<string, unknown>): string | null {
   const g = attr.grammatur_g;
@@ -236,13 +237,18 @@ export async function matchOnePreis(sb: SupabaseClient, portalOrderId: string): 
   const sk = sorteKey(attr);
   const farb = attr.farbigkeit ? String(attr.farbigkeit) : null;
 
-  const hit = (kandidaten ?? []).find((p) => {
-    if (p.format && fmt && fmtKey(p.format as string) !== fmt) return false;
+  const passt = (p: { blatt: unknown; sorte: unknown; farbigkeit: unknown }) => {
     if (p.blatt != null && blatt != null && Number(p.blatt) !== blatt) return false;
     if (p.sorte && sk && String(p.sorte) !== sk) return false;
     if (p.farbigkeit && farb && String(p.farbigkeit) !== farb) return false;
     return true;
-  });
+  };
+  let hit = (kandidaten ?? []).find((p) => !(p.format && fmt && fmtKey(p.format as string) !== fmt) && passt(p));
+  if (!hit && fmt) {
+    // Fallback: Portal liefert z. B. "A6", die Preisliste führt nur "A6quer" -> eindeutiges Format mit gleichem Anfang
+    const rel = (kandidaten ?? []).filter((p) => p.format && fmtKey(p.format as string).startsWith(fmt) && passt(p));
+    if (new Set(rel.map((p) => fmtKey(p.format as string))).size === 1) hit = rel[0];
+  }
 
   if (!hit) {
     await sb.from("portal_order").update({ preis_quelle: "kein_treffer" }).eq("id", portalOrderId);
