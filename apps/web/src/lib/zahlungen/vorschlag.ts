@@ -44,6 +44,7 @@ export async function ladeVorschlaege(
     .eq("doc_type", "invoice")
     .eq("currency", "EUR")
     .neq("status", "rejected")
+    .in("payment_status", ["open", "partly_paid"]) // als bezahlt markierte Belege (auch ohne Bankzuordnung) nicht vorschlagen
     .gt("open_amount", 0.005)
     .limit(1500);
   const { data } = opts.auchUngebucht ? await q : await q.eq("status", "booked");
