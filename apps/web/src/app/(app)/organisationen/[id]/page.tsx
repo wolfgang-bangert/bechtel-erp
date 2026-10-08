@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
+import { setInvoiceEmailAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +92,22 @@ export default async function OrganisationDetail({
         <dd>{org.default_tax_treatment}</dd>
         <dt>E-Mail</dt>
         <dd>{org.email || "–"}</dd>
+        <dt>Rechnungs-E-Mail</dt>
+        <dd>
+          <form action={setInvoiceEmailAction} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input type="hidden" name="id" value={org.id} />
+            <input
+              type="email"
+              name="invoice_email"
+              defaultValue={org.invoice_email ?? ""}
+              placeholder="Empfänger für den Rechnungsversand"
+              style={{ minWidth: 280 }}
+            />
+            <button type="submit" className="ghost" style={{ padding: "3px 10px" }}>
+              Speichern
+            </button>
+          </form>
+        </dd>
         <dt>Mahnsperre</dt>
         <dd>{org.dunning_enabled ? "nein" : "ja"}</dd>
       </dl>
