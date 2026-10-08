@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
+import { abweichung } from "@/lib/abrechnung/abweichung";
 import { setBetragAction, positionEntfernenAction, type State } from "../actions";
 
 const empty: State = {};
@@ -28,10 +29,6 @@ export type Pos = {
 
 const eur = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const QUELLE: Record<string, string> = { auto: "automatisch", manuell: "manuell", kein_treffer: "kein Treffer" };
-
-export function abweichung(p: Pick<Pos, "preis_netto" | "betrag_netto">): number {
-  return Math.round((Number(p.betrag_netto) - Number(p.preis_netto ?? 0)) * 100) / 100;
-}
 
 export function PositionRow({ p, locked }: { p: Pos; locked: boolean }) {
   const [bs, betragAction, betragPending] = useActionState(setBetragAction, empty);
