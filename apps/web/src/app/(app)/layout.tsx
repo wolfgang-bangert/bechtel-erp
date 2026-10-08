@@ -44,6 +44,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/offene-posten", label: "Offene Posten" },
       { href: "/eingangsrechnungen", label: "Eingangsrechnungen" },
       { href: "/bank", label: "Bank" },
+      { href: "/zahlungen", label: "Zahlungen" },
       { href: "/lohnbuchungen", label: "Lohnbuchungen" },
       { href: "/datev-vorschau", label: "DATEV-Vorschau" },
       { href: "/ustva", label: "UStVA" },

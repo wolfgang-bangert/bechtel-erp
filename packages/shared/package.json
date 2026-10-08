@@ -25,6 +25,7 @@
     "./buchhaltung/erloeskonten": "./src/buchhaltung/erloeskonten.ts",
     "./pdf/rechnung": "./src/pdf/rechnung.ts",
     "./pdf/aufstellung": "./src/pdf/aufstellung.ts",
+    "./zahlung/sepa": "./src/zahlung/sepa.ts",
     "./preise/match": "./src/preise/match.ts",
     "./abrechnung/erstellen": "./src/abrechnung/erstellen.ts",
     "./fakturierung/zugferd": "./src/fakturierung/zugferd.ts",
