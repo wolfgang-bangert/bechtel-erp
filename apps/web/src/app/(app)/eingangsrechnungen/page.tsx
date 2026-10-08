@@ -2,6 +2,9 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
 import { UploadForm } from "./UploadForm";
+import { NextcloudAbholen } from "../_shared/NextcloudAbholen";
+import { nextcloudKonfiguriert } from "@/lib/nextcloud/webdav";
+import { hotfolderName } from "@/lib/nextcloud/hotfolder";
 import { ListeSteuerung } from "./ListeSteuerung";
 import { buchungsProbleme, schluesselInfo } from "@/lib/belegPruefung";
 import { applyListFilters, kontoJoin, monthRange, sortSpec } from "./_liste";
@@ -218,6 +221,9 @@ export default async function EingangsrechnungenPage({
         <UploadForm />
         <div style={{ marginTop: 6, fontSize: 13 }}>
           Papierrechnung? <Link href="/scannen">📷 Mit dem Handy scannen →</Link>
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <NextcloudAbholen konfiguriert={nextcloudKonfiguriert()} ordner={`${hotfolderName()}/Eingangsrechnungen`} />
         </div>
       </div>
 

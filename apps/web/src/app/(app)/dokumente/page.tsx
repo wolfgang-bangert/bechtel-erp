@@ -3,6 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { fmtDate } from "@/lib/format";
 import { DOKUMENT_KATEGORIEN, istDokumentKategorie } from "@/lib/dokumente";
 import { LoeschenButton } from "./LoeschenButton";
+import { NextcloudAbholen } from "../_shared/NextcloudAbholen";
+import { nextcloudKonfiguriert } from "@/lib/nextcloud/webdav";
+import { hotfolderName } from "@/lib/nextcloud/hotfolder";
 
 export const dynamic = "force-dynamic";
 
@@ -39,10 +42,15 @@ export default async function DokumentePage({
           </Link>
         </div>
       </div>
+      <div style={{ margin: "8px 0 12px" }}>
+        <NextcloudAbholen konfiguriert={nextcloudKonfiguriert()} ordner={hotfolderName()} />
+      </div>
       <p className="lead">
         Ablage für Papierdokumente ohne Buchung – Handwerker-Rapporte, Lieferscheine, Verträge. Am einfachsten mit dem
         Handy über <Link href="/scannen?ziel=dokument">/scannen</Link> erfassen. Eingangsrechnungen gehören nicht hierher,
         sondern zu den <Link href="/eingangsrechnungen">Eingangsrechnungen</Link> (dort gibt es KI-Erkennung und Buchung).
+        Aus der Nextcloud: PDFs in <code>{hotfolderName()}/Rapporte</code>, <code>/Lieferscheine</code>,{" "}
+        <code>/Verträge</code> oder <code>/Sonstiges</code> legen und „Aus Nextcloud holen“ drücken.
       </p>
 
       <form className="bd-toolbar" method="get">

@@ -1,10 +1,10 @@
 "use server";
 
-import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { buchungsProbleme, schluesselInfo } from "@/lib/belegPruefung";
-import { putObject, signedGetUrl } from "@/lib/storage";
+import { signedGetUrl } from "@/lib/storage";
+import { eingangsbelegErfassen, extraktionAnstossen } from "@/lib/belege";
 
 export type SaveState = { ok?: boolean; error?: string; note?: string };
 
@@ -297,41 +297,21 @@ export async function uploadIncoming(
   const uploaded: { file_name: string; url: string | null }[] = [];
   for (const file of files) {
     const bytes = Buffer.from(await file.arrayBuffer());
-    const sha256 = createHash("sha256").update(bytes).digest("hex");
-    const dedupKey = `upload:${sha256}`;
-
-    const { data: exists } = await supabase
-      .from("incoming_document")
-      .select("id")
-      .eq("dedup_key", dedupKey)
-      .maybeSingle();
-    if (exists) continue; // identischer Beleg schon erfasst
-    // dieselbe Datei aus anderem Kanal (Mail, BB-Import) zählt ebenfalls als schon erfasst
-    const { data: sameFile } = await supabase.from("incoming_document").select("id").eq("file_sha256", sha256).limit(1);
-    if (sameFile && sameFile.length) continue;
-
-    const year = new Date().getFullYear();
-    const key = `eingangsrechnungen/${year}/${randomUUID()}.pdf`;
-    await putObject(key, bytes, file.type || "application/pdf");
-
-    const { error } = await supabase.from("incoming_document").insert({
-      source: "upload",
-      file_name: file.name,
-      pdf_storage_key: key,
-      file_sha256: sha256,
-      dedup_key: dedupKey,
-    });
-    if (error) return { error: error.message };
+    let r;
+    try {
+      r = await eingangsbelegErfassen(supabase, bytes, file.name, file.type || "application/pdf");
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : String(e) };
+    }
+    if (r.status === "doppelt") continue;
     count += 1;
     // Link zum Original-PDF, damit direkt nach dem Upload geprüft werden kann,
     // ob die richtige Datei erfasst wurde - unabhängig davon, ob die KI-
     // Extraktion (inkl. möglicher Sammel-PDF-Aufteilung) schon gelaufen ist.
-    uploaded.push({ file_name: file.name, url: await signedGetUrl(key, 1800) });
+    uploaded.push({ file_name: file.name, url: await signedGetUrl(r.key, 1800) });
   }
 
-  if (count > 0) {
-    await supabase.from("sync_request").insert({ job: "incoming:extract", params: {} });
-  }
+  if (count > 0) await extraktionAnstossen(supabase);
   revalidatePath("/eingangsrechnungen");
   return { ok: true, count, uploaded };
 }
