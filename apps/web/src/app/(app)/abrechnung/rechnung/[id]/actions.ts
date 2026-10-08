@@ -159,6 +159,7 @@ export async function rechnungAbschliessenAction(_p: State, fd: FormData): Promi
       tax_total: Number(invoice.tax_total),
       gross_total: Number(invoice.gross_total),
       tax_rate: TAX_RATE,
+      iban: profile.bank?.iban,
     },
     { filename: "rechnungspositionen.csv", content: csv },
   );

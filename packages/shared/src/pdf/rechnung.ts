@@ -136,7 +136,7 @@ export async function erzeugeRechnungPdf(input: RechnungInput): Promise<Uint8Arr
   if (a.bank?.iban) {
     draw("Zahlbar ohne Abzug.", left, 9, font, muted);
     y -= 5 * MM;
-    draw(`IBAN ${a.bank.iban}${a.bank.bic ? "  ·  BIC " + a.bank.bic : ""}`, left, 9, font, muted);
+    draw(`${a.bank.name ? a.bank.name + "  ·  " : ""}IBAN ${a.bank.iban}${a.bank.bic ? "  ·  BIC " + a.bank.bic : ""}`, left, 9, font, muted);
     y -= 5 * MM;
   }
 

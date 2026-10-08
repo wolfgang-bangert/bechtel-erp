@@ -46,6 +46,8 @@ export type ZugferdInput = {
   tax_total: number;
   gross_total: number;
   tax_rate: number; // z.B. 19
+  /** IBAN für die Überweisung (SEPA), maschinenlesbar in der XML */
+  iban?: string | null;
 };
 
 const money = (n: number) => Math.round(n * 100) / 100;
@@ -58,6 +60,12 @@ type CountryCode = typeof invoicer.$Infer.Schema extends {
 
 function buildData(input: ZugferdInput) {
   const land = (c?: string | null) => (c || "DE") as CountryCode;
+  const adresse = (a?: ZugferdAdresse | null) => ({
+    countryCode: land(a?.country),
+    ...(a?.line1 ? { lineOne: a.line1 } : {}),
+    ...(a?.zip ? { postCode: a.zip } : {}),
+    ...(a?.city ? { city: a.city } : {}),
+  });
   return {
     number: input.invoice_number,
     typeCode: "380", // Commercial Invoice (UNTDID 1001)
@@ -66,14 +74,14 @@ function buildData(input: ZugferdInput) {
       tradeAgreement: {
         seller: {
           name: input.verkaeufer.name,
-          postalAddress: { countryCode: land(input.verkaeufer.address?.country) },
+          postalAddress: adresse(input.verkaeufer.address),
           ...(input.verkaeufer.vat_id
             ? { taxRegistration: { vatIdentifier: input.verkaeufer.vat_id } }
             : {}),
         },
         buyer: {
           name: input.kaeufer.name,
-          postalAddress: { countryCode: land(input.kaeufer.address?.country) },
+          postalAddress: adresse(input.kaeufer.address),
           ...(input.kaeufer.vat_id
             ? { taxRegistration: { vatIdentifier: input.kaeufer.vat_id } }
             : {}),
@@ -83,7 +91,11 @@ function buildData(input: ZugferdInput) {
       line: input.positionen.map((p, i) => ({
         identifier: String(i + 1),
         tradeProduct: { name: p.description },
-        tradeAgreement: { grossTradePrice: { chargeAmount: money(p.net_amount) } },
+        // BASIC verlangt zwingend den Nettopreis je Position (XSD: NetPriceProductTradePrice)
+        tradeAgreement: {
+          grossTradePrice: { chargeAmount: money(p.net_amount) },
+          netTradePrice: { chargeAmount: money(p.net_amount) },
+        },
         tradeDelivery: { billedQuantity: { amount: 1, unitMeasureCode: "C62" } },
         tradeSettlement: {
           tradeTax: { typeCode: "VAT", categoryCode: "S", rateApplicablePercent: input.tax_rate },
@@ -92,6 +104,9 @@ function buildData(input: ZugferdInput) {
       })),
       tradeSettlement: {
         currencyCode: "EUR",
+        ...(input.iban
+          ? { paymentInstruction: { typeCode: "58", transfers: [{ paymentAccountIdentifier: input.iban.replace(/\s+/g, "") }] } }
+          : {}),
         vatBreakdown: [
           {
             calculatedAmount: money(input.tax_total),
@@ -145,7 +160,8 @@ export async function erzeugeZugferdPdf(
   return {
     pdf: pdfA,
     validationWarning:
-      "ZUGFeRD ist Beta-Software (node-zugferd v0.1.1-beta) - vor dem ersten echten Versand " +
-      "die eingebettete XML mit einem unabhängigen ZUGFeRD/Factur-X-Validator prüfen.",
+      "ZUGFeRD ist Beta-Software (node-zugferd v0.1.1-beta). Die XML ist gegen das Factur-X-BASIC-Schema geprüft " +
+      "(xmllint), die fachlichen Regeln (Schematron) nicht - vor dem ersten echten Versand mit einem " +
+      "ZUGFeRD/Factur-X-Validator prüfen.",
   };
 }
