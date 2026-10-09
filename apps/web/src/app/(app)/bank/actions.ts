@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { putObject, deleteObject } from "@/lib/storage";
+import { verteileSammelzahlungMitSkonto } from "@werk/shared/bank/sammelSkonto";
 
 export type MatchState = { ok?: boolean; error?: string };
 
@@ -28,6 +29,58 @@ function sumCashMatches(rows: MatchRow[]): number {
       .filter((m) => !(m.ledger_account && (m.sales_invoice_id || m.incoming_document_id)))
       .reduce((s, m) => s + Math.abs(m.amount ?? 0), 0),
   );
+}
+
+/** Sammelzahlung mit Skonto: hängen an dieser Bankzeile mehrere
+ *  Eingangsrechnungen und entspricht die Differenz (Summe offen − Bankbetrag)
+ *  einem einheitlichen Skontosatz, werden die Zahlungs-Matches anteilig
+ *  verteilt (offen × (1 − Satz)) statt nacheinander aufgefüllt - sonst bliebe
+ *  der ganze Skonto an der letzten Rechnung hängen und skonto:apply erkennt
+ *  ihn dort nicht. Den Rest je Rechnung bucht skonto:apply als Skonto aus.
+ *  Greift nur, wenn die Bankzeile ausschließlich Eingangsrechnungen bezahlt
+ *  und noch keine Skonto-/Sachkontozeilen hat. */
+async function verteileSammelSkonto(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  txId: string,
+  txAmount: number,
+) {
+  const { data: rows } = await supabase
+    .from("bank_transaction_match")
+    .select("id, amount, ledger_account, kind, sales_invoice_id, incoming_document_id")
+    .eq("bank_transaction_id", txId);
+  const matches = rows ?? [];
+  if (matches.length < 2) return;
+  if (matches.some((m) => m.ledger_account || m.kind || m.sales_invoice_id || !m.incoming_document_id)) return;
+  const docIds = matches.map((m) => m.incoming_document_id as string);
+  if (new Set(docIds).size !== docIds.length) return;
+  const { data: docs } = await supabase
+    .from("incoming_document")
+    .select("id, doc_type, open_amount, discount_percent, discount_amount")
+    .in("id", docIds);
+  if ((docs ?? []).length !== docIds.length || docs!.some((d) => d.doc_type !== "invoice")) return;
+  const docById = new Map(docs!.map((d) => [d.id, d]));
+  // offen vor dieser Bankzeile = jetziger Rest + hier schon zugeordneter Betrag
+  const anteile = verteileSammelzahlungMitSkonto(
+    txAmount,
+    matches.map((m) => {
+      const d = docById.get(m.incoming_document_id as string)!;
+      return {
+        id: m.id,
+        offen: r2((d.open_amount ?? 0) + Math.abs(m.amount ?? 0)),
+        discount_percent: d.discount_percent,
+        discount_amount: d.discount_amount,
+      };
+    }),
+  );
+  if (!anteile) return;
+  for (const a of anteile) {
+    const m = matches.find((x) => x.id === a.id)!;
+    if (Math.abs(Math.abs(m.amount ?? 0) - a.betrag) <= 0.005) continue;
+    await supabase
+      .from("bank_transaction_match")
+      .update({ amount: (m.amount ?? 0) < 0 ? -a.betrag : a.betrag })
+      .eq("id", a.id);
+  }
 }
 
 function revalidateAll() {
@@ -89,6 +142,7 @@ export async function matchTransaction(
       auto: false,
     });
     if (me) return { error: me.code === "23505" ? "Diese Eingangsrechnung ist schon zugeordnet." : me.message };
+    await verteileSammelSkonto(supabase, txId, tx.amount);
   } else {
     const { data: inv, error: ie } = await supabase
       .from("sales_invoice")
@@ -426,8 +480,9 @@ export type GroupMatchState = { ok?: boolean; error?: string };
 /** Mehrere Eingangsrechnungen auf einmal gegen eine Bankzeile buchen - für
  *  Kreditkarten-/PayPal-Sammelabrechnungen: der Lieferant zahlt hier nicht
  *  einzeln, die Bankzeile ist die Summe mehrerer Kartenbelege. Jeder
- *  ausgewählte Beleg wird mit seinem eigenen offenen Betrag verknüpft, nicht
- *  anteilig - welche Belege zusammengehören, wählt der Nutzer. */
+ *  ausgewählte Beleg wird mit seinem eigenen offenen Betrag verknüpft - welche
+ *  Belege zusammengehören, wählt der Nutzer. Ausnahme: Sammelzahlung mit
+ *  einheitlichem Skonto, dann anteilig (siehe verteileSammelSkonto). */
 export async function matchMultipleIncoming(
   _prev: GroupMatchState,
   formData: FormData,
@@ -458,6 +513,7 @@ export async function matchMultipleIncoming(
     if (me && me.code !== "23505") return { error: me.message };
   }
 
+  await verteileSammelSkonto(supabase, txId, r.tx.amount);
   await refreshMatchStatus(supabase, txId, r.tx.amount);
   revalidateAll();
   return { ok: true };
