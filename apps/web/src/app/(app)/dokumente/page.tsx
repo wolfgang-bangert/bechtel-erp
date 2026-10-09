@@ -50,7 +50,7 @@ export default async function DokumentePage({
         Handy über <Link href="/scannen?ziel=dokument">/scannen</Link> erfassen. Eingangsrechnungen gehören nicht hierher,
         sondern zu den <Link href="/eingangsrechnungen">Eingangsrechnungen</Link> (dort gibt es KI-Erkennung und Buchung).
         Aus der Nextcloud: PDFs in <code>{hotfolderName()}/Rapporte</code>, <code>/Lieferscheine</code>,{" "}
-        <code>/Verträge</code> oder <code>/Sonstiges</code> legen und „Aus Nextcloud holen“ drücken.
+        <code>/Personal</code> (→ Vertrag) oder <code>/Sonstiges</code> legen und „Aus Nextcloud holen“ drücken.
       </p>
 
       <form className="bd-toolbar" method="get">
