@@ -112,7 +112,9 @@ export async function skontoApply(opts: Options = {}) {
     const byDisc = (d.discount_amount ?? 0) > 0 && gap <= (d.discount_amount ?? 0) + 0.5;
     const byPct =
       (d.discount_percent ?? 0) > 0 && gap <= gross * ((d.discount_percent ?? 0) / 100) + 0.5;
-    const byLimit = gap <= gross * maxPercent && gap <= maxAbs;
+    // +0,01: Rundungscent einer anteilig verteilten Sammelzahlung (siehe
+    // verteileSammelzahlungMitSkonto) darf den Satz knapp überschreiten.
+    const byLimit = gap <= r2(gross * maxPercent) + 0.01 && gap <= maxAbs;
     if (!byDisc && !byPct && !byLimit) continue;
     const net = d.net_amount ?? 0;
     const rate = net > 0.005 ? r2(((d.tax_amount ?? 0) / net) * 100) : 19;
