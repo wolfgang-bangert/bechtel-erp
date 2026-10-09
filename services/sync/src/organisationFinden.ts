@@ -30,6 +30,15 @@ export function namensSchluessel(name: string): string {
     .trim();
 }
 
+/** Platzhalter statt Firmenname ("Kreditor 70000", "Lieferant Nr. 12", nur Ziffern) - nie anlegen. */
+export function keinFirmenname(name: string): boolean {
+  const n = name.trim();
+  return (
+    /^\d[\d\s./-]*$/.test(n) ||
+    /^(kreditor|debitor|lieferant|kunde|kunden|konto|creditor|supplier|vendor)\s*(nr\.?|nummer|no\.?|#)?\s*[:.]?\s*\d+$/i.test(n)
+  );
+}
+
 const normVat = (v: string | null | undefined) => (v ?? "").replace(/[\s.-]+/g, "").toUpperCase();
 
 /** Eigene Firma (USt-IdNr. + Namen aus dem Firmenprofil) - nie als Partner verwenden oder anlegen. */
@@ -58,8 +67,13 @@ export async function findeOrganisation(p: Partner): Promise<string | null> {
     if (data) return data.id;
   }
   const name = p.name?.trim();
-  if (!name || name.length <= 3) return null;
+  if (!name || keinFirmenname(name)) return null;
   const schluessel = namensSchluessel(name);
+  // kurze Namen ("IHK", "3M"): nur exakt - unscharf würden sie überall treffen
+  if (name.length <= 3) {
+    const { data } = await supabase.from("organization").select("id").ilike("name", name.replace(/[\\%_]/g, "")).limit(1).maybeSingle();
+    return data?.id ?? null;
+  }
   // Vorauswahl über das erste Wort im Original (mit Umlauten), verglichen wird dann der Schlüssel
   const erstesWort = name.match(/[\p{L}\p{N}]{3,}/u)?.[0];
   if (erstesWort && schluessel) {
@@ -96,7 +110,7 @@ export async function findeOderLegeAn(
   if (vorhanden) return { id: vorhanden, neu: false };
 
   const name = p.name?.trim().replace(/\s+/g, " ");
-  if (!name || namensSchluessel(name).length < 3) return { id: null, neu: false };
+  if (!name || name.length < 2 || keinFirmenname(name)) return { id: null, neu: false };
   if (opts.dryRun) return { id: null, neu: true };
 
   const vat = normVat(p.vat_id) || null;
