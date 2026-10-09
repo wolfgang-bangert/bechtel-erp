@@ -15,7 +15,7 @@ export const HOTFOLDER_ZIELE: { ordner: string; ziel: "eingangsrechnung" | Dokum
   { ordner: "Eingangsrechnungen", ziel: "eingangsrechnung" },
   { ordner: "Rapporte", ziel: "rapport" },
   { ordner: "Lieferscheine", ziel: "lieferschein" },
-  { ordner: "Verträge", ziel: "vertrag" },
+  { ordner: "Personal", ziel: "vertrag" }, // Nextcloud-Ordner heißt „Personal“, Kategorie bleibt Vertrag
   { ordner: "Sonstiges", ziel: "sonstiges" },
 ];
 

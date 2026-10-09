@@ -25,7 +25,7 @@ function zugang(): Zugang {
   };
 }
 
-/** Pfad wie "werk-Eingang/Verträge/a.pdf" → URL (jedes Segment kodiert) */
+/** Pfad wie "werk-Eingang/Personal/a.pdf" → URL (jedes Segment kodiert) */
 const davUrl = (z: Zugang, pfad: string) =>
   `${z.basis}/${pfad
     .split("/")

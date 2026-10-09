@@ -562,7 +562,7 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   `/eingangsrechnungen` und `/dokumente` holt sofort (direkt im Web-Server per
   WebDAV, `apps/web/src/lib/nextcloud/`) alle PDFs aus `werk-Eingang/`
   (`Eingangsrechnungen` → Eingangsbeleg + KI-Extraktion; `Rapporte`,
-  `Lieferscheine`, `Verträge`, `Sonstiges` → Dokumentablage) und verschiebt sie
+  `Lieferscheine`, `Personal` (→ Kategorie Vertrag; bis 9.10.2026 `Verträge`), `Sonstiges` → Dokumentablage) und verschiebt sie
   danach nach `<Unterordner>/erledigt`. Fehlende Ordner werden beim ersten Lauf
   angelegt; Nicht-PDFs (Inhaltsprüfung `%PDF`) bleiben liegen. n8n kann per
   `POST /api/n8n/trigger {"job":"nextcloud:abholen"}` einen Zeitplan fahren.
