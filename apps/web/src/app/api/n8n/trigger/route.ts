@@ -5,12 +5,18 @@
  * "Banken aktualisieren"-Button, nur ohne Login, für den n8n-Zeitplan.
  * Absicherung per `X-Werk-Secret`-Header gegen `N8N_SHARED_SECRET`.
  *
- * Body (optional): { "job": "fints:pull" }  – job ist aktuell die einzige
- * erlaubte Konstante (sync_request.job-Check in der DB).
+ * Body (optional): { "job": "fints:pull" }  – legt eine sync_request an
+ * (sync_request.job-Check in der DB).
+ *
+ * { "job": "nextcloud:abholen" } läuft dagegen sofort hier im Web-Server
+ * (Nextcloud-Hotfolder, siehe lib/nextcloud/hotfolder.ts) und liefert das
+ * Ergebnis direkt zurück - für einen n8n-Zeitplan.
  */
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkN8nSecret } from "@/lib/n8n/auth";
+import { hotfolderAbholen, hotfolderText } from "@/lib/nextcloud/hotfolder";
+import { nextcloudKonfiguriert } from "@/lib/nextcloud/webdav";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +34,17 @@ export async function POST(req: Request) {
     if (body?.job) job = String(body.job);
   } catch {
     // kein/leerer Body -> Default bleibt fints:pull
+  }
+  if (job === "nextcloud:abholen") {
+    if (!nextcloudKonfiguriert()) {
+      return NextResponse.json({ ok: false, error: "Nextcloud nicht eingerichtet" }, { status: 400 });
+    }
+    try {
+      const e = await hotfolderAbholen(createAdminClient());
+      return NextResponse.json({ ok: e.fehler.length === 0, text: hotfolderText(e), ...e });
+    } catch (err) {
+      return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, { status: 502 });
+    }
   }
   if (!ALLOWED_JOBS.has(job)) {
     return NextResponse.json({ ok: false, error: `unbekannter job: ${job}` }, { status: 400 });

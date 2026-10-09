@@ -558,3 +558,14 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   perspektivisch entzerrt (`scannen/zuschnitt.ts`, ohne Zusatzbibliothek);
   Ecken-Editor zum Nachziehen per Finger (`EckenEditor.tsx`). Filter
   „Dokument" gleicht Schatten lokal aus (Papierhelligkeit je Bildbereich).
+- [x] **Nextcloud-Hotfolder.** Knopf „☁ Aus Nextcloud holen“ auf
+  `/eingangsrechnungen` und `/dokumente` holt sofort (direkt im Web-Server per
+  WebDAV, `apps/web/src/lib/nextcloud/`) alle PDFs aus `werk-Eingang/`
+  (`Eingangsrechnungen` → Eingangsbeleg + KI-Extraktion; `Rapporte`,
+  `Lieferscheine`, `Verträge`, `Sonstiges` → Dokumentablage) und verschiebt sie
+  danach nach `<Unterordner>/erledigt`. Fehlende Ordner werden beim ersten Lauf
+  angelegt; Nicht-PDFs (Inhaltsprüfung `%PDF`) bleiben liegen. n8n kann per
+  `POST /api/n8n/trigger {"job":"nextcloud:abholen"}` einen Zeitplan fahren.
+  Zugang: `NEXTCLOUD_URL/_USER/_APP_PASSWORD` in `/opt/werk/.env`.
+  Gemeinsames Anlegen von Belegen/Dokumenten jetzt in `apps/web/src/lib/belege.ts`
+  (Upload, Scan, Nextcloud).

@@ -1,9 +1,9 @@
 "use server";
 
-import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { putObject, signedGetUrl } from "@/lib/storage";
+import { signedGetUrl } from "@/lib/storage";
+import { dokumentAnlegen } from "@/lib/belege";
 import { DOKUMENT_KATEGORIEN, istDokumentKategorie } from "@/lib/dokumente";
 import { uploadIncoming } from "../(app)/eingangsrechnungen/actions";
 
@@ -54,42 +54,26 @@ export async function scanSpeichern(_prev: ScanState, fd: FormData): Promise<Sca
   const seiten = Number(s(fd, "seiten") ?? "") || null;
 
   const supabase = await createClient();
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
-
-  const { data: schon } = await supabase.from("dokument").select("id").eq("file_sha256", sha256).limit(1);
-  if (schon && schon.length) return { ok: true, ziel, doppelt: true };
-
-  // Firma nur verknüpfen, wenn der Name eindeutig passt - sonst bleibt es beim Freitext.
-  let organizationId: string | null = null;
-  if (partner) {
-    const { data: orgs } = await supabase.from("organization").select("id").ilike("name", partner.replace(/[\\%_]/g, (c) => "\\" + c)).limit(2);
-    if (orgs && orgs.length === 1) organizationId = orgs[0].id;
-  }
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const key = `dokumente/${new Date().getFullYear()}/${randomUUID()}.pdf`;
-  await putObject(key, bytes, "application/pdf");
-
-  const { error } = await supabase.from("dokument").insert({
-    kategorie,
-    titel,
-    dokument_datum: datum,
-    partner_name: partner,
-    organization_id: organizationId,
-    notiz: s(fd, "notiz"),
-    file_name: file.name,
-    storage_key: key,
-    file_sha256: sha256,
-    seiten,
-    quelle: "scan",
-    erfasst_von: user?.id ?? null,
-  });
-  if (error) return { error: error.message };
+  let r;
+  try {
+    r = await dokumentAnlegen(supabase, Buffer.from(await file.arrayBuffer()), file.name, {
+      kategorie,
+      titel,
+      datum,
+      partner,
+      notiz: s(fd, "notiz"),
+      seiten,
+      quelle: "scan",
+      erfasstVon: user?.id ?? null,
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+  if (r.status === "doppelt") return { ok: true, ziel, doppelt: true };
 
   revalidatePath("/dokumente");
-  return { ok: true, ziel, url: await signedGetUrl(key, 1800) };
+  return { ok: true, ziel, url: await signedGetUrl(r.key, 1800) };
 }
