@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { RegelForm, type Regel } from "../RegelForm";
+import { alleSachkonten } from "@/lib/sachkonten";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export default async function VorkontierungEditPage({
       .select("id, name, customer_number, supplier_number, default_expense_account, default_revenue_account, default_payment_method, foreign_supply_kind, gutschriftverfahren")
       .eq("id", id)
       .maybeSingle(),
-    supabase.from("ledger_account").select("number, name").eq("is_active", true).order("number"),
+    alleSachkonten(supabase, "number, name", true),
   ]);
   if (!org) notFound();
 

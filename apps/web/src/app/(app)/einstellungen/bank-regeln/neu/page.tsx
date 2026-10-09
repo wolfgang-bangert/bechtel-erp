@@ -1,16 +1,13 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { RegelForm } from "../RegelForm";
+import { alleSachkonten } from "@/lib/sachkonten";
 
 export const dynamic = "force-dynamic";
 
 export default async function NeueBankRegelPage() {
   const supabase = await createClient();
-  const { data: ledgerAccounts } = await supabase
-    .from("ledger_account")
-    .select("number, name")
-    .eq("is_active", true)
-    .order("number");
+  const { data: ledgerAccounts } = await alleSachkonten(supabase, "number, name", true);
 
   return (
     <>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { alleSachkonten } from "@/lib/sachkonten";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export default async function VorkontierungPage() {
       )
       .or("default_expense_account.not.is.null,default_revenue_account.not.is.null,default_payment_method.not.is.null,foreign_supply_kind.not.is.null")
       .order("name"),
-    supabase.from("ledger_account").select("number, name"),
+    alleSachkonten(supabase),
   ]);
   const accountName = new Map((ledgerAccounts ?? []).map((a) => [a.number, a.name]));
   const rows = (data ?? []) as unknown as Row[];

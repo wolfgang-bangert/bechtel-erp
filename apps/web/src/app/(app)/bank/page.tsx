@@ -16,6 +16,8 @@ import {
 import { setzeIgnoriert, unmatchTransaction } from "./actions";
 import { BankSyncButton } from "./BankSyncButton";
 import { BankAvatar, BankNameEdit, BankTransactionsBody, type BankRow } from "./TransactionRow";
+import { alleSachkonten } from "@/lib/sachkonten";
+import { buchungstextVorschlag } from "@/lib/bank/buchungstext";
 
 const MATCH_STATUS_LABEL: Record<string, string> = {
   unmatched: "offen",
@@ -201,11 +203,7 @@ export default async function BankPage({
   const count = res.count;
   const data = (res.data ?? []) as unknown as TxRow[];
 
-  const { data: ledgerAccountRows } = await supabase
-    .from("ledger_account")
-    .select("number, name")
-    .eq("is_active", true)
-    .order("number");
+  const { data: ledgerAccountRows } = await alleSachkonten(supabase, "number, name", true);
   const ledgerAccounts = (ledgerAccountRows ?? []).map((a) => ({
     value: a.number,
     label: `${a.number} – ${a.name}`,
@@ -436,7 +434,7 @@ export default async function BankPage({
             ledgerAccount={ledgerRule.ledger_account}
             ledgerLabel={ledgerAccountName.get(ledgerRule.ledger_account) ?? ledgerRule.ledger_account}
             amount={remaining}
-            note={ledgerRule.sample_postingtext}
+            note={ledgerRule.sample_postingtext || buchungstextVorschlag(tx.counterparty_name, tx.purpose)}
           />
         ) : (
           <span key="v" />
@@ -602,6 +600,7 @@ export default async function BankPage({
                 remaining={remaining}
                 ledgerAccounts={ledgerAccounts}
                 suggestion={ledgerRule}
+                textVorschlag={buchungstextVorschlag(tx.counterparty_name, tx.purpose)}
               />
               <BelegUploadForm txId={tx.id} remaining={remaining} />
             </div>

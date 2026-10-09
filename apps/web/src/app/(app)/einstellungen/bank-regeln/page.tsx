@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { alleSachkonten } from "@/lib/sachkonten";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export default async function BankRegelnPage() {
       .from("bank_ledger_rule")
       .select("id, counterparty_name, ledger_account, sample_count, confidence, source, is_active")
       .order("counterparty_name"),
-    supabase.from("ledger_account").select("number, name"),
+    alleSachkonten(supabase),
   ]);
   const accountName = new Map((ledgerAccounts ?? []).map((a) => [a.number, a.name]));
 
