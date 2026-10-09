@@ -626,3 +626,8 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   „ausgeglichen ✓“). Quelle `lib/konten/journal.ts`: Rechnungen wie
   DATEV-Vorschau, Bank wie `datev:zahlungen`, Lohnstapel. EXTF-Grundlagen jetzt
   in `@werk/shared/datev/extf` (sync `datevCommon` nutzt sie mit).
+- [x] **Lohn-Zahlungen automatisch ausbuchen** (`bank:lohn`, täglich 6:45 nach dem
+  Bankabruf, letzte 45 Tage; Altbestand `--from=2026-01-01`): Überweisung an die
+  IBAN eines Mitarbeiters (`personal`) → 1740, Finanzamt mit Lohnsteuer im
+  Verwendungszweck → 1741, Krankenkassen-Beiträge und Presse-Versorgung → 1742.
+  Nur völlig unzugeordnete Ausgänge, `auto = true`, in `/bank` entfernbar.
