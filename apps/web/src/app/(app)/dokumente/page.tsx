@@ -23,7 +23,7 @@ export default async function DokumentePage({
   const darfPersonal = personalRecht === true;
   let query = supabase
     .from("dokument")
-    .select("id, kategorie, titel, dokument_datum, partner_name, organization_id, personal_id, notiz, seiten, created_at")
+    .select("id, kategorie, titel, dokument_datum, partner_name, organization_id, personal_id, notiz, seiten, created_at, extraktion_status, extraktion_fehler")
     .order("dokument_datum", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(500);
@@ -111,6 +111,12 @@ export default async function DokumentePage({
                     <Link href={`/organisationen/${d.organization_id}`}>{d.partner_name}</Link>
                   ) : (
                     d.partner_name
+                  )}
+                  {d.extraktion_status === "offen" && <span className="tag" title="KI liest Partner, Datum und Titel">wird erkannt …</span>}
+                  {d.extraktion_status === "fehler" && (
+                    <span className="tag" title={d.extraktion_fehler ?? ""}>
+                      Erkennung fehlgeschlagen
+                    </span>
                   )}
                 </td>
                 <td className="wrap count">{d.notiz}</td>

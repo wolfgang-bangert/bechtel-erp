@@ -3,6 +3,8 @@ import { syncKeylineAddresses } from "./syncKeylineAddresses";
 import { syncNinoxFirmen } from "./syncNinoxFirmen";
 import { syncNinoxPeople } from "./syncNinoxPeople";
 import { personalImport } from "./personalImport";
+import { extractDokumente } from "./extractDokumente";
+import { orgsNachziehen } from "./orgsNachziehen";
 import { syncNinoxAddresses } from "./syncNinoxAddresses";
 import { syncKeylineOrders } from "./syncKeylineOrders";
 import { syncKeylineInvoices, refreshKeylineInvoice } from "./syncKeylineInvoices";
@@ -693,6 +695,23 @@ async function main() {
       const lim = process.argv.find((a) => a.startsWith("--limit="));
       console.log(`Eingangsbelege extrahieren${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await extractIncoming({ dryRun, limit: lim ? Number(lim.split("=")[1]) : 20 }), null, 1));
+      break;
+    }
+    case "dokumente:extract": {
+      const lim = process.argv.find((a) => a.startsWith("--limit="));
+      console.log(`Dokumentablage: KI-Erkennung + Zuordnung${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(
+        JSON.stringify(
+          await extractDokumente({ dryRun, alle: flags.has("--alle"), limit: lim ? Number(lim.split("=")[1]) : 20 }),
+          null,
+          1,
+        ),
+      );
+      break;
+    }
+    case "incoming:orgs-nachziehen": {
+      console.log(`Eingangsrechnungen ohne Organisation zuordnen/anlegen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await orgsNachziehen({ dryRun }), null, 1));
       break;
     }
     case "incoming:purge": {

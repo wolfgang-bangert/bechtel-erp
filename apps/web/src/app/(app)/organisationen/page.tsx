@@ -17,7 +17,9 @@ const SEGMENT_LABEL: Record<string, string> = {
   mixed: "gemischt",
 };
 
-type Search = { q?: string; page?: string; relation?: string };
+type Search = { q?: string; page?: string; relation?: string; auto?: string };
+
+const HERKUNFT_LABEL: Record<string, string> = { eingangsrechnung: "aus Eingangsrechnung", dokument: "aus Dokument" };
 
 export default async function OrganisationenPage({
   searchParams,
@@ -27,6 +29,7 @@ export default async function OrganisationenPage({
   const sp = await searchParams;
   const q = (sp.q ?? "").trim();
   const relation = sp.relation ?? "";
+  const auto = sp.auto === "1";
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
   const from = (page - 1) * PAGE_SIZE;
 
@@ -34,7 +37,7 @@ export default async function OrganisationenPage({
   let query = supabase
     .from("organization")
     .select(
-      "id, name, relation, customer_segment, customer_number, supplier_number, vat_id, tax_country",
+      "id, name, relation, customer_segment, customer_number, supplier_number, vat_id, tax_country, angelegt_durch",
       { count: "exact" },
     );
 
@@ -46,6 +49,7 @@ export default async function OrganisationenPage({
   }
   if (relation === "customer") query = query.in("relation", ["customer", "both"]);
   if (relation === "supplier") query = query.in("relation", ["supplier", "both"]);
+  if (auto) query = query.not("angelegt_durch", "is", null);
 
   const { data, count, error } = await query
     .order("name")
@@ -58,6 +62,7 @@ export default async function OrganisationenPage({
     const u = new URLSearchParams();
     if (q) u.set("q", q);
     if (relation) u.set("relation", relation);
+    if (auto) u.set("auto", "1");
     if (p > 1) u.set("page", String(p));
     const s = u.toString();
     return s ? `/organisationen?${s}` : "/organisationen";
@@ -67,7 +72,8 @@ export default async function OrganisationenPage({
     <>
       <h1>Organisationen</h1>
       <p className="lead">
-        Kunden und Lieferanten. Quelle Akzidenz: Keyline (Spiegel). Dubletten mit „+ Korb“ in den Warenkorb legen und
+        Kunden und Lieferanten. Quelle Akzidenz: Keyline (Spiegel). Findet werk zu einer Eingangsrechnung oder einem
+        Dokument keine Firma, legt es sie automatisch an („neu“). Dubletten mit „+ Korb“ in den Warenkorb legen und
         verschmelzen.
       </p>
 
@@ -85,8 +91,11 @@ export default async function OrganisationenPage({
           <option value="customer">nur Kunden</option>
           <option value="supplier">nur Lieferanten</option>
         </select>
+        <label className="chk" title="Von werk aus Eingangsrechnungen/Dokumenten neu angelegt – prüfen und Dubletten verschmelzen">
+          <input type="checkbox" name="auto" value="1" defaultChecked={auto} /> automatisch angelegt
+        </label>
         <button type="submit">Suchen</button>
-        {(q || relation) && <Link href="/organisationen">zurücksetzen</Link>}
+        {(q || relation || auto) && <Link href="/organisationen">zurücksetzen</Link>}
         <span className="count">{total.toLocaleString("de-DE")} Treffer</span>
       </form>
 
@@ -111,6 +120,11 @@ export default async function OrganisationenPage({
               <tr key={o.id}>
                 <td className="wrap">
                   <Link href={`/organisationen/${o.id}`}>{o.name}</Link>
+                  {o.angelegt_durch && (
+                    <span className="tag" style={{ marginLeft: 6 }} title="automatisch angelegt – bitte prüfen">
+                      neu {HERKUNFT_LABEL[o.angelegt_durch] ?? ""}
+                    </span>
+                  )}
                 </td>
                 <td>{RELATION_LABEL[o.relation] ?? o.relation}</td>
                 <td>{o.customer_segment ? SEGMENT_LABEL[o.customer_segment] ?? o.customer_segment : "–"}</td>

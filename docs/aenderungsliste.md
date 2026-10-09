@@ -601,5 +601,17 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Rolle `employee` (auch ohne Modul), damit er stempeln kann. Hotfolder-Ordner
   `Personal` → Dokument-Kategorie `personal` (nur mit Modul Personal sichtbar,
   wird nur von Berechtigten abgeholt).
-  → Offen: Personal-Dokumente automatisch der Person zuordnen (KI), Urlaub/Krank,
-  Soll-/Ist-Stunden, Export für die Lohnabrechnung.
+  → Offen: Urlaub/Krank, Soll-/Ist-Stunden, Export für die Lohnabrechnung.
+- [x] **Automatische Zuordnung zu Organisationen.** Gemeinsame Logik
+  `services/sync/src/organisationFinden.ts`: Suche über USt-IdNr., dann Name
+  ohne Rechtsform („Müller GmbH & Co. KG“ = „MÜLLER Gmbh“), dann wie bisher
+  unscharf; **ohne Treffer wird die Organisation angelegt** (inkl. USt-IdNr.,
+  Adresse, `angelegt_durch`). Die eigene Firma (Firmenprofil) wird nie Partner.
+  Eingangsrechnungen: bei echten Rechnungen (nicht Avis/Mahnung/Sonstiges) in
+  `incoming:extract`; Altbestand per `incoming:orgs-nachziehen` (`--dry-run`).
+  Dokumentablage: neue KI-Erkennung `dokumente:extract` (sofort per
+  `sync_request` nach Scan/Upload/Nextcloud, stündlich per Cron) liest Partner,
+  Datum, Titel; Personal-Dokumente → Person aus `personal`, nie Organisation.
+  Von Hand Eingegebenes (Firma beim Scannen, eigener Titel, Datum) bleibt.
+  `/organisationen`: Filter „automatisch angelegt“ + Markierung „neu“, Detail
+  zeigt die Dokumente der Organisation.

@@ -9,6 +9,7 @@ import { pagedSelect } from "./db";
 import { pruefeUst, loadOwnVatId, type UstTaxCode } from "./ustCheck";
 import { pruneReceiptDuplicates } from "./pruneReceipts";
 import { forwardDunnings } from "./forwardDunnings";
+import { findeOderLegeAn, findeOrganisation, istEigene, ladeEigene } from "./organisationFinden";
 
 type Options = { dryRun?: boolean; limit?: number };
 
@@ -223,7 +224,7 @@ function repairTruncatedJson(s: string): string {
 
 export type Extracted = {
   doc_type?: string;
-  supplier?: { name?: string | null; vat_id?: string | null; iban?: string | null };
+  supplier?: { name?: string | null; vat_id?: string | null; iban?: string | null; address?: string | null };
   marketplace?: string | null;
   payment_method?: "card" | "paypal" | null;
   doc_number?: string | null;
@@ -471,32 +472,6 @@ const date = (v: unknown): string | null => {
   return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
 };
 
-async function findSupplier(e: Extracted): Promise<string | null> {
-  const vat = e.supplier?.vat_id?.replace(/\s+/g, "").toUpperCase();
-  if (vat) {
-    const { data } = await supabase
-      .from("organization")
-      .select("id")
-      .ilike("vat_id", vat)
-      .limit(1)
-      .maybeSingle();
-    if (data) return data.id;
-  }
-  const name = e.supplier?.name?.trim();
-  if (name && name.length > 3) {
-    const { data } = await supabase
-      .from("organization")
-      .select("id")
-      // Satzzeichen als Platzhalter ("Anthropic, PBC" muss "Anthropic, PBC" treffen - Kommas wurden früher entfernt,
-      // der Name in der Organisation hat sie aber)
-      .ilike("name", `%${name.slice(0, 20).replace(/[^\p{L}\p{N}]+/gu, "%")}%`)
-      .limit(1)
-      .maybeSingle();
-    if (data) return data.id;
-  }
-  return null;
-}
-
 export async function extractIncoming(opts: Options = {}) {
   const { dryRun = false, limit = 20 } = opts;
   const client = new Anthropic({ apiKey: env.anthropicKey() });
@@ -554,6 +529,8 @@ export async function extractIncoming(opts: Options = {}) {
     .filter((t) => t.direction === "input" && t.is_active)
     .map((t) => ({ id: t.id, code: t.code, rate: Number(t.rate), treatment: t.treatment }));
   const ownVatId = await loadOwnVatId();
+  const eigene = await ladeEigene();
+  let neueOrgs = 0;
   const zeroCodeId = taxCodes.find((c) => c.treatment === "tax_free_other" && Math.round(c.rate) === 0)?.id ?? null;
   const stdByRate = (rate: unknown): string | null => {
     const r = Math.round(Number(rate));
@@ -701,7 +678,15 @@ export async function extractIncoming(opts: Options = {}) {
       if (ownVatId && e.supplier?.vat_id && e.supplier.vat_id.replace(/\s+/g, "").toUpperCase() === ownVatId) {
         e.supplier.vat_id = null;
       }
-      const supplierId = await findSupplier(e);
+      // Lieferant finden; bei echten Rechnungen ohne Treffer neu anlegen (prüfen/verschmelzen unter /organisationen)
+      const partner = { name: e.supplier?.name, vat_id: e.supplier?.vat_id, address: e.supplier?.address };
+      let supplierId: string | null = null;
+      if (isHint) supplierId = istEigene(partner, eigene) ? null : await findeOrganisation(partner);
+      else {
+        const r = await findeOderLegeAn(partner, { herkunft: "eingangsrechnung", relation: "supplier", eigene });
+        supplierId = r.id;
+        if (r.neu) neueOrgs++;
+      }
       const rule = !isHint && supplierId ? rules.get(supplierId) : undefined;
 
       // Strenge USt-Prüfung: Schlüssel nur bei eindeutigem Befund, sonst Vorschlag.
@@ -931,5 +916,5 @@ export async function extractIncoming(opts: Options = {}) {
     }
   }
 
-  return { docs: docs.length, ok, advice, dunning, failed, receiptsPruned, dunningsForwarded, dryRun };
+  return { docs: docs.length, ok, advice, dunning, failed, neueOrgs, receiptsPruned, dunningsForwarded, dryRun };
 }

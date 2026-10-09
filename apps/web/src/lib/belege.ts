@@ -49,6 +49,11 @@ export async function extraktionAnstossen(sb: SupabaseClient): Promise<void> {
   await sb.from("sync_request").insert({ job: "incoming:extract", params: {} });
 }
 
+/** KI-Erkennung der Dokumentablage (dokumente:extract im sync-Container) anstoßen: Partner, Datum, Titel, Zuordnung. */
+export async function dokumentErkennungAnstossen(sb: SupabaseClient): Promise<void> {
+  await sb.from("sync_request").insert({ job: "dokumente:extract", params: {} });
+}
+
 export type DokumentDaten = {
   kategorie: DokumentKategorie;
   titel: string;
