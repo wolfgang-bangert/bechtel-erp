@@ -628,6 +628,7 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   in `@werk/shared/datev/extf` (sync `datevCommon` nutzt sie mit).
 - [x] **Lohn-Zahlungen automatisch ausbuchen** (`bank:lohn`, täglich 6:45 nach dem
   Bankabruf, letzte 45 Tage; Altbestand `--from=2026-01-01`): Überweisung an die
-  IBAN eines Mitarbeiters (`personal`) → 1740, Finanzamt mit Lohnsteuer im
+  IBAN eines Mitarbeiters (`personal`) oder Gehalts-Sammelüberweisung (≥ 10 Posten,
+  ±6 % zu den „Überweisung“-Zeilen auf 1740 im Lohnmonat) → 1740, Finanzamt mit Lohnsteuer im
   Verwendungszweck → 1741, Krankenkassen-Beiträge und Presse-Versorgung → 1742.
   Nur völlig unzugeordnete Ausgänge, `auto = true`, in `/bank` entfernbar.
