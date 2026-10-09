@@ -31,8 +31,8 @@ async function adminPruefen(): Promise<string | null> {
 const ABGELEITETE_ROLLEN = ["employee", "office", "production", "accounting", "shipping"] as const;
 
 function gewuenschteRollen(levels: Rechte): Set<string> {
-  const r = new Set<string>();
-  if (Object.keys(levels).length) r.add("employee");
+  // employee immer: jeder Mitarbeiter kommt in werk rein (mindestens zur Zeiterfassung)
+  const r = new Set<string>(["employee"]);
   if (levels.vertrieb === "edit") {
     r.add("office");
     r.add("production");

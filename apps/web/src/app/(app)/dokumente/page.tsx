@@ -19,9 +19,11 @@ export default async function DokumentePage({
   const q = (sp.q ?? "").trim();
 
   const supabase = await createClient();
+  const { data: personalRecht } = await supabase.rpc("has_personal_access");
+  const darfPersonal = personalRecht === true;
   let query = supabase
     .from("dokument")
-    .select("id, kategorie, titel, dokument_datum, partner_name, organization_id, notiz, seiten, created_at")
+    .select("id, kategorie, titel, dokument_datum, partner_name, organization_id, personal_id, notiz, seiten, created_at")
     .order("dokument_datum", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(500);
@@ -50,7 +52,7 @@ export default async function DokumentePage({
         Handy über <Link href="/scannen?ziel=dokument">/scannen</Link> erfassen. Eingangsrechnungen gehören nicht hierher,
         sondern zu den <Link href="/eingangsrechnungen">Eingangsrechnungen</Link> (dort gibt es KI-Erkennung und Buchung).
         Aus der Nextcloud: PDFs in <code>{hotfolderName()}/Rapporte</code>, <code>/Lieferscheine</code>,{" "}
-        <code>/Personal</code> (→ Vertrag) oder <code>/Sonstiges</code> legen und „Aus Nextcloud holen“ drücken.
+        <code>/Personal</code> (nur mit Recht Personal) oder <code>/Sonstiges</code> legen und „Aus Nextcloud holen“ drücken.
       </p>
 
       <form className="bd-toolbar" method="get">
@@ -62,7 +64,7 @@ export default async function DokumentePage({
           <label className="bd-field-label">Art</label>
           <select className="bd-field-input" name="kategorie" defaultValue={kategorie}>
             <option value="">alle</option>
-            {Object.entries(DOKUMENT_KATEGORIEN).map(([k, v]) => (
+            {Object.entries(DOKUMENT_KATEGORIEN).filter(([k]) => k !== "personal" || darfPersonal).map(([k, v]) => (
               <option key={k} value={k}>
                 {v}
               </option>
@@ -103,7 +105,13 @@ export default async function DokumentePage({
                   </a>
                 </td>
                 <td className="wrap">
-                  {d.organization_id ? <Link href={`/organisationen/${d.organization_id}`}>{d.partner_name}</Link> : d.partner_name}
+                  {d.personal_id ? (
+                    <Link href={`/personal/${d.personal_id}`}>{d.partner_name ?? "Person"}</Link>
+                  ) : d.organization_id ? (
+                    <Link href={`/organisationen/${d.organization_id}`}>{d.partner_name}</Link>
+                  ) : (
+                    d.partner_name
+                  )}
                 </td>
                 <td className="wrap count">{d.notiz}</td>
                 <td style={{ textAlign: "right" }}>{d.seiten}</td>

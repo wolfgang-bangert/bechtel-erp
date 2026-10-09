@@ -3,6 +3,7 @@ export const DOKUMENT_KATEGORIEN = {
   rapport: "Handwerker-Rapport",
   lieferschein: "Lieferschein",
   vertrag: "Vertrag",
+  personal: "Personal", // nur mit Modul Personal sichtbar (RLS dokument_read)
   sonstiges: "Sonstiges",
 } as const;
 

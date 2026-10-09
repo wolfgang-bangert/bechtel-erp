@@ -29,7 +29,7 @@ const freigeben = (s: Seite) => {
 type Ziel = "eingangsrechnung" | "dokument";
 const leer: ScanState = {};
 
-export function ScanClient({ startZiel, firmen }: { startZiel: Ziel; firmen: string[] }) {
+export function ScanClient({ startZiel, firmen, darfPersonal }: { startZiel: Ziel; firmen: string[]; darfPersonal: boolean }) {
   const [state, action, speichernd] = useActionState(scanSpeichern, leer);
   const [ziel, setZiel] = useState<Ziel>(startZiel);
   const [seiten, setSeiten] = useState<Seite[]>([]);
@@ -369,7 +369,7 @@ export function ScanClient({ startZiel, firmen }: { startZiel: Ziel; firmen: str
             <label>
               Art
               <select name="kategorie" defaultValue="rapport">
-                {Object.entries(DOKUMENT_KATEGORIEN).map(([k, v]) => (
+                {Object.entries(DOKUMENT_KATEGORIEN).filter(([k]) => k !== "personal" || darfPersonal).map(([k, v]) => (
                   <option key={k} value={k}>
                     {v}
                   </option>

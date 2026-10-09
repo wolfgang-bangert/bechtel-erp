@@ -15,7 +15,8 @@ export async function nextcloudAbholen(_prev: AbholenState): Promise<AbholenStat
     data: { user },
   } = await supabase.auth.getUser();
   try {
-    const e = await hotfolderAbholen(supabase, user?.id ?? null);
+    const { data: personal } = await supabase.rpc("has_personal_access");
+    const e = await hotfolderAbholen(supabase, user?.id ?? null, { personal: personal === true });
     revalidatePath("/eingangsrechnungen");
     revalidatePath("/dokumente");
     return {

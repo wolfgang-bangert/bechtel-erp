@@ -15,7 +15,7 @@ export const HOTFOLDER_ZIELE: { ordner: string; ziel: "eingangsrechnung" | Dokum
   { ordner: "Eingangsrechnungen", ziel: "eingangsrechnung" },
   { ordner: "Rapporte", ziel: "rapport" },
   { ordner: "Lieferscheine", ziel: "lieferschein" },
-  { ordner: "Personal", ziel: "vertrag" }, // Nextcloud-Ordner heißt „Personal“, Kategorie bleibt Vertrag
+  { ordner: "Personal", ziel: "personal" }, // nur mit Modul Personal (sonst bleibt der Ordner liegen)
   { ordner: "Sonstiges", ziel: "sonstiges" },
 ];
 
@@ -46,7 +46,12 @@ async function seitenZaehlen(bytes: Buffer): Promise<number | null> {
   }
 }
 
-export async function hotfolderAbholen(sb: SupabaseClient, erfasstVon: string | null = null): Promise<HotfolderErgebnis> {
+export async function hotfolderAbholen(
+  sb: SupabaseClient,
+  erfasstVon: string | null = null,
+  opts: { personal?: boolean } = {},
+): Promise<HotfolderErgebnis> {
+  const mitPersonal = opts.personal ?? true;
   const basis = hotfolderName();
   const erg: HotfolderErgebnis = { eingangsrechnungen: 0, dokumente: 0, doppelt: 0, uebersprungen: [], fehler: [], mehr: false };
   let verarbeitet = 0;
@@ -54,6 +59,7 @@ export async function hotfolderAbholen(sb: SupabaseClient, erfasstVon: string | 
   if ((await ordnerListen(basis)) === null) await ordnerAnlegen(basis);
 
   for (const { ordner, ziel } of HOTFOLDER_ZIELE) {
+    if (ziel === "personal" && !mitPersonal) continue; // Personal-Dokumente holt nur, wer das Modul Personal hat
     const pfad = `${basis}/${ordner}`;
     let inhalt = await ordnerListen(pfad);
     if (inhalt === null) {

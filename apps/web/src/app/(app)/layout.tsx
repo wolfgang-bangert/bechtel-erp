@@ -9,6 +9,7 @@ import { ZurueckLeiste } from "./_shared/ZurueckLeiste";
 const NAV_PINNED: NavLink[] = [
   { href: "/scannen", label: "📷 Scannen" },
   { href: "/dokumente", label: "Dokumente" },
+  { href: "/zeiterfassung", label: "⏱ Zeiterfassung" },
 ];
 
 const NAV_GROUPS: NavGroup[] = [
@@ -69,6 +70,13 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/werkzeuge/pdf-kombinieren", label: "PDF: Seiten nebeneinander" },
       { href: "/werkzeuge/pdf-seiten-verwalten", label: "PDF: Seiten verwalten" },
       { href: "/werkzeuge/preislisten-analyse", label: "Preislisten-Analyse" },
+    ],
+  },
+  {
+    label: "Personal",
+    links: [
+      { href: "/personal", label: "Personal" },
+      { href: "/personal/zeiten", label: "Zeiten" },
     ],
   },
   {

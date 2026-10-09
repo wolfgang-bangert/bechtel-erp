@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { getRoles, hasRole } from "@/lib/auth";
+import { getModuleLevels, getRoles, hasRole } from "@/lib/auth";
 import type { ModuleKey, ModuleLevel } from "@/lib/modules";
 import { EinladenForm, MitarbeiterZeile, NachtragenForm, type Mitarbeiter } from "./ui";
 
@@ -16,6 +16,7 @@ export default async function MitarbeiterPage() {
     );
   }
 
+  const darfPersonal = !!(await getModuleLevels()).personal;
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("app_user")
@@ -46,18 +47,19 @@ export default async function MitarbeiterPage() {
       <p className="lead">
         Neue Kollegen einladen (verschickt eine E-Mail mit Link zum Passwort-Setzen) und pro Modul festlegen,
         was sie dürfen: <strong>kein Zugriff</strong> (Bereich ist unsichtbar und gesperrt), <strong>ansehen</strong>{" "}
-        (nur lesen, Speichern und Ändern sind gesperrt) oder <strong>bearbeiten</strong>. Admins haben alles.
+        (nur lesen, Speichern und Ändern sind gesperrt) oder <strong>bearbeiten</strong>. Admins haben alles außer
+        Personal – das sieht nur, wer es ausdrücklich freigegeben bekommt. Die Zeiterfassung hat jeder Mitarbeiter.
       </p>
 
       {error && <div className="banner-err">Fehler beim Laden: {error.message}</div>}
 
       <div className="rows">
         {mitarbeiter.map((m) => (
-          <MitarbeiterZeile key={m.id} m={m} />
+          <MitarbeiterZeile key={m.id} m={m} darfPersonal={darfPersonal} />
         ))}
-        <EinladenForm />
+        <EinladenForm darfPersonal={darfPersonal} />
       </div>
-      <NachtragenForm />
+      <NachtragenForm darfPersonal={darfPersonal} />
     </>
   );
 }
