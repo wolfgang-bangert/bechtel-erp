@@ -6,6 +6,7 @@ import { personalImport } from "./personalImport";
 import { extractDokumente } from "./extractDokumente";
 import { orgsNachziehen } from "./orgsNachziehen";
 import { bankLohn } from "./bankLohn";
+import { bankSteuern } from "./bankSteuern";
 import { syncNinoxAddresses } from "./syncNinoxAddresses";
 import { syncKeylineOrders } from "./syncKeylineOrders";
 import { syncKeylineInvoices, refreshKeylineInvoice } from "./syncKeylineInvoices";
@@ -727,6 +728,12 @@ async function main() {
       const von = process.argv.find((a) => a.startsWith("--from="))?.split("=")[1];
       console.log(`Lohn-Zahlungen ausbuchen (Gehalt 1740, LSt 1741, SV 1742)${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await bankLohn({ dryRun, from: von }), null, 1));
+      break;
+    }
+    case "bank:steuern": {
+      const von = process.argv.find((a) => a.startsWith("--from="))?.split("=")[1];
+      console.log(`Steuerzahlungen ausbuchen (USt 1780/1781/1790/1791, KöSt Verwaltungs-GmbH 880)${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await bankSteuern({ dryRun, from: von }), null, 1));
       break;
     }
     case "incoming:purge": {

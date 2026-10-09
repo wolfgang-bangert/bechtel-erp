@@ -632,3 +632,8 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   ±6 % zu den „Überweisung“-Zeilen auf 1740 im Lohnmonat) → 1740, Finanzamt mit Lohnsteuer im
   Verwendungszweck → 1741, Krankenkassen-Beiträge und Presse-Versorgung → 1742.
   Nur völlig unzugeordnete Ausgänge, `auto = true`, in `/bank` entfernbar.
+- [x] **Steuerzahlungen automatisch ausbuchen** (`bank:steuern`, täglich 6:47):
+  Finanzamt-Verwendungszweck „UMS.ST <Monat>.<JJ>“ → 1780 (lfd. Jahr) / 1790
+  (Vorjahr) / 1791 (früher), „UMS.ST VZ<JJJJ>“ → 1781 (Sondervorauszahlung),
+  „UMS.ST <JJJJ>“ → 1790/1791, „KOERPST … VERWALTUNGS“ → 880. Mehrteilige
+  Zahlungen werden aufgeteilt (nur wenn die Teile den Betrag ergeben).

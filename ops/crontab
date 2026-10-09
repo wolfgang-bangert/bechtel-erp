@@ -32,6 +32,8 @@
 40 6 * * *   cd /app/services/sync && pnpm bank:gebuehren
 # Lohn-Zahlungen (Gehalt → 1740, Lohnsteuer → 1741, Krankenkassen → 1742) automatisch ausbuchen
 45 6 * * *   cd /app/services/sync && pnpm bank:lohn
+# Steuerzahlungen ans Finanzamt (USt-Vorauszahlungen, Sondervorauszahlung, Vorjahre, KöSt Verwaltungs-GmbH)
+47 6 * * *   cd /app/services/sync && pnpm bank:steuern
 
 # Eingangsrechnungen aus dem Postfach + KI-Vorerfassung (war stündlich)
 15 * * * *   cd /app/services/sync && pnpm mail:fetch --since=7 && pnpm incoming:extract --limit=100
