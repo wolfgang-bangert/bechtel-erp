@@ -569,3 +569,8 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Zugang: `NEXTCLOUD_URL/_USER/_APP_PASSWORD` in `/opt/werk/.env`.
   Gemeinsames Anlegen von Belegen/Dokumenten jetzt in `apps/web/src/lib/belege.ts`
   (Upload, Scan, Nextcloud).
+- [x] **Scannen: „Fertiges PDF wählen“.** Auf `/scannen` lässt sich statt
+  Fotos ein fertiges PDF wählen (z. B. mit dem iPhone-Scanner der Dateien-App
+  erstellt). Es wird unverändert hochgeladen – als Eingangsrechnung oder in die
+  Ablage (Seitenzahl per pdf-lib, Titel = Dateiname, wenn leer). Server prüft
+  den Inhalt (`%PDF`).
