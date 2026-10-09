@@ -251,11 +251,16 @@ export function QuickSpecialMatchButton({
         type="submit"
         className="ghost"
         disabled={pending}
-        title={`Sachkonto-Vorschlag übernehmen: ${ledgerAccount} – ${ledgerLabel}`}
+        title={`Sachkonto-Vorschlag übernehmen: ${ledgerAccount} – ${ledgerLabel}${note ? `\nBuchungstext: ${note}` : ""}`}
         style={{ padding: "3px 8px", fontSize: 12, borderColor: "#3a7", color: "#3a7" }}
       >
         {pending ? "…" : `✓ ${ledgerAccount} – ${ledgerLabel}`}
       </button>
+      {note && (
+        <span className="count" style={{ fontSize: 11, maxWidth: 260, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={note}>
+          „{note}“
+        </span>
+      )}
       {state.error && (
         <span className="msg-err" style={{ fontSize: 11 }}>
           {state.error}
@@ -276,6 +281,7 @@ export function SpecialMatchForm({
   remaining,
   ledgerAccounts,
   suggestion,
+  textVorschlag,
 }: {
   txId: string;
   remaining: number;
@@ -283,6 +289,8 @@ export function SpecialMatchForm({
   /** Aus der BuchhaltungsButler-Historie gelernter Vorschlag für diese
    *  Gegenseite (siehe learnBankRules.ts) - vorbelegt, aber änderbar. */
   suggestion?: { ledger_account: string; sample_postingtext: string | null };
+  /** Buchungstext-Vorschlag aus Gegenseite + Verwendungszweck (falls die Regel keinen Text hat) */
+  textVorschlag?: string;
 }) {
   const [state, action, pending] = useActionState(matchSpecial, empty);
   const [ledgerAccount, setLedgerAccount] = useState(suggestion?.ledger_account ?? "");
@@ -301,10 +309,11 @@ export function SpecialMatchForm({
       </div>
       <input
         name="note"
-        defaultValue={suggestion?.sample_postingtext ?? ""}
+        defaultValue={suggestion?.sample_postingtext || textVorschlag || ""}
         placeholder="Buchungstext (optional)"
-        title={suggestion ? "Vorschlag aus BuchhaltungsButler-Historie - änderbar" : undefined}
-        style={{ width: 180 }}
+        maxLength={60}
+        title="Buchungstext (Vorschlag, änderbar) – max. 60 Zeichen wie im DATEV-Export"
+        style={{ flex: "1 1 360px", minWidth: 300 }}
       />
       <input
         name="alloc_amount"
@@ -382,7 +391,9 @@ export function NoteEditForm({ matchId, note }: { matchId: string; note: string 
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Buchungstext…"
-        style={{ width: 180, fontSize: 13 }}
+        maxLength={60}
+        title={value}
+        style={{ width: 340, fontSize: 13 }}
       />
       {changed && (
         <button type="submit" className="ghost" disabled={pending} style={{ padding: "2px 8px", fontSize: 12 }}>

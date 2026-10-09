@@ -7,6 +7,7 @@ import { buchungsProbleme, schluesselInfo } from "@/lib/belegPruefung";
 import type { BankKandidat } from "./BankZuordnen";
 import { setIncomingStatus, bestaetigeUst, alsRechnungBehandeln, alsSonstigesBehandeln, kollegenGesehen } from "../actions";
 import { applyListFilters, kontoJoin, sortSpec, type ListeParams } from "../_liste";
+import { alleSachkonten } from "@/lib/sachkonten";
 
 export const dynamic = "force-dynamic";
 
@@ -114,7 +115,7 @@ export default async function IncomingDetail({
       .order("position", { nullsFirst: false }),
     supabase.from("tax_code").select("id, code, name, rate, treatment").eq("direction", "input").order("code"),
     supabase.from("cost_center").select("id, number, name").eq("is_active", true).order("number"),
-    supabase.from("ledger_account").select("number, name").eq("is_active", true).order("number"),
+    alleSachkonten(supabase, "number, name", true),
     // Lieferanten (auch "Kunde + Lieferant") komplett laden - PostgREST liefert sonst nur die ersten
     // 1000 Zeilen, spätere (z.B. Lidl) wurden dann nur als ID angezeigt.
     (async () => {

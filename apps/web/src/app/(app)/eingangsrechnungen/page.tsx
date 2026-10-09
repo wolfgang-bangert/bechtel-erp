@@ -8,6 +8,7 @@ import { hotfolderName } from "@/lib/nextcloud/hotfolder";
 import { ListeSteuerung } from "./ListeSteuerung";
 import { buchungsProbleme, schluesselInfo } from "@/lib/belegPruefung";
 import { applyListFilters, kontoJoin, monthRange, sortSpec } from "./_liste";
+import { alleSachkonten } from "@/lib/sachkonten";
 
 export const dynamic = "force-dynamic";
 
@@ -137,7 +138,7 @@ export default async function EingangsrechnungenPage({
     const { data: us } = await supabase.from("app_user").select("id, display_name, email").in("id", kollegenIds);
     for (const u of us ?? []) kollegenName.set(u.id, u.display_name || u.email || "?");
   }
-  const { data: alleKonten } = await supabase.from("ledger_account").select("number, name").eq("is_active", true).order("number");
+  const { data: alleKonten } = await alleSachkonten(supabase, "number, name", true);
 
   const baseParams = () => {
     const u = new URLSearchParams();

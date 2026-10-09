@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { alleSachkonten } from "@/lib/sachkonten";
 
 export type BookingLine = {
   docId: string;
@@ -90,7 +91,7 @@ export async function kreditorPreview(from: string, to: string): Promise<Preview
       .in("doc_type", ["invoice", "credit_note"])
       .in("status", ["extracted", "reviewed", "booked", "exported"])
       .order("doc_date"),
-    supabase.from("ledger_account").select("number, name"),
+    alleSachkonten(supabase),
     supabase.from("cost_center").select("id, number"),
     supabase.from("tax_code").select("id, datev_tax_key"),
   ]);
@@ -244,7 +245,7 @@ export async function debitorPreview(from: string, to: string): Promise<Preview>
       .in("kind", ["invoice", "credit_note"])
       .order("invoice_date"),
     supabase.from("setting").select("key, value"),
-    supabase.from("ledger_account").select("number, name"),
+    alleSachkonten(supabase),
   ]);
 
   const map = ((settings ?? []).find((s) => s.key === "datev.revenue_accounts")?.value ?? {}) as Record<

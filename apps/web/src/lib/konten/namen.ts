@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { alleSachkonten } from "@/lib/sachkonten";
 
 /** Bezeichnungen für Kontonummern: Sachkonten, Geldkonten (Bank), Debitoren und Kreditoren. */
 export async function kontoNamen(sb: SupabaseClient, nummern: string[]): Promise<Map<string, string>> {
   const namen = new Map<string, string>();
   const [{ data: sach }, { data: bank }] = await Promise.all([
-    sb.from("ledger_account").select("number, name"),
+    alleSachkonten(sb),
     sb.from("bank_account").select("ledger_account, label"),
   ]);
   for (const s of sach ?? []) namen.set(s.number as string, s.name as string);

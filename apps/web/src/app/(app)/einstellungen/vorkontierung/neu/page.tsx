@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { RegelForm } from "../RegelForm";
+import { alleSachkonten } from "@/lib/sachkonten";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ export default async function NeueVorkontierungPage() {
       .from("organization")
       .select("id, name, customer_number, supplier_number")
       .order("name"),
-    supabase.from("ledger_account").select("number, name").eq("is_active", true).order("number"),
+    alleSachkonten(supabase, "number, name", true),
   ]);
 
   return (
