@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
 import { setInvoiceEmailAction } from "./actions";
+import { KorbKnopf, KorbLeiste } from "../Warenkorb";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +15,13 @@ const RELATION_LABEL: Record<string, string> = {
 
 export default async function OrganisationDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ verschmolzen?: string }>;
 }) {
   const { id } = await params;
+  const verschmolzen = ((await searchParams).verschmolzen ?? "").split(",").filter(Boolean);
   const supabase = await createClient();
 
   const [
@@ -65,7 +69,18 @@ export default async function OrganisationDetail({
       <p className="lead">
         <Link href="/organisationen">← Organisationen</Link>
       </p>
-      <h1>{org.name}</h1>
+      {verschmolzen.length > 1 && (
+        <div className="banner-info">
+          {verschmolzen.length - 1} Organisation(en) in diese verschmolzen. Alle Verknüpfungen hängen jetzt hier.
+        </div>
+      )}
+      <KorbLeiste entfernen={verschmolzen} />
+      <h1 style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        {org.name}
+        <span style={{ fontSize: 14, fontWeight: 400 }}>
+          <KorbKnopf id={org.id} name={org.name} />
+        </span>
+      </h1>
       <p className="lead">
         {RELATION_LABEL[org.relation] ?? org.relation}
         {org.customer_segment ? ` · Segment ${org.customer_segment}` : ""}

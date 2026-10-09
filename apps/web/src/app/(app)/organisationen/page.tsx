@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { KorbKnopf, KorbLeiste } from "./Warenkorb";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,12 @@ export default async function OrganisationenPage({
   return (
     <>
       <h1>Organisationen</h1>
-      <p className="lead">Kunden und Lieferanten. Quelle Akzidenz: Keyline (Spiegel).</p>
+      <p className="lead">
+        Kunden und Lieferanten. Quelle Akzidenz: Keyline (Spiegel). Dubletten mit „+ Korb“ in den Warenkorb legen und
+        verschmelzen.
+      </p>
+
+      <KorbLeiste />
 
       <form className="toolbar" method="get">
         <input
@@ -97,6 +103,7 @@ export default async function OrganisationenPage({
               <th>Kreditor</th>
               <th>USt-IdNr</th>
               <th>Land</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -111,11 +118,14 @@ export default async function OrganisationenPage({
                 <td>{o.supplier_number ?? "–"}</td>
                 <td>{o.vat_id ?? "–"}</td>
                 <td>{o.tax_country}</td>
+                <td>
+                  <KorbKnopf id={o.id} name={o.name} />
+                </td>
               </tr>
             ))}
             {(data ?? []).length === 0 && (
               <tr>
-                <td colSpan={7} style={{ color: "var(--muted)" }}>
+                <td colSpan={8} style={{ color: "var(--muted)" }}>
                   Keine Treffer.
                 </td>
               </tr>
