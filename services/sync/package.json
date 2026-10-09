@@ -40,6 +40,7 @@
     "bb:learn-bankregeln": "tsx src/cli.ts bb:learn-bankregeln",
     "ninox:orders": "tsx src/cli.ts ninox:orders",
     "incoming:dubletten": "tsx src/cli.ts incoming:dubletten",
+    "incoming:zuordnung-pruefen": "tsx src/cli.ts incoming:zuordnung-pruefen",
     "bb:ausgang-nachholen": "tsx src/cli.ts bb:ausgang-nachholen",
     "bb:ust-korrigieren": "tsx src/cli.ts bb:ust-korrigieren",
     "bank:aus-bb": "tsx src/cli.ts bank:aus-bb",

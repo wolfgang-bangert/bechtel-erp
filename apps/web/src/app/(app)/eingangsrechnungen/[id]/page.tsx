@@ -48,10 +48,10 @@ export default async function IncomingDetail({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ l?: string }>;
+  searchParams: Promise<{ l?: string; fehler?: string }>;
 }) {
   const { id } = await params;
-  const { l: listeRaw } = await searchParams;
+  const { l: listeRaw, fehler } = await searchParams;
   const supabase = await createClient();
 
   // Blättern: Nachbarn in der Liste, aus der der Beleg geöffnet wurde (gleiche Filter und Sortierung).
@@ -430,6 +430,12 @@ export default async function IncomingDetail({
           <ul style={{ margin: "6px 0 0 18px" }}>
             {probleme.map((p, i) => <li key={i}>{p}</li>)}
           </ul>
+        </div>
+      )}
+
+      {fehler && (
+        <div className="bd-card" style={{ borderColor: "var(--bd-danger, #b3261e)" }}>
+          <strong>Nicht verworfen:</strong> {fehler}
         </div>
       )}
 

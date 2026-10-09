@@ -52,6 +52,7 @@ import { syncMailbox } from "./syncMailbox";
 import { extractIncoming } from "./extractIncoming";
 import { purgeIncoming } from "./purgeIncoming";
 import { pruneReceiptDuplicates } from "./pruneReceipts";
+import { pruefeVerworfeneMitZahlung } from "@werk/shared/eingang/verwerfen";
 import { forwardDunnings } from "./forwardDunnings";
 import { sendInvoiceMails } from "./invoiceMail";
 import { erstelleAbrechnung } from "@werk/shared/abrechnung/erstellen";
@@ -264,6 +265,13 @@ async function main() {
     case "incoming:dubletten": {
       console.log(`Dubletten bei Eingangsbelegen bereinigen${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await incomingDubletten({ dryRun }), null, 1));
+      break;
+    }
+    case "incoming:zuordnung-pruefen": {
+      // Standard: nur auflisten. --fix hängt die Zuordnungen auf die nicht verworfene Kopie um.
+      const fix = flags.has("--fix") && !dryRun;
+      console.log(`Verworfene Eingangsbelege mit Bankzuordnung prüfen${fix ? "  (FIX)" : "  (nur Liste)"}`);
+      console.log(JSON.stringify(await pruefeVerworfeneMitZahlung(supabase, { fix }), null, 1));
       break;
     }
     case "bb:ausgang-nachholen": {
@@ -885,6 +893,7 @@ async function main() {
       console.log("  pnpm --filter sync incoming:extract    [--dry-run] [--limit=N]");
       console.log("  pnpm --filter sync incoming:purge      --from=<absender> [--dry-run]");
       console.log("  pnpm --filter sync incoming:prune-receipts   [--dry-run]");
+      console.log("  pnpm --filter sync incoming:zuordnung-pruefen [--dry-run|--fix]");
       console.log("  pnpm --filter sync incoming:forward-dunning  [--dry-run]");
       console.log("  pnpm --filter sync dedupe:orgs");
       console.log("  pnpm --filter sync dedupe:merge  [--dry-run] [--confidence=mittel] [--exclude=G1,G7] [--only=G12]");

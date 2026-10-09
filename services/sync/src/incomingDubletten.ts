@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { pagedSelect } from "./db";
+import { verwirfEingangsbeleg } from "@werk/shared/eingang/verwerfen";
 
 /* --------------------------------------------------------------------------
  * Dubletten bei Eingangsbelegen bereinigen. Zwei Belege gelten als dieselbe Rechnung, wenn Rechnungsnummer
@@ -126,21 +127,12 @@ export async function incomingDubletten({ dryRun }: { dryRun: boolean }) {
     out.liste.push(`${label}: behalte ${keeper.dedup_key.split(":")[0]}/${keeper.status}, verwerfe ${losers.map((d) => `${d.dedup_key.split(":")[0]}/${d.status}`).join(", ")}`);
     if (dryRun) continue;
     for (const l of losers) {
-      // Bankzuordnungen (Zahlungen/Skonto) zum behaltenen Beleg umhängen
-      if ((matchCount.get(l.id) ?? 0) > 0) {
-        const { error: me } = await supabase.from("bank_transaction_match").update({ incoming_document_id: keeper.id }).eq("incoming_document_id", l.id);
-        if (me) {
-          out.uebersprungen.push(`${label}: Bankzuordnung nicht umhängbar (${me.message})`);
-          continue;
-        }
-        await supabase.rpc("recalc_incoming_payment", { p_id: keeper.id });
-        await supabase.rpc("recalc_incoming_payment", { p_id: l.id });
-      }
-      const { error } = await supabase
-        .from("incoming_document")
-        .update({ status: "rejected", notes: `Dublette von Beleg ${keeper.id} (gleiche Rechnungsnummer/Datei und Betrag) - automatisch bereinigt` })
-        .eq("id", l.id);
-      if (error) out.uebersprungen.push(`${label}: ${error.message}`);
+      // Bankzuordnungen (Zahlungen/Skonto-Zeilen) und ausgebuchtes Skonto wandern zum behaltenen Beleg
+      const r = await verwirfEingangsbeleg(supabase, l.id, {
+        gegen: keeper.id,
+        notes: `Dublette von Beleg ${keeper.id} (gleiche Rechnungsnummer/Datei und Betrag) - automatisch bereinigt`,
+      });
+      if (!r.ok) out.uebersprungen.push(`${label}: ${r.grund}`);
       else out.verworfen++;
     }
   }
