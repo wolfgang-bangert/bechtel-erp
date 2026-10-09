@@ -21,6 +21,11 @@ export default async function LohnbuchungenPage() {
         Lohnsteuer, …) verknüpfst du je Import mit der passenden Bankzeile.
       </p>
 
+      <p>
+        <Link href="/lohnbuchungen/uebersicht">→ Lohn-Übersicht</Link> (Lohnkosten je Monat, Abgleich der Lohnkonten,
+        DATEV-Export für den Steuerberater) · <Link href="/konten">→ Kontoabruf</Link>
+      </p>
+
       <div className="card" style={{ marginBottom: 16 }}>
         <UploadForm />
       </div>

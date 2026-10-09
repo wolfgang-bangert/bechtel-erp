@@ -34,6 +34,7 @@ const ERSTES_SEGMENT: Record<string, ModuleKey> = {
   eingangsrechnungen: "buchhaltung",
   bank: "buchhaltung",
   lohnbuchungen: "buchhaltung",
+  konten: "buchhaltung",
   "datev-vorschau": "buchhaltung",
   ustva: "buchhaltung",
   darlehen: "buchhaltung",
@@ -50,6 +51,7 @@ const API_SEGMENT: Record<string, ModuleKey> = {
   rechnung: "onlineprinters",
   ustva: "buchhaltung",
   zahlungen: "buchhaltung",
+  lohn: "buchhaltung",
   "pdf-kombinieren": "werkzeuge",
   "pdf-seiten-verwalten": "werkzeuge",
 };

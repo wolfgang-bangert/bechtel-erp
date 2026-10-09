@@ -33,6 +33,7 @@
     "./fakturierung/csv": "./src/fakturierung/csv.ts",
     "./ustva": "./src/ustva/berechnung.ts",
     "./personal/felder": "./src/personal/felder.ts",
+    "./datev/extf": "./src/datev/extf.ts",
     "./eingang/verwerfen": "./src/eingang/verwerfen.ts"
   },
   "dependencies": {

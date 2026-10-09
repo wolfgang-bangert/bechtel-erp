@@ -615,3 +615,14 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Von Hand Eingegebenes (Firma beim Scannen, eigener Titel, Datum) bleibt.
   `/organisationen`: Filter „automatisch angelegt“ + Markierung „neu“, Detail
   zeigt die Dokumente der Organisation.
+- [x] **Lohn-Übersicht + Kontoabruf.** `/lohnbuchungen/uebersicht`: Lohnkosten je
+  Monat (AG-Belastung nach SKR03-Gruppen 41xx, Sachbezüge 859x gegengerechnet),
+  Abgleich der Lohnkonten (1740/1741/1742/…/1755) als Saldo am Monatsende aus
+  Lohnstapel + in `/bank` ausgebuchten Zahlungen (keine Zuordnung je Monat
+  nötig), offene Bankzeilen mit Lohnbezug, Drucken/PDF und DATEV-EXTF-Download
+  der Lohnbuchungen (`/api/lohn/datev?jahr=&von=&bis=`) für den Steuerberater.
+  `/konten`: Summen- und Saldenliste aller bebuchten Konten, `/konten/[konto]`:
+  Kontoauszug mit Vortrag, laufendem Saldo und Monatssalden (z. B. 1590
+  „ausgeglichen ✓“). Quelle `lib/konten/journal.ts`: Rechnungen wie
+  DATEV-Vorschau, Bank wie `datev:zahlungen`, Lohnstapel. EXTF-Grundlagen jetzt
+  in `@werk/shared/datev/extf` (sync `datevCommon` nutzt sie mit).

@@ -1547,3 +1547,26 @@ a.bd-tab:hover {
 .scan [hidden] {
   display: none !important;
 }
+
+/* Drucken / als PDF (z. B. Lohn-Übersicht für den Steuerberater): nur der Inhalt */
+@media print {
+  .sidebar,
+  .zurueck-leiste,
+  .no-print {
+    display: none !important;
+  }
+  .shell {
+    display: block;
+  }
+  .content {
+    margin: 0;
+    padding: 0;
+    max-width: none;
+  }
+  .table-scroll {
+    overflow: visible;
+  }
+  table.data {
+    font-size: 9pt;
+  }
+}
