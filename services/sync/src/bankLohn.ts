@@ -8,8 +8,11 @@ import { pagedSelect } from "./db";
  *              neben den "Überweisung"-Zeilen auf 1740 im Lohnstapel desselben Monats
  *              (höchstens eine je Monat, die am besten passende)                   → 1740
  *   - LSt:     Finanzamt mit Lohnsteuer im Verwendungszweck ("LOHNST", "LSt-Anm.")   → 1741
- *   - SV:      Krankenkassen-Beiträge (AOK, TK, BKK, Knappschaft …) und Presse-
- *              Versorgung/Versorgungswerk der Presse (Direktversicherung)          → 1742
+ *   - SV:      Krankenkassen-Beiträge (AOK, TK, BKK, Knappschaft …) und die Direktversicherungen
+ *              (Presse-Versorgung/Versorgungswerk der Presse, Nürnberger Lebens-
+ *              versicherung, SV Lebensversicherung)                                 → 1742
+ *   - U1/U2:   Eingang einer Krankenkasse in Höhe einer noch offenen AAG-Erstattung
+ *              aus dem Lohnstapel ("AAG/Forderungskto." auf 1520)                   → 1520
  * Nur ausgehende, noch völlig unzugeordnete Bankzeilen. In /bank lässt sich jede Buchung wie gewohnt
  * wieder entfernen. Läuft täglich nach dem Bankabruf; einmalig mit --from=2026-01-01 für den Altbestand.
  */
@@ -26,7 +29,8 @@ type Tx = {
 
 const KRANKENKASSE =
   /\baok\b|krankenkasse|\bbarmer\b|\bdak\b|\bikk\b|\bbkk\b|betriebskrankenkasse|\bsbk\b|knappschaft|\bhkk\b|\bmhplus\b|\bviactiv\b|\bkkh\b|\bhek\b|minijob-zentrale|\bsvlfg\b/i;
-const PRESSE_VERSORGUNG = /presse-?versorgung|versorgungswerk der presse/i;
+// Direktversicherungen (bAV-Abzug im Lohnstapel auf 1742)
+const DIREKTVERSICHERUNG = /presse-?versorgung|versorgungswerk der presse|n(ü|ue)rnberger lebensvers|^sv lebensversicherung/i;
 const SV_ZWECK = /beitr|bnr\.?|ob-\d|beitragsnachweis|sv-beitr|\d{2}\/\d{2}/i;
 const FINANZAMT = /finanzamt/i;
 const LST_ZWECK = /lohnst|\blst\b|lst-anm|lohnsteuer/i;
@@ -122,9 +126,9 @@ export async function bankLohn(opts: Options = {}) {
     } else if (FINANZAMT.test(name) && LST_ZWECK.test(zweck)) {
       konto = "1741";
       text = `Lohnsteuer ${clean(zweck, 30)}`;
-    } else if ((KRANKENKASSE.test(name) && SV_ZWECK.test(zweck)) || PRESSE_VERSORGUNG.test(name)) {
+    } else if ((KRANKENKASSE.test(name) && SV_ZWECK.test(zweck)) || DIREKTVERSICHERUNG.test(name.trim())) {
       konto = "1742";
-      text = `${PRESSE_VERSORGUNG.test(name) ? "Direktversicherung" : "SV-Beiträge"} ${clean(name, 35)}`;
+      text = `${DIREKTVERSICHERUNG.test(name.trim()) ? "Direktversicherung" : "SV-Beiträge"} ${clean(name, 35)}`;
     }
     if (!konto) continue;
 
@@ -140,6 +144,53 @@ export async function bankLohn(opts: Options = {}) {
       ledger_account: konto,
       amount: t.amount,
       note: clean(text, 60),
+      auto: true,
+    });
+    if (e) {
+      ergebnis.fehler.push(`${t.booking_date} ${t.amount}: ${e.message}`);
+      continue;
+    }
+    await supabase.from("bank_transaction").update({ match_status: "matched" }).eq("id", t.id);
+  }
+
+  // U1/U2-Erstattungen: Eingänge von Krankenkassen gegen die offenen AAG-Forderungen (1520) aus dem Lohnstapel
+  const forderungen = (
+    await pagedSelect<{ amount: number; soll_haben: string }>("payroll_booking", "amount, soll_haben", ["gegenkonto", "1520"])
+  )
+    .filter((f) => f.soll_haben === "H") // 1755 im Haben → 1520 im Soll: Forderung entsteht
+    .map((f) => Math.round(Math.abs(f.amount) * 100) / 100);
+  const { data: schon } = await supabase.from("bank_transaction_match").select("amount").eq("ledger_account", "1520");
+  const offen = [...forderungen];
+  for (const m of schon ?? []) {
+    const i = offen.findIndex((b) => Math.abs(b - Math.abs(Number(m.amount))) < 0.01);
+    if (i >= 0) offen.splice(i, 1);
+  }
+  const { data: eingaenge } = await supabase
+    .from("bank_transaction")
+    .select("id, booking_date, amount, counterparty_name")
+    .eq("match_status", "unmatched")
+    .gt("amount", 0)
+    .gte("booking_date", from)
+    .order("booking_date")
+    .limit(2000);
+  for (const t of eingaenge ?? []) {
+    if (!KRANKENKASSE.test(t.counterparty_name ?? "")) continue;
+    const i = offen.findIndex((b) => Math.abs(b - t.amount) < 0.01);
+    if (i < 0) continue;
+    const { count } = await supabase.from("bank_transaction_match").select("id", { count: "exact", head: true }).eq("bank_transaction_id", t.id);
+    if (count) continue;
+    offen.splice(i, 1);
+    const z = (ergebnis.nach_konto["1520"] ??= { anzahl: 0, summe: 0 });
+    z.anzahl += 1;
+    z.summe = Math.round((z.summe + t.amount) * 100) / 100;
+    if (ergebnis.beispiele.length < 16) ergebnis.beispiele.push(`${t.booking_date} +${t.amount} ${clean(t.counterparty_name ?? "", 30)} → 1520`);
+    if (dryRun) continue;
+    const { error: e } = await supabase.from("bank_transaction_match").insert({
+      bank_transaction_id: t.id,
+      kind: "sonstige",
+      ledger_account: "1520",
+      amount: t.amount,
+      note: clean(`U1/U2-Erstattung ${t.counterparty_name ?? ""}`, 60),
       auto: true,
     });
     if (e) {
