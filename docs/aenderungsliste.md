@@ -630,7 +630,9 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Bankabruf, letzte 45 Tage; Altbestand `--from=2026-01-01`): Überweisung an die
   IBAN eines Mitarbeiters (`personal`) oder Gehalts-Sammelüberweisung (≥ 10 Posten,
   ±6 % zu den „Überweisung“-Zeilen auf 1740 im Lohnmonat) → 1740, Finanzamt mit Lohnsteuer im
-  Verwendungszweck → 1741, Krankenkassen-Beiträge und Presse-Versorgung → 1742.
+  Verwendungszweck → 1741, Krankenkassen-Beiträge und Direktversicherungen
+  (Presse-Versorgung, Nürnberger, SV Lebensversicherung) → 1742, Krankenkassen-Eingänge
+  in Höhe einer offenen U1/U2-Forderung aus dem Lohnstapel → 1520.
   Nur völlig unzugeordnete Ausgänge, `auto = true`, in `/bank` entfernbar.
 - [x] **Steuerzahlungen automatisch ausbuchen** (`bank:steuern`, täglich 6:47):
   Finanzamt-Verwendungszweck „UMS.ST <Monat>.<JJ>“ → 1780 (lfd. Jahr) / 1790
