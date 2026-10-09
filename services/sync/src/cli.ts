@@ -5,6 +5,7 @@ import { syncNinoxPeople } from "./syncNinoxPeople";
 import { personalImport } from "./personalImport";
 import { extractDokumente } from "./extractDokumente";
 import { orgsNachziehen } from "./orgsNachziehen";
+import { bankLohn } from "./bankLohn";
 import { syncNinoxAddresses } from "./syncNinoxAddresses";
 import { syncKeylineOrders } from "./syncKeylineOrders";
 import { syncKeylineInvoices, refreshKeylineInvoice } from "./syncKeylineInvoices";
@@ -720,6 +721,12 @@ async function main() {
     case "incoming:orgs-nachziehen": {
       console.log(`Eingangsrechnungen ohne Organisation zuordnen/anlegen${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await orgsNachziehen({ dryRun }), null, 1));
+      break;
+    }
+    case "bank:lohn": {
+      const von = process.argv.find((a) => a.startsWith("--from="))?.split("=")[1];
+      console.log(`Lohn-Zahlungen ausbuchen (Gehalt 1740, LSt 1741, SV 1742)${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await bankLohn({ dryRun, from: von }), null, 1));
       break;
     }
     case "incoming:purge": {
