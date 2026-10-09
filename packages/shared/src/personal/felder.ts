@@ -107,8 +107,10 @@ export const PERSONAL_FELDER: PersonalFeld[] = [
   { spalte: "notiz", label: "Beschreibung / Notiz", typ: "mehrzeilig", gruppe: "Intern", ninox: "Beschreibung" },
 ];
 
-/** Ninox-Wert → Spaltenwert (Datum "YYYY-MM-DD", Zahlen, ja/nein, Text getrimmt; leer → null). */
+/** Ninox-Wert → Spaltenwert (Datum "YYYY-MM-DD", Zahlen, ja/nein, Text getrimmt; leer → null bzw. nein). */
 export function ninoxWert(f: PersonalFeld, v: unknown): string | number | boolean | null {
+  // ja/nein-Spalten sind not null: leer = nein
+  if (f.typ === "ja_nein") return v === true || v === "true" || v === 1;
   if (v === null || v === undefined || v === "") return null;
   switch (f.typ) {
     case "zahl":
@@ -116,8 +118,6 @@ export function ninoxWert(f: PersonalFeld, v: unknown): string | number | boolea
       const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
       return Number.isFinite(n) ? n : null;
     }
-    case "ja_nein":
-      return v === true || v === "true" || v === 1;
     case "datum": {
       const s = String(v);
       return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
