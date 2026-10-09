@@ -18,8 +18,11 @@ export default async function ScannenPage({
     .order("name")
     .limit(2000);
 
+  const { data: personal } = await supabase.rpc("has_personal_access");
+
   return (
     <ScanClient
+      darfPersonal={personal === true}
       startZiel={ziel === "dokument" ? "dokument" : "eingangsrechnung"}
       firmen={Array.from(new Set((orgs ?? []).map((o) => o.name as string)))}
     />

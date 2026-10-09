@@ -585,3 +585,21 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Benutzerrollen. Die alte Fassung kannte z. B. Dokumente, Material, Sendungen
   und `invoice` nicht (Verknüpfungen wären verloren gegangen). Protokoll in `organization_merge` (Snapshot +
   umgehängte Tabellen in `note`). `organization_verweise(id)` zählt Verknüpfungen.
+- [x] **Personal + Zeiterfassung.** Neues Modul **Personal** in der Rechteverwaltung –
+  Admins bekommen es *nicht* automatisch, nur ausdrücklich Freigegebene (anfangs
+  w.bangert); vergeben kann es nur, wer es selbst hat (`has_personal_access()`,
+  RLS auf `personal`, `zeit_eintrag`, `dokument`). Tabelle `personal` mit allen
+  Feldern der Ninox-Personalübersicht (Team GL, DB „check“); Feldliste
+  `packages/shared/src/personal/felder.ts`. Import einmalig:
+  `docker compose run --rm sync pnpm personal:import` (`--dry-run`; vorhandene
+  werden nicht überschrieben, außer `--update`), danach ist werk führend.
+  Seiten `/personal` (Liste, Detail mit Bearbeiten, vertrauliche Gruppen
+  eingeklappt, Login-Verknüpfung) und `/personal/zeiten` (Monat, je Person,
+  korrigieren/nachtragen, ArbZG-Hinweise). **Zeiterfassung** `/zeiterfassung`
+  für jeden Mitarbeiter: Kommen / Pause / Weiter / Gehen über RPC `stempeln()`,
+  jeder sieht nur eigene Zeiten. Jeder eingeladene Mitarbeiter bekommt jetzt die
+  Rolle `employee` (auch ohne Modul), damit er stempeln kann. Hotfolder-Ordner
+  `Personal` → Dokument-Kategorie `personal` (nur mit Modul Personal sichtbar,
+  wird nur von Berechtigten abgeholt).
+  → Offen: Personal-Dokumente automatisch der Person zuordnen (KI), Urlaub/Krank,
+  Soll-/Ist-Stunden, Export für die Lohnabrechnung.

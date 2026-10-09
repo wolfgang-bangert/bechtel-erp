@@ -2,6 +2,7 @@ import { syncKeylineOrganizations } from "./syncKeylineOrganizations";
 import { syncKeylineAddresses } from "./syncKeylineAddresses";
 import { syncNinoxFirmen } from "./syncNinoxFirmen";
 import { syncNinoxPeople } from "./syncNinoxPeople";
+import { personalImport } from "./personalImport";
 import { syncNinoxAddresses } from "./syncNinoxAddresses";
 import { syncKeylineOrders } from "./syncKeylineOrders";
 import { syncKeylineInvoices, refreshKeylineInvoice } from "./syncKeylineInvoices";
@@ -117,6 +118,16 @@ async function main() {
       console.log(
         `\nFertig. gesehen ${r.seen} — neu ${r.insert}, aktualisiert ${r.update}, ` +
           `ohne Firma ${r.orphans}, leer ${r.empty}` +
+          (dryRun ? "  (DRY RUN)" : ""),
+      );
+      break;
+    }
+    case "personal:import": {
+      console.log(`Ninox (Team GL) -> Supabase: Personalübersicht${dryRun ? "  (DRY RUN)" : ""}`);
+      const r = await personalImport({ dryRun, update: flags.has("--update") });
+      console.log(
+        `\nFertig. gesehen ${r.gesehen} — neu ${r.neu}, überschrieben ${r.aktualisiert}, ` +
+          `schon vorhanden (nicht überschrieben) ${r.uebersprungen}, Login verknüpft ${r.verknuepft}` +
           (dryRun ? "  (DRY RUN)" : ""),
       );
       break;

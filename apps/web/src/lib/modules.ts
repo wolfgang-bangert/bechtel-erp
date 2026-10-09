@@ -1,6 +1,6 @@
 /**
  * Module für die Rechtevergabe (Vertrieb, Onlineprinters, Buchhaltung, Versand, Werkzeuge,
- * Einstellungen) und die Zuordnung von Seiten/Routen zu einem Modul. Reine Logik ohne
+ * Einstellungen, Personal) und die Zuordnung von Seiten/Routen zu einem Modul. Reine Logik ohne
  * Abhängigkeiten - wird von Middleware, Navigation und Mitarbeiter-Verwaltung genutzt.
  */
 export const MODULES = [
@@ -10,6 +10,8 @@ export const MODULES = [
   { key: "versand", label: "Versand" },
   { key: "werkzeuge", label: "Werkzeuge" },
   { key: "einstellungen", label: "Einstellungen" },
+  // Personal: Admins haben es NICHT automatisch, nur ausdrücklich Freigegebene (siehe has_personal_access())
+  { key: "personal", label: "Personal" },
 ] as const;
 
 export type ModuleKey = (typeof MODULES)[number]["key"];
@@ -40,6 +42,7 @@ const ERSTES_SEGMENT: Record<string, ModuleKey> = {
   scannen: "buchhaltung",
   versand: "versand",
   werkzeuge: "werkzeuge",
+  personal: "personal",
 };
 
 const API_SEGMENT: Record<string, ModuleKey> = {
