@@ -113,3 +113,17 @@ export async function laufStatusSetzen(_p: State, fd: FormData): Promise<State> 
   revalidatePath("/zahlungen");
   return { ok: true };
 }
+
+/** Verworfenen Zahlungslauf löschen (nur Status "verworfen"; Posten gehen per cascade mit, Rechnungen bleiben). */
+export async function laufLoeschen(_p: State, fd: FormData): Promise<State> {
+  const id = String(fd.get("id") ?? "");
+  if (!id) return { error: "Angaben fehlen." };
+  const supabase = await createClient();
+  const { data: lauf } = await supabase.from("payment_batch").select("status").eq("id", id).maybeSingle();
+  if (!lauf) return { error: "Zahlungslauf nicht gefunden." };
+  if (lauf.status !== "verworfen") return { error: "Nur verworfene Zahlungsläufe können gelöscht werden." };
+  const { error } = await supabase.from("payment_batch").delete().eq("id", id).eq("status", "verworfen");
+  if (error) return { error: error.message };
+  revalidatePath("/zahlungen");
+  redirect("/zahlungen");
+}
