@@ -13,10 +13,16 @@ export const KOSTEN_GRUPPEN: KostenGruppe[] = [
   { key: "fahrt", label: "Fahrtkostenerstattung", konten: (k) => k === "4175" },
   { key: "pauschal", label: "Pauschale Lohnsteuer", konten: (k) => ["4149", "4167", "4194", "4199"].includes(k) },
   { key: "sachbezug", label: "Sachbezüge (gegengerechnet)", konten: (k) => /^859\d$/.test(k) },
-  { key: "sonst", label: "Sonstige Personalkosten", konten: (k) => /^4[1-2]\d\d$/.test(k) },
+  // U1/U2-Erstattungen der Krankenkassen (z. B. Mutterschaftsgeld-Zuschuss) mindern die AG-Belastung
+  { key: "erstattung", label: "Erstattungen U1/U2 (Aufwendungsausgleichsgesetz)", konten: (k) => k === "2749" },
+  { key: "sonst", label: "Sonstige Personalkosten", konten: () => true },
 ];
 
-export const istPersonalaufwand = (k: string) => /^4[1-2]\d\d$/.test(k) || /^859\d$/.test(k);
+/**
+ * Erfolgskonto (Aufwand/Ertrag) statt Bestandskonto: in SKR03 alles außer Klasse 0 und 1. Erfolgskonten
+ * gehören in die Lohnkosten, Bestandskonten (Verbindlichkeiten 17xx, Forderungen 15xx …) in den Abgleich.
+ */
+export const istPersonalaufwand = (k: string) => /^\d{4}$/.test(k) && !/^[01]/.test(k);
 
 export function gruppeVon(konto: string): string | null {
   if (!istPersonalaufwand(konto)) return null;
