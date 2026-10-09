@@ -1523,3 +1523,27 @@ a.bd-tab:hover {
   border-color: var(--bd-rot);
   font-weight: 700;
 }
+.scan-pdf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--bd-line);
+  border-radius: 10px;
+  background: var(--panel);
+  font-size: 15px;
+}
+.scan-pdf-name {
+  flex: 1 1 100%;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.scan .scan-pdf .scan-sekundaer {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+.scan [hidden] {
+  display: none !important;
+}

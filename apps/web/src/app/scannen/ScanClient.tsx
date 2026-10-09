@@ -40,6 +40,9 @@ export function ScanClient({ startZiel, firmen }: { startZiel: Ziel; firmen: str
   const [pdfSeite, setPdfSeite] = useState(0);
   const [fehler, setFehler] = useState<string | null>(null);
   const [erledigt, setErledigt] = useState<ScanState | null>(null);
+  // fertiges PDF (z. B. mit dem iPhone-Scanner der Dateien-App erstellt) - wird unverändert hochgeladen
+  const [fertigPdf, setFertigPdf] = useState<{ file: File; seiten: number | null; url: string } | null>(null);
+  const pdfRef = useRef<HTMLInputElement>(null);
   const kameraRef = useRef<HTMLInputElement>(null);
   const fotosRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -55,8 +58,46 @@ export function ScanClient({ startZiel, firmen }: { startZiel: Ziel; firmen: str
     setErledigt(state);
     seitenRef.current.forEach(freigeben);
     setSeiten([]);
+    setFertigPdf((alt) => {
+      if (alt) URL.revokeObjectURL(alt.url);
+      return null;
+    });
     formRef.current?.reset();
   }, [state]);
+
+  const pdfWaehlen = async (liste: FileList | null) => {
+    const f = liste?.[0];
+    if (pdfRef.current) pdfRef.current.value = "";
+    if (!f) return;
+    setFehler(null);
+    setErledigt(null);
+    try {
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      // echte PDFs beginnen (fast immer ganz vorne) mit "%PDF"
+      if (!new TextDecoder("latin1").decode(bytes.subarray(0, 1024)).includes("%PDF")) {
+        setFehler(`„${f.name}“ ist kein PDF.`);
+        return;
+      }
+      let anzahl: number | null = null;
+      try {
+        const { PDFDocument } = await import("pdf-lib");
+        anzahl = (await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false })).getPageCount();
+      } catch {
+        // Seitenzahl ist nur Komfort - PDF trotzdem annehmen
+      }
+      setFertigPdf((alt) => {
+        if (alt) URL.revokeObjectURL(alt.url);
+        return { file: f, seiten: anzahl, url: URL.createObjectURL(f) };
+      });
+    } catch {
+      setFehler(`„${f.name}“ konnte nicht gelesen werden.`);
+    }
+  };
+  const pdfEntfernen = () =>
+    setFertigPdf((alt) => {
+      if (alt) URL.revokeObjectURL(alt.url);
+      return null;
+    });
 
   const fotosHinzufuegen = async (liste: FileList | null) => {
     const dateien = Array.from(liste ?? []).filter((f) => f.type.startsWith("image/") || /\.(jpe?g|png|heic|webp)$/i.test(f.name));
@@ -116,8 +157,21 @@ export function ScanClient({ startZiel, firmen }: { startZiel: Ziel; firmen: str
   };
 
   const speichern = async () => {
-    if (!seiten.length || !formRef.current) return;
+    if (!formRef.current) return;
     setFehler(null);
+    if (fertigPdf) {
+      const fd = new FormData(formRef.current);
+      fd.set("ziel", ziel);
+      if (fertigPdf.seiten) fd.set("seiten", String(fertigPdf.seiten));
+      // ohne eigenen Titel: Dateiname statt nur der Kategorie
+      if (ziel === "dokument" && !String(fd.get("titel") ?? "").trim()) {
+        fd.set("titel", fertigPdf.file.name.replace(/\.pdf$/i, ""));
+      }
+      fd.set("file", fertigPdf.file);
+      startTransition(() => action(fd));
+      return;
+    }
+    if (!seiten.length) return;
     try {
       const bytes = await pdfErzeugen(seiten, setPdfSeite);
       const fd = new FormData(formRef.current);
@@ -182,7 +236,22 @@ export function ScanClient({ startZiel, firmen }: { startZiel: Ziel; firmen: str
       )}
       {(state.error || fehler) && <div className="scan-err">{fehler ?? state.error}</div>}
 
-      <div className="scan-aufnahme">
+      {fertigPdf && (
+        <div className="scan-pdf">
+          <span className="scan-pdf-name">
+            📄 {fertigPdf.file.name}
+            {fertigPdf.seiten ? ` · ${fertigPdf.seiten} ${fertigPdf.seiten === 1 ? "Seite" : "Seiten"}` : ""}
+          </span>
+          <a href={fertigPdf.url} target="_blank" rel="noreferrer">
+            Ansehen
+          </a>
+          <button type="button" className="scan-sekundaer" onClick={pdfEntfernen} disabled={beschaeftigt}>
+            Entfernen
+          </button>
+        </div>
+      )}
+
+      <div className="scan-aufnahme" hidden={!!fertigPdf}>
         <button type="button" className="scan-kamera" disabled={beschaeftigt} onClick={() => kameraRef.current?.click()}>
           📷 {seiten.length ? "Nächste Seite fotografieren" : "Seite fotografieren"}
         </button>
@@ -198,16 +267,27 @@ export function ScanClient({ startZiel, firmen }: { startZiel: Ziel; firmen: str
           onChange={(e) => fotosHinzufuegen(e.target.files)}
         />
         <input ref={fotosRef} type="file" accept="image/*" multiple hidden onChange={(e) => fotosHinzufuegen(e.target.files)} />
+        <button
+          type="button"
+          className="scan-sekundaer"
+          disabled={beschaeftigt || seiten.length > 0 || laedt > 0}
+          title={seiten.length ? "Erst die fotografierten Seiten speichern oder löschen" : undefined}
+          onClick={() => pdfRef.current?.click()}
+        >
+          📄 Fertiges PDF wählen (z. B. iPhone-Scan)
+        </button>
+        <input ref={pdfRef} type="file" accept="application/pdf,.pdf" hidden onChange={(e) => pdfWaehlen(e.target.files)} />
       </div>
-      <label className="scan-auto">
+      <label className="scan-auto" hidden={!!fertigPdf}>
         <input type="checkbox" checked={autoZuschnitt} onChange={(e) => setAutoZuschnitt(e.target.checked)} />
         Blatt automatisch zuschneiden und gerade ziehen
       </label>
-      {!seiten.length && !laedt && (
+      {!seiten.length && !laedt && !fertigPdf && (
         <p className="scan-tipp">
           Tipp: Blatt auf einen dunkleren Untergrund legen und ganz aufs Foto nehmen – dann wird es automatisch
           ausgeschnitten und gerade gezogen. Antippen einer Seite öffnet den Zuschnitt zum Nachkorrigieren. Mehrseitige
-          Dokumente einfach Seite für Seite aufnehmen – alles wird zu einem PDF.
+          Dokumente einfach Seite für Seite aufnehmen – alles wird zu einem PDF. Schon mit dem iPhone gescannt (Dateien →
+          „…“ → Dokumente scannen)? Dann „Fertiges PDF wählen“.
         </p>
       )}
 
@@ -320,8 +400,16 @@ export function ScanClient({ startZiel, firmen }: { startZiel: Ziel; firmen: str
           </>
         )}
 
-        <button type="submit" className="scan-speichern" disabled={!seiten.length || laedt > 0 || beschaeftigt}>
-          {pdfSeite > 0
+        <button
+          type="submit"
+          className="scan-speichern"
+          disabled={(!seiten.length && !fertigPdf) || laedt > 0 || beschaeftigt}
+        >
+          {fertigPdf
+            ? speichernd
+              ? "Wird hochgeladen…"
+              : "PDF speichern"
+            : pdfSeite > 0
             ? `PDF wird erzeugt… Seite ${pdfSeite}/${seiten.length}`
             : speichernd
               ? "Wird hochgeladen…"

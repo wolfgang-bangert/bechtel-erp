@@ -31,6 +31,9 @@ export async function scanSpeichern(_prev: ScanState, fd: FormData): Promise<Sca
   const file = fd.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Kein Dokument – bitte zuerst eine Seite aufnehmen." };
   const ziel = s(fd, "ziel") === "dokument" ? "dokument" : "eingangsrechnung";
+  // nur echte PDFs annehmen (gilt auch für "Fertiges PDF wählen")
+  const kopf = Buffer.from(await file.slice(0, 1024).arrayBuffer());
+  if (kopf.indexOf("%PDF") === -1) return { error: "Die Datei ist kein PDF." };
 
   if (ziel === "eingangsrechnung") {
     const inFd = new FormData();
