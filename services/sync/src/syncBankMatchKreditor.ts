@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { pagedSelect } from "./db";
 import { candidateTokens } from "./syncBankMatch";
+import { verteileSammelzahlungMitSkonto } from "@werk/shared/bank/sammelSkonto";
 
 type Options = { dryRun?: boolean };
 
@@ -164,8 +165,22 @@ export async function syncBankMatchKreditor(opts: Options = {}) {
       });
       const sum = r2(target.reduce((s, d) => s + (d.open_amount ?? d.gross_amount ?? 0), 0));
       if (target.length && Math.abs(sum - paid) <= Math.max(0.05, paid * 0.05)) {
+        // Sammelzahlung mit einheitlichem Skonto: anteilig statt voller offener
+        // Beträge, den Rest je Rechnung bucht skonto:apply als Skonto aus.
+        const anteilig =
+          target.every((d) => d.doc_type === "invoice") &&
+          verteileSammelzahlungMitSkonto(
+            paid,
+            target.map((d) => ({
+              id: d.id,
+              offen: d.open_amount ?? d.gross_amount ?? 0,
+              discount_amount: d.discount_amount,
+            })),
+          );
         for (const d of target) {
-          const share = target.length === 1 ? tx.amount : -r2(d.open_amount ?? d.gross_amount ?? 0);
+          const teil = anteilig ? anteilig.find((a) => a.id === d.id)?.betrag : undefined;
+          const share =
+            target.length === 1 ? tx.amount : -r2(teil ?? d.open_amount ?? d.gross_amount ?? 0);
           rows.push({ bank_transaction_id: tx.id, incoming_document_id: d.id, amount: share });
           usedDocs.add(d.id);
         }
