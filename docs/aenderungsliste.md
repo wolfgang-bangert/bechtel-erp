@@ -574,3 +574,14 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   erstellt). Es wird unverändert hochgeladen – als Eingangsrechnung oder in die
   Ablage (Seitenzahl per pdf-lib, Titel = Dateiname, wenn leer). Server prüft
   den Inhalt (`%PDF`).
+- [x] **Organisationen verschmelzen (Warenkorb).** In `/organisationen` (Liste und
+  Detail) Dubletten mit „+ Korb“ in den Warenkorb legen (Browser-Speicher),
+  „Verschmelzen …“ → `/organisationen/verschmelzen`: Kandidaten nebeneinander
+  (Nummern, USt-IdNr, Quelle, Anzahl Verknüpfungen), führende wählen. Recht:
+  Vertrieb bearbeiten. `merge_organization()` neu
+  (`20261009060000_organization_merge_generisch.sql`): hängt **alle**
+  Fremdschlüssel auf `organization(id)` über den Katalog um (auch künftige
+  Tabellen); Sonderregeln nur noch für Fremdsystem-Refs, Adressen, Kontakte,
+  Benutzerrollen. Die alte Fassung kannte z. B. Dokumente, Material, Sendungen
+  und `invoice` nicht (Verknüpfungen wären verloren gegangen). Protokoll in `organization_merge` (Snapshot +
+  umgehängte Tabellen in `note`). `organization_verweise(id)` zählt Verknüpfungen.
