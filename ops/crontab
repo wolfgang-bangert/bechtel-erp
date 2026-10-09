@@ -33,6 +33,8 @@
 
 # Eingangsrechnungen aus dem Postfach + KI-Vorerfassung (war stündlich)
 15 * * * *   cd /app/services/sync && pnpm mail:fetch --since=7 && pnpm incoming:extract --limit=100
+# Dokumentablage: KI-Erkennung + Zuordnung (Sicherheitsnetz; neue Dokumente stoßen es sofort per sync_request an)
+25 * * * *   cd /app/services/sync && pnpm dokumente:extract --limit=50
 
 # Bankumsätze abrufen (FinTS): Zeitplan liegt jetzt in n8n (Tag "werk",
 # Workflow "werk – Bank-Sync Zeitplan"), das ruft POST /api/n8n/trigger auf

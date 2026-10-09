@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
+import { DOKUMENT_KATEGORIEN, istDokumentKategorie } from "@/lib/dokumente";
 import { setInvoiceEmailAction } from "./actions";
 import { KorbKnopf, KorbLeiste } from "../Warenkorb";
 
@@ -31,6 +32,7 @@ export default async function OrganisationDetail({
     { data: contacts },
     { data: orders, count: orderCount },
     { data: invoices, count: invoiceCount },
+    { data: dokumente, count: dokumentCount },
   ] = await Promise.all([
     supabase.from("organization").select("*").eq("id", id).maybeSingle(),
     supabase
@@ -57,6 +59,12 @@ export default async function OrganisationDetail({
       .eq("organization_id", id)
       .order("invoice_date", { ascending: false, nullsFirst: false })
       .limit(8),
+    supabase
+      .from("dokument")
+      .select("id, kategorie, titel, dokument_datum, created_at", { count: "exact" })
+      .eq("organization_id", id)
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
 
   if (error) {
@@ -84,6 +92,14 @@ export default async function OrganisationDetail({
       <p className="lead">
         {RELATION_LABEL[org.relation] ?? org.relation}
         {org.customer_segment ? ` · Segment ${org.customer_segment}` : ""}
+        {org.angelegt_durch && (
+          <>
+            {" · "}
+            <span className="tag" title="Von werk automatisch angelegt – Angaben prüfen, Dubletten über den Warenkorb verschmelzen">
+              automatisch angelegt aus {org.angelegt_durch === "dokument" ? "einem Dokument" : "einer Eingangsrechnung"}
+            </span>
+          </>
+        )}
       </p>
 
       <h2>Stammdaten</h2>
@@ -283,6 +299,30 @@ export default async function OrganisationDetail({
               {inv.kind === "credit_note" && <span className="tag">Gutschrift</span>}
               <span className="count" style={{ marginLeft: "auto" }}>{fmtEur(inv.gross_total)}</span>
               <span className="tag">{inv.source}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <h2>
+        Dokumente{" "}
+        <span className="count" style={{ fontWeight: 400 }}>
+          ({dokumentCount ?? 0})
+        </span>
+      </h2>
+      {(dokumente ?? []).length === 0 ? (
+        <p className="lead">Keine.</p>
+      ) : (
+        <div className="rows">
+          {(dokumente ?? []).map((d) => (
+            <div className="row" key={d.id}>
+              <span>{fmtDate(d.dokument_datum ?? d.created_at)}</span>
+              <a href={`/dokumente/${d.id}/pdf`} target="_blank" rel="noreferrer">
+                {d.titel}
+              </a>
+              <span className="tag" style={{ marginLeft: "auto" }}>
+                {istDokumentKategorie(d.kategorie) ? DOKUMENT_KATEGORIEN[d.kategorie] : d.kategorie}
+              </span>
             </div>
           ))}
         </div>

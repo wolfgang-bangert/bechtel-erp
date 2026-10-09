@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { signedGetUrl } from "@/lib/storage";
-import { dokumentAnlegen } from "@/lib/belege";
+import { dokumentAnlegen, dokumentErkennungAnstossen } from "@/lib/belege";
 import { DOKUMENT_KATEGORIEN, istDokumentKategorie } from "@/lib/dokumente";
 import { uploadIncoming } from "../(app)/eingangsrechnungen/actions";
 
@@ -77,6 +77,7 @@ export async function scanSpeichern(_prev: ScanState, fd: FormData): Promise<Sca
   }
   if (r.status === "doppelt") return { ok: true, ziel, doppelt: true };
 
+  await dokumentErkennungAnstossen(supabase);
   revalidatePath("/dokumente");
   return { ok: true, ziel, url: await signedGetUrl(r.key, 1800) };
 }

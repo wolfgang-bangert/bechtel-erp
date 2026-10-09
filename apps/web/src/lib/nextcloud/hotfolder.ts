@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PDFDocument } from "pdf-lib";
-import { dokumentAnlegen, eingangsbelegErfassen, extraktionAnstossen } from "@/lib/belege";
+import { dokumentAnlegen, dokumentErkennungAnstossen, eingangsbelegErfassen, extraktionAnstossen } from "@/lib/belege";
 import type { DokumentKategorie } from "@/lib/dokumente";
 import { dateiLaden, dateiVerschieben, ordnerAnlegen, ordnerListen } from "./webdav";
 
@@ -110,6 +110,7 @@ export async function hotfolderAbholen(
   }
 
   if (erg.eingangsrechnungen > 0) await extraktionAnstossen(sb);
+  if (erg.dokumente > 0) await dokumentErkennungAnstossen(sb);
   return erg;
 }
 

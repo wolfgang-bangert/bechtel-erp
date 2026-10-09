@@ -66,6 +66,12 @@ export async function processSyncRequests() {
           // deckt auch mehrere per Split neu entstandene Teil-Dokumente ab).
           result = await extractIncoming({ limit: (req.params as { limit?: number }).limit ?? 50 });
           break;
+        case "dokumente:extract": {
+          // neues Dokument (Scan/Upload/Nextcloud): Partner erkennen, Organisation/Person zuordnen
+          const { extractDokumente } = await import("./extractDokumente");
+          result = await extractDokumente({ limit: (req.params as { limit?: number }).limit ?? 50 });
+          break;
+        }
         default:
           throw new Error(`unbekannter job: ${req.job}`);
       }
