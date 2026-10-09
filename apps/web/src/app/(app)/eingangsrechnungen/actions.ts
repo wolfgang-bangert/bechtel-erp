@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { verwirfEingangsbeleg } from "@werk/shared/eingang/verwerfen";
 import { createClient } from "@/lib/supabase/server";
 import { buchungsProbleme, schluesselInfo } from "@/lib/belegPruefung";
 import { signedGetUrl } from "@/lib/storage";
@@ -347,6 +349,19 @@ export async function setIncomingStatus(fd: FormData): Promise<void> {
     // Sperre: nur korrekt kontierte Belege mit stimmigen Summen buchen
     if ((await buchbarkeit([id])).get(id)?.probleme.length !== 0) return;
     patch.reviewed_at = new Date().toISOString();
+  }
+  if (status === "rejected") {
+    // Bankzuordnungen/Skonto wandern auf die nicht verworfene Kopie; gibt es keine passende, wird nicht verworfen.
+    const r = await verwirfEingangsbeleg(supabase, id);
+    revalidatePath("/eingangsrechnungen");
+    revalidatePath(`/eingangsrechnungen/${id}`);
+    if (!r.ok) redirect(`/eingangsrechnungen/${id}?fehler=${encodeURIComponent(r.grund)}`);
+    if (r.ziel) {
+      revalidatePath("/bank");
+      revalidatePath("/offene-posten");
+      revalidatePath(`/eingangsrechnungen/${r.ziel}`);
+    }
+    return;
   }
   await supabase.from("incoming_document").update(patch).eq("id", id);
   revalidatePath("/eingangsrechnungen");

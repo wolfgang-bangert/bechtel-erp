@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { deleteObject } from "./storage";
+import { zuordnungenUmhaengen } from "@werk/shared/eingang/verwerfen";
 
 type Options = { dryRun?: boolean; quiet?: boolean };
 
@@ -37,13 +38,24 @@ export async function pruneReceiptDuplicates(opts: Options = {}) {
       .map((r) => r.doc_number as string),
   );
 
-  const victims = rows.filter(
+  const victims: Row[] = rows.filter(
     (r) =>
       r.doc_type === "receipt" &&
       r.doc_number &&
       invoiceNumbers.has(r.doc_number) &&
       SAFE_TO_DELETE.has(r.status),
   );
+
+  // Löschen würde Bankzuordnungen mitlöschen (on delete cascade): vorher zur Rechnung umhängen, sonst behalten.
+  const behalten: string[] = [];
+  const zuLoeschen: Row[] = [];
+  for (const v of victims) {
+    const r = await zuordnungenUmhaengen(supabase, v.id, { dryRun });
+    if (r.ok) zuLoeschen.push(v);
+    else behalten.push(`${v.doc_number} · ${v.supplier_name ?? "?"}: ${r.grund}`);
+  }
+  victims.splice(0, victims.length, ...zuLoeschen);
+  if (behalten.length) console.warn(`${behalten.length} Receipts mit Bankzuordnung behalten:\n  ${behalten.join("\n  ")}`);
 
   if (!quiet || victims.length) {
     console.log(`${victims.length} redundante Receipts${dryRun ? "  (DRY RUN)" : ""}`);

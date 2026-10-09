@@ -8,6 +8,7 @@ import { getObjectBytes, putObject, deleteObject, prefix } from "./storage";
 import { pagedSelect } from "./db";
 import { pruefeUst, loadOwnVatId, type UstTaxCode } from "./ustCheck";
 import { pruneReceiptDuplicates } from "./pruneReceipts";
+import { verwirfEingangsbeleg } from "@werk/shared/eingang/verwerfen";
 import { forwardDunnings } from "./forwardDunnings";
 import { findeOderLegeAn, findeOrganisation, istEigene, ladeEigene } from "./organisationFinden";
 
@@ -834,17 +835,23 @@ export async function extractIncoming(opts: Options = {}) {
           // Quittung neben Rechnung: die Rechnung bleibt, auch wenn sie erst nach der Quittung gelesen wird.
           const dieseIstRechnung = (e.doc_type ?? "invoice") === "invoice";
           if (dieseIstRechnung && other.doc_type === "receipt" && ["captured", "extracted"].includes(other.status)) {
-            await supabase
-              .from("incoming_document")
-              .update({ status: "rejected", notes: `Quittung zur Rechnung ${nrDup} - nur die Rechnung wird gebraucht` })
-              .eq("id", other.id);
+            // Bankzuordnungen der Quittung wandern zur Rechnung (sonst bleibt die Quittung stehen)
+            const r = await verwirfEingangsbeleg(supabase, other.id, {
+              gegen: doc.id,
+              notes: `Quittung zur Rechnung ${nrDup} - nur die Rechnung wird gebraucht`,
+            });
+            if (!r.ok) console.warn(`  Quittung ${nrDup} nicht verworfen: ${r.grund}`);
           } else {
-            await supabase
-              .from("incoming_document")
-              .update({ status: "rejected", notes: `Dublette von Beleg ${other.id} (gleiche Rechnungsnummer und Betrag)` })
-              .eq("id", doc.id);
-            ok += 1;
-            continue;
+            // Bankzuordnungen dieses Belegs (z.B. bei erneutem Auslesen) wandern zur älteren Kopie
+            const r = await verwirfEingangsbeleg(supabase, doc.id, {
+              gegen: other.id,
+              notes: `Dublette von Beleg ${other.id} (gleiche Rechnungsnummer und Betrag)`,
+            });
+            if (r.ok) {
+              ok += 1;
+              continue;
+            }
+            console.warn(`  Dublette ${nrDup} nicht verworfen: ${r.grund}`);
           }
         }
       }

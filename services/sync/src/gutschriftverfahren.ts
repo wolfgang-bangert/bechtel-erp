@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { generateInvoiceBooking } from "./syncInvoiceBookings";
+import { MELDUNG_BANKZUORDNUNG } from "@werk/shared/eingang/verwerfen";
 
 /* --------------------------------------------------------------------------
  * Gutschriftverfahren: Der Kunde stellt die Abrechnung aus und überweist (z.B. Festool-Konsignationsabrechnung).
@@ -27,6 +28,16 @@ export async function gutschriftverfahrenPruefen(docId: string, opts: { ohneBuch
     .eq("id", doc.supplier_organization_id)
     .maybeSingle();
   if (!org?.gutschriftverfahren) return false;
+
+  // Ein Beleg mit Bankzuordnung wird nicht stillschweigend verworfen (die Zahlung gehört dann zur Ausgangsrechnung)
+  const { count: zuordnungen } = await supabase
+    .from("bank_transaction_match")
+    .select("id", { count: "exact", head: true })
+    .eq("incoming_document_id", docId);
+  if (zuordnungen) {
+    console.warn(`  Gutschriftverfahren ${doc.doc_number}: ${MELDUNG_BANKZUORDNUNG}`);
+    return false;
+  }
 
   const nr = doc.doc_number.trim();
   const { data: ex } = await supabase.from("sales_invoice").select("id").eq("invoice_number", nr).limit(1);

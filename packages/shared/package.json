@@ -32,7 +32,8 @@
     "./fakturierung/zugferd": "./src/fakturierung/zugferd.ts",
     "./fakturierung/csv": "./src/fakturierung/csv.ts",
     "./ustva": "./src/ustva/berechnung.ts",
-    "./personal/felder": "./src/personal/felder.ts"
+    "./personal/felder": "./src/personal/felder.ts",
+    "./eingang/verwerfen": "./src/eingang/verwerfen.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",
