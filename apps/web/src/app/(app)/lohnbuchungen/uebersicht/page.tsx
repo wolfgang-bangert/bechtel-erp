@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
 import { fuerKonto, ladeJournal, saldoVon } from "@/lib/konten/journal";
 import { kontoNamen } from "@/lib/konten/namen";
+import { ladeVortraege } from "@/lib/konten/vortrag";
 import { KOSTEN_GRUPPEN, LOHN_PARTNER, LOHN_ZWECK, gegenkontoSoll, gruppeVon, istPersonalaufwand } from "@/lib/lohn/auswertung";
 import { Drucken } from "./Drucken";
 
@@ -12,6 +13,12 @@ export const metadata = { title: "Lohn-Übersicht · werk" };
 const MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 const fmtSaldo = (s: number) => (Math.abs(s) < 0.005 ? "0,00" : `${fmtEur(Math.abs(s)).replace(/\s?€/, "")} ${s > 0 ? "S" : "H"}`);
 const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Konten, deren Lohn-Verbindlichkeit erst im Folgemonat fällig ist: am Monatsende ist dort ein Haben-Saldo in
+ * Höhe des Monats-Zugangs aus dem Lohnstapel richtig (Lohnsteuer bis zum 10. des Folgemonats).
+ */
+const FAELLIG_FOLGEMONAT = new Set(["1741"]);
 
 type P = { amount: number; soll_haben: "S" | "H"; konto: string; gegenkonto: string; beleg_datum: string | null; payroll_import: { period_end: string | null } | { period_end: string | null }[] | null };
 
@@ -54,12 +61,18 @@ export default async function LohnUebersicht({ searchParams }: { searchParams: P
 
   // 2) Abgleich der Lohnkonten: alle Nicht-Aufwands-Gegenkonten des Stapels + 1755
   const lohnKonten = [...new Set(["1755", ...lohn.filter((p) => monatVon(p) >= 0 && !istPersonalaufwand(p.gegenkonto)).map((p) => p.gegenkonto)])].sort();
-  const journal = await ladeJournal(`${jahr}-01-01`, `${jahr}-12-31`, sb);
+  const [journal, vortraege] = await Promise.all([ladeJournal(`${jahr}-01-01`, `${jahr}-12-31`, sb), ladeVortraege(sb, jahr)]);
   const abgleich = lohnKonten.map((k) => {
     const z = fuerKonto(journal, k);
-    const monatsEnde = MONATE.map((_, i) => saldoVon(z.filter((b) => b.datum <= new Date(Date.UTC(+jahr, i + 1, 0)).toISOString().slice(0, 10))));
+    const vortrag = vortraege.get(k) ?? 0;
+    const grenze = (i: number) => new Date(Date.UTC(+jahr, i + 1, 0)).toISOString().slice(0, 10);
+    const monatsEnde = MONATE.map((_, i) => r2(vortrag + saldoVon(z.filter((b) => b.datum <= grenze(i)))));
+    // erwarteter Saldo am Monatsende: 0, bei Fälligkeit im Folgemonat der Lohn-Zugang dieses Monats
+    const erwartet = MONATE.map((_, i) =>
+      FAELLIG_FOLGEMONAT.has(k) ? saldoVon(z.filter((b) => b.quelle === "lohn" && b.datum.slice(0, 7) === grenze(i).slice(0, 7))) : 0,
+    );
     const bank = z.filter((b) => b.quelle === "bank").length;
-    return { konto: k, monatsEnde, bank };
+    return { konto: k, monatsEnde, erwartet, vortrag, bank };
   });
   const namen = await kontoNamen(sb, lohnKonten);
   const letzterMonat = Math.max(...lohnMonate, -1);
@@ -153,11 +166,14 @@ export default async function LohnUebersicht({ searchParams }: { searchParams: P
         </table>
       </div>
 
-      <h2>Abgleich der Lohnkonten (Saldo am Monatsende)</h2>
+      <h2>Abgleich der Lohnkonten (Abweichung am Monatsende)</h2>
       <p className="count">
-        S = Soll, H = Haben. Bei Verbindlichkeiten ist ein Haben-Saldo am Monatsende normal, wenn die Zahlung erst im
-        Folgemonat fällig ist (z. B. Lohnsteuer bis zum 10.). Ein Saldo, der über mehrere Monate stehen bleibt oder
-        wächst, zeigt eine fehlende oder falsch ausgebuchte Zahlung. Klick aufs Konto zeigt den Kontoauszug.
+        Je Monat die <strong>Abweichung</strong> vom erwarteten Saldo – 0,00 heißt: alles bezahlt und ausgebucht. Erwartet
+        ist 0, bei der Lohnsteuer (1741) der Betrag des Monats, weil sie erst am 10. des Folgemonats fällig ist (der
+        tatsächliche Saldo steht dann klein darunter). Anfangsbestände kommen aus den{" "}
+        <Link href={`/konten/vortraege?jahr=${jahr}`}>Saldovorträgen</Link> – ohne Vortrag steht z. B. die im Januar
+        bezahlte Dezember-Lohnsteuer das ganze Jahr als Abweichung da. S = Soll, H = Haben. Klick aufs Konto zeigt den
+        Kontoauszug.
       </p>
       <div className="table-scroll">
         <table className="data">
@@ -177,15 +193,21 @@ export default async function LohnUebersicht({ searchParams }: { searchParams: P
                 <td className="wrap">
                   <Link href={`/konten/${a.konto}?jahr=${jahr}`}>{a.konto}</Link> <span className="count">{namen.get(a.konto) ?? ""}</span>
                   {a.bank === 0 && <span className="tag" title="noch keine Bankzeile auf dieses Konto ausgebucht"> ohne Bank</span>}
+                  {a.vortrag !== 0 && <span className="tag" title="Saldovortrag zum 01.01."> Vortrag {fmtSaldo(a.vortrag)}</span>}
                 </td>
-                {a.monatsEnde.map((s, i) => (
-                  <td
-                    key={i}
-                    style={{ textAlign: "right", whiteSpace: "nowrap", color: i > letzterMonat ? "var(--muted)" : Math.abs(s) < 0.005 ? undefined : "var(--warn, #b45309)" }}
-                  >
-                    {i > letzterMonat ? "–" : fmtSaldo(s)}
-                  </td>
-                ))}
+                {a.monatsEnde.map((s, i) => {
+                  const abw = r2(s - a.erwartet[i]);
+                  return (
+                    <td
+                      key={i}
+                      title={`Saldo ${fmtSaldo(s)} · erwartet ${fmtSaldo(a.erwartet[i])}`}
+                      style={{ textAlign: "right", whiteSpace: "nowrap", color: i > letzterMonat ? "var(--muted)" : Math.abs(abw) < 0.005 ? undefined : "var(--warn, #b45309)" }}
+                    >
+                      {i > letzterMonat ? "–" : fmtSaldo(abw)}
+                      {i <= letzterMonat && Math.abs(a.erwartet[i]) >= 0.005 && <div className="count">Saldo {fmtSaldo(s)}</div>}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

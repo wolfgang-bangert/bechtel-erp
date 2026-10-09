@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fmtDate, fmtEur } from "@/lib/format";
 import { fuerKonto, kontoauszug, ladeJournal, saldoVon, type Quelle } from "@/lib/konten/journal";
 import { kontoNamen } from "@/lib/konten/namen";
+import { ladeVortraege } from "@/lib/konten/vortrag";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +30,12 @@ export default async function KontoPage({ params, searchParams }: { params: Prom
 
   const sb = await createClient();
   // Vortrag: alles vor dem Zeitraum seit Jahresbeginn (werk führt keine Vorjahressalden)
-  const journal = await ladeJournal(`${jahr}-01-01`, bis, sb);
+  const [journal, vortraege] = await Promise.all([ladeJournal(`${jahr}-01-01`, bis, sb), ladeVortraege(sb, jahr)]);
+  const jahresVortrag = vortraege.get(konto) ?? 0;
   const alleZeilen = fuerKonto(journal, konto);
   const vorher = alleZeilen.filter((b) => b.datum < von);
   const imZeitraum = alleZeilen.filter((b) => b.datum >= von);
-  const vortrag = saldoVon(vorher);
+  const vortrag = Math.round((jahresVortrag + saldoVon(vorher)) * 100) / 100;
   const auszug = kontoauszug(imZeitraum, vortrag);
   const ende = auszug.length ? auszug[auszug.length - 1].saldo : vortrag;
   const namen = await kontoNamen(sb, [konto, ...new Set(imZeitraum.map((b) => b.gegenkonto))]);
@@ -43,7 +45,7 @@ export default async function KontoPage({ params, searchParams }: { params: Prom
   // Monatssalden (Ende jedes Monats) fürs ganze Jahr
   const monatsEnde = MONATE.map((_, i) => {
     const grenze = new Date(Date.UTC(+jahr, i + 1, 0)).toISOString().slice(0, 10);
-    return saldoVon(alleZeilen.filter((b) => b.datum <= grenze));
+    return Math.round((jahresVortrag + saldoVon(alleZeilen.filter((b) => b.datum <= grenze))) * 100) / 100;
   });
   const heuteMonat = new Date().getFullYear() === +jahr ? new Date().getMonth() : 11;
 
@@ -124,7 +126,13 @@ export default async function KontoPage({ params, searchParams }: { params: Prom
           <tbody>
             <tr>
               <td colSpan={7} className="count">
-                Vortrag {monat ? `zum ${fmtDate(von)}` : "(Jahresbeginn – Vorjahressalden führt werk nicht)"}
+                Vortrag {monat ? `zum ${fmtDate(von)}` : `zum 01.01.${jahr}`}
+                {!monat && !jahresVortrag && (
+                  <>
+                    {" "}
+                    – keiner erfasst (<Link href={`/konten/vortraege?jahr=${jahr}`}>Saldovortrag eintragen</Link>)
+                  </>
+                )}
               </td>
               <td style={{ textAlign: "right" }}>{fmtSaldo(vortrag)}</td>
             </tr>

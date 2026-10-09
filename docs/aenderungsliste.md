@@ -637,3 +637,10 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   (Vorjahr) / 1791 (früher), „UMS.ST VZ<JJJJ>“ → 1781 (Sondervorauszahlung),
   „UMS.ST <JJJJ>“ → 1790/1791, „KOERPST … VERWALTUNGS“ → 880. Mehrteilige
   Zahlungen werden aufgeteilt (nur wenn die Teile den Betrag ergeben).
+- [x] **Saldovorträge + erwarteter Saldo.** Tabelle `konto_vortrag` (Anfangsbestand
+  01.01. je Konto und Jahr, Soll +/Haben −), Pflege unter `/konten/vortraege` mit
+  Vorschlägen aus Zahlungen für Vorjahreszeiträume (1741: „LOHNST <Monat>.<VJ>“,
+  1790: Zahlungen auf USt Vorjahr). Kontoabruf (Liste, Auszug, Monatssalden) und
+  Lohn-Übersicht rechnen den Vortrag ein. Lohn-Abgleich zeigt die Abweichung vom
+  erwarteten Monatsend-Saldo (0; bei 1741 die Lohnsteuer des Monats, fällig am 10.
+  des Folgemonats).
