@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useActionState, useContext, useMemo, useRef, useState } from "react";
+import { createContext, useActionState, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   matchTransaction,
   matchSpecial,
@@ -551,6 +551,90 @@ export function NoteEditForm({ matchId, note }: { matchId: string; note: string 
 
 
 /**
+ * Debitor/Kreditor suchen (Name oder Nummer) und auswählen – sendet die Nummer als partner_nr.
+ * Ergebnisse vom Server (/api/partner), weil es Tausende Organisationen gibt.
+ */
+function PartnerAuswahl({ art, vorschlag }: { art: "debitor" | "kreditor"; vorschlag?: { name: string; nummer: string } }) {
+  const [text, setText] = useState(vorschlag ? `${vorschlag.nummer} – ${vorschlag.name}` : "");
+  const [nummer, setNummer] = useState(vorschlag?.nummer ?? "");
+  const [treffer, setTreffer] = useState<{ id: string; name: string; nummer: string }[]>([]);
+  const [offen, setOffen] = useState(false);
+  const schliessen = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!offen) return;
+    const ctl = new AbortController();
+    const t = setTimeout(() => {
+      fetch(`/api/partner?art=${art}&q=${encodeURIComponent(text)}`, { signal: ctl.signal })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((d) => setTreffer(Array.isArray(d) ? d : []))
+        .catch(() => {});
+    }, 200);
+    return () => {
+      clearTimeout(t);
+      ctl.abort();
+    };
+  }, [text, offen, art]);
+  return (
+    <div style={{ position: "relative" }}>
+      <input type="hidden" name="partner_nr" value={nummer} />
+      <input
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          // eingetippte reine Nummer direkt übernehmen
+          setNummer(/^\d+$/.test(e.target.value.trim()) ? e.target.value.trim() : "");
+          setOffen(true);
+        }}
+        onFocus={() => setOffen(true)}
+        onBlur={() => {
+          schliessen.current = setTimeout(() => setOffen(false), 150);
+        }}
+        placeholder={art === "debitor" ? "Debitor suchen (Name oder Nr.)" : "Kreditor suchen (Name oder Nr.)"}
+        autoComplete="off"
+        style={{ width: 300 }}
+      />
+      {offen && treffer.length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            zIndex: 50,
+            top: "100%",
+            left: 0,
+            marginTop: 4,
+            width: "min(520px, 92vw)",
+            maxHeight: 320,
+            overflowY: "auto",
+            background: "var(--card, var(--bg))",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            boxShadow: "0 8px 24px rgba(0,0,0,.18)",
+          }}
+        >
+          {treffer.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className="ghost"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                if (schliessen.current) clearTimeout(schliessen.current);
+                setText(`${t.nummer} – ${t.name}`);
+                setNummer(t.nummer);
+                setOffen(false);
+              }}
+              style={{ display: "flex", gap: 10, width: "100%", textAlign: "left", border: 0, borderBottom: "1px solid var(--border)", borderRadius: 0, padding: "6px 10px" }}
+            >
+              <strong style={{ minWidth: 60 }}>{t.nummer}</strong>
+              <span>{t.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Akonto: Zahlung ohne Rechnung an einen Debitor (Eingang) bzw. Kreditor (Ausgang) buchen – z. B. Raten eines Kunden
  * auf bereits gestellte Rechnungen. Verrechnet wird später auf der Organisationsseite.
  */
@@ -569,14 +653,7 @@ export function AkontoForm({
   return (
     <form action={action} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
       <input type="hidden" name="tx_id" value={txId} />
-      <input
-        name="partner_nr"
-        defaultValue={vorschlag?.nummer ?? ""}
-        placeholder={eingang ? "Debitor-Nr. (Akonto)" : "Kreditor-Nr. (Akonto)"}
-        inputMode="numeric"
-        style={{ width: 170 }}
-        title={vorschlag ? `Vorschlag: ${vorschlag.name}` : undefined}
-      />
+      <PartnerAuswahl art={eingang ? "debitor" : "kreditor"} vorschlag={vorschlag} />
       <input name="alloc_amount" inputMode="decimal" placeholder={`Betrag (Rest ${remaining.toFixed(2)})`} style={{ width: 150 }} />
       <button type="submit" disabled={pending}>
         {pending ? "…" : "Akonto buchen"}
