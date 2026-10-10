@@ -1,0 +1,503 @@
+{
+ "partner": "13228",
+ "zahlungen": [
+  {
+   "datum": "2026-02-05",
+   "betrag": 22864.63,
+   "notiz": "Avis 2000103046",
+   "posten": [
+    {
+     "rechnung": "26LB01367",
+     "brutto": 187.84,
+     "skonto": 5.64
+    },
+    {
+     "rechnung": "26LB01368",
+     "brutto": 205.51,
+     "skonto": 6.17
+    },
+    {
+     "rechnung": "26LB01369",
+     "brutto": 75.92,
+     "skonto": 2.28
+    },
+    {
+     "rechnung": "26LB01370",
+     "brutto": 5597.76,
+     "skonto": 167.93
+    },
+    {
+     "rechnung": "26LB01371",
+     "brutto": 91.11,
+     "skonto": 2.73
+    },
+    {
+     "rechnung": "26LB01372",
+     "brutto": 227.77,
+     "skonto": 6.83
+    },
+    {
+     "rechnung": "26LB01373",
+     "brutto": 730.42,
+     "skonto": 21.91
+    },
+    {
+     "rechnung": "26LB01374",
+     "brutto": 227.77,
+     "skonto": 6.83
+    },
+    {
+     "rechnung": "26LB01375",
+     "brutto": 253.95,
+     "skonto": 7.62
+    },
+    {
+     "rechnung": "26LB01376",
+     "brutto": 121.49,
+     "skonto": 3.64
+    },
+    {
+     "rechnung": "26LB01377",
+     "brutto": 884.65,
+     "skonto": 26.54
+    },
+    {
+     "rechnung": "26LB01378",
+     "brutto": 5576.4,
+     "skonto": 167.29
+    },
+    {
+     "rechnung": "26LB01379",
+     "brutto": 219.91,
+     "skonto": 6.6
+    },
+    {
+     "rechnung": "26LB01380",
+     "brutto": 1254.36,
+     "skonto": 37.63
+    },
+    {
+     "rechnung": "26LB01381",
+     "brutto": 1066.72,
+     "skonto": 32.0
+    },
+    {
+     "rechnung": "26LB01382",
+     "brutto": 1066.72,
+     "skonto": 32.0
+    },
+    {
+     "rechnung": "26LB01383",
+     "brutto": 500.04,
+     "skonto": 15.0
+    },
+    {
+     "rechnung": "26LB01384",
+     "brutto": 34.99,
+     "skonto": 1.05
+    },
+    {
+     "rechnung": "26LB01385",
+     "brutto": 244.78,
+     "skonto": 7.34
+    },
+    {
+     "rechnung": "26LB01386",
+     "brutto": 121.34,
+     "skonto": 3.64
+    },
+    {
+     "rechnung": "26LB01387",
+     "brutto": 266.25,
+     "skonto": 7.99
+    },
+    {
+     "rechnung": "26LB01388",
+     "brutto": 464.7,
+     "skonto": 13.94
+    },
+    {
+     "rechnung": "26LB01389",
+     "brutto": 456.25,
+     "skonto": 13.69
+    },
+    {
+     "rechnung": "26LB01390",
+     "brutto": 277.03,
+     "skonto": 8.31
+    },
+    {
+     "rechnung": "26LB01391",
+     "brutto": 277.51,
+     "skonto": 8.33
+    },
+    {
+     "rechnung": "26LB01392",
+     "brutto": 361.94,
+     "skonto": 10.86
+    },
+    {
+     "rechnung": "26LB01393",
+     "brutto": 2133.43,
+     "skonto": 64.0
+    },
+    {
+     "rechnung": "26LB01394",
+     "brutto": 422.81,
+     "skonto": 12.68
+    },
+    {
+     "rechnung": "26LB01395",
+     "brutto": 222.4,
+     "skonto": 6.67
+    }
+   ]
+  },
+  {
+   "datum": "2026-03-10",
+   "betrag": 23059.3,
+   "notiz": "Avis 2000104049",
+   "posten": [
+    {
+     "rechnung": "26LB01396",
+     "brutto": 1254.36,
+     "skonto": 37.63
+    },
+    {
+     "rechnung": "26LB01397",
+     "brutto": 5517.79,
+     "skonto": 165.53
+    },
+    {
+     "rechnung": "26LB01398",
+     "brutto": 706.86,
+     "skonto": 21.21
+    },
+    {
+     "rechnung": "26LB01399",
+     "brutto": 752.68,
+     "skonto": 22.58
+    },
+    {
+     "rechnung": "26LB01400",
+     "brutto": 683.3,
+     "skonto": 20.5
+    },
+    {
+     "rechnung": "26LB01401",
+     "brutto": 868.8,
+     "skonto": 26.06
+    },
+    {
+     "rechnung": "26LB01402",
+     "brutto": 1277.58,
+     "skonto": 38.33
+    },
+    {
+     "rechnung": "26LB01403",
+     "brutto": 441.39,
+     "skonto": 13.24
+    },
+    {
+     "rechnung": "26LB01404",
+     "brutto": 2103.8,
+     "skonto": 63.11
+    },
+    {
+     "rechnung": "26LB01405",
+     "brutto": 227.77,
+     "skonto": 6.83
+    },
+    {
+     "rechnung": "26LB01406",
+     "brutto": 683.3,
+     "skonto": 20.5
+    },
+    {
+     "rechnung": "26LB01407",
+     "brutto": 253.95,
+     "skonto": 7.62
+    },
+    {
+     "rechnung": "26LB01408",
+     "brutto": 331.86,
+     "skonto": 9.96
+    },
+    {
+     "rechnung": "26LB01409",
+     "brutto": 630.94,
+     "skonto": 18.93
+    },
+    {
+     "rechnung": "26LB01410",
+     "brutto": 253.95,
+     "skonto": 7.62
+    },
+    {
+     "rechnung": "26LB01411",
+     "brutto": 773.02,
+     "skonto": 23.19
+    },
+    {
+     "rechnung": "26LB01412",
+     "brutto": 831.22,
+     "skonto": 24.94
+    },
+    {
+     "rechnung": "26LB01413",
+     "brutto": 3721.01,
+     "skonto": 111.63
+    },
+    {
+     "rechnung": "26LB01414",
+     "brutto": 657.24,
+     "skonto": 19.72
+    },
+    {
+     "rechnung": "26LB01415",
+     "brutto": 1066.72,
+     "skonto": 32.0
+    },
+    {
+     "rechnung": "26LB01416",
+     "brutto": 734.94,
+     "skonto": 22.05
+    }
+   ]
+  },
+  {
+   "datum": "2026-06-09",
+   "betrag": 10779.22,
+   "notiz": "Avis 2000106742",
+   "posten": [
+    {
+     "rechnung": "26LB01452",
+     "brutto": 441.39,
+     "skonto": 13.24
+    },
+    {
+     "rechnung": "26LB01453",
+     "brutto": 684.25,
+     "skonto": 20.53
+    },
+    {
+     "rechnung": "26LB01454",
+     "brutto": 136.66,
+     "skonto": 4.1
+    },
+    {
+     "rechnung": "26LB01455",
+     "brutto": 91.11,
+     "skonto": 2.73
+    },
+    {
+     "rechnung": "26LB01456",
+     "brutto": 149.23,
+     "skonto": 4.48
+    },
+    {
+     "rechnung": "26LB01457",
+     "brutto": 1066.72,
+     "skonto": 32.0
+    },
+    {
+     "rechnung": "26LB01458",
+     "brutto": 137.05,
+     "skonto": 4.11
+    },
+    {
+     "rechnung": "26LB01459",
+     "brutto": 620.07,
+     "skonto": 18.6
+    },
+    {
+     "rechnung": "26LB01460",
+     "brutto": 270.96,
+     "skonto": 8.13
+    },
+    {
+     "rechnung": "26LB01461",
+     "brutto": 2133.43,
+     "skonto": 64.0
+    },
+    {
+     "rechnung": "26LB01462",
+     "brutto": 752.68,
+     "skonto": 22.58
+    },
+    {
+     "rechnung": "26LB01463",
+     "brutto": 205.51,
+     "skonto": 6.17
+    },
+    {
+     "rechnung": "26LB01464",
+     "brutto": 1277.58,
+     "skonto": 38.33
+    },
+    {
+     "rechnung": "26LB01465",
+     "brutto": 1545.07,
+     "skonto": 46.35
+    },
+    {
+     "rechnung": "26LB01466",
+     "brutto": 191.17,
+     "skonto": 5.74
+    },
+    {
+     "rechnung": "26LB01467",
+     "brutto": 211.93,
+     "skonto": 6.36
+    },
+    {
+     "rechnung": "26LB01468",
+     "brutto": 211.93,
+     "skonto": 6.36
+    },
+    {
+     "rechnung": "26LB01469",
+     "brutto": 456.25,
+     "skonto": 13.69
+    },
+    {
+     "rechnung": "26LB01470",
+     "brutto": 341.65,
+     "skonto": 10.25
+    },
+    {
+     "rechnung": "26LB01471",
+     "brutto": 187.97,
+     "skonto": 5.64
+    }
+   ]
+  },
+  {
+   "datum": "2026-07-21",
+   "betrag": 26592.61,
+   "notiz": "Avis 2000108072",
+   "posten": [
+    {
+     "rechnung": "26LB01473",
+     "brutto": 5677.73,
+     "skonto": 170.33
+    },
+    {
+     "rechnung": "26LB01474",
+     "brutto": 253.95,
+     "skonto": 7.62
+    },
+    {
+     "rechnung": "26LB01475",
+     "brutto": 253.95,
+     "skonto": 7.62
+    },
+    {
+     "rechnung": "26LB01476",
+     "brutto": 348.19,
+     "skonto": 10.45
+    },
+    {
+     "rechnung": "26LB01477",
+     "brutto": 279.34,
+     "skonto": 8.38
+    },
+    {
+     "rechnung": "26LB01478",
+     "brutto": 58.26,
+     "skonto": 1.75
+    },
+    {
+     "rechnung": "26LB01479",
+     "brutto": 2133.43,
+     "skonto": 64.0
+    },
+    {
+     "rechnung": "26LB01480",
+     "brutto": 217.14,
+     "skonto": 6.51
+    },
+    {
+     "rechnung": "26LB01481",
+     "brutto": 3721.01,
+     "skonto": 111.63
+    },
+    {
+     "rechnung": "26LB01482",
+     "brutto": 455.53,
+     "skonto": 13.67
+    },
+    {
+     "rechnung": "26LB01483",
+     "brutto": 3721.01,
+     "skonto": 111.63
+    },
+    {
+     "rechnung": "26LB01484",
+     "brutto": 156.43,
+     "skonto": 4.69
+    },
+    {
+     "rechnung": "26LB01485",
+     "brutto": 217.16,
+     "skonto": 6.51
+    },
+    {
+     "rechnung": "26LB01486",
+     "brutto": 211.8,
+     "skonto": 6.35
+    },
+    {
+     "rechnung": "26LB01487",
+     "brutto": 2133.43,
+     "skonto": 64.0
+    },
+    {
+     "rechnung": "26LB01488",
+     "brutto": 2133.43,
+     "skonto": 64.0
+    },
+    {
+     "rechnung": "26LB01489",
+     "brutto": 223.74,
+     "skonto": 6.71
+    },
+    {
+     "rechnung": "26LB01490",
+     "brutto": 215.34,
+     "skonto": 6.46
+    },
+    {
+     "rechnung": "26LB01491",
+     "brutto": 1277.58,
+     "skonto": 38.33
+    },
+    {
+     "rechnung": "26LB01492",
+     "brutto": 2133.43,
+     "skonto": 64.0
+    },
+    {
+     "rechnung": "26LB01493",
+     "brutto": 223.72,
+     "skonto": 6.71
+    },
+    {
+     "rechnung": "26LB01494",
+     "brutto": 662.59,
+     "skonto": 19.88
+    },
+    {
+     "rechnung": "26LB01495",
+     "brutto": 385.56,
+     "skonto": 11.57
+    },
+    {
+     "rechnung": "26LB01496",
+     "brutto": 321.3,
+     "skonto": 9.64
+    }
+   ]
+  }
+ ]
+}
