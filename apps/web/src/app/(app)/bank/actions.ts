@@ -98,7 +98,12 @@ export async function matchTransaction(
   const rawInput =
     String(formData.get("invoice_number") ?? "").trim() ||
     String(formData.get("invoice_number_manual") ?? "").trim();
-  const number = rawInput.split(/\s+[–—-]\s+|\s{2,}/)[0].trim();
+  // Vorschläge haben die Form "Nummer — Partner — …" (langer Strich). Rechnungsnummern können selbst
+  // " - " enthalten (z. B. B+K "326998 - 125314"), daher erst bis zum langen Strich, dann gekürzt am " - ".
+  const nummern = [
+    ...new Set([rawInput.split(/\s+[–—]\s+|\s{2,}/)[0].trim(), rawInput.split(/\s+[–—-]\s+|\s{2,}/)[0].trim()].filter(Boolean)),
+  ];
+  const number = nummern[0] ?? "";
   if (!txId || !number) return { error: "Rechnungsnummer eingeben oder aus der Liste wählen." };
 
   const allocRaw = String(formData.get("alloc_amount") ?? "").trim().replace(",", ".");
@@ -122,15 +127,16 @@ export async function matchTransaction(
   if (remaining <= 0.005) return { error: "Buchung ist bereits vollständig zugeordnet." };
 
   if (side === "kreditor") {
-    const { data: doc, error: de } = await supabase
+    const { data: docs, error: de } = await supabase
       .from("incoming_document")
-      .select("id, gross_amount")
-      .eq("doc_number", number)
+      .select("id, gross_amount, doc_number")
+      .in("doc_number", nummern)
       .in("doc_type", ["invoice", "credit_note"])
       .neq("status", "rejected") // verworfene Dubletten nie zuordnen
-      .limit(1)
-      .maybeSingle();
+      .limit(10);
     if (de) return { error: de.message };
+    // vollständige Nummer vor der gekürzten
+    const doc = nummern.map((n) => (docs ?? []).find((d) => d.doc_number === n)).find(Boolean) ?? null;
     if (!doc) return { error: `Keine Eingangsrechnung mit Nummer ${number}.` };
     const want =
       allocInput && allocInput > 0 ? allocInput : Math.max(doc.gross_amount ?? remaining, 0) || remaining;
@@ -144,13 +150,14 @@ export async function matchTransaction(
     if (me) return { error: me.code === "23505" ? "Diese Eingangsrechnung ist schon zugeordnet." : me.message };
     await verteileSammelSkonto(supabase, txId, tx.amount);
   } else {
-    const { data: inv, error: ie } = await supabase
+    const { data: invs, error: ie } = await supabase
       .from("sales_invoice")
-      .select("id, open_amount")
-      .eq("invoice_number", number)
+      .select("id, open_amount, invoice_number")
+      .in("invoice_number", nummern)
       .eq("kind", "invoice")
-      .maybeSingle();
+      .limit(10);
     if (ie) return { error: ie.message };
+    const inv = nummern.map((n) => (invs ?? []).find((d) => d.invoice_number === n)).find(Boolean) ?? null;
     if (!inv) return { error: `Keine Rechnung mit Nummer ${number}.` };
     const want =
       allocInput && allocInput > 0 ? allocInput : Math.max(inv.open_amount ?? remaining, 0) || remaining;
