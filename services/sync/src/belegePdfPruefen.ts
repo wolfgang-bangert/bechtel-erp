@@ -91,7 +91,9 @@ export async function belegePdfPruefen(opts: Options = {}) {
         abweichungen.push(`Betrag im PDF: ${e.betrag_brutto.toFixed(2)} ${e.waehrung ?? ""}`.trim());
       const pdfV = ersterSchluessel(e.verkaeufer);
       const wV = ersterSchluessel(d.supplier_name);
-      if (pdfV && wV && pdfV !== wV) abweichungen.push(`Verkäufer im PDF: ${e.verkaeufer}`);
+      // Amazon-Käufe (auch Marktplatz-Händler) laufen bewusst unter dem Kreditor Amazon – kein Abweichungsgrund
+      const amazonKauf = !!e.amazon && /amazon/i.test(d.supplier_name ?? "");
+      if (pdfV && wV && pdfV !== wV && !amazonKauf) abweichungen.push(`Verkäufer im PDF: ${e.verkaeufer}`);
 
       const best = bestellnummern(e.bestellnummern);
       if (best) ergebnis.mitBestellnummer++;

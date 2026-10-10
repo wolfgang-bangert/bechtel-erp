@@ -9,6 +9,7 @@ import { bankLohn } from "./bankLohn";
 import { bankSteuern } from "./bankSteuern";
 import { incomingLieferant } from "./incomingLieferant";
 import { belegePdfPruefen } from "./belegePdfPruefen";
+import { belegeNachbessern } from "./belegeNachbessern";
 import { syncNinoxAddresses } from "./syncNinoxAddresses";
 import { syncKeylineOrders } from "./syncKeylineOrders";
 import { syncKeylineInvoices, refreshKeylineInvoice } from "./syncKeylineInvoices";
@@ -754,6 +755,14 @@ async function main() {
       console.log(`Belege gegen PDF prüfen (Verkäufer, Nummer, Betrag, Bestellnummern)${dryRun ? "  (DRY RUN)" : ""}`);
       const lim = arg("--limit");
       console.log(JSON.stringify(await belegePdfPruefen({ dryRun, nummer: arg("--nummer"), neu: flags.has("--neu"), limit: lim ? Number(lim) : undefined }), null, 1));
+      break;
+    }
+    case "belege:nachbessern": {
+      const arg = (n: string) => process.argv.find((a) => a.startsWith(n + "="))?.slice(n.length + 1);
+      console.log(`Belege nach PDF-Prüfung nachbessern${dryRun ? "  (DRY RUN)" : ""}`);
+      const r = await belegeNachbessern({ dryRun, amazon: arg("--amazon"), verschmelzen: arg("--verschmelzen"), pdfVerkaeufer: arg("--pdf-verkaeufer") });
+      for (const z of r.log) console.log("  " + z);
+      console.log(`\nFertig. ${r.geprueft} geprüft – Nummer korrigiert ${r.nummerKorrigiert}, auf Amazon ${r.aufAmazon}, Lieferant aus PDF ${r.verkaeuferAusPdf}${dryRun ? "  (DRY RUN)" : ""}`);
       break;
     }
     case "incoming:purge": {
