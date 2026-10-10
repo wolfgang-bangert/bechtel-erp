@@ -578,11 +578,13 @@ export function AkontoForm({
         title={vorschlag ? `Vorschlag: ${vorschlag.name}` : undefined}
       />
       <input name="alloc_amount" inputMode="decimal" placeholder={`Betrag (Rest ${remaining.toFixed(2)})`} style={{ width: 150 }} />
-      <button type="submit" className="ghost" disabled={pending}>
-        {pending ? "…" : `Akonto an ${eingang ? "Debitor" : "Kreditor"}${vorschlag ? ` ${vorschlag.nummer} – ${vorschlag.name}` : ""}`}
+      <button type="submit" disabled={pending}>
+        {pending ? "…" : "Akonto buchen"}
       </button>
-      <span className="count" style={{ fontSize: 11 }}>
-        Zahlung ohne Rechnung, später mit offenen Rechnungen verrechnen
+      <span className="count" style={{ fontSize: 12 }}>
+        {vorschlag
+          ? `an ${eingang ? "Debitor" : "Kreditor"} ${vorschlag.nummer} – ${vorschlag.name} (Zahlung ohne Rechnung)`
+          : `Zahlung ohne Rechnung an einen ${eingang ? "Debitor" : "Kreditor"} – Nummer links eintragen`}
       </span>
       {state.ok && <span className="msg-ok">✓</span>}
       {state.error && <span className="msg-err">{state.error}</span>}
