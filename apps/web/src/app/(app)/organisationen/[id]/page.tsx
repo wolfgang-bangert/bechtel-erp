@@ -5,6 +5,8 @@ import { fmtDate, fmtEur } from "@/lib/format";
 import { DOKUMENT_KATEGORIEN, istDokumentKategorie } from "@/lib/dokumente";
 import { setInvoiceEmailAction } from "./actions";
 import { KorbKnopf, KorbLeiste } from "../Warenkorb";
+import { akontoPosten, offeneRechnungen } from "@/lib/akonto";
+import { AkontoVerrechnen } from "./AkontoVerrechnen";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +72,19 @@ export default async function OrganisationDetail({
   if (error) {
     return <div className="banner-err">Fehler: {error.message}</div>;
   }
+
+  // Akonto-Zahlungen (ohne Rechnung) und offene Rechnungen zum Verrechnen
+  const akonto = await akontoPosten(supabase, id);
+  const akontoSumme = akonto.reduce((s, p) => s + p.betrag, 0);
+  const akontoEingang = akonto.some((p) => p.eingang);
+  let offenSumme = 0;
+  let offenAnzahl = 0;
+  if (akonto.length) {
+    // nur echte offene Posten: vor 2026 laut OP-Vortrag (BuchhaltungsButler), ab 2026 aus werk
+    const off = await offeneRechnungen(supabase, id, akontoEingang);
+    offenAnzahl = off.length;
+    offenSumme = off.reduce((s, r) => s + r.offen, 0);
+  }
   if (!org) notFound();
 
   return (
@@ -101,6 +116,27 @@ export default async function OrganisationDetail({
           </>
         )}
       </p>
+
+      {akonto.length > 0 && (
+        <>
+          <h2>Akonto-Zahlungen</h2>
+          <div className="banner-info">
+            {akonto.length} Zahlung(en) ohne Rechnungsbezug, zusammen <strong>{fmtEur(akontoSumme)}</strong>. Offene{" "}
+            {akontoEingang ? "Ausgangsrechnungen" : "Eingangsrechnungen"}: {fmtEur(offenSumme)} ({offenAnzahl}) – vor 2026 nur
+            die offenen Posten zum 31.12.2025 laut BuchhaltungsButler.
+          </div>
+          <div className="rows" style={{ margin: "8px 0" }}>
+            {akonto.map((p) => (
+              <div key={p.matchId} className="row">
+                <span>{fmtDate(p.datum)}</span>
+                <Link href={`/bank?tx=${p.txId}`}>Bankzeile</Link>
+                <span className="count" style={{ marginLeft: "auto" }}>{fmtEur(p.betrag)}</span>
+              </div>
+            ))}
+          </div>
+          {offenAnzahl > 0 && <AkontoVerrechnen id={org.id} summe={fmtEur(akontoSumme)} offen={fmtEur(offenSumme)} />}
+        </>
+      )}
 
       <h2>Stammdaten</h2>
       <dl className="kv">

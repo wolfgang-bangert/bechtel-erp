@@ -10,6 +10,7 @@ import { bankSteuern } from "./bankSteuern";
 import { incomingLieferant } from "./incomingLieferant";
 import { belegePdfPruefen } from "./belegePdfPruefen";
 import { belegeNachbessern } from "./belegeNachbessern";
+import { opVortragLaden } from "./opVortragLaden";
 import { syncNinoxAddresses } from "./syncNinoxAddresses";
 import { syncKeylineOrders } from "./syncKeylineOrders";
 import { syncKeylineInvoices, refreshKeylineInvoice } from "./syncKeylineInvoices";
@@ -763,6 +764,11 @@ async function main() {
       const r = await belegeNachbessern({ dryRun, amazon: arg("--amazon"), verschmelzen: arg("--verschmelzen"), pdfVerkaeufer: arg("--pdf-verkaeufer") });
       for (const z of r.log) console.log("  " + z);
       console.log(`\nFertig. ${r.geprueft} geprüft – Nummer korrigiert ${r.nummerKorrigiert}, auf Amazon ${r.aufAmazon}, Lieferant aus PDF ${r.verkaeuferAusPdf}${dryRun ? "  (DRY RUN)" : ""}`);
+      break;
+    }
+    case "op:vortrag-laden": {
+      console.log(`Offene Posten 31.12.2025 (BuchhaltungsButler) → op_vortrag${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await opVortragLaden({ dryRun }), null, 1));
       break;
     }
     case "incoming:purge": {

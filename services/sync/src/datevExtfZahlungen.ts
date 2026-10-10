@@ -16,6 +16,7 @@ type Match = {
   ledger_account: string | null;
   kind: string | null;
   note: string | null;
+  organization_id: string | null;
 };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -51,7 +52,7 @@ export async function exportDatevZahlungen(opts: Options) {
 
   const matches = (await pagedSelect<Match>(
     "bank_transaction_match",
-    "id, amount, bank_transaction_id, sales_invoice_id, incoming_document_id, ledger_account, kind, note",
+    "id, amount, bank_transaction_id, sales_invoice_id, incoming_document_id, ledger_account, kind, note, organization_id",
   )).filter((m) => {
     const t = txById.get(m.bank_transaction_id);
     return t && t.booking_date >= from && t.booking_date <= to;
@@ -92,6 +93,14 @@ export async function exportDatevZahlungen(opts: Options) {
       .map((r) => [r.id, r]),
   );
 
+  // Akonto-Zahlungen (Bankzeile an Debitor/Kreditor ohne Rechnung)
+  const akontoOrgIds = [...new Set(matches.filter((m) => m.organization_id).map((m) => m.organization_id!))];
+  const akontoOrg = new Map<string, { name: string; customer_number: string | null; supplier_number: string | null }>();
+  for (let i = 0; i < akontoOrgIds.length; i += 200) {
+    const { data } = await supabase.from("organization").select("id, name, customer_number, supplier_number").in("id", akontoOrgIds.slice(i, i + 200));
+    for (const o of data ?? []) akontoOrg.set(o.id, o);
+  }
+
   const dataLines: string[] = [];
   const sourceIds: string[] = [];
   const skips = { noGeldkonto: 0, noPartnerNr: 0, noRgNr: 0, noTxn: 0 };
@@ -125,6 +134,12 @@ export async function exportDatevZahlungen(opts: Options) {
       gegen = doc?.organization?.supplier_number?.trim() ?? "";
       rgnr = doc?.doc_number?.trim() ?? "";
       partner = doc?.supplier_name ?? partner;
+    } else if (m.organization_id && !m.ledger_account) {
+      // Akonto: Zahlung an Debitor/Kreditor ohne Rechnung
+      const o = akontoOrg.get(m.organization_id);
+      gegen = ((isEingang ? o?.customer_number : o?.supplier_number) ?? "").trim();
+      rgnr = "AKONTO";
+      partner = o?.name ?? partner;
     }
 
     const betrag = Math.abs(r2(m.amount));

@@ -653,3 +653,13 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   auf einmal). `pdf_pruefung` hält das Ergebnis PDF ↔ gespeicherte Daten;
   `/eingangsrechnungen/pruefung` listet Abweichungen (Verkäufer, Nummer, Betrag)
   und doppelte Rechnungsnummern – nichts wird automatisch überschrieben.
+- [x] **Akonto an Debitor/Kreditor.** Bankzeile ohne Rechnung an einen Debitor
+  (Eingang) bzw. Kreditor (Ausgang) buchen (`bank_transaction_match.organization_id`,
+  `kind = akonto`), z. B. Ratenzahlungen auf bereits gestellte Rechnungen (Bolanz).
+  `/bank`: Formular mit Vorschlag der Organisation zur Gegenseite. Organisationsseite:
+  „Akonto mit ältesten offenen Rechnungen verrechnen“ wandelt das Akonto in
+  Rechnungs-Zuordnungen derselben Bankzeile um. Vor 2026 zählen nur Rechnungen aus
+  den offenen Posten zum 31.12.2025 (`op_vortrag`, geladen mit `op:vortrag-laden`
+  aus den BB-Dateien) – werk kennt Zahlungen erst ab 2026. DATEV-Zahlungsexport und
+  Kontoabruf: Geldkonto an Debitor/Kreditor, Belegfeld „AKONTO“. Namensvergleich für
+  Vorschläge strenger (zwei gemeinsame Wörter bei mehrteiligen Namen).

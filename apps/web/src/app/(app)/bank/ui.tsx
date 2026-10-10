@@ -10,6 +10,7 @@ import {
   type MatchState,
   type UploadState,
   type GroupMatchState,
+  matchAkonto,
 } from "./actions";
 import { fmtEur } from "@/lib/format";
 import { AccountPicker } from "../_shared/AccountPicker";
@@ -544,6 +545,47 @@ export function NoteEditForm({ matchId, note }: { matchId: string; note: string 
           {state.error}
         </span>
       )}
+    </form>
+  );
+}
+
+
+/**
+ * Akonto: Zahlung ohne Rechnung an einen Debitor (Eingang) bzw. Kreditor (Ausgang) buchen – z. B. Raten eines Kunden
+ * auf bereits gestellte Rechnungen. Verrechnet wird später auf der Organisationsseite.
+ */
+export function AkontoForm({
+  txId,
+  remaining,
+  eingang,
+  vorschlag,
+}: {
+  txId: string;
+  remaining: number;
+  eingang: boolean;
+  vorschlag?: { id: string; name: string; nummer: string };
+}) {
+  const [state, action, pending] = useActionState(matchAkonto, empty);
+  return (
+    <form action={action} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+      <input type="hidden" name="tx_id" value={txId} />
+      <input
+        name="partner_nr"
+        defaultValue={vorschlag?.nummer ?? ""}
+        placeholder={eingang ? "Debitor-Nr. (Akonto)" : "Kreditor-Nr. (Akonto)"}
+        inputMode="numeric"
+        style={{ width: 170 }}
+        title={vorschlag ? `Vorschlag: ${vorschlag.name}` : undefined}
+      />
+      <input name="alloc_amount" inputMode="decimal" placeholder={`Betrag (Rest ${remaining.toFixed(2)})`} style={{ width: 150 }} />
+      <button type="submit" className="ghost" disabled={pending}>
+        {pending ? "…" : `Akonto an ${eingang ? "Debitor" : "Kreditor"}${vorschlag ? ` ${vorschlag.nummer} – ${vorschlag.name}` : ""}`}
+      </button>
+      <span className="count" style={{ fontSize: 11 }}>
+        Zahlung ohne Rechnung, später mit offenen Rechnungen verrechnen
+      </span>
+      {state.ok && <span className="msg-ok">✓</span>}
+      {state.error && <span className="msg-err">{state.error}</span>}
     </form>
   );
 }
