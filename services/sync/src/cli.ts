@@ -65,6 +65,7 @@ import { erstelleAbrechnung } from "@werk/shared/abrechnung/erstellen";
 import { fintsSetup, fintsPull, fixCounterpartyNames } from "./fints";
 import { importFracht } from "./importFracht";
 import { supabase } from "./supabase";
+import { bankZuordnen } from "./bankZuordnen";
 
 const cmd = process.argv[2] ?? "";
 const flags = new Set(process.argv.slice(3));
@@ -732,6 +733,13 @@ async function main() {
       const von = process.argv.find((a) => a.startsWith("--from="))?.split("=")[1];
       console.log(`Lohn-Zahlungen ausbuchen (Gehalt 1740, LSt 1741, SV 1742)${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await bankLohn({ dryRun, from: von }), null, 1));
+      break;
+    }
+    case "bank:zuordnen": {
+      const datei = process.argv.find((a) => a.startsWith("--datei="))?.slice(8);
+      if (!datei) throw new Error("--datei=<vorlage.json> fehlt (z. B. data/avis/euchner-2026.json)");
+      console.log(`Bankzeilen nach Vorlage zuordnen: ${datei}${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await bankZuordnen({ datei, dryRun }), null, 1));
       break;
     }
     case "bank:steuern": {

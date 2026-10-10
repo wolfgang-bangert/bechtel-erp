@@ -1,0 +1,64 @@
+{
+ "partner": "60196",
+ "zahlungen": [
+  {
+   "datum": "2026-06-12",
+   "betrag": 291.37,
+   "zweck": "2509",
+   "notiz": "Überzahlung 2509 auf 251031008",
+   "ersetzen": true,
+   "posten": [
+    {
+     "rechnung": "251031008",
+     "betrag": 291.37
+    }
+   ]
+  },
+  {
+   "datum": "2026-09-23",
+   "betrag": -1366.87,
+   "notiz": "Verrechnung ER 0826-013",
+   "posten": [
+    {
+     "eingang": "0826-013",
+     "betrag": 4134.06
+    },
+    {
+     "rechnung": "251031008",
+     "betrag": 75.15
+    },
+    {
+     "rechnung": "251031009",
+     "betrag": 762.0
+    },
+    {
+     "rechnung": "251120008",
+     "betrag": 235.97
+    },
+    {
+     "rechnung": "251128014",
+     "betrag": 642.53
+    },
+    {
+     "rechnung": "251128016",
+     "betrag": 343.01
+    },
+    {
+     "rechnung": "251222010",
+     "betrag": 329.44
+    },
+    {
+     "rechnung": "251223010",
+     "betrag": 251.58
+    },
+    {
+     "rechnung": "260131019",
+     "betrag": 337.51
+    },
+    {
+     "akonto": -210.0
+    }
+   ]
+  }
+ ]
+}
