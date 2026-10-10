@@ -13,6 +13,7 @@
     "incoming:orgs-nachziehen": "tsx src/cli.ts incoming:orgs-nachziehen",
     "bank:lohn": "tsx src/cli.ts bank:lohn",
     "bank:steuern": "tsx src/cli.ts bank:steuern",
+    "incoming:lieferant": "tsx src/cli.ts incoming:lieferant",
     "bank:sammel-zuordnen": "tsx src/cli.ts bank:sammel-zuordnen",
     "bank:gebuehren": "tsx src/cli.ts bank:gebuehren",
     "fx:ecb": "tsx src/cli.ts fx:ecb",
