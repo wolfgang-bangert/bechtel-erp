@@ -166,7 +166,8 @@ export async function skontoApply(opts: Options = {}) {
     const gross = r2(s.gross_total ?? 0);
     const gap = r2(s.open_amount ?? 0);
     if (gap <= 0.005 || gross <= 0) continue;
-    if (gap > gross * maxPercent || gap > maxAbs) continue;
+    // + 1 Cent: der Kunde rundet 3 % auf (329,56 × 3 % = 9,8868 → 9,89)
+    if (gap > r2(gross * maxPercent) + 0.01 || gap > maxAbs) continue;
     const matches = bySalesInv.get(s.id) ?? [];
     if (!matches.length) continue; // keine Zahlung gefunden -> keine Bankzeile zum Anhängen
     const net = s.net_total ?? 0;
