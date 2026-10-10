@@ -289,6 +289,58 @@ export default async function BankPage({
     return seen;
   };
 
+  // Firmenname ohne Rechtsform/Satzzeichen, für den Abgleich Gegenseite ↔ Lieferant/Organisation
+  const namensKern = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/\b(gmbh|mbh|ag|kg|co|ug|ohg|gbr|se|sas|sarl|s\.?a\.?|ltd|inc|llc|e\.?\s?k\.?|aktiengesellschaft|gruppe|group)\b\.?/g, " ")
+      .replace(/[^a-z0-9äöüß]+/g, " ")
+      .trim();
+  const gleicherName = (a: string, b: string) => {
+    if (!a || !b) return false;
+    const wa = a.split(" ").filter((w) => w.length > 2);
+    const wb = b.split(" ").filter((w) => w.length > 2);
+    return wa.length > 0 && wb.length > 0 && (a === b || wa[0] === wb[0]);
+  };
+  /**
+   * Mehrere offene Rechnungen mit demselben Betrag (z. B. monatliches Abo): die des passenden Lieferanten,
+   * und davon die jüngste mit Belegdatum bis 5 Tage nach der Buchung (sonst die älteste offene).
+   */
+  const erVorschlagLieferant = (gegenseite: string | null, buchung: string, c: number): string | undefined => {
+    const kern = namensKern(gegenseite ?? "");
+    const treffer = erRows.filter((r) => r.c === c && gleicherName(kern, r.lieferant));
+    if (!treffer.length) return undefined;
+    const grenze = new Date(new Date(buchung).getTime() + 5 * 86400000).toISOString().slice(0, 10);
+    const vorher = treffer.filter((r) => (r.datum ?? "") <= grenze).sort((a, b) => (b.datum ?? "").localeCompare(a.datum ?? ""));
+    const t = vorher[0] ?? [...treffer].sort((a, b) => (a.datum ?? "").localeCompare(b.datum ?? ""))[0];
+    return t?.label;
+  };
+
+  // Vorkontierung der Organisationen (Aufwandskonto) als Sachkonto-Vorschlag für Bankzeilen ohne Rechnung/Regel
+  const vkOrgs: { name: string; default_expense_account: string | null }[] = [];
+  for (let f = 0; ; f += 1000) {
+    const { data: o } = await supabase
+      .from("organization")
+      .select("name, default_expense_account")
+      .not("default_expense_account", "is", null)
+      .range(f, f + 999);
+    vkOrgs.push(...((o ?? []) as typeof vkOrgs));
+    if (!o || o.length < 1000) break;
+  }
+  const vkByKern = new Map<string, string>();
+  for (const o of vkOrgs) {
+    const k = namensKern(o.name);
+    if (k && o.default_expense_account) vkByKern.set(k, o.default_expense_account);
+  }
+  const vorkontierungFuer = (gegenseite: string) => {
+    const k = namensKern(gegenseite);
+    // Lieferant hat offene Rechnungen → die Bankzeile gehört zu einer Rechnung, nicht direkt aufs Konto (sonst doppelt)
+    if (erRows.some((r) => gleicherName(k, r.lieferant))) return undefined;
+    let konto = vkByKern.get(k);
+    if (!konto) for (const [kk, v] of vkByKern) if (gleicherName(k, kk)) { konto = v; break; }
+    return konto ? { counterparty_key: k, ledger_account: konto, sample_postingtext: null as string | null } : undefined;
+  };
+
   let arCandidates: Candidate[] = [];
   let arPrefill = new Map<number, string | null>();
   if (hasCredits) {
@@ -319,6 +371,8 @@ export default async function BankPage({
 
   let erCandidates: Candidate[] = [];
   let erPrefill = new Map<number, string | null>();
+  // für die Wahl bei mehreren gleich hohen offenen Rechnungen: Lieferant + Belegdatum
+  let erRows: { label: string; c: number; datum: string | null; lieferant: string }[] = [];
   if (hasDebits) {
     const { data: inc } = await supabase
       .from("incoming_document")
@@ -342,6 +396,12 @@ export default async function BankPage({
     }));
     erCandidates = rows.map(({ number, label }) => ({ number, label }));
     erPrefill = uniqueByAmount(rows.map((r) => ({ c: cents(r.amount), label: r.label })));
+    erRows = ((inc ?? []) as unknown as { doc_date: string | null; supplier_name: string | null }[]).map((i, k) => ({
+      label: rows[k].label,
+      c: cents(rows[k].amount),
+      datum: i.doc_date,
+      lieferant: namensKern(i.supplier_name ?? ""),
+    }));
   }
 
   // Kreditkarten-/PayPal-Belege: landen nicht einzeln auf dem Kontoauszug,
@@ -386,15 +446,19 @@ export default async function BankPage({
     const allocated =
       Math.round(matches.filter(isCashMatch).reduce((s, m) => s + Math.abs(m.amount ?? 0), 0) * 100) / 100;
     const remaining = Math.round((Math.abs(tx.amount) - allocated) * 100) / 100;
-    const prefill = (side === "debitor" ? arPrefill : erPrefill).get(cents(remaining)) ?? undefined;
+    const prefill =
+      (side === "debitor" ? arPrefill : erPrefill).get(cents(remaining)) ??
+      (side === "kreditor" ? erVorschlagLieferant(tx.counterparty_name, tx.booking_date, cents(remaining)) : undefined) ??
+      undefined;
     // Für wiederkehrende Sachkonto-Buchungen ohne Rechnung (Leasing, Miete,
     // Bankgebühren, ...): aus der BuchhaltungsButler-Historie gelernter
     // Sachkonto-Vorschlag direkt als Ein-Klick-Button in der Liste, wie bei
     // Rechnungsnummern - sonst blieb der Vorschlag im Detail-Popup versteckt.
     const bankName = tx.bank_account?.bank_name || tx.bank_account?.label || "?";
-    const ledgerRule = tx.counterparty_name
-      ? bankLedgerRuleByKey.get(normalize(tx.counterparty_name))
-      : ruleForBankName(bankName);
+    const ledgerRule =
+      (tx.counterparty_name ? bankLedgerRuleByKey.get(normalize(tx.counterparty_name)) : ruleForBankName(bankName)) ??
+      // keine Regel: Vorkontierung (Aufwandskonto) der Organisation zur Gegenseite – nur Ausgänge ohne Rechnung
+      (tx.amount < 0 && tx.counterparty_name ? vorkontierungFuer(tx.counterparty_name) : undefined);
 
     return {
       key: tx.id,

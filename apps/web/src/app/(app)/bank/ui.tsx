@@ -254,7 +254,7 @@ export function QuickSpecialMatchButton({
         title={`Sachkonto-Vorschlag übernehmen: ${ledgerAccount} – ${ledgerLabel}${note ? `\nBuchungstext: ${note}` : ""}`}
         style={{ padding: "3px 8px", fontSize: 12, borderColor: "#3a7", color: "#3a7" }}
       >
-        {pending ? "…" : `✓ ${ledgerAccount} – ${ledgerLabel}`}
+        {pending ? "…" : `✓ ${ledgerLabel.startsWith(ledgerAccount) ? ledgerLabel : `${ledgerAccount} – ${ledgerLabel}`}`}
       </button>
       {note && (
         <span className="count" style={{ fontSize: 11, maxWidth: 260, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={note}>
