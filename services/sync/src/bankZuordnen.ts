@@ -10,6 +10,7 @@ import { supabase } from "./supabase";
  *   "zahlungen": [{
  *     "datum": "2026-02-05", "betrag": 22864.63,  Bankzeile: Betrag genau, Datum ± 5 Tage
  *     "zweck": "2509",                            optional: Verwendungszweck genau (bei mehreren gleichen Beträgen)
+ *     "zweckEnthaelt": "SecureGo",                optional: Verwendungszweck enthält diesen Text
  *     "notiz": "Avis 2000103046",
  *     "ersetzen": false,                          true: vorhandene Zuordnungen der Bankzeile vorher löschen
  *     "posten": [
@@ -26,7 +27,7 @@ import { supabase } from "./supabase";
  * Akonto-Ausgang die Kreditorennummer (DATEV), wird eine aus dem Nummernkreis vergeben.
  */
 type Posten = { rechnung?: string; eingang?: string; brutto?: number; skonto?: number; betrag?: number; akonto?: number };
-type Zahlung = { datum: string; betrag: number; zweck?: string; notiz?: string; ersetzen?: boolean; posten: Posten[] };
+type Zahlung = { datum: string; betrag: number; zweck?: string; zweckEnthaelt?: string; notiz?: string; ersetzen?: boolean; posten: Posten[] };
 type Vorlage = { partner: string; zahlungen: Zahlung[] };
 type Options = { datei: string; dryRun?: boolean };
 
@@ -66,6 +67,7 @@ export async function bankZuordnen(opts: Options) {
         .gte("booking_date", tagePlus(z.datum, -5))
         .lte("booking_date", tagePlus(z.datum, 5));
       if (z.zweck) q = q.eq("purpose", z.zweck);
+      if (z.zweckEnthaelt) q = q.ilike("purpose", `%${z.zweckEnthaelt}%`);
       const { data: txs, error } = await q;
       if (error) throw new Error(error.message);
       if (txs?.length !== 1) throw new Error(`${txs?.length ?? 0} Bankzeilen mit diesem Betrag ± 5 Tage (genau 1 nötig)`);
