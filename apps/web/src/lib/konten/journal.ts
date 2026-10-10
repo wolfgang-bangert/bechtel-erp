@@ -54,6 +54,7 @@ async function bankBuchungen(sb: SupabaseClient, von: string, bis: string): Prom
     kind: string | null;
     note: string | null;
     bank_transaction_id: string;
+    organization: { name: string | null; customer_number: string | null; supplier_number: string | null } | null;
     sales_invoice: { invoice_number: string | null; organization: { name: string | null; customer_number: string | null } | null } | null;
     incoming_document: { doc_number: string | null; supplier_name: string | null; organization: { supplier_number: string | null } | null } | null;
   };
@@ -81,6 +82,7 @@ async function bankBuchungen(sb: SupabaseClient, von: string, bis: string): Prom
           .from("bank_transaction_match")
           .select(
             "id, amount, ledger_account, kind, note, bank_transaction_id, " +
+              "organization:organization_id(name, customer_number, supplier_number), " +
               "sales_invoice:sales_invoice_id(invoice_number, organization:organization_id(name, customer_number)), " +
               "incoming_document:incoming_document_id(doc_number, supplier_name, organization:supplier_organization_id(supplier_number))",
           )
@@ -119,6 +121,13 @@ async function bankBuchungen(sb: SupabaseClient, von: string, bis: string): Prom
     } else if (si || id) {
       // Zahlungsausgleich: Geldkonto an Debitor/Kreditor
       out.push({ ...basis, konto: geld, gegenkonto: partnerNr || partner, sh: isEingang ? "S" : "H" });
+    } else {
+      // Akonto: Geldkonto an Debitor/Kreditor ohne Rechnung
+      const o = eins(m.organization);
+      if (o) {
+        const nr = ((isEingang ? o.customer_number : o.supplier_number) ?? "").trim();
+        out.push({ ...basis, konto: geld, gegenkonto: nr || o.name || "?", sh: isEingang ? "S" : "H", beleg: "AKONTO", text: m.note?.trim() || `Akonto ${o.name ?? ""}`.trim() });
+      }
     }
   }
   return out;

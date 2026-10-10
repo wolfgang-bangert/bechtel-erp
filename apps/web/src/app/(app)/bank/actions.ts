@@ -559,3 +559,50 @@ export async function setzeIgnoriert(formData: FormData): Promise<void> {
   await supabase.from("bank_transaction").update({ match_status: ignorieren ? "ignored" : "unmatched" }).eq("id", txId);
   revalidatePath("/bank");
 }
+
+/**
+ * Akonto: Bankzeile (bzw. ihren Rest) an einen Debitor/Kreditor OHNE Rechnung buchen – z. B. Ratenzahlungen auf
+ * bereits gestellte Rechnungen. Organisation per Debitoren-/Kreditorennummer oder id. Verrechnet wird später auf der
+ * Organisationsseite (älteste offene Rechnungen zuerst).
+ */
+export async function matchAkonto(_prev: MatchState, formData: FormData): Promise<MatchState> {
+  const txId = String(formData.get("tx_id") ?? "");
+  const nummer = String(formData.get("partner_nr") ?? "").trim();
+  const orgId = String(formData.get("org_id") ?? "").trim();
+  if (!txId) return { error: "Umsatz fehlt." };
+  if (!nummer && !orgId) return { error: "Debitoren-/Kreditorennummer eingeben." };
+
+  const supabase = await createClient();
+  const r = await remainingAmount(supabase, txId);
+  if ("error" in r) return r;
+  if (r.remaining <= 0.005) return { error: "Buchung ist bereits vollständig zugeordnet." };
+
+  const eingang = r.tx.amount >= 0;
+  const q = supabase.from("organization").select("id, name, customer_number, supplier_number");
+  const { data: orgs, error: oe } = orgId
+    ? await q.eq("id", orgId)
+    : await q.eq(eingang ? "customer_number" : "supplier_number", nummer);
+  if (oe) return { error: oe.message };
+  if (!orgs || orgs.length !== 1)
+    return { error: `${eingang ? "Debitor" : "Kreditor"} ${nummer || orgId} nicht gefunden (${orgs?.length ?? 0} Treffer).` };
+  const org = orgs[0];
+
+  const allocRaw = String(formData.get("alloc_amount") ?? "").trim().replace(",", ".");
+  const allocInput = allocRaw ? Number(allocRaw) : null;
+  const amt = r2(Math.min(r.remaining, allocInput && allocInput > 0 ? allocInput : r.remaining));
+  const nr = eingang ? org.customer_number : org.supplier_number;
+
+  const { error: me } = await supabase.from("bank_transaction_match").insert({
+    bank_transaction_id: txId,
+    organization_id: org.id,
+    kind: "akonto",
+    amount: amt,
+    note: `Akonto ${nr ?? ""} ${org.name}`.replace(/\s+/g, " ").trim().slice(0, 60),
+    auto: false,
+  });
+  if (me) return { error: me.message };
+  await refreshMatchStatus(supabase, txId, r.tx.amount);
+  revalidateAll();
+  revalidatePath(`/organisationen/${org.id}`);
+  return { ok: true };
+}

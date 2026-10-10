@@ -8,6 +8,7 @@ import {
   BelegUploadForm,
   KandidatenListen,
   QuickMatchButton,
+  AkontoForm,
   QuickBestellungButton,
   QuickSpecialMatchButton,
   GroupMatchIncomingForm,
@@ -130,6 +131,7 @@ export default async function BankPage({
       ledger_account: string | null;
       attachment_storage_key: string | null;
       attachment_file_name: string | null;
+      organization: { id: string; name: string; customer_number: string | null; supplier_number: string | null } | null;
       sales_invoice: {
         id: string;
         invoice_number: string | null;
@@ -151,6 +153,7 @@ export default async function BankPage({
         "end_to_end_id, bank_ref, match_status, " +
         "bank_account:bank_account_id(label, bank_name, iban), " +
         "matches:bank_transaction_match(id, amount, auto, kind, note, ledger_account, " +
+        "organization:organization_id(id, name, customer_number, supplier_number), " +
         "attachment_storage_key, attachment_file_name, " +
         "sales_invoice:sales_invoice(id, invoice_number, organization:organization(name, customer_number)), " +
         "incoming_document:incoming_document(id, doc_number, supplier_name, " +
@@ -297,11 +300,16 @@ export default async function BankPage({
       .replace(/\b(gmbh|mbh|ag|kg|co|ug|ohg|gbr|se|sas|sarl|s\.?a\.?|ltd|inc|llc|e\.?\s?k\.?|aktiengesellschaft|gruppe|group)\b\.?/g, " ")
       .replace(/[^a-z0-9äöüß]+/g, " ")
       .trim();
+  // gleich, wenn identisch; sonst: bei mehrteiligen Namen mindestens 2 gemeinsame Wörter, bei einteiligen muss das
+  // Wort im anderen vorkommen ("Bernhard Bolanz" ≈ "Verlag Bernhard Bolanz", aber nicht ≈ "Bernhard Schneider")
   const gleicherName = (a: string, b: string) => {
     if (!a || !b) return false;
-    const wa = a.split(" ").filter((w) => w.length > 2);
-    const wb = b.split(" ").filter((w) => w.length > 2);
-    return wa.length > 0 && wb.length > 0 && (a === b || wa[0] === wb[0]);
+    if (a === b) return true;
+    const wa = new Set(a.split(" ").filter((w) => w.length > 2));
+    const wb = new Set(b.split(" ").filter((w) => w.length > 2));
+    if (!wa.size || !wb.size) return false;
+    const gemeinsam = [...wa].filter((w) => wb.has(w)).length;
+    return gemeinsam >= Math.min(2, wa.size, wb.size);
   };
   /**
    * Mehrere offene Rechnungen mit demselben Betrag (z. B. monatliches Abo): die des passenden Lieferanten,
@@ -374,6 +382,26 @@ export default async function BankPage({
       if (d?.length) return { nr, docs: d };
     }
     return undefined;
+  };
+
+  // Akonto-Vorschlag: Organisation zur Gegenseite mit Debitoren-/Kreditorennummer
+  const akontoWoerter = [...new Set(data.map((t) => namensKern(t.counterparty_name ?? "").split(" ").filter((w) => w.length > 3)[0]).filter(Boolean))].slice(0, 40);
+  const akontoOrgs: { id: string; name: string; customer_number: string | null; supplier_number: string | null }[] = [];
+  if (akontoWoerter.length) {
+    const { data: ao } = await supabase
+      .from("organization")
+      .select("id, name, customer_number, supplier_number")
+      .or(akontoWoerter.map((w) => `name.ilike.%${w}%`).join(","))
+      .or("customer_number.not.is.null,supplier_number.not.is.null")
+      .limit(500);
+    akontoOrgs.push(...((ao ?? []) as typeof akontoOrgs));
+  }
+  const akontoVorschlag = (gegenseite: string | null, eingang: boolean) => {
+    const k = namensKern(gegenseite ?? "");
+    if (!k) return undefined;
+    const o = akontoOrgs.find((x) => (eingang ? x.customer_number : x.supplier_number) && gleicherName(k, namensKern(x.name)));
+    const nummer = o ? (eingang ? o.customer_number : o.supplier_number) : null;
+    return o && nummer ? { id: o.id, name: o.name, nummer } : undefined;
   };
 
   let arCandidates: Candidate[] = [];
@@ -609,6 +637,8 @@ export default async function BankPage({
                             {inv.organization?.name ? ` — ${inv.organization.name}` : ""}
                           </Link>
                         );
+                      } else if (m.organization) {
+                        beleg = <Link href={`/organisationen/${m.organization.id}`}>Akonto — {m.organization.name}</Link>;
                       } else {
                         const attUrl = attachmentUrls.get(m.id);
                         beleg = attUrl ? (
@@ -632,7 +662,11 @@ export default async function BankPage({
                             ? inv.organization?.customer_number
                               ? `Debitor ${inv.organization.customer_number}`
                               : "Forderungen"
-                            : (SONDER_FALLBACK_LABEL[m.kind ?? ""] ?? m.kind ?? "—");
+                            : m.organization
+                              ? tx.amount >= 0
+                                ? `Debitor ${m.organization.customer_number ?? "?"}`
+                                : `Kreditor ${m.organization.supplier_number ?? "?"}`
+                              : (SONDER_FALLBACK_LABEL[m.kind ?? ""] ?? m.kind ?? "—");
                       return (
                         <tr key={m.id}>
                           <td>
@@ -709,6 +743,7 @@ export default async function BankPage({
                 suggestion={ledgerRule}
                 textVorschlag={buchungstextVorschlag(tx.counterparty_name, tx.purpose)}
               />
+              <AkontoForm txId={tx.id} remaining={remaining} eingang={tx.amount >= 0} vorschlag={akontoVorschlag(tx.counterparty_name, tx.amount >= 0)} />
               <BelegUploadForm txId={tx.id} remaining={remaining} />
             </div>
           )}
