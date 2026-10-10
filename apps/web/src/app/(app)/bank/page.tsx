@@ -306,10 +306,14 @@ export default async function BankPage({
    * Mehrere offene Rechnungen mit demselben Betrag (z. B. monatliches Abo): die des passenden Lieferanten,
    * und davon die jüngste mit Belegdatum bis 5 Tage nach der Buchung (sonst die älteste offene).
    */
-  const erVorschlagLieferant = (gegenseite: string | null, buchung: string, c: number): string | undefined => {
+  const erVorschlagLieferant = (gegenseite: string | null, buchung: string, c: number, zweck: string | null): string | undefined => {
     const kern = namensKern(gegenseite ?? "");
     const treffer = erRows.filter((r) => r.c === c && gleicherName(kern, r.lieferant));
     if (!treffer.length) return undefined;
+    // Rechnungsnummer im Verwendungszweck hat Vorrang (z. B. Leasing zahlt die Rechnung des Vormonats)
+    const z = (zweck ?? "").replace(/\s+/g, "");
+    const perNummer = treffer.find((r) => r.nummer.length >= 4 && z.includes(r.nummer.replace(/\s+/g, "")));
+    if (perNummer) return perNummer.label;
     const grenze = new Date(new Date(buchung).getTime() + 5 * 86400000).toISOString().slice(0, 10);
     const vorher = treffer.filter((r) => (r.datum ?? "") <= grenze).sort((a, b) => (b.datum ?? "").localeCompare(a.datum ?? ""));
     const t = vorher[0] ?? [...treffer].sort((a, b) => (a.datum ?? "").localeCompare(b.datum ?? ""))[0];
@@ -372,7 +376,7 @@ export default async function BankPage({
   let erCandidates: Candidate[] = [];
   let erPrefill = new Map<number, string | null>();
   // für die Wahl bei mehreren gleich hohen offenen Rechnungen: Lieferant + Belegdatum
-  let erRows: { label: string; c: number; datum: string | null; lieferant: string }[] = [];
+  let erRows: { label: string; c: number; datum: string | null; lieferant: string; nummer: string }[] = [];
   if (hasDebits) {
     const { data: inc } = await supabase
       .from("incoming_document")
@@ -401,6 +405,7 @@ export default async function BankPage({
       c: cents(rows[k].amount),
       datum: i.doc_date,
       lieferant: namensKern(i.supplier_name ?? ""),
+      nummer: rows[k].number,
     }));
   }
 
@@ -448,7 +453,7 @@ export default async function BankPage({
     const remaining = Math.round((Math.abs(tx.amount) - allocated) * 100) / 100;
     const prefill =
       (side === "debitor" ? arPrefill : erPrefill).get(cents(remaining)) ??
-      (side === "kreditor" ? erVorschlagLieferant(tx.counterparty_name, tx.booking_date, cents(remaining)) : undefined) ??
+      (side === "kreditor" ? erVorschlagLieferant(tx.counterparty_name, tx.booking_date, cents(remaining), tx.purpose) : undefined) ??
       undefined;
     // Für wiederkehrende Sachkonto-Buchungen ohne Rechnung (Leasing, Miete,
     // Bankgebühren, ...): aus der BuchhaltungsButler-Historie gelernter
