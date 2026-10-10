@@ -7,6 +7,7 @@ import { extractDokumente } from "./extractDokumente";
 import { orgsNachziehen } from "./orgsNachziehen";
 import { bankLohn } from "./bankLohn";
 import { bankSteuern } from "./bankSteuern";
+import { incomingLieferant } from "./incomingLieferant";
 import { syncNinoxAddresses } from "./syncNinoxAddresses";
 import { syncKeylineOrders } from "./syncKeylineOrders";
 import { syncKeylineInvoices, refreshKeylineInvoice } from "./syncKeylineInvoices";
@@ -734,6 +735,17 @@ async function main() {
       const von = process.argv.find((a) => a.startsWith("--from="))?.split("=")[1];
       console.log(`Steuerzahlungen ausbuchen (USt 1780/1781/1790/1791, KöSt Verwaltungs-GmbH 880)${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await bankSteuern({ dryRun, from: von }), null, 1));
+      break;
+    }
+    case "incoming:lieferant": {
+      const arg = (n: string) => process.argv.find((a) => a.startsWith(n + "="))?.slice(n.length + 1);
+      const nummer = arg("--nummer");
+      const org = arg("--org");
+      if (!nummer || !org) throw new Error("--nummer=… und --org=… sind Pflicht");
+      console.log(`Eingangsrechnungen ${nummer} → Lieferant ${org}${dryRun ? "  (DRY RUN)" : ""}`);
+      const r = await incomingLieferant({ nummer, org, verschmelzen: arg("--verschmelzen"), vorkontierung: arg("--vorkontierung"), dryRun });
+      for (const z of r.log) console.log("  " + z);
+      console.log(`\nFertig. ${r.rechnungen} Rechnungen, ${r.umgestellt} umgestellt, ${r.kontoGesetzt} Konto gesetzt${dryRun ? "  (DRY RUN)" : ""}`);
       break;
     }
     case "incoming:purge": {
