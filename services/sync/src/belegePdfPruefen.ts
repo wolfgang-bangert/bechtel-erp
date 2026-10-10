@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { env } from "./env";
 import { supabase } from "./supabase";
-import { getObjectBytes } from "./storage";
+import { getObjectBytes, pdfFuerKi } from "./storage";
 import { MODEL, bestellnummern, parseJson } from "./extractIncoming";
 import { namensSchluessel } from "./organisationFinden";
 
@@ -67,7 +67,7 @@ export async function belegePdfPruefen(opts: Options = {}) {
   const ergebnis = { belege: docs?.length ?? 0, ok: 0, abweichungen: 0, mitBestellnummer: 0, fehler: [] as string[], beispiele: [] as string[], dryRun };
   for (const d of docs ?? []) {
     try {
-      const pdf = await getObjectBytes(d.pdf_storage_key!);
+      const pdf = pdfFuerKi(await getObjectBytes(d.pdf_storage_key!));
       const res = await client.messages.create({
         model: MODEL,
         max_tokens: 1500,

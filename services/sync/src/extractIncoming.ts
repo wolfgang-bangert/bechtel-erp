@@ -4,7 +4,7 @@ import { seitenNeuZusammenstellen, seitenzahl } from "@werk/shared/pdf/seiten";
 import { gutschriftverfahrenPruefen } from "./gutschriftverfahren";
 import { env } from "./env";
 import { supabase } from "./supabase";
-import { getObjectBytes, putObject, deleteObject, prefix } from "./storage";
+import { getObjectBytes, putObject, deleteObject, prefix, pdfFuerKi } from "./storage";
 import { pagedSelect } from "./db";
 import { pruefeUst, loadOwnVatId, type UstTaxCode } from "./ustCheck";
 import { pruneReceiptDuplicates } from "./pruneReceipts";
@@ -558,7 +558,7 @@ export async function extractIncoming(opts: Options = {}) {
       continue;
     }
     try {
-      const pdf = await getObjectBytes(doc.pdf_storage_key);
+      const pdf = pdfFuerKi(await getObjectBytes(doc.pdf_storage_key));
       const res = await client.messages.create({
         model: MODEL,
         max_tokens: 16000,
