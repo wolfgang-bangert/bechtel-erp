@@ -52,6 +52,7 @@ const API_SEGMENT: Record<string, ModuleKey> = {
   ustva: "buchhaltung",
   zahlungen: "buchhaltung",
   lohn: "buchhaltung",
+  partner: "buchhaltung",
   "pdf-kombinieren": "werkzeuge",
   "pdf-seiten-verwalten": "werkzeuge",
 };
