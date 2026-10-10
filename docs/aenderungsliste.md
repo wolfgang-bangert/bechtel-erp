@@ -646,3 +646,10 @@ Bauen ab. Format: `[ ]` offen · `[x]` erledigt · `→` Entscheidung/Notiz.
   Lohn-Übersicht rechnen den Vortrag ein. Lohn-Abgleich zeigt die Abweichung vom
   erwarteten Monatsend-Saldo (0; bei 1741 die Lohnsteuer des Monats, fällig am 10.
   des Folgemonats).
+- [x] **Amazon: Bestellnummern + Belegprüfung.** `incoming_document.bestellnummern`
+  (KI liest sie bei `incoming:extract` mit; Altbestand `belege:pdf-pruefen`,
+  Standard: Amazon-artige Belege, `--nummer=`, `--neu`). `/bank` schlägt über die
+  Bestellnummer im Verwendungszweck die Rechnung(en) der Bestellung vor (mehrere
+  auf einmal). `pdf_pruefung` hält das Ergebnis PDF ↔ gespeicherte Daten;
+  `/eingangsrechnungen/pruefung` listet Abweichungen (Verkäufer, Nummer, Betrag)
+  und doppelte Rechnungsnummern – nichts wird automatisch überschrieben.

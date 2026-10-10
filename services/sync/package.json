@@ -14,6 +14,7 @@
     "bank:lohn": "tsx src/cli.ts bank:lohn",
     "bank:steuern": "tsx src/cli.ts bank:steuern",
     "incoming:lieferant": "tsx src/cli.ts incoming:lieferant",
+    "belege:pdf-pruefen": "tsx src/cli.ts belege:pdf-pruefen",
     "bank:sammel-zuordnen": "tsx src/cli.ts bank:sammel-zuordnen",
     "bank:gebuehren": "tsx src/cli.ts bank:gebuehren",
     "fx:ecb": "tsx src/cli.ts fx:ecb",

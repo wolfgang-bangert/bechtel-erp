@@ -24,6 +24,7 @@ Extrahiere die Daten und antworte ausschließlich mit JSON, ohne Markdown, in ge
   "supplier": { "name": string|null, "vat_id": string|null, "iban": string|null, "address": string|null },
   "marketplace": string|null,   // siehe Regel zu Marktplatz-Rechnungen unten
   "doc_number": string|null,
+  "order_numbers": [string],    // Bestellnummer(n) des Käufers, z. B. Amazon "305-7818498-7269112"; [] wenn keine
   "doc_date": "YYYY-MM-DD"|null,
   "service_date": "YYYY-MM-DD"|null,
   "due_date": "YYYY-MM-DD"|null,
@@ -161,6 +162,13 @@ Regeln:
   Kreditkarten-/PayPal-Sammelabrechnung. Bei normaler Überweisung/Lastschrift
   oder wenn nichts dazu erkennbar ist: payment_method = null.`;
 
+/** Bestellnummern säubern (Leerzeichen raus, Duplikate weg, höchstens 10). */
+export function bestellnummern(v: unknown): string[] | null {
+  if (!Array.isArray(v)) return null;
+  const out = [...new Set(v.map((x) => String(x ?? "").replace(/\s+/g, "").trim()).filter((x) => x.length >= 5))].slice(0, 10);
+  return out.length ? out : null;
+}
+
 export function parseJson(text: string): unknown {
   const start = text.indexOf("{");
   if (start < 0) throw new Error("keine JSON-Antwort");
@@ -226,6 +234,7 @@ function repairTruncatedJson(s: string): string {
 export type Extracted = {
   doc_type?: string;
   supplier?: { name?: string | null; vat_id?: string | null; iban?: string | null; address?: string | null };
+  order_numbers?: (string | null)[] | null;
   marketplace?: string | null;
   payment_method?: "card" | "paypal" | null;
   doc_number?: string | null;
@@ -763,6 +772,7 @@ export async function extractIncoming(opts: Options = {}) {
           supplier_vat_id: e.supplier?.vat_id ?? null,
           supplier_iban: e.supplier?.iban ?? null,
           doc_number: e.doc_number ?? null,
+          bestellnummern: bestellnummern(e.order_numbers),
           doc_date: docDate,
           service_date: date(e.service_date),
           due_date: netDue ?? date(e.due_date),
