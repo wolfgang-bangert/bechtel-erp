@@ -6,7 +6,7 @@ import {
   MatchForm,
   SpecialMatchForm,
   BelegUploadForm,
-  InvoiceDatalist,
+  KandidatenListen,
   QuickMatchButton,
   QuickBestellungButton,
   QuickSpecialMatchButton,
@@ -718,7 +718,7 @@ export default async function BankPage({
   });
 
   return (
-    <>
+    <KandidatenListen listen={{ "ar-list": arCandidates, "er-list": erCandidates }}>
       <div className="toolbar" style={{ justifyContent: "space-between" }}>
         <h1 style={{ margin: 0 }}>Bank</h1>
         <BankSyncButton last={lastSync ?? null} />
@@ -840,8 +840,6 @@ export default async function BankPage({
 
       {error && <div className="banner-err">Fehler: {error.message}</div>}
 
-      <InvoiceDatalist id="ar-list" options={arCandidates} />
-      <InvoiceDatalist id="er-list" options={erCandidates} />
 
       <div className="table-scroll">
         <table className="data">
@@ -866,6 +864,6 @@ export default async function BankPage({
           {page < lastPage ? <Link className="ghost" href={href(page + 1)}>weiter →</Link> : <span className="nav-disabled">weiter →</span>}
         </div>
       )}
-    </>
+    </KandidatenListen>
   );
 }

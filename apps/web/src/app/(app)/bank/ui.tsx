@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { createContext, useActionState, useContext, useMemo, useRef, useState } from "react";
 import {
   matchTransaction,
   matchSpecial,
@@ -21,13 +21,118 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 export type Candidate = { number: string; label: string };
 
 /** Eine <datalist> je Seite, von allen Zeilen per id genutzt. Wird nie geclippt. */
-export function InvoiceDatalist({ id, options }: { id: string; options: Candidate[] }) {
+/**
+ * Offene Rechnungen als Auswahl für das Zuordnen-Feld - einmal je Seite bereitgestellt (statt je Bankzeile),
+ * die Felder lesen sie über ihre listId ("ar-list" / "er-list").
+ */
+const KandidatenCtx = createContext<Record<string, Candidate[]>>({});
+
+export function KandidatenListen({ listen, children }: { listen: Record<string, Candidate[]>; children: React.ReactNode }) {
+  return <KandidatenCtx.Provider value={listen}>{children}</KandidatenCtx.Provider>;
+}
+
+/**
+ * Eingabefeld mit eigener Auswahlliste (statt <datalist>, dessen Breite der Browser festlegt und lange Einträge
+ * abschneidet): zweizeilig - Nummer und Betrag oben, Partner und Datum darunter -, sucht nach allen Wörtern.
+ */
+function BelegAuswahl({
+  listId,
+  defaultValue,
+  placeholder,
+  markiert,
+}: {
+  listId: string;
+  defaultValue?: string;
+  placeholder: string;
+  markiert: boolean;
+}) {
+  const optionen = useContext(KandidatenCtx)[listId] ?? [];
+  const [wert, setWert] = useState(defaultValue ?? "");
+  const [offen, setOffen] = useState(false);
+  const schliessen = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const treffer = useMemo(() => {
+    const woerter = wert.toLowerCase().split(/\s+/).filter(Boolean);
+    const passend = woerter.length ? optionen.filter((o) => woerter.every((w) => o.label.toLowerCase().includes(w))) : optionen;
+    return passend.slice(0, 60);
+  }, [wert, optionen]);
+
   return (
-    <datalist id={id}>
-      {options.map((o) => (
-        <option key={o.number} value={o.label} />
-      ))}
-    </datalist>
+    <div style={{ position: "relative" }}>
+      <input
+        name="invoice_number_manual"
+        value={wert}
+        onChange={(e) => {
+          setWert(e.target.value);
+          setOffen(true);
+        }}
+        onFocus={() => setOffen(true)}
+        onBlur={() => {
+          schliessen.current = setTimeout(() => setOffen(false), 150);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setOffen(false);
+        }}
+        autoComplete="off"
+        placeholder={placeholder}
+        title={wert}
+        style={{ width: 340, ...(markiert ? { borderColor: "#3a7" } : {}) }}
+      />
+      {offen && treffer.length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            zIndex: 50,
+            top: "100%",
+            left: 0,
+            marginTop: 4,
+            width: "min(760px, 92vw)",
+            maxHeight: 360,
+            overflowY: "auto",
+            background: "var(--card, var(--bg))",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            boxShadow: "0 8px 24px rgba(0,0,0,.18)",
+          }}
+        >
+          {treffer.map((o) => {
+            const [nummer, ...rest] = o.label.split(" — ");
+            const betrag = rest.length > 1 ? rest[rest.length - 1] : "";
+            const mitte = rest.length > 1 ? rest.slice(0, -1).join(" · ") : rest.join(" · ");
+            return (
+              <button
+                key={o.number + o.label}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  if (schliessen.current) clearTimeout(schliessen.current);
+                  setWert(o.label);
+                  setOffen(false);
+                }}
+                className="ghost"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  border: 0,
+                  borderBottom: "1px solid var(--border)",
+                  borderRadius: 0,
+                  padding: "6px 10px",
+                  whiteSpace: "normal",
+                }}
+              >
+                <div style={{ display: "flex", gap: 12, justifyContent: "space-between" }}>
+                  <strong style={{ wordBreak: "break-all" }}>{nummer}</strong>
+                  <span style={{ whiteSpace: "nowrap" }}>{betrag}</span>
+                </div>
+                <div className="count" style={{ fontSize: 12 }}>
+                  {mitte}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -54,13 +159,11 @@ export function MatchForm({
     <form action={action} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
       <input type="hidden" name="tx_id" value={txId} />
       <input type="hidden" name="side" value={side} />
-      <input
-        name="invoice_number_manual"
-        list={listId}
+      <BelegAuswahl
+        listId={listId}
         defaultValue={defaultValue}
-        autoComplete="off"
         placeholder={hint ?? (side === "kreditor" ? "ER-Nr. / Lieferant …" : "Rg-Nr. / Kunde …")}
-        style={{ width: 250, ...(defaultValue ? { borderColor: "#3a7" } : {}) }}
+        markiert={!!defaultValue}
       />
       {showAmount && (
         <input
