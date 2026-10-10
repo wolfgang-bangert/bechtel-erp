@@ -52,7 +52,8 @@ export async function bankZuordnen(opts: Options) {
   const log: string[] = [`Partner: ${org.name} (Debitor ${org.customer_number ?? "–"}, Kreditor ${org.supplier_number ?? "–"})`];
   const ergebnis = { zahlungen: vorlage.zahlungen.length, gebucht: 0, uebersprungen: 0, zuordnungen: 0, log, fehler: [] as string[], dryRun };
 
-  // in diesem Lauf schon verbrauchte Beträge je Rechnung (damit der Probelauf mehrere Zahlungen richtig prüft)
+  // im Probelauf schon verbrauchte Beträge je Rechnung (damit er mehrere Zahlungen richtig prüft); im echten Lauf
+  // steht der Verbrauch nach jedem Einfügen schon im offenen Betrag der Datenbank
   const verbraucht = new Map<string, number>();
 
   for (const z of vorlage.zahlungen) {
@@ -102,7 +103,7 @@ export async function bankZuordnen(opts: Options) {
           const offen = r2(Number(inv.open_amount) + (frei.get(inv.id) ?? 0) - (verbraucht.get(inv.id) ?? 0));
           if (bar + skonto > offen + 0.005) throw new Error(`Rechnung ${p.rechnung}: offen ${offen.toFixed(2)}, gebucht würden ${(bar + skonto).toFixed(2)}`);
           if (p.brutto != null && Math.abs(p.brutto - offen) > 0.005) throw new Error(`Rechnung ${p.rechnung}: offen ${offen.toFixed(2)}, laut Avis ${p.brutto.toFixed(2)}`);
-          verbraucht.set(inv.id, r2((verbraucht.get(inv.id) ?? 0) + bar + skonto));
+          if (dryRun) verbraucht.set(inv.id, r2((verbraucht.get(inv.id) ?? 0) + bar + skonto));
           zeilen.push({ bank_transaction_id: tx.id, sales_invoice_id: inv.id, amount: bar, auto: false, note: z.notiz ?? null });
           if (skonto > 0) {
             const rate = Number(inv.net_total) ? r2((Number(inv.tax_total) / Number(inv.net_total)) * 100) : 0;
@@ -132,7 +133,7 @@ export async function bankZuordnen(opts: Options) {
           const betrag = r2(p.betrag ?? 0);
           const offen = r2(Number(doc.open_amount) + (frei.get(doc.id) ?? 0) - (verbraucht.get(doc.id) ?? 0));
           if (betrag > offen + 0.005) throw new Error(`Eingangsrechnung ${p.eingang}: offen ${offen.toFixed(2)}, gebucht würden ${betrag.toFixed(2)}`);
-          verbraucht.set(doc.id, r2((verbraucht.get(doc.id) ?? 0) + betrag));
+          if (dryRun) verbraucht.set(doc.id, r2((verbraucht.get(doc.id) ?? 0) + betrag));
           zeilen.push({ bank_transaction_id: tx.id, incoming_document_id: doc.id, amount: tx.amount < 0 ? -betrag : betrag, auto: false, note: z.notiz ?? null });
           summe = r2(summe - betrag);
         } else if (p.akonto != null) {
