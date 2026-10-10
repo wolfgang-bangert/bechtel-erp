@@ -1,0 +1,29 @@
+{
+ "partner": "70052",
+ "zahlungen": [
+  {
+   "datum": "2026-08-24",
+   "betrag": -100.83,
+   "zweckEnthaelt": "SecureGo",
+   "ersetzen": true,
+   "notiz": "Doppelzahlung 676776, von ETG mit 683202 verrechnet",
+   "posten": [
+    {
+     "eingang": "683202",
+     "betrag": 100.83
+    }
+   ]
+  },
+  {
+   "datum": "2026-10-08",
+   "betrag": -85.05,
+   "notiz": "Lastschrift Avis 01.10. abzgl. Gutschrift 160/00009",
+   "posten": [
+    {
+     "eingang": "683202",
+     "betrag": 85.05
+    }
+   ]
+  }
+ ]
+}

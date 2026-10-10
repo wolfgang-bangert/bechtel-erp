@@ -85,3 +85,10 @@ export const prefix = {
 };
 
 export { GetObjectCommand };
+
+/** PDF für die KI-Schnittstelle: Bytes vor dem Kopf "%PDF" (z. B. Tab/Zeilenumbruch aus manchen Scannern/Exporten)
+ *  abschneiden - PDF-Viewer übersehen das, die API lehnt die Datei sonst als ungültig ab. */
+export function pdfFuerKi(buf: Buffer): Buffer {
+  const i = buf.indexOf("%PDF");
+  return i > 0 && i < 1024 ? buf.subarray(i) : buf;
+}

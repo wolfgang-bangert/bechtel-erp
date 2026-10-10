@@ -66,6 +66,7 @@ import { fintsSetup, fintsPull, fixCounterpartyNames } from "./fints";
 import { importFracht } from "./importFracht";
 import { supabase } from "./supabase";
 import { bankZuordnen } from "./bankZuordnen";
+import { bankZahlungslauf } from "./bankZahlungslauf";
 
 const cmd = process.argv[2] ?? "";
 const flags = new Set(process.argv.slice(3));
@@ -733,6 +734,11 @@ async function main() {
       const von = process.argv.find((a) => a.startsWith("--from="))?.split("=")[1];
       console.log(`Lohn-Zahlungen ausbuchen (Gehalt 1740, LSt 1741, SV 1742)${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await bankLohn({ dryRun, from: von }), null, 1));
+      break;
+    }
+    case "bank:zahlungslauf": {
+      console.log(`Sammelbuchungen aus Zahlungsläufen zuordnen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await bankZahlungslauf({ dryRun }), null, 1));
       break;
     }
     case "bank:zuordnen": {

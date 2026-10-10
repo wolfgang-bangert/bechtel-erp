@@ -13,6 +13,7 @@
     "incoming:orgs-nachziehen": "tsx src/cli.ts incoming:orgs-nachziehen",
     "bank:lohn": "tsx src/cli.ts bank:lohn",
     "bank:steuern": "tsx src/cli.ts bank:steuern",
+    "bank:zahlungslauf": "tsx src/cli.ts bank:zahlungslauf",
     "incoming:lieferant": "tsx src/cli.ts incoming:lieferant",
     "belege:pdf-pruefen": "tsx src/cli.ts belege:pdf-pruefen",
     "belege:nachbessern": "tsx src/cli.ts belege:nachbessern",

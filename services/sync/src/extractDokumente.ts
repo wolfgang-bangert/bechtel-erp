@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { env } from "./env";
 import { supabase } from "./supabase";
-import { getObjectBytes } from "./storage";
+import { getObjectBytes, pdfFuerKi } from "./storage";
 import { MODEL, parseJson } from "./extractIncoming";
 import { findeOderLegeAn, istEigene, ladeEigene, namensSchluessel } from "./organisationFinden";
 
@@ -86,7 +86,7 @@ export async function extractDokumente(opts: Options = {}) {
 
   for (const d of docs ?? []) {
     try {
-      const pdf = await getObjectBytes(d.storage_key);
+      const pdf = pdfFuerKi(await getObjectBytes(d.storage_key));
       const res = await client.messages.create({
         model: MODEL,
         max_tokens: 2000,
