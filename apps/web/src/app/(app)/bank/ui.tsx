@@ -180,6 +180,42 @@ export function GroupMatchIncomingForm({
  *  Öffnen des Popups beim schnellen Durchklicken mehrerer Umsätze.
  *  stopPropagation, damit der Klick nicht zusätzlich die Zeile (Popup)
  *  öffnet, die Zeile selbst hat einen eigenen onClick. */
+/** Ein-Klick: alle offenen Rechnungen einer Bestellung (Bestellnummer im Verwendungszweck, z. B. Amazon) zuordnen. */
+export function QuickBestellungButton({
+  txId,
+  bestellnummer,
+  docs,
+}: {
+  txId: string;
+  bestellnummer: string;
+  docs: { id: string; label: string }[];
+}) {
+  const [state, action, pending] = useActionState(matchMultipleIncoming, emptyGroup);
+  const titel = docs.map((d) => d.label).join("\n");
+  return (
+    <form action={action} onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+      <input type="hidden" name="tx_id" value={txId} />
+      {docs.map((d) => (
+        <input key={d.id} type="hidden" name="doc_ids" value={d.id} />
+      ))}
+      <button
+        type="submit"
+        className="ghost"
+        disabled={pending}
+        title={`Bestellung ${bestellnummer}:\n${titel}`}
+        style={{ padding: "3px 8px", fontSize: 12, borderColor: "#3a7", color: "#3a7" }}
+      >
+        {pending ? "…" : docs.length === 1 ? `✓ ${docs[0].label}` : `✓ ${docs.length} Rechnungen der Bestellung ${bestellnummer}`}
+      </button>
+      {state.error && (
+        <span className="msg-err" style={{ fontSize: 11 }}>
+          {state.error}
+        </span>
+      )}
+    </form>
+  );
+}
+
 export function QuickMatchButton({
   txId,
   side,

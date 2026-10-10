@@ -8,6 +8,7 @@ import {
   BelegUploadForm,
   InvoiceDatalist,
   QuickMatchButton,
+  QuickBestellungButton,
   QuickSpecialMatchButton,
   GroupMatchIncomingForm,
   NoteEditForm,
@@ -345,6 +346,36 @@ export default async function BankPage({
     return konto ? { counterparty_key: k, ledger_account: konto, sample_postingtext: null as string | null } : undefined;
   };
 
+  // Bestellnummern im Verwendungszweck (Amazon "305-7818498-7269112") → offene Rechnungen mit dieser Bestellnummer
+  const BESTELLNR = /\b\d{3}-\d{7}-\d{7}\b/g;
+  const bestellNrSeite = [...new Set(data.flatMap((t) => (t.purpose ?? "").match(BESTELLNR) ?? []))];
+  const docsJeBestellung = new Map<string, { id: string; label: string; offen: number }[]>();
+  if (bestellNrSeite.length) {
+    const { data: bd } = await supabase
+      .from("incoming_document")
+      .select("id, doc_number, doc_date, open_amount, supplier_name, bestellnummern")
+      .overlaps("bestellnummern", bestellNrSeite)
+      .neq("status", "rejected")
+      .in("payment_status", ["open", "partly_paid"])
+      .gt("open_amount", 0);
+    for (const d of (bd ?? []) as { id: string; doc_number: string | null; doc_date: string | null; open_amount: number; supplier_name: string | null; bestellnummern: string[] }[]) {
+      for (const nr of d.bestellnummern ?? []) {
+        if (!bestellNrSeite.includes(nr)) continue;
+        docsJeBestellung.set(nr, [
+          ...(docsJeBestellung.get(nr) ?? []),
+          { id: d.id, label: `${d.doc_number ?? "?"} — ${d.supplier_name ?? "?"} — vom ${fmtDate(d.doc_date)} — ${fmtEur(d.open_amount)}`, offen: Number(d.open_amount) },
+        ]);
+      }
+    }
+  }
+  const bestellVorschlag = (zweck: string | null) => {
+    for (const nr of (zweck ?? "").match(BESTELLNR) ?? []) {
+      const d = docsJeBestellung.get(nr);
+      if (d?.length) return { nr, docs: d };
+    }
+    return undefined;
+  };
+
   let arCandidates: Candidate[] = [];
   let arPrefill = new Map<number, string | null>();
   if (hasCredits) {
@@ -494,7 +525,14 @@ export default async function BankPage({
         <span key="s" className="tag">
           {MATCH_STATUS_LABEL[tx.match_status] ?? tx.match_status}
         </span>,
-        remaining > 0.01 && prefill ? (
+        remaining > 0.01 && side === "kreditor" && bestellVorschlag(tx.purpose) ? (
+          <QuickBestellungButton
+            key="v"
+            txId={tx.id}
+            bestellnummer={bestellVorschlag(tx.purpose)!.nr}
+            docs={bestellVorschlag(tx.purpose)!.docs}
+          />
+        ) : remaining > 0.01 && prefill ? (
           <QuickMatchButton key="v" txId={tx.id} side={side} suggestion={prefill} />
         ) : remaining > 0.01 && ledgerRule ? (
           <QuickSpecialMatchButton

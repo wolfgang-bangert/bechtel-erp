@@ -8,6 +8,7 @@ import { orgsNachziehen } from "./orgsNachziehen";
 import { bankLohn } from "./bankLohn";
 import { bankSteuern } from "./bankSteuern";
 import { incomingLieferant } from "./incomingLieferant";
+import { belegePdfPruefen } from "./belegePdfPruefen";
 import { syncNinoxAddresses } from "./syncNinoxAddresses";
 import { syncKeylineOrders } from "./syncKeylineOrders";
 import { syncKeylineInvoices, refreshKeylineInvoice } from "./syncKeylineInvoices";
@@ -746,6 +747,13 @@ async function main() {
       const r = await incomingLieferant({ nummer, org, verschmelzen: arg("--verschmelzen"), vorkontierung: arg("--vorkontierung"), dryRun });
       for (const z of r.log) console.log("  " + z);
       console.log(`\nFertig. ${r.rechnungen} Rechnungen, ${r.umgestellt} umgestellt, ${r.kontoGesetzt} Konto gesetzt${dryRun ? "  (DRY RUN)" : ""}`);
+      break;
+    }
+    case "belege:pdf-pruefen": {
+      const arg = (n: string) => process.argv.find((a) => a.startsWith(n + "="))?.slice(n.length + 1);
+      console.log(`Belege gegen PDF prüfen (Verkäufer, Nummer, Betrag, Bestellnummern)${dryRun ? "  (DRY RUN)" : ""}`);
+      const lim = arg("--limit");
+      console.log(JSON.stringify(await belegePdfPruefen({ dryRun, nummer: arg("--nummer"), neu: flags.has("--neu"), limit: lim ? Number(lim) : undefined }), null, 1));
       break;
     }
     case "incoming:purge": {

@@ -50,6 +50,7 @@ const NAV_GROUPS: NavGroup[] = [
     links: [
       { href: "/offene-posten", label: "Offene Posten" },
       { href: "/eingangsrechnungen", label: "Eingangsrechnungen" },
+      { href: "/eingangsrechnungen/pruefung", label: "Belegprüfung" },
       { href: "/bank", label: "Bank" },
       { href: "/zahlungen", label: "Zahlungen" },
       { href: "/lohnbuchungen", label: "Lohnbuchungen" },
