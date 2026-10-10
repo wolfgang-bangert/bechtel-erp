@@ -67,6 +67,7 @@ import { importFracht } from "./importFracht";
 import { supabase } from "./supabase";
 import { bankZuordnen } from "./bankZuordnen";
 import { bankZahlungslauf } from "./bankZahlungslauf";
+import { fxUmrechnen } from "./fxUmrechnen";
 
 const cmd = process.argv[2] ?? "";
 const flags = new Set(process.argv.slice(3));
@@ -734,6 +735,12 @@ async function main() {
       const von = process.argv.find((a) => a.startsWith("--from="))?.split("=")[1];
       console.log(`Lohn-Zahlungen ausbuchen (Gehalt 1740, LSt 1741, SV 1742)${dryRun ? "  (DRY RUN)" : ""}`);
       console.log(JSON.stringify(await bankLohn({ dryRun, from: von }), null, 1));
+      break;
+    }
+    case "incoming:fx-umrechnen": {
+      const nummer = process.argv.find((a) => a.startsWith("--nummer="))?.slice(9);
+      console.log(`Fremdwährungsbelege zum EZB-Kurs in EUR umrechnen${dryRun ? "  (DRY RUN)" : ""}`);
+      console.log(JSON.stringify(await fxUmrechnen({ dryRun, nummer }), null, 1));
       break;
     }
     case "bank:zahlungslauf": {

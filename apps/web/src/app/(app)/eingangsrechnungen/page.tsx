@@ -36,7 +36,7 @@ const PAYMENT_LABEL: Record<string, string> = {
 const PAGE_SIZE = 200;
 
 const LISTEN_SELECT =
-  "id, file_name, doc_number, doc_type, doc_date, gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date, ledger_account, tax_code_id, net_amount, tax_amount, created_at, colleague_checked_at, colleague_checked_by, ust_status:extraction->_ust->>status, incoming_document_item!incoming_document_item_incoming_document_id_fkey ( ledger_account, tax_code_id, linked_document_id, net_amount, tax_rate )" as const;
+  "id, file_name, doc_number, doc_type, doc_date, gross_amount, currency, fx_gross_amount, payment_method, payment_status, status, supplier_name, supplier_organization_id, email_from, advice_reference, advice_debit_date, ledger_account, tax_code_id, net_amount, tax_amount, created_at, colleague_checked_at, colleague_checked_by, ust_status:extraction->_ust->>status, incoming_document_item!incoming_document_item_incoming_document_id_fkey ( ledger_account, tax_code_id, linked_document_id, net_amount, tax_rate )" as const;
 
 export default async function EingangsrechnungenPage({
   searchParams,
@@ -374,6 +374,13 @@ export default async function EingangsrechnungenPage({
                   <td className="bd-sub" title={new Date(d.created_at).toLocaleString("de-DE")}>{fmtDate(d.created_at)}</td>
                   <td className="bd-num">
                     {fmtEur(d.doc_type === "credit_note" ? -Math.abs(d.gross_amount ?? 0) : d.gross_amount)}
+                    {d.currency && d.currency !== "EUR" && (
+                      <div className="bd-sub">
+                        {d.fx_gross_amount != null
+                          ? `${Number(d.fx_gross_amount).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${d.currency}`
+                          : d.currency}
+                      </div>
+                    )}
                   </td>
                   {!isHint && (
                     <td className="wrap">

@@ -5,6 +5,7 @@ import { gutschriftverfahrenPruefen } from "./gutschriftverfahren";
 import { env } from "./env";
 import { supabase } from "./supabase";
 import { getObjectBytes, putObject, deleteObject, prefix, pdfFuerKi } from "./storage";
+import { belegFxUmrechnen } from "./fxUmrechnen";
 import { pagedSelect } from "./db";
 import { pruefeUst, loadOwnVatId, type UstTaxCode } from "./ustCheck";
 import { pruneReceiptDuplicates } from "./pruneReceipts";
@@ -889,6 +890,11 @@ export async function extractIncoming(opts: Options = {}) {
           .select("id, net_amount");
         if (iErr) throw new Error(iErr.message);
         await seedAllocations(ins ?? [], e.line_items ?? []);
+      }
+      // Fremdwährung: zum EZB-Kurs des Belegdatums in EUR umrechnen (Original bleibt in fx_gross_amount)
+      if (!isHint) {
+        const fx = await belegFxUmrechnen(doc.id);
+        if (fx) console.log(`\n  Währung ${fx}`);
       }
       // Gutschriftverfahren (Kunde stellt aus und überweist, z.B. Festool): als Ausgangsrechnung übernehmen
       if (!isHint) {
