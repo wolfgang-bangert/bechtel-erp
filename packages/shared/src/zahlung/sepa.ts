@@ -83,7 +83,9 @@ export function erzeugePain001(opts: {
     `<Document xmlns="${ns}" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="${ns} ${format}.xsd">` +
     `<CstmrCdtTrfInitn><GrpHdr><MsgId>${esc(sepaId(opts.msgId))}</MsgId><CreDtTm>${iso}</CreDtTm>` +
     `<NbOfTxs>${zahlungen.length}</NbOfTxs><CtrlSum>${betragText(summe)}</CtrlSum><InitgPty><Nm>${esc(name)}</Nm></InitgPty></GrpHdr>` +
-    `<PmtInf><PmtInfId>${esc(sepaId(opts.msgId + "-1"))}</PmtInfId><PmtMtd>TRF</PmtMtd><BtchBookg>true</BtchBookg>` +
+    // BtchBookg=false: Einzelbuchung - jede Überweisung erscheint einzeln im Kontoauszug (mit Empfänger und
+    // Verwendungszweck) und wird von bank:match zugeordnet; eine Sammelbuchung ordnet bank:zahlungslauf zu
+    `<PmtInf><PmtInfId>${esc(sepaId(opts.msgId + "-1"))}</PmtInfId><PmtMtd>TRF</PmtMtd><BtchBookg>false</BtchBookg>` +
     `<NbOfTxs>${zahlungen.length}</NbOfTxs><CtrlSum>${betragText(summe)}</CtrlSum>` +
     `<PmtTpInf><SvcLvl><Cd>SEPA</Cd></SvcLvl></PmtTpInf>` +
     `<ReqdExctnDt>${v9 ? `<Dt>${opts.ausfuehrung}</Dt>` : opts.ausfuehrung}</ReqdExctnDt>` +
